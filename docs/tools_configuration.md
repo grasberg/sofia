@@ -9,6 +9,7 @@ Sofia's tools configuration is located in the `tools` field of `config.json`.
   "tools": {
     "web": { ... },
     "exec": { ... },
+    "google": { ... },
     "cron": { ... },
     "skills": { ... }
   }
@@ -97,6 +98,56 @@ The cron tool is used for scheduling periodic tasks.
 |--------|------|---------|-------------|
 | `exec_timeout_minutes` | int | 5 | Execution timeout in minutes, 0 means no limit |
 
+## Google Tool (`google_cli`)
+
+The Google tool lets Sofia run `gogcli` commands for Gmail, Drive, Calendar, and other Google services.
+
+| Config | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | bool | false | Enable the `google_cli` tool |
+| `binary_path` | string | `gog` | Path to the `gog` binary |
+| `timeout_seconds` | int | 90 | Timeout for each `gog` command |
+| `allowed_commands` | array | `['gmail','drive','calendar']` | Allowed top-level `gog` commands |
+
+### Configuration Example
+
+```json
+{
+  "tools": {
+    "google": {
+      "enabled": true,
+      "binary_path": "gog",
+      "timeout_seconds": 90,
+      "allowed_commands": ["gmail", "drive", "calendar", "docs", "sheets"]
+    }
+  }
+}
+```
+
+### Setup Notes
+
+1. Install `gogcli` and verify it runs: `gog --version`
+2. Store OAuth credentials: `gog auth credentials <path-to-client.json>`
+3. Authorize at least one account: `gog auth add <you@example.com>`
+4. Keep `allowed_commands` minimal and expand only as needed
+
+### Batched Gmail Example
+
+When operating on many Gmail message IDs, prefer one `google_cli` call with `batch_ids`:
+
+```json
+{
+  "name": "google_cli",
+  "arguments": {
+    "args": ["gmail", "batch", "modify", "--add", "STARRED", "--remove", "INBOX"],
+    "batch_ids": ["msg_id_1", "msg_id_2", "msg_id_3"],
+    "json": true
+  }
+}
+```
+
+This reduces subprocess overhead compared with many one-ID calls.
+
 ## Skills Tool
 
 The skills tool configures skill discovery and installation via registries like ClawHub.
@@ -138,6 +189,7 @@ All configuration options can be overridden via environment variables with the f
 For example:
 - `SOFIA_TOOLS_WEB_BRAVE_ENABLED=true`
 - `SOFIA_TOOLS_EXEC_ENABLE_DENY_PATTERNS=false`
+- `SOFIA_TOOLS_GOOGLE_ENABLED=true`
 - `SOFIA_TOOLS_CRON_EXEC_TIMEOUT_MINUTES=10`
 
 Note: Array-type environment variables are not currently supported and must be set via the config file.

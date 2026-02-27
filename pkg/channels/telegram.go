@@ -169,6 +169,34 @@ func (c *TelegramChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 		return fmt.Errorf("invalid chat ID: %w", err)
 	}
 
+	if msg.Type == "thinking" {
+		// Thinking indicator
+		err := c.bot.SendChatAction(ctx, tu.ChatAction(tu.ID(chatID), telego.ChatActionTyping))
+		if err != nil {
+			logger.ErrorCF("telegram", "Failed to send chat action", map[string]any{
+				"error": err.Error(),
+			})
+		}
+
+		// Stop any previous thinking animation
+		if prevStop, ok := c.stopThinking.Load(msg.ChatID); ok {
+			if cf, ok := prevStop.(*thinkingCancel); ok && cf != nil {
+				cf.Cancel()
+			}
+		}
+
+		// Create cancel function for thinking state
+		_, thinkCancel := context.WithTimeout(ctx, 5*time.Minute)
+		c.stopThinking.Store(msg.ChatID, &thinkingCancel{fn: thinkCancel})
+
+		pMsg, err := c.bot.SendMessage(ctx, tu.Message(tu.ID(chatID), "Thinking... 💭"))
+		if err == nil {
+			pID := pMsg.MessageID
+			c.placeholders.Store(msg.ChatID, pID)
+		}
+		return nil
+	}
+
 	// Stop thinking animation
 	if stop, ok := c.stopThinking.Load(msg.ChatID); ok {
 		if cf, ok := stop.(*thinkingCancel); ok && cf != nil {
@@ -340,32 +368,6 @@ func (c *TelegramChannel) handleMessage(ctx context.Context, message *telego.Mes
 		"chat_id":   fmt.Sprintf("%d", chatID),
 		"preview":   utils.Truncate(content, 50),
 	})
-
-	// Thinking indicator
-	err := c.bot.SendChatAction(ctx, tu.ChatAction(tu.ID(chatID), telego.ChatActionTyping))
-	if err != nil {
-		logger.ErrorCF("telegram", "Failed to send chat action", map[string]any{
-			"error": err.Error(),
-		})
-	}
-
-	// Stop any previous thinking animation
-	chatIDStr := fmt.Sprintf("%d", chatID)
-	if prevStop, ok := c.stopThinking.Load(chatIDStr); ok {
-		if cf, ok := prevStop.(*thinkingCancel); ok && cf != nil {
-			cf.Cancel()
-		}
-	}
-
-	// Create cancel function for thinking state
-	_, thinkCancel := context.WithTimeout(ctx, 5*time.Minute)
-	c.stopThinking.Store(chatIDStr, &thinkingCancel{fn: thinkCancel})
-
-	pMsg, err := c.bot.SendMessage(ctx, tu.Message(tu.ID(chatID), "Thinking... 💭"))
-	if err == nil {
-		pID := pMsg.MessageID
-		c.placeholders.Store(chatIDStr, pID)
-	}
 
 	peerKind := "direct"
 	peerID := fmt.Sprintf("%d", user.ID)

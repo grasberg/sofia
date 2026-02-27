@@ -221,6 +221,12 @@ func DefaultConfig() *Config {
 			Exec: ExecConfig{
 				EnableDenyPatterns: true,
 			},
+			Google: GoogleToolsConfig{
+				Enabled:         false,
+				BinaryPath:      "gog",
+				TimeoutSeconds:  90,
+				AllowedCommands: []string{"gmail", "drive", "calendar"},
+			},
 			Skills: SkillsToolsConfig{
 				Registries: SkillsRegistriesConfig{
 					ClawHub: ClawHubRegistryConfig{
@@ -242,6 +248,11 @@ func DefaultConfig() *Config {
 		Devices: DevicesConfig{
 			Enabled:    false,
 			MonitorUSB: true,
+		},
+		WebUI: WebUIConfig{
+			Enabled: true,
+			Host:    "127.0.0.1",
+			Port:    18795,
 		},
 	}
 }

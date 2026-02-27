@@ -144,6 +144,51 @@ sofia auth models
 sofia auth login --provider openai
 ```
 
+### Enable Gmail/Drive access via `gogcli`
+
+1. Install `gogcli` and verify:
+
+```bash
+gog --version
+```
+
+2. Configure `gogcli` OAuth and add an account:
+
+```bash
+gog auth credentials ~/Downloads/client_secret.json
+gog auth add you@gmail.com
+```
+
+3. Enable Sofia's Google wrapper tool in `~/.sofia/config.json`:
+
+```json
+{
+  "tools": {
+    "google": {
+      "enabled": true,
+      "binary_path": "gog",
+      "timeout_seconds": 90,
+      "allowed_commands": ["gmail", "drive", "calendar"]
+    }
+  }
+}
+```
+
+Keep `allowed_commands` minimal and only add more top-level commands when needed.
+
+4. For many Gmail message IDs, use one batched tool call (faster than many single calls):
+
+```json
+{
+  "name": "google_cli",
+  "arguments": {
+    "args": ["gmail", "batch", "modify", "--add", "STARRED", "--remove", "INBOX"],
+    "batch_ids": ["msg_id_1", "msg_id_2", "msg_id_3"],
+    "json": true
+  }
+}
+```
+
 ## Chat app setup
 
 Channel setup details are documented in the main README and channel docs:

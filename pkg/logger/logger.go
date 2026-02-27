@@ -34,10 +34,41 @@ var (
 	logger       *Logger
 	once         sync.Once
 	mu           sync.RWMutex
+	subscribers  []chan string
+	logHistory   []string
+	maxHistory   = 50
 )
 
 type Logger struct {
 	file *os.File
+}
+
+func Subscribe() chan string {
+	mu.Lock()
+	defer mu.Unlock()
+	ch := make(chan string, 100)
+	subscribers = append(subscribers, ch)
+	return ch
+}
+
+func Unsubscribe(ch chan string) {
+	mu.Lock()
+	defer mu.Unlock()
+	for i, sub := range subscribers {
+		if sub == ch {
+			subscribers = append(subscribers[:i], subscribers[i+1:]...)
+			close(ch)
+			break
+		}
+	}
+}
+
+func GetHistory() []string {
+	mu.RLock()
+	defer mu.RUnlock()
+	history := make([]string, len(logHistory))
+	copy(history, logHistory)
+	return history
 }
 
 type LogEntry struct {
@@ -139,6 +170,25 @@ func logMessage(level LogLevel, component string, message string, fields map[str
 	)
 
 	log.Println(logLine)
+
+	// Save to history
+	mu.Lock()
+	logHistory = append(logHistory, logLine)
+	if len(logHistory) > maxHistory {
+		logHistory = logHistory[1:]
+	}
+	mu.Unlock()
+
+	// Broadcast to subscribers
+	mu.RLock()
+	for _, sub := range subscribers {
+		select {
+		case sub <- logLine:
+		default:
+			// Subscriber too slow, drop message
+		}
+	}
+	mu.RUnlock()
 
 	if level == FATAL {
 		os.Exit(1)

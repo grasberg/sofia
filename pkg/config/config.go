@@ -58,6 +58,13 @@ type Config struct {
 	Tools     ToolsConfig     `json:"tools"`
 	Heartbeat HeartbeatConfig `json:"heartbeat"`
 	Devices   DevicesConfig   `json:"devices"`
+	WebUI     WebUIConfig     `json:"webui"`
+}
+
+type WebUIConfig struct {
+	Enabled bool   `json:"enabled" env:"SOFIA_WEBUI_ENABLED"`
+	Host    string `json:"host"    env:"SOFIA_WEBUI_HOST"`
+	Port    int    `json:"port"    env:"SOFIA_WEBUI_PORT"`
 }
 
 // MarshalJSON implements custom JSON marshaling for Config
@@ -372,10 +379,18 @@ type ExecConfig struct {
 	CustomDenyPatterns []string `json:"custom_deny_patterns" env:"SOFIA_TOOLS_EXEC_CUSTOM_DENY_PATTERNS"`
 }
 
+type GoogleToolsConfig struct {
+	Enabled         bool     `json:"enabled"          env:"SOFIA_TOOLS_GOOGLE_ENABLED"`
+	BinaryPath      string   `json:"binary_path"      env:"SOFIA_TOOLS_GOOGLE_BINARY_PATH"`
+	TimeoutSeconds  int      `json:"timeout_seconds"  env:"SOFIA_TOOLS_GOOGLE_TIMEOUT_SECONDS"`
+	AllowedCommands []string `json:"allowed_commands" env:"SOFIA_TOOLS_GOOGLE_ALLOWED_COMMANDS"`
+}
+
 type ToolsConfig struct {
 	Web    WebToolsConfig    `json:"web"`
 	Cron   CronToolsConfig   `json:"cron"`
 	Exec   ExecConfig        `json:"exec"`
+	Google GoogleToolsConfig `json:"google"`
 	Skills SkillsToolsConfig `json:"skills"`
 }
 

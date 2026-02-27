@@ -24,6 +24,7 @@ import (
 	"github.com/sipeed/sofia/pkg/providers"
 	"github.com/sipeed/sofia/pkg/state"
 	"github.com/sipeed/sofia/pkg/tools"
+	"github.com/sipeed/sofia/pkg/web"
 	"github.com/sipeed/sofia/pkg/voice"
 )
 
@@ -189,6 +190,16 @@ func gatewayCmd(debug bool) error {
 		}
 	}()
 	fmt.Printf("✓ Health endpoints available at http://%s:%d/health and /ready\n", cfg.Gateway.Host, cfg.Gateway.Port)
+
+	if cfg.WebUI.Enabled {
+		webServer := web.NewServer(cfg, agentLoop)
+		go func() {
+			if err := webServer.Start(ctx); err != nil {
+				logger.ErrorCF("web", "Web UI error", map[string]any{"error": err.Error()})
+			}
+		}()
+		fmt.Printf("✓ Web UI available at http://%s:%d\n", cfg.WebUI.Host, cfg.WebUI.Port)
+	}
 
 	go agentLoop.Run(ctx)
 

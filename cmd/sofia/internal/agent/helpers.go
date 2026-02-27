@@ -16,6 +16,7 @@ import (
 	"github.com/sipeed/sofia/pkg/bus"
 	"github.com/sipeed/sofia/pkg/logger"
 	"github.com/sipeed/sofia/pkg/providers"
+	"github.com/sipeed/sofia/pkg/web"
 )
 
 func agentCmd(message, sessionKey, model string, debug bool) error {
@@ -58,6 +59,16 @@ func agentCmd(message, sessionKey, model string, debug bool) error {
 			"skills_total":     startupInfo["skills"].(map[string]any)["total"],
 			"skills_available": startupInfo["skills"].(map[string]any)["available"],
 		})
+
+	if cfg.WebUI.Enabled {
+		webServer := web.NewServer(cfg, agentLoop)
+		go func() {
+			if err := webServer.Start(context.Background()); err != nil {
+				logger.ErrorCF("web", "Web UI error", map[string]any{"error": err.Error()})
+			}
+		}()
+		fmt.Printf("✓ Web UI available at http://%s:%d\n", cfg.WebUI.Host, cfg.WebUI.Port)
+	}
 
 	if message != "" {
 		ctx := context.Background()

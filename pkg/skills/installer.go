@@ -121,3 +121,22 @@ func (si *SkillInstaller) ListAvailableSkills(ctx context.Context) ([]AvailableS
 
 	return skills, nil
 }
+
+func (si *SkillInstaller) InstallFromMarkdown(name string, content []byte) error {
+	skillDir := filepath.Join(si.workspace, "skills", name)
+
+	if _, err := os.Stat(skillDir); err == nil {
+		return fmt.Errorf("skill '%s' already exists", name)
+	}
+
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create skill directory: %w", err)
+	}
+
+	skillPath := filepath.Join(skillDir, "SKILL.md")
+	if err := fileutil.WriteFileAtomic(skillPath, content, 0o600); err != nil {
+		return fmt.Errorf("failed to write skill file: %w", err)
+	}
+
+	return nil
+}

@@ -297,6 +297,23 @@ func TestDefaultConfig_WebTools(t *testing.T) {
 	}
 }
 
+func TestDefaultConfig_GoogleTools(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if cfg.Tools.Google.Enabled {
+		t.Error("Google tools should be disabled by default")
+	}
+	if cfg.Tools.Google.BinaryPath != "gog" {
+		t.Errorf("Expected Google binary path 'gog', got %q", cfg.Tools.Google.BinaryPath)
+	}
+	if cfg.Tools.Google.TimeoutSeconds != 90 {
+		t.Errorf("Expected Google timeout 90, got %d", cfg.Tools.Google.TimeoutSeconds)
+	}
+	if len(cfg.Tools.Google.AllowedCommands) != 3 {
+		t.Fatalf("Expected 3 allowed commands, got %d", len(cfg.Tools.Google.AllowedCommands))
+	}
+}
+
 func TestSaveConfig_FilePermissions(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("file permission bits are not enforced on Windows")
@@ -408,6 +425,43 @@ func TestLoadConfig_WebToolsProxy(t *testing.T) {
 	}
 	if cfg.Tools.Web.Proxy != "http://127.0.0.1:7890" {
 		t.Fatalf("Tools.Web.Proxy = %q, want %q", cfg.Tools.Web.Proxy, "http://127.0.0.1:7890")
+	}
+}
+
+func TestLoadConfig_GoogleTools(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.json")
+	configJSON := `{
+  "agents": {"defaults":{"workspace":"./workspace","model":"gpt4","max_tokens":8192,"max_tool_iterations":20}},
+  "model_list": [{"model_name":"gpt4","model":"openai/gpt-5.2","api_key":"x"}],
+  "tools": {
+    "google": {
+      "enabled": true,
+      "binary_path": "/opt/homebrew/bin/gog",
+      "timeout_seconds": 45,
+      "allowed_commands": ["gmail", "drive"]
+    }
+  }
+}`
+	if err := os.WriteFile(configPath, []byte(configJSON), 0o600); err != nil {
+		t.Fatalf("os.WriteFile() error: %v", err)
+	}
+
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+	if !cfg.Tools.Google.Enabled {
+		t.Fatal("Tools.Google.Enabled should be true")
+	}
+	if cfg.Tools.Google.BinaryPath != "/opt/homebrew/bin/gog" {
+		t.Fatalf("Tools.Google.BinaryPath = %q", cfg.Tools.Google.BinaryPath)
+	}
+	if cfg.Tools.Google.TimeoutSeconds != 45 {
+		t.Fatalf("Tools.Google.TimeoutSeconds = %d", cfg.Tools.Google.TimeoutSeconds)
+	}
+	if len(cfg.Tools.Google.AllowedCommands) != 2 {
+		t.Fatalf("Tools.Google.AllowedCommands length = %d", len(cfg.Tools.Google.AllowedCommands))
 	}
 }
 

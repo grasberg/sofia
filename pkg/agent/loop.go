@@ -114,6 +114,14 @@ func registerSharedTools(
 		}
 		agent.Tools.Register(tools.NewWebFetchToolWithProxy(50000, cfg.Tools.Web.Proxy))
 
+		if cfg.Tools.Google.Enabled {
+			agent.Tools.Register(tools.NewGoogleCLITool(
+				cfg.Tools.Google.BinaryPath,
+				cfg.Tools.Google.TimeoutSeconds,
+				cfg.Tools.Google.AllowedCommands,
+			))
+		}
+
 		// Hardware tools (I2C, SPI) - Linux only, returns error on other platforms
 		agent.Tools.Register(tools.NewI2CTool())
 		agent.Tools.Register(tools.NewSPITool())
@@ -405,6 +413,15 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 
 	// 1. Update tool contexts
 	al.updateToolContexts(agent, opts.Channel, opts.ChatID)
+
+	// 1b. Signal thinking status to the channel
+	if opts.Channel != "" && opts.ChatID != "" && !constants.IsInternalChannel(opts.Channel) {
+		al.bus.PublishOutbound(bus.OutboundMessage{
+			Channel: opts.Channel,
+			ChatID:  opts.ChatID,
+			Type:    "thinking",
+		})
+	}
 
 	// 2. Build messages (skip history for heartbeat)
 	var history []providers.Message
@@ -832,9 +849,20 @@ func (al *AgentLoop) GetStartupInfo() map[string]any {
 
 	// Tools info
 	toolsList := agent.Tools.List()
+	detailedTools := make([]map[string]string, 0, len(toolsList))
+	for _, name := range toolsList {
+		if t, ok := agent.Tools.Get(name); ok {
+			detailedTools = append(detailedTools, map[string]string{
+				"name":        t.Name(),
+				"description": t.Description(),
+			})
+		}
+	}
+
 	info["tools"] = map[string]any{
 		"count": len(toolsList),
 		"names": toolsList,
+		"list":  detailedTools,
 	}
 
 	// Skills info

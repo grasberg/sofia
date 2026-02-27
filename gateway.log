@@ -1,0 +1,61 @@
+2026/02/27 19:10:34 [2026-02-27T18:10:34Z] [INFO] agent: Created implicit main agent (no agents.list configured)
+
+📦 Agent Status:
+  • Tools: 15 loaded
+  • Skills: 7/7 available
+2026/02/27 19:10:34 [2026-02-27T18:10:34Z] [INFO] agent: Agent initialized {tools_count=15, skills_total=7, skills_available=7}
+2026/02/27 19:10:34 [2026-02-27T18:10:34Z] [INFO] channels: Initializing channel manager
+2026/02/27 19:10:34 [2026-02-27T18:10:34Z] [INFO] channels: Telegram channel enabled successfully
+2026/02/27 19:10:34 [2026-02-27T18:10:34Z] [INFO] channels: Channel initialization completed {enabled_channels=1}
+✓ Channels enabled: [telegram]
+✓ Gateway started on 127.0.0.1:18790
+Press Ctrl+C to stop
+✓ Cron service started
+2026/02/27 19:10:34 [2026-02-27T18:10:34Z] [INFO] heartbeat: Heartbeat service started {interval_minutes=60}
+✓ Heartbeat service started
+2026/02/27 19:10:34 [2026-02-27T18:10:34Z] [INFO] devices: Device event service disabled or no sources
+2026/02/27 19:10:34 [2026-02-27T18:10:34Z] [INFO] channels: Starting all channels
+2026/02/27 19:10:34 [2026-02-27T18:10:34Z] [INFO] channels: Starting channel {channel=telegram}
+2026/02/27 19:10:34 [2026-02-27T18:10:34Z] [INFO] telegram: Starting Telegram bot (polling mode)...
+2026/02/27 19:10:34 [2026-02-27T18:10:34Z] [INFO] channels: Outbound dispatcher started
+2026/02/27 19:10:34 [2026-02-27T18:10:34Z] [INFO] telegram: Telegram bot connected {username=botensofia_bot}
+2026/02/27 19:10:34 [2026-02-27T18:10:34Z] [INFO] channels: All channels started
+✓ Health endpoints available at http://127.0.0.1:18790/health and /ready
+✓ Web UI available at http://127.0.0.1:18795
+2026/02/27 19:10:34 [2026-02-27T18:10:34Z] [INFO] web: Starting Web UI {port=18795, host=127.0.0.1}
+2026/02/27 19:10:40 [2026-02-27T18:10:40Z] [INFO] agent: LLM requested tool calls {agent_id=main, tools=[google_cli], count=1, iteration=1}
+2026/02/27 19:10:40 [2026-02-27T18:10:40Z] [INFO] agent: Tool call: google_cli({"args":["gmail","search","is:unread","--max","5"]}) {agent_id=main, tool=google_cli, iteration=1}
+2026/02/27 19:10:40 [2026-02-27T18:10:40Z] [INFO] tool: Tool execution started {tool=google_cli, args=map[args:[gmail search is:unread --max 5]]}
+2026/02/27 19:10:40 [2026-02-27T18:10:40Z] [INFO] tool: Tool execution completed {tool=google_cli, duration_ms=383, result_length=1533}
+2026/02/27 19:10:44 [2026-02-27T18:10:44Z] [INFO] agent: LLM requested tool calls {count=1, iteration=2, agent_id=main, tools=[google_cli]}
+2026/02/27 19:10:44 [2026-02-27T18:10:44Z] [INFO] agent: Tool call: google_cli({"args":["gmail","get","19ca04b9fbcf35ab"]}) {tool=google_cli, iteration=2, agent_id=main}
+2026/02/27 19:10:44 [2026-02-27T18:10:44Z] [INFO] tool: Tool execution started {tool=google_cli, args=map[args:[gmail get 19ca04b9fbcf35ab]]}
+2026/02/27 19:10:44 [2026-02-27T18:10:44Z] [INFO] tool: Tool execution completed {result_length=2456, tool=google_cli, duration_ms=242}
+2026/02/27 19:10:47 [2026-02-27T18:10:47Z] [INFO] agent: LLM requested tool calls {agent_id=main, tools=[google_cli], count=1, iteration=3}
+2026/02/27 19:10:47 [2026-02-27T18:10:47Z] [INFO] agent: Tool call: google_cli({"args":["gmail","batch-modify","--remove-labels","UNREAD"],"batch_ids":["19ca04b9fbcf35ab","19ca04b9d356fb4a","19ca04b9b5549fbb","19ca04b9ae31cc7e","19ca04b99db477ac"]}) {agent_id=main, tool=google_cli, iteration=3}
+2026/02/27 19:10:47 [2026-02-27T18:10:47Z] [INFO] tool: Tool execution started {tool=google_cli, args=map[args:[gmail batch-modify --remove-labels UNREAD] batch_ids:[19ca04b9fbcf35ab 19ca04b9d356fb4a 19ca04b9b5549fbb 19ca04b9ae31cc7e 19ca04b99db477ac]]}
+2026/02/27 19:10:47 [2026-02-27T18:10:47Z] [ERROR] tool: Tool execution failed {tool=google_cli, duration=0, error=batch_ids supports only gmail batch commands}
+2026/02/27 19:10:51 [2026-02-27T18:10:51Z] [INFO] agent: LLM requested tool calls {count=1, iteration=4, agent_id=main, tools=[google_cli]}
+2026/02/27 19:10:51 [2026-02-27T18:10:51Z] [INFO] agent: Tool call: google_cli({"args":["gmail","search","is:unread -from:sofiagrasberg99@gmail.com"]}) {agent_id=main, tool=google_cli, iteration=4}
+2026/02/27 19:10:51 [2026-02-27T18:10:51Z] [INFO] tool: Tool execution started {tool=google_cli, args=map[args:[gmail search is:unread -from:sofiagrasberg99@gmail.com]]}
+2026/02/27 19:10:51 [2026-02-27T18:10:51Z] [INFO] tool: Tool execution completed {tool=google_cli, duration_ms=393, result_length=256}
+2026/02/27 19:10:54 [2026-02-27T18:10:54Z] [INFO] agent: LLM response without tool calls (direct answer) {agent_id=main, iteration=5, content_chars=12}
+2026/02/27 19:10:54 [2026-02-27T18:10:54Z] [INFO] agent: Response: HEARTBEAT_OK {agent_id=main, session_key=heartbeat, iterations=5, final_length=12}
+2026/02/27 19:11:43 [2026-02-27T18:11:43Z] [INFO] agent: Processing message from cli:cron: Toppen nu fungerar web ui {session_key=web:ui, channel=cli, chat_id=direct, sender_id=cron}
+2026/02/27 19:11:43 [2026-02-27T18:11:43Z] [INFO] agent: Routed message {matched_by=default, agent_id=main, session_key=agent:main:main}
+2026/02/27 19:11:47 [2026-02-27T18:11:47Z] [INFO] agent: LLM response without tool calls (direct answer) {agent_id=main, iteration=1, content_chars=492}
+2026/02/27 19:11:47 [2026-02-27T18:11:47Z] [INFO] agent: Response: Snyggt. Det var ju bara en tidsfråga innan jag städade upp det där port-kaoset åt dig. Nu när du har instrumentpanele... {agent_id=main, session_key=agent:main:main, iterations=1, final_length=492}
+[[34mFri Feb 27 19:17:03 CET 2026[0m] [31mERROR[0m Getting updates: telego: getUpdates: api: 409 "Conflict: terminated by other getUpdates request; make sure that only one bot instance is running"
+[[34mFri Feb 27 19:17:03 CET 2026[0m] [31mERROR[0m Retrying getting updates in 8s...
+[[34mFri Feb 27 19:17:19 CET 2026[0m] [31mERROR[0m Getting updates: telego: getUpdates: api: 409 "Conflict: terminated by other getUpdates request; make sure that only one bot instance is running"
+[[34mFri Feb 27 19:17:19 CET 2026[0m] [31mERROR[0m Retrying getting updates in 8s...
+[[34mFri Feb 27 19:17:35 CET 2026[0m] [31mERROR[0m Getting updates: telego: getUpdates: api: 409 "Conflict: terminated by other getUpdates request; make sure that only one bot instance is running"
+[[34mFri Feb 27 19:17:35 CET 2026[0m] [31mERROR[0m Retrying getting updates in 8s...
+[[34mFri Feb 27 19:17:58 CET 2026[0m] [31mERROR[0m Getting updates: telego: getUpdates: api: 409 "Conflict: terminated by other getUpdates request; make sure that only one bot instance is running"
+[[34mFri Feb 27 19:17:58 CET 2026[0m] [31mERROR[0m Retrying getting updates in 8s...
+[[34mFri Feb 27 19:18:29 CET 2026[0m] [31mERROR[0m Getting updates: telego: getUpdates: api: 409 "Conflict: terminated by other getUpdates request; make sure that only one bot instance is running"
+[[34mFri Feb 27 19:18:29 CET 2026[0m] [31mERROR[0m Retrying getting updates in 8s...
+[[34mFri Feb 27 19:19:11 CET 2026[0m] [31mERROR[0m Getting updates: telego: getUpdates: api: 409 "Conflict: terminated by other getUpdates request; make sure that only one bot instance is running"
+[[34mFri Feb 27 19:19:11 CET 2026[0m] [31mERROR[0m Retrying getting updates in 8s...
+[[34mFri Feb 27 19:19:27 CET 2026[0m] [31mERROR[0m Getting updates: telego: getUpdates: api: 409 "Conflict: terminated by other getUpdates request; make sure that only one bot instance is running"
+[[34mFri Feb 27 19:19:27 CET 2026[0m] [31mERROR[0m Retrying getting updates in 8s...
