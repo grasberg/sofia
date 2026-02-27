@@ -107,7 +107,7 @@ sofia agent
 sofia gateway
 ```
 
-Use this when you connect Sofia to Telegram, Discord, LINE, and other channels.
+Use this when you connect Sofia to Telegram or Discord.
 
 ### Check status
 
@@ -150,7 +150,6 @@ Channel setup details are documented in the main README and channel docs:
 
 - Telegram: `docs/channels/telegram/README.zh.md`
 - Discord: `docs/channels/discord/README.zh.md`
-- LINE: `docs/channels/line/README.zh.md`
 
 ## Config tips
 
@@ -182,7 +181,7 @@ Set `SOFIA_GATEWAY_HOST=0.0.0.0` or update gateway host in config.
 - `sofia onboard` - initialize config and workspace.
 - `sofia agent` - interactive chat.
 - `sofia agent -m "..."` - one-shot chat.
-- `sofia gateway` - run multi-channel gateway.
+- `sofia gateway` - run Telegram/Discord gateway.
 - `sofia status` - show runtime status.
 - `sofia cron <subcommand>` - manage scheduled jobs.
 - `sofia skills <subcommand>` - search/install/list skills.

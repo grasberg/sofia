@@ -191,22 +191,8 @@ func (d *AgentDefaults) GetModelName() string {
 }
 
 type ChannelsConfig struct {
-	WhatsApp WhatsAppConfig `json:"whatsapp"`
 	Telegram TelegramConfig `json:"telegram"`
-	Feishu   FeishuConfig   `json:"feishu"`
 	Discord  DiscordConfig  `json:"discord"`
-	MaixCam  MaixCamConfig  `json:"maixcam"`
-	QQ       QQConfig       `json:"qq"`
-	DingTalk DingTalkConfig `json:"dingtalk"`
-	Slack    SlackConfig    `json:"slack"`
-	LINE     LINEConfig     `json:"line"`
-	OneBot   OneBotConfig   `json:"onebot"`
-}
-
-type WhatsAppConfig struct {
-	Enabled   bool                `json:"enabled"    env:"SOFIA_CHANNELS_WHATSAPP_ENABLED"`
-	BridgeURL string              `json:"bridge_url" env:"SOFIA_CHANNELS_WHATSAPP_BRIDGE_URL"`
-	AllowFrom FlexibleStringSlice `json:"allow_from" env:"SOFIA_CHANNELS_WHATSAPP_ALLOW_FROM"`
 }
 
 type TelegramConfig struct {
@@ -216,67 +202,11 @@ type TelegramConfig struct {
 	AllowFrom FlexibleStringSlice `json:"allow_from" env:"SOFIA_CHANNELS_TELEGRAM_ALLOW_FROM"`
 }
 
-type FeishuConfig struct {
-	Enabled           bool                `json:"enabled"            env:"SOFIA_CHANNELS_FEISHU_ENABLED"`
-	AppID             string              `json:"app_id"             env:"SOFIA_CHANNELS_FEISHU_APP_ID"`
-	AppSecret         string              `json:"app_secret"         env:"SOFIA_CHANNELS_FEISHU_APP_SECRET"`
-	EncryptKey        string              `json:"encrypt_key"        env:"SOFIA_CHANNELS_FEISHU_ENCRYPT_KEY"`
-	VerificationToken string              `json:"verification_token" env:"SOFIA_CHANNELS_FEISHU_VERIFICATION_TOKEN"`
-	AllowFrom         FlexibleStringSlice `json:"allow_from"         env:"SOFIA_CHANNELS_FEISHU_ALLOW_FROM"`
-}
-
 type DiscordConfig struct {
 	Enabled     bool                `json:"enabled"      env:"SOFIA_CHANNELS_DISCORD_ENABLED"`
 	Token       string              `json:"token"        env:"SOFIA_CHANNELS_DISCORD_TOKEN"`
 	AllowFrom   FlexibleStringSlice `json:"allow_from"   env:"SOFIA_CHANNELS_DISCORD_ALLOW_FROM"`
 	MentionOnly bool                `json:"mention_only" env:"SOFIA_CHANNELS_DISCORD_MENTION_ONLY"`
-}
-
-type MaixCamConfig struct {
-	Enabled   bool                `json:"enabled"    env:"SOFIA_CHANNELS_MAIXCAM_ENABLED"`
-	Host      string              `json:"host"       env:"SOFIA_CHANNELS_MAIXCAM_HOST"`
-	Port      int                 `json:"port"       env:"SOFIA_CHANNELS_MAIXCAM_PORT"`
-	AllowFrom FlexibleStringSlice `json:"allow_from" env:"SOFIA_CHANNELS_MAIXCAM_ALLOW_FROM"`
-}
-
-type QQConfig struct {
-	Enabled   bool                `json:"enabled"    env:"SOFIA_CHANNELS_QQ_ENABLED"`
-	AppID     string              `json:"app_id"     env:"SOFIA_CHANNELS_QQ_APP_ID"`
-	AppSecret string              `json:"app_secret" env:"SOFIA_CHANNELS_QQ_APP_SECRET"`
-	AllowFrom FlexibleStringSlice `json:"allow_from" env:"SOFIA_CHANNELS_QQ_ALLOW_FROM"`
-}
-
-type DingTalkConfig struct {
-	Enabled      bool                `json:"enabled"       env:"SOFIA_CHANNELS_DINGTALK_ENABLED"`
-	ClientID     string              `json:"client_id"     env:"SOFIA_CHANNELS_DINGTALK_CLIENT_ID"`
-	ClientSecret string              `json:"client_secret" env:"SOFIA_CHANNELS_DINGTALK_CLIENT_SECRET"`
-	AllowFrom    FlexibleStringSlice `json:"allow_from"    env:"SOFIA_CHANNELS_DINGTALK_ALLOW_FROM"`
-}
-
-type SlackConfig struct {
-	Enabled   bool                `json:"enabled"    env:"SOFIA_CHANNELS_SLACK_ENABLED"`
-	BotToken  string              `json:"bot_token"  env:"SOFIA_CHANNELS_SLACK_BOT_TOKEN"`
-	AppToken  string              `json:"app_token"  env:"SOFIA_CHANNELS_SLACK_APP_TOKEN"`
-	AllowFrom FlexibleStringSlice `json:"allow_from" env:"SOFIA_CHANNELS_SLACK_ALLOW_FROM"`
-}
-
-type LINEConfig struct {
-	Enabled            bool                `json:"enabled"              env:"SOFIA_CHANNELS_LINE_ENABLED"`
-	ChannelSecret      string              `json:"channel_secret"       env:"SOFIA_CHANNELS_LINE_CHANNEL_SECRET"`
-	ChannelAccessToken string              `json:"channel_access_token" env:"SOFIA_CHANNELS_LINE_CHANNEL_ACCESS_TOKEN"`
-	WebhookHost        string              `json:"webhook_host"         env:"SOFIA_CHANNELS_LINE_WEBHOOK_HOST"`
-	WebhookPort        int                 `json:"webhook_port"         env:"SOFIA_CHANNELS_LINE_WEBHOOK_PORT"`
-	WebhookPath        string              `json:"webhook_path"         env:"SOFIA_CHANNELS_LINE_WEBHOOK_PATH"`
-	AllowFrom          FlexibleStringSlice `json:"allow_from"           env:"SOFIA_CHANNELS_LINE_ALLOW_FROM"`
-}
-
-type OneBotConfig struct {
-	Enabled            bool                `json:"enabled"              env:"SOFIA_CHANNELS_ONEBOT_ENABLED"`
-	WSUrl              string              `json:"ws_url"               env:"SOFIA_CHANNELS_ONEBOT_WS_URL"`
-	AccessToken        string              `json:"access_token"         env:"SOFIA_CHANNELS_ONEBOT_ACCESS_TOKEN"`
-	ReconnectInterval  int                 `json:"reconnect_interval"   env:"SOFIA_CHANNELS_ONEBOT_RECONNECT_INTERVAL"`
-	GroupTriggerPrefix []string            `json:"group_trigger_prefix" env:"SOFIA_CHANNELS_ONEBOT_GROUP_TRIGGER_PREFIX"`
-	AllowFrom          FlexibleStringSlice `json:"allow_from"           env:"SOFIA_CHANNELS_ONEBOT_ALLOW_FROM"`
 }
 
 type HeartbeatConfig struct {

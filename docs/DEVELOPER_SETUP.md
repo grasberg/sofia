@@ -83,7 +83,7 @@ make check
 - `cmd/sofia` - CLI entrypoint and command wiring (Cobra).
 - `pkg/agent` - core agent loop, context, memory behavior.
 - `pkg/providers` - model/provider adapters and routing.
-- `pkg/channels` - Telegram/Discord/LINE/etc integrations.
+- `pkg/channels` - Telegram/Discord integrations.
 - `pkg/cron` - scheduled task service.
 - `pkg/skills` - skill loading, discovery, installation.
 - `docs/` - user-facing and design documentation.

@@ -8,7 +8,7 @@ It provides a CLI-first agent workflow (`sofia agent`), a gateway mode for chat 
 
 - Lightweight Go implementation with a single-binary runtime.
 - Interactive and one-shot agent usage from terminal.
-- Multi-channel gateway support: Telegram, Discord, LINE, Slack, QQ, DingTalk, Feishu, WhatsApp bridge, OneBot, and MaixCam.
+- Gateway channel support: Telegram and Discord.
 - Model-centric provider configuration (`model_list`) with vendor-style model references (for example `openai/gpt-5.2`, `anthropic/...`, `zhipu/...`).
 - Scheduled jobs and reminders with `cron` (`every` interval and cron expression support).
 - Skill management from CLI (`skills list/search/install/remove/show`).
