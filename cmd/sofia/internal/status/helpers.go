@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sipeed/sofia/cmd/sofia/internal"
-	"github.com/sipeed/sofia/pkg/auth"
+	"github.com/grasberg/sofia/cmd/sofia/internal"
+	"github.com/grasberg/sofia/pkg/auth"
 )
 
 func statusCmd() {

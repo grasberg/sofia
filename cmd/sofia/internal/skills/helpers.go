@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sipeed/sofia/cmd/sofia/internal"
-	"github.com/sipeed/sofia/pkg/config"
-	"github.com/sipeed/sofia/pkg/skills"
-	"github.com/sipeed/sofia/pkg/utils"
+	"github.com/grasberg/sofia/cmd/sofia/internal"
+	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/skills"
+	"github.com/grasberg/sofia/pkg/utils"
 )
 
 func skillsListCmd(loader *skills.SkillsLoader) {

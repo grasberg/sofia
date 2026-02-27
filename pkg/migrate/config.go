@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/sipeed/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/config"
 )
 
 var supportedProviders = map[string]bool{

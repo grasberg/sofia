@@ -3,7 +3,7 @@ package agent
 import (
 	"context"
 
-	"github.com/sipeed/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/providers"
 )
 
 type mockProvider struct{}

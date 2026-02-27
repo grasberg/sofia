@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sipeed/sofia/pkg/fileutil"
+	"github.com/grasberg/sofia/pkg/fileutil"
 )
 
 // validatePath ensures the given path is within the workspace if restrict is true.

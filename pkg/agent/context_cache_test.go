@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sipeed/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/providers"
 )
 
 // setupWorkspace creates a temporary workspace with standard directories and optional files.

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sipeed/sofia/pkg/providers/protocoltypes"
+	"github.com/grasberg/sofia/pkg/providers/protocoltypes"
 )
 
 type (

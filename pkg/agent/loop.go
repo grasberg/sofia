@@ -16,17 +16,17 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/sipeed/sofia/pkg/bus"
-	"github.com/sipeed/sofia/pkg/channels"
-	"github.com/sipeed/sofia/pkg/config"
-	"github.com/sipeed/sofia/pkg/constants"
-	"github.com/sipeed/sofia/pkg/logger"
-	"github.com/sipeed/sofia/pkg/providers"
-	"github.com/sipeed/sofia/pkg/routing"
-	"github.com/sipeed/sofia/pkg/skills"
-	"github.com/sipeed/sofia/pkg/state"
-	"github.com/sipeed/sofia/pkg/tools"
-	"github.com/sipeed/sofia/pkg/utils"
+	"github.com/grasberg/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/channels"
+	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/constants"
+	"github.com/grasberg/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/routing"
+	"github.com/grasberg/sofia/pkg/skills"
+	"github.com/grasberg/sofia/pkg/state"
+	"github.com/grasberg/sofia/pkg/tools"
+	"github.com/grasberg/sofia/pkg/utils"
 )
 
 type AgentLoop struct {
@@ -38,6 +38,8 @@ type AgentLoop struct {
 	summarizing    sync.Map
 	fallback       *providers.FallbackChain
 	channelManager *channels.Manager
+	activeAgentID  atomic.Value // string
+	activeStatus   atomic.Value // string
 }
 
 // processOptions configures how a message is processed
@@ -71,7 +73,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		stateManager = state.NewManager(defaultAgent.Workspace)
 	}
 
-	return &AgentLoop{
+	al := &AgentLoop{
 		bus:         msgBus,
 		cfg:         cfg,
 		registry:    registry,
@@ -79,6 +81,9 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		summarizing: sync.Map{},
 		fallback:    fallbackChain,
 	}
+	al.activeAgentID.Store("")
+	al.activeStatus.Store("Idle")
+	return al
 }
 
 // registerSharedTools registers tools that are shared across all agents (web, message, spawn).
@@ -224,6 +229,28 @@ func (al *AgentLoop) SetChannelManager(cm *channels.Manager) {
 	al.channelManager = cm
 }
 
+// ReloadAgents reloads the agent registry and shared tools from the current config.
+func (al *AgentLoop) ReloadAgents() {
+	logger.InfoCF("agent", "Reloading agents from config", nil)
+	
+	// We need the provider from the existing registry
+	var provider providers.LLMProvider
+	if defaultAgent := al.registry.GetDefaultAgent(); defaultAgent != nil {
+		provider = defaultAgent.Provider
+	}
+
+	if provider == nil {
+		logger.ErrorCF("agent", "Cannot reload agents: provider not found", nil)
+		return
+	}
+
+	newRegistry := NewAgentRegistry(al.cfg, provider)
+	registerSharedTools(al.cfg, al.bus, newRegistry, provider)
+	
+	al.registry = newRegistry
+	logger.InfoCF("agent", "Agents reloaded successfully", nil)
+}
+
 // RecordLastChannel records the last active channel for this workspace.
 // This uses the atomic state save mechanism to prevent data loss on crash.
 func (al *AgentLoop) RecordLastChannel(channel string) error {
@@ -318,6 +345,9 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 		agent = al.registry.GetDefaultAgent()
 	}
 
+	al.activeAgentID.Store(agent.ID)
+	al.activeStatus.Store("Thinking...")
+
 	// Use routed session key, but honor pre-set agent-scoped keys (for ProcessDirect/cron)
 	sessionKey := route.SessionKey
 	if msg.SessionKey != "" && strings.HasPrefix(msg.SessionKey, "agent:") {
@@ -400,13 +430,15 @@ func (al *AgentLoop) processSystemMessage(ctx context.Context, msg bus.InboundMe
 
 // runAgentLoop is the core message processing logic.
 func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opts processOptions) (string, error) {
+	agentComp := fmt.Sprintf("agent:%s", agent.ID)
+
 	// 0. Record last channel for heartbeat notifications (skip internal channels)
 	if opts.Channel != "" && opts.ChatID != "" {
 		// Don't record internal channels (cli, system, subagent)
 		if !constants.IsInternalChannel(opts.Channel) {
 			channelKey := fmt.Sprintf("%s:%s", opts.Channel, opts.ChatID)
 			if err := al.RecordLastChannel(channelKey); err != nil {
-				logger.WarnCF("agent", "Failed to record last channel", map[string]any{"error": err.Error()})
+				logger.WarnCF(agentComp, "Failed to record last channel", map[string]any{"error": err.Error()})
 			}
 		}
 	}
@@ -476,13 +508,16 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 
 	// 9. Log response
 	responsePreview := utils.Truncate(finalContent, 120)
-	logger.InfoCF("agent", fmt.Sprintf("Response: %s", responsePreview),
+	logger.InfoCF(agentComp, fmt.Sprintf("Response: %s", responsePreview),
 		map[string]any{
 			"agent_id":     agent.ID,
 			"session_key":  opts.SessionKey,
 			"iterations":   iteration,
 			"final_length": len(finalContent),
 		})
+
+	al.activeAgentID.Store("")
+	al.activeStatus.Store("Idle")
 
 	return finalContent, nil
 }
@@ -494,13 +529,14 @@ func (al *AgentLoop) runLLMIteration(
 	messages []providers.Message,
 	opts processOptions,
 ) (string, int, error) {
+	agentComp := fmt.Sprintf("agent:%s", agent.ID)
 	iteration := 0
 	var finalContent string
 
 	for iteration < agent.MaxIterations {
 		iteration++
 
-		logger.DebugCF("agent", "LLM iteration",
+		logger.DebugCF(agentComp, "LLM iteration",
 			map[string]any{
 				"agent_id":  agent.ID,
 				"iteration": iteration,
@@ -511,7 +547,7 @@ func (al *AgentLoop) runLLMIteration(
 		providerToolDefs := agent.Tools.ToProviderDefs()
 
 		// Log LLM request details
-		logger.DebugCF("agent", "LLM request",
+		logger.DebugCF(agentComp, "LLM request",
 			map[string]any{
 				"agent_id":          agent.ID,
 				"iteration":         iteration,
@@ -524,7 +560,7 @@ func (al *AgentLoop) runLLMIteration(
 			})
 
 		// Log full messages (detailed)
-		logger.DebugCF("agent", "Full LLM request",
+		logger.DebugCF(agentComp, "Full LLM request",
 			map[string]any{
 				"iteration":     iteration,
 				"messages_json": formatMessagesForLog(messages),
@@ -550,7 +586,7 @@ func (al *AgentLoop) runLLMIteration(
 					return nil, fbErr
 				}
 				if fbResult.Provider != "" && len(fbResult.Attempts) > 0 {
-					logger.InfoCF("agent", fmt.Sprintf("Fallback: succeeded with %s/%s after %d attempts",
+					logger.InfoCF(agentComp, fmt.Sprintf("Fallback: succeeded with %s/%s after %d attempts",
 						fbResult.Provider, fbResult.Model, len(fbResult.Attempts)+1),
 						map[string]any{"agent_id": agent.ID, "iteration": iteration})
 				}
@@ -578,7 +614,7 @@ func (al *AgentLoop) runLLMIteration(
 				strings.Contains(errMsg, "length")
 
 			if isContextError && retry < maxRetries {
-				logger.WarnCF("agent", "Context window error detected, attempting compression", map[string]any{
+				logger.WarnCF(agentComp, "Context window error detected, attempting compression", map[string]any{
 					"error": err.Error(),
 					"retry": retry,
 				})
@@ -604,7 +640,7 @@ func (al *AgentLoop) runLLMIteration(
 		}
 
 		if err != nil {
-			logger.ErrorCF("agent", "LLM call failed",
+			logger.ErrorCF(agentComp, "LLM call failed",
 				map[string]any{
 					"agent_id":  agent.ID,
 					"iteration": iteration,
@@ -616,7 +652,7 @@ func (al *AgentLoop) runLLMIteration(
 		// Check if no tool calls - we're done
 		if len(response.ToolCalls) == 0 {
 			finalContent = response.Content
-			logger.InfoCF("agent", "LLM response without tool calls (direct answer)",
+			logger.InfoCF(agentComp, "LLM response without tool calls (direct answer)",
 				map[string]any{
 					"agent_id":      agent.ID,
 					"iteration":     iteration,
@@ -635,7 +671,7 @@ func (al *AgentLoop) runLLMIteration(
 		for _, tc := range normalizedToolCalls {
 			toolNames = append(toolNames, tc.Name)
 		}
-		logger.InfoCF("agent", "LLM requested tool calls",
+		logger.InfoCF(agentComp, "LLM requested tool calls",
 			map[string]any{
 				"agent_id":  agent.ID,
 				"tools":     toolNames,
@@ -678,9 +714,10 @@ func (al *AgentLoop) runLLMIteration(
 
 		// Execute tool calls
 		for _, tc := range normalizedToolCalls {
+			al.activeStatus.Store(fmt.Sprintf("Executing tool: %s", tc.Name))
 			argsJSON, _ := json.Marshal(tc.Arguments)
 			argsPreview := utils.Truncate(string(argsJSON), 200)
-			logger.InfoCF("agent", fmt.Sprintf("Tool call: %s(%s)", tc.Name, argsPreview),
+			logger.InfoCF(agentComp, fmt.Sprintf("Tool call: %s(%s)", tc.Name, argsPreview),
 				map[string]any{
 					"agent_id":  agent.ID,
 					"tool":      tc.Name,
@@ -695,7 +732,7 @@ func (al *AgentLoop) runLLMIteration(
 				// Log the async completion but don't send directly to user
 				// The agent will handle user notification via processSystemMessage
 				if !result.Silent && result.ForUser != "" {
-					logger.InfoCF("agent", "Async tool completed, agent will handle notification",
+					logger.InfoCF(agentComp, "Async tool completed, agent will handle notification",
 						map[string]any{
 							"tool":        tc.Name,
 							"content_len": len(result.ForUser),
@@ -719,7 +756,7 @@ func (al *AgentLoop) runLLMIteration(
 					ChatID:  opts.ChatID,
 					Content: toolResult.ForUser,
 				})
-				logger.DebugCF("agent", "Sent tool result to user",
+				logger.DebugCF(agentComp, "Sent tool result to user",
 					map[string]any{
 						"tool":        tc.Name,
 						"content_len": len(toolResult.ForUser),
@@ -872,6 +909,10 @@ func (al *AgentLoop) GetStartupInfo() map[string]any {
 	info["agents"] = map[string]any{
 		"count": len(al.registry.ListAgentIDs()),
 		"ids":   al.registry.ListAgentIDs(),
+		"active": map[string]any{
+			"id":     al.activeAgentID.Load(),
+			"status": al.activeStatus.Load(),
+		},
 	}
 
 	return info

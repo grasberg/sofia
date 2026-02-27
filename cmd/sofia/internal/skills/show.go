@@ -3,7 +3,7 @@ package skills
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/sipeed/sofia/pkg/skills"
+	"github.com/grasberg/sofia/pkg/skills"
 )
 
 func newShowCommand(loaderFn func() (*skills.SkillsLoader, error)) *cobra.Command {

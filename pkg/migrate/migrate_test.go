@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/sipeed/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/config"
 )
 
 func TestCamelToSnake(t *testing.T) {

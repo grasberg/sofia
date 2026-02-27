@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sipeed/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/logger"
 )
 
 // ExtractZipFile extracts a ZIP archive from disk to targetDir.

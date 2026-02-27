@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sipeed/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/config"
 )
 
 func TestExtractProtocol(t *testing.T) {

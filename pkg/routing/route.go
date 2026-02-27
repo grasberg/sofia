@@ -3,7 +3,7 @@ package routing
 import (
 	"strings"
 
-	"github.com/sipeed/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/config"
 )
 
 // RouteInput contains the routing context from an inbound message.

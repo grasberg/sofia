@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/sipeed/sofia/pkg/devices/events"
-	"github.com/sipeed/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/devices/events"
+	"github.com/grasberg/sofia/pkg/logger"
 )
 
 var usbClassToCapability = map[string]string{

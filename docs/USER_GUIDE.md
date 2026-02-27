@@ -19,12 +19,12 @@ This guide is for end users who want to run Sofia quickly and use it daily.
 
 Download the binary for your platform from Releases:
 
-- <https://github.com/sipeed/sofia/releases>
+- <https://github.com/grasberg/sofia/releases>
 
 ### Option 2: Build from source
 
 ```bash
-git clone https://github.com/sipeed/sofia.git
+git clone https://github.com/grasberg/sofia.git
 cd sofia
 make deps
 make build
@@ -35,7 +35,7 @@ Binary output is placed at `build/sofia` (symlink) and `build/sofia-<os>-<arch>`
 ### Option 3: Docker Compose
 
 ```bash
-git clone https://github.com/sipeed/sofia.git
+git clone https://github.com/grasberg/sofia.git
 cd sofia
 
 # First run creates docker/data/config.json and exits

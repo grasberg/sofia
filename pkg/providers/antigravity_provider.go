@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sipeed/sofia/pkg/auth"
-	"github.com/sipeed/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/auth"
+	"github.com/grasberg/sofia/pkg/logger"
 )
 
 const (

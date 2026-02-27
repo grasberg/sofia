@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sipeed/sofia/pkg/bus"
-	"github.com/sipeed/sofia/pkg/config"
-	"github.com/sipeed/sofia/pkg/providers"
-	"github.com/sipeed/sofia/pkg/tools"
+	"github.com/grasberg/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/tools"
 )
 
 func TestRecordLastChannel(t *testing.T) {

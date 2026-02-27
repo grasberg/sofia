@@ -12,16 +12,16 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sipeed/sofia/cmd/sofia/internal"
-	"github.com/sipeed/sofia/cmd/sofia/internal/agent"
-	"github.com/sipeed/sofia/cmd/sofia/internal/auth"
-	"github.com/sipeed/sofia/cmd/sofia/internal/cron"
-	"github.com/sipeed/sofia/cmd/sofia/internal/gateway"
-	"github.com/sipeed/sofia/cmd/sofia/internal/migrate"
-	"github.com/sipeed/sofia/cmd/sofia/internal/onboard"
-	"github.com/sipeed/sofia/cmd/sofia/internal/skills"
-	"github.com/sipeed/sofia/cmd/sofia/internal/status"
-	"github.com/sipeed/sofia/cmd/sofia/internal/version"
+	"github.com/grasberg/sofia/cmd/sofia/internal"
+	"github.com/grasberg/sofia/cmd/sofia/internal/agent"
+	"github.com/grasberg/sofia/cmd/sofia/internal/auth"
+	"github.com/grasberg/sofia/cmd/sofia/internal/cron"
+	"github.com/grasberg/sofia/cmd/sofia/internal/gateway"
+	"github.com/grasberg/sofia/cmd/sofia/internal/migrate"
+	"github.com/grasberg/sofia/cmd/sofia/internal/onboard"
+	"github.com/grasberg/sofia/cmd/sofia/internal/skills"
+	"github.com/grasberg/sofia/cmd/sofia/internal/status"
+	"github.com/grasberg/sofia/cmd/sofia/internal/version"
 )
 
 func NewSofiaCommand() *cobra.Command {

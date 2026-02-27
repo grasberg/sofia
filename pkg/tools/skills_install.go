@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sipeed/sofia/pkg/fileutil"
-	"github.com/sipeed/sofia/pkg/logger"
-	"github.com/sipeed/sofia/pkg/skills"
-	"github.com/sipeed/sofia/pkg/utils"
+	"github.com/grasberg/sofia/pkg/fileutil"
+	"github.com/grasberg/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/skills"
+	"github.com/grasberg/sofia/pkg/utils"
 )
 
 // InstallSkillTool allows the LLM agent to install skills from registries.

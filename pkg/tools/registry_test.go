@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/sipeed/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/providers"
 )
 
 // --- mock types ---

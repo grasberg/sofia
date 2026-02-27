@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/sipeed/sofia/pkg/bus"
-	"github.com/sipeed/sofia/pkg/config"
-	"github.com/sipeed/sofia/pkg/constants"
-	"github.com/sipeed/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/constants"
+	"github.com/grasberg/sofia/pkg/logger"
 )
 
 type Manager struct {

@@ -1,5 +1,5 @@
 package devices
 
-import "github.com/sipeed/sofia/pkg/devices/events"
+import "github.com/grasberg/sofia/pkg/devices/events"
 
 type EventSource = events.EventSource

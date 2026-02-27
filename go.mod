@@ -1,4 +1,4 @@
-module github.com/sipeed/sofia
+module github.com/grasberg/sofia
 
 go 1.25.7
 

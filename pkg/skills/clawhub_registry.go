@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/sipeed/sofia/pkg/utils"
+	"github.com/grasberg/sofia/pkg/utils"
 )
 
 const (

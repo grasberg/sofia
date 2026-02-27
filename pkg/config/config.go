@@ -8,7 +8,7 @@ import (
 
 	"github.com/caarlos0/env/v11"
 
-	"github.com/sipeed/sofia/pkg/fileutil"
+	"github.com/grasberg/sofia/pkg/fileutil"
 )
 
 // rrCounter is a global counter for round-robin load balancing across models.
@@ -59,6 +59,7 @@ type Config struct {
 	Heartbeat HeartbeatConfig `json:"heartbeat"`
 	Devices   DevicesConfig   `json:"devices"`
 	WebUI     WebUIConfig     `json:"webui"`
+	UserName  string          `json:"user_name" env:"SOFIA_USER_NAME"`
 }
 
 type WebUIConfig struct {
@@ -137,13 +138,15 @@ func (m AgentModelConfig) MarshalJSON() ([]byte, error) {
 }
 
 type AgentConfig struct {
-	ID        string            `json:"id"`
-	Default   bool              `json:"default,omitempty"`
-	Name      string            `json:"name,omitempty"`
-	Workspace string            `json:"workspace,omitempty"`
-	Model     *AgentModelConfig `json:"model,omitempty"`
-	Skills    []string          `json:"skills,omitempty"`
-	Subagents *SubagentsConfig  `json:"subagents,omitempty"`
+	ID                 string            `json:"id"`
+	Default            bool              `json:"default,omitempty"`
+	Name               string            `json:"name,omitempty"`
+	Template           string            `json:"template,omitempty"`
+	TemplateSkillsMode string            `json:"template_skills_mode,omitempty"`
+	Workspace          string            `json:"workspace,omitempty"`
+	Model              *AgentModelConfig `json:"model,omitempty"`
+	Skills             []string          `json:"skills,omitempty"`
+	Subagents          *SubagentsConfig  `json:"subagents,omitempty"`
 }
 
 type SubagentsConfig struct {

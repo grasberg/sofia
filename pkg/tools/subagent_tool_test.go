@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sipeed/sofia/pkg/bus"
-	"github.com/sipeed/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/providers"
 )
 
 // MockLLMProvider is a test implementation of LLMProvider

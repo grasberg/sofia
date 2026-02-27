@@ -11,8 +11,8 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
 
-	"github.com/sipeed/sofia/pkg/auth"
-	"github.com/sipeed/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/auth"
+	"github.com/grasberg/sofia/pkg/logger"
 )
 
 const (

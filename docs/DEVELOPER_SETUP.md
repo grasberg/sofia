@@ -12,7 +12,7 @@ This guide is for contributors who want to build, test, and iterate on Sofia loc
 ## Clone and bootstrap
 
 ```bash
-git clone https://github.com/sipeed/sofia.git
+git clone https://github.com/grasberg/sofia.git
 cd sofia
 make deps
 ```

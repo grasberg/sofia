@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/sipeed/sofia/pkg/config"
-	"github.com/sipeed/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/providers"
 )
 
 type mockRegistryProvider struct{}

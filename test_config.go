@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/sipeed/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/config"
 	"os"
 )
 

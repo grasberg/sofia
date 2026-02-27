@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sipeed/sofia/cmd/sofia/internal"
-	"github.com/sipeed/sofia/pkg/config"
+	"github.com/grasberg/sofia/cmd/sofia/internal"
+	"github.com/grasberg/sofia/pkg/config"
 )
 
 func onboard() {

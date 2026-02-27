@@ -10,7 +10,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/sipeed/sofia/pkg/providers/openai_compat"
+	"github.com/grasberg/sofia/pkg/providers/openai_compat"
 )
 
 type HTTPProvider struct {

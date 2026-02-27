@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/sipeed/sofia/pkg/fileutil"
+	"github.com/grasberg/sofia/pkg/fileutil"
 )
 
 type AuthCredential struct {

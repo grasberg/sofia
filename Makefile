@@ -11,12 +11,12 @@ VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT=$(shell git rev-parse --short=8 HEAD 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date +%FT%T%z)
 GO_VERSION=$(shell $(GO) version | awk '{print $$3}')
-INTERNAL=github.com/sipeed/sofia/cmd/sofia/internal
+INTERNAL=github.com/grasberg/sofia/cmd/sofia/internal
 LDFLAGS=-ldflags "-X $(INTERNAL).version=$(VERSION) -X $(INTERNAL).gitCommit=$(GIT_COMMIT) -X $(INTERNAL).buildTime=$(BUILD_TIME) -X $(INTERNAL).goVersion=$(GO_VERSION) -s -w"
 
 # Go variables
 GO?=CGO_ENABLED=0 go
-GOFLAGS?=-v -tags stdjson
+GOFLAGS?=-tags stdjson
 
 # Golangci-lint
 GOLANGCI_LINT?=golangci-lint
@@ -25,6 +25,10 @@ GOLANGCI_LINT?=golangci-lint
 INSTALL_PREFIX?=$(HOME)/.local
 INSTALL_BIN_DIR=$(INSTALL_PREFIX)/bin
 INSTALL_MAN_DIR=$(INSTALL_PREFIX)/share/man/man1
+INSTALL_SHARE_DIR=$(INSTALL_PREFIX)/share/sofia
+INSTALL_ASSETS_DIR=$(INSTALL_SHARE_DIR)/assets
+INSTALL_ANTIGRAVITY_DIR=$(SOFIA_HOME)/antigravity-kit
+VENDORED_ANTIGRAVITY_DIR=$(CURDIR)/third_party/antigravity-kit
 INSTALL_TMP_SUFFIX=.new
 
 # Workspace and Skills
@@ -104,19 +108,32 @@ build-all: generate
 install: build
 	@echo "Installing $(BINARY_NAME)..."
 	@mkdir -p $(INSTALL_BIN_DIR)
+	@mkdir -p $(INSTALL_SHARE_DIR)
 	# Copy binary with temporary suffix to ensure atomic update
 	@cp $(BUILD_DIR)/$(BINARY_NAME) $(INSTALL_BIN_DIR)/$(BINARY_NAME)$(INSTALL_TMP_SUFFIX)
 	@chmod +x $(INSTALL_BIN_DIR)/$(BINARY_NAME)$(INSTALL_TMP_SUFFIX)
 	@mv -f $(INSTALL_BIN_DIR)/$(BINARY_NAME)$(INSTALL_TMP_SUFFIX) $(INSTALL_BIN_DIR)/$(BINARY_NAME)
+	@rm -rf $(INSTALL_ASSETS_DIR)
+	@cp -R $(CURDIR)/assets $(INSTALL_ASSETS_DIR)
+	@mkdir -p $(INSTALL_ANTIGRAVITY_DIR)/.agent
+	@rm -rf $(INSTALL_ANTIGRAVITY_DIR)/.agent/agents $(INSTALL_ANTIGRAVITY_DIR)/.agent/skills
+	@cp -R $(VENDORED_ANTIGRAVITY_DIR)/.agent/agents $(INSTALL_ANTIGRAVITY_DIR)/.agent/agents
+	@cp -R $(VENDORED_ANTIGRAVITY_DIR)/.agent/skills $(INSTALL_ANTIGRAVITY_DIR)/.agent/skills
 	@echo "Installed binary to $(INSTALL_BIN_DIR)/$(BINARY_NAME)"
+	@echo "Installed assets to $(INSTALL_ASSETS_DIR)"
+	@echo "Installed antigravity templates to $(INSTALL_ANTIGRAVITY_DIR)"
 	@echo "Installation complete!"
 
 ## uninstall: Remove sofia from system
 uninstall:
 	@echo "Uninstalling $(BINARY_NAME)..."
 	@rm -f $(INSTALL_BIN_DIR)/$(BINARY_NAME)
+	@rm -rf $(INSTALL_ASSETS_DIR)
+	@rm -rf $(INSTALL_ANTIGRAVITY_DIR)
 	@echo "Removed binary from $(INSTALL_BIN_DIR)/$(BINARY_NAME)"
-	@echo "Note: Only the executable file has been deleted."
+	@echo "Removed assets from $(INSTALL_ASSETS_DIR)"
+	@echo "Removed antigravity templates from $(INSTALL_ANTIGRAVITY_DIR)"
+	@echo "Note: Workspace/config files were not deleted."
 	@echo "If you need to delete all configurations (config.json, workspace, etc.), run 'make uninstall-all'"
 
 ## uninstall-all: Remove sofia and all data

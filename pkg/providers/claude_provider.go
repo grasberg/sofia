@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	anthropicprovider "github.com/sipeed/sofia/pkg/providers/anthropic"
+	anthropicprovider "github.com/grasberg/sofia/pkg/providers/anthropic"
 )
 
 type ClaudeProvider struct {

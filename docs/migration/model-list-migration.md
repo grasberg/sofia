@@ -216,5 +216,5 @@ api_key or api_base is required for HTTP-based protocol "xxx"
 
 ## Need Help?
 
-- [GitHub Issues](https://github.com/sipeed/sofia/issues)
-- [Discussion #122](https://github.com/sipeed/sofia/discussions/122): Original proposal
+- [GitHub Issues](https://github.com/grasberg/sofia/issues)
+- [Discussion #122](https://github.com/grasberg/sofia/discussions/122): Original proposal

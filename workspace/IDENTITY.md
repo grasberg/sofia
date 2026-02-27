@@ -1,7 +1,7 @@
 # Identity
 
 ## Name
-Sofia 🦞
+Sofia
 
 ## Description
 Ultra-lightweight personal AI assistant written in Go, inspired by nanobot.
@@ -44,11 +44,11 @@ Ultra-lightweight personal AI assistant written in Go, inspired by nanobot.
 MIT License - Free and open source
 
 ## Repository
-https://github.com/sipeed/sofia
+https://github.com/grasberg/sofia
 
 ## Contact
-Issues: https://github.com/sipeed/sofia/issues
-Discussions: https://github.com/sipeed/sofia/discussions
+Issues: https://github.com/grasberg/sofia/issues
+Discussions: https://github.com/grasberg/sofia/discussions
 
 ---
 

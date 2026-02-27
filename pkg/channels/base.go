@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/sipeed/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/bus"
 )
 
 type Channel interface {

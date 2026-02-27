@@ -3,10 +3,10 @@ package agent
 import (
 	"sync"
 
-	"github.com/sipeed/sofia/pkg/config"
-	"github.com/sipeed/sofia/pkg/logger"
-	"github.com/sipeed/sofia/pkg/providers"
-	"github.com/sipeed/sofia/pkg/routing"
+	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/routing"
 )
 
 // AgentRegistry manages multiple agent instances and routes messages to them.

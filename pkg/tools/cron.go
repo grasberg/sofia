@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sipeed/sofia/pkg/bus"
-	"github.com/sipeed/sofia/pkg/config"
-	"github.com/sipeed/sofia/pkg/cron"
-	"github.com/sipeed/sofia/pkg/utils"
+	"github.com/grasberg/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/cron"
+	"github.com/grasberg/sofia/pkg/utils"
 )
 
 // JobExecutor is the interface for executing cron jobs through the agent

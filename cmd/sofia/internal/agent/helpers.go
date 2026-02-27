@@ -11,12 +11,12 @@ import (
 
 	"github.com/chzyer/readline"
 
-	"github.com/sipeed/sofia/cmd/sofia/internal"
-	"github.com/sipeed/sofia/pkg/agent"
-	"github.com/sipeed/sofia/pkg/bus"
-	"github.com/sipeed/sofia/pkg/logger"
-	"github.com/sipeed/sofia/pkg/providers"
-	"github.com/sipeed/sofia/pkg/web"
+	"github.com/grasberg/sofia/cmd/sofia/internal"
+	"github.com/grasberg/sofia/pkg/agent"
+	"github.com/grasberg/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/web"
 )
 
 func agentCmd(message, sessionKey, model string, debug bool) error {

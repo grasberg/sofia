@@ -5,7 +5,7 @@ package sources
 import (
 	"context"
 
-	"github.com/sipeed/sofia/pkg/devices/events"
+	"github.com/grasberg/sofia/pkg/devices/events"
 )
 
 type USBMonitor struct{}

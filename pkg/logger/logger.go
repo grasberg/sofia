@@ -147,11 +147,11 @@ func logMessage(level LogLevel, component string, message string, fields map[str
 		}
 	}
 
+	jsonEntry, _ := json.Marshal(entry)
+	msg := string(jsonEntry)
+
 	if logger.file != nil {
-		jsonData, err := json.Marshal(entry)
-		if err == nil {
-			logger.file.Write(append(jsonData, '\n'))
-		}
+		logger.file.Write(append(jsonEntry, '\n'))
 	}
 
 	var fieldStr string
@@ -171,9 +171,9 @@ func logMessage(level LogLevel, component string, message string, fields map[str
 
 	log.Println(logLine)
 
-	// Save to history
+	// Save to history (store JSON for web UI)
 	mu.Lock()
-	logHistory = append(logHistory, logLine)
+	logHistory = append(logHistory, msg)
 	if len(logHistory) > maxHistory {
 		logHistory = logHistory[1:]
 	}
@@ -183,7 +183,7 @@ func logMessage(level LogLevel, component string, message string, fields map[str
 	mu.RLock()
 	for _, sub := range subscribers {
 		select {
-		case sub <- logLine:
+		case sub <- msg:
 		default:
 			// Subscriber too slow, drop message
 		}

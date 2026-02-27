@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/sipeed/sofia/pkg/fileutil"
-	"github.com/sipeed/sofia/pkg/utils"
+	"github.com/grasberg/sofia/pkg/fileutil"
+	"github.com/grasberg/sofia/pkg/utils"
 )
 
 type SkillInstaller struct {

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sipeed/sofia/pkg/auth"
-	"github.com/sipeed/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/auth"
+	"github.com/grasberg/sofia/pkg/config"
 )
 
 const defaultAnthropicAPIBase = "https://api.anthropic.com/v1"

@@ -11,15 +11,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sipeed/sofia/pkg/logger"
-	"github.com/sipeed/sofia/pkg/providers"
-	"github.com/sipeed/sofia/pkg/skills"
+	"github.com/grasberg/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/skills"
 )
 
 type ContextBuilder struct {
 	workspace    string
+	userName     string
 	skillsLoader *skills.SkillsLoader
 	memory       *MemoryStore
+
+	purposeTemplate     string
+	purposeInstructions string
 
 	// Cache for system prompt to avoid rebuilding on every call.
 	// This fixes issue #607: repeated reprocessing of the entire context.
@@ -35,6 +39,14 @@ type ContextBuilder struct {
 	existedAtCache map[string]bool
 }
 
+func (cb *ContextBuilder) SetPurposeTemplate(template string) {
+	cb.purposeTemplate = strings.TrimSpace(template)
+}
+
+func (cb *ContextBuilder) SetPurposeInstructions(instructions string) {
+	cb.purposeInstructions = strings.TrimSpace(instructions)
+}
+
 func getGlobalConfigDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -43,7 +55,7 @@ func getGlobalConfigDir() string {
 	return filepath.Join(home, ".sofia")
 }
 
-func NewContextBuilder(workspace string) *ContextBuilder {
+func NewContextBuilder(workspace string, userName string) *ContextBuilder {
 	// builtin skills: skills directory in current project
 	// Use the skills/ directory under the current working directory
 	wd, _ := os.Getwd()
@@ -52,6 +64,7 @@ func NewContextBuilder(workspace string) *ContextBuilder {
 
 	return &ContextBuilder{
 		workspace:    workspace,
+		userName:     userName,
 		skillsLoader: skills.NewSkillsLoader(workspace, globalSkillsDir, builtinSkillsDir),
 		memory:       NewMemoryStore(workspace),
 	}
@@ -59,10 +72,14 @@ func NewContextBuilder(workspace string) *ContextBuilder {
 
 func (cb *ContextBuilder) getIdentity() string {
 	workspacePath, _ := filepath.Abs(filepath.Join(cb.workspace))
+	name := cb.userName
+	if name == "" {
+		name = "the user"
+	}
 
-	return fmt.Sprintf(`# sofia 🦞
+	return fmt.Sprintf(`# sofia
 
-You are sofia, a helpful AI assistant.
+You are sofia, a helpful AI assistant for %s.
 
 ## Workspace
 Your workspace is at: %s
@@ -409,12 +426,24 @@ func (cb *ContextBuilder) BuildMessages(
 	// cache-aware adapters (Anthropic) can set per-block cache_control.
 	// The static block is marked "ephemeral" — its prefix hash is stable
 	// across requests, enabling LLM-side KV cache reuse.
-	stringParts := []string{staticPrompt, dynamicCtx}
+	stringParts := []string{staticPrompt}
 
 	contentBlocks := []providers.ContentBlock{
 		{Type: "text", Text: staticPrompt, CacheControl: &providers.CacheControl{Type: "ephemeral"}},
-		{Type: "text", Text: dynamicCtx},
 	}
+
+	if cb.purposeInstructions != "" {
+		purposeText := "## Agent Purpose Instructions"
+		if cb.purposeTemplate != "" {
+			purposeText += fmt.Sprintf("\nTemplate: %s", cb.purposeTemplate)
+		}
+		purposeText += "\n\n" + cb.purposeInstructions
+		stringParts = append(stringParts, purposeText)
+		contentBlocks = append(contentBlocks, providers.ContentBlock{Type: "text", Text: purposeText})
+	}
+
+	stringParts = append(stringParts, dynamicCtx)
+	contentBlocks = append(contentBlocks, providers.ContentBlock{Type: "text", Text: dynamicCtx})
 
 	if summary != "" {
 		summaryText := fmt.Sprintf(

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sipeed/sofia/pkg/auth"
-	"github.com/sipeed/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/auth"
+	"github.com/grasberg/sofia/pkg/config"
 )
 
 func TestResolveProviderSelection(t *testing.T) {

@@ -3,7 +3,7 @@ package migrate
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/sipeed/sofia/pkg/migrate"
+	"github.com/grasberg/sofia/pkg/migrate"
 )
 
 func NewMigrateCommand() *cobra.Command {

@@ -5,12 +5,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/sipeed/sofia/pkg/bus"
-	"github.com/sipeed/sofia/pkg/constants"
-	"github.com/sipeed/sofia/pkg/devices/events"
-	"github.com/sipeed/sofia/pkg/devices/sources"
-	"github.com/sipeed/sofia/pkg/logger"
-	"github.com/sipeed/sofia/pkg/state"
+	"github.com/grasberg/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/constants"
+	"github.com/grasberg/sofia/pkg/devices/events"
+	"github.com/grasberg/sofia/pkg/devices/sources"
+	"github.com/grasberg/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/state"
 )
 
 type Service struct {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/mymmrac/telego"
 
-	"github.com/sipeed/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/config"
 )
 
 type TelegramCommander interface {
@@ -56,7 +56,7 @@ func (c *cmd) Help(ctx context.Context, message telego.Message) error {
 func (c *cmd) Start(ctx context.Context, message telego.Message) error {
 	_, err := c.bot.SendMessage(ctx, &telego.SendMessageParams{
 		ChatID: telego.ChatID{ID: message.Chat.ID},
-		Text:   "Hello! I am Sofia 🦞",
+		Text:   "Hello! I am Sofia",
 		ReplyParameters: &telego.ReplyParameters{
 			MessageID: message.MessageID,
 		},

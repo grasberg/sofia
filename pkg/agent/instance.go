@@ -5,11 +5,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sipeed/sofia/pkg/config"
-	"github.com/sipeed/sofia/pkg/providers"
-	"github.com/sipeed/sofia/pkg/routing"
-	"github.com/sipeed/sofia/pkg/session"
-	"github.com/sipeed/sofia/pkg/tools"
+	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/routing"
+	"github.com/grasberg/sofia/pkg/session"
+	"github.com/grasberg/sofia/pkg/tools"
 )
 
 // AgentInstance represents a fully configured agent with its own workspace,
@@ -17,6 +17,7 @@ import (
 type AgentInstance struct {
 	ID             string
 	Name           string
+	Template       string
 	Model          string
 	Fallbacks      []string
 	Workspace      string
@@ -30,6 +31,7 @@ type AgentInstance struct {
 	Tools          *tools.ToolRegistry
 	Subagents      *config.SubagentsConfig
 	SkillsFilter   []string
+	PurposePrompt  string
 	Candidates     []providers.FallbackCandidate
 }
 
@@ -58,7 +60,7 @@ func NewAgentInstance(
 	sessionsDir := filepath.Join(workspace, "sessions")
 	sessionsManager := session.NewSessionManager(sessionsDir)
 
-	contextBuilder := NewContextBuilder(workspace)
+	contextBuilder := NewContextBuilder(workspace, cfg.UserName)
 
 	agentID := routing.DefaultAgentID
 	agentName := ""
@@ -70,6 +72,18 @@ func NewAgentInstance(
 		agentName = agentCfg.Name
 		subagents = agentCfg.Subagents
 		skillsFilter = agentCfg.Skills
+		contextBuilder.SetPurposeTemplate(agentCfg.Template)
+		if agentCfg.Template != "" {
+			if t, err := LoadPurposeTemplate(agentCfg.Template); err == nil {
+				contextBuilder.SetPurposeInstructions(t.Instructions)
+				skillsMode := strings.TrimSpace(agentCfg.TemplateSkillsMode)
+				if skillsMode == "overwrite" && len(t.Skills) > 0 {
+					skillsFilter = append([]string(nil), t.Skills...)
+				} else if len(skillsFilter) == 0 && len(t.Skills) > 0 {
+					skillsFilter = append([]string(nil), t.Skills...)
+				}
+			}
+		}
 	}
 
 	maxIter := defaults.MaxToolIterations
@@ -95,8 +109,14 @@ func NewAgentInstance(
 	candidates := providers.ResolveCandidates(modelCfg, defaults.Provider)
 
 	return &AgentInstance{
-		ID:             agentID,
-		Name:           agentName,
+		ID:   agentID,
+		Name: agentName,
+		Template: func() string {
+			if agentCfg != nil {
+				return agentCfg.Template
+			}
+			return ""
+		}(),
 		Model:          model,
 		Fallbacks:      fallbacks,
 		Workspace:      workspace,
@@ -110,6 +130,7 @@ func NewAgentInstance(
 		Tools:          toolsRegistry,
 		Subagents:      subagents,
 		SkillsFilter:   skillsFilter,
+		PurposePrompt:  contextBuilder.purposeInstructions,
 		Candidates:     candidates,
 	}
 }

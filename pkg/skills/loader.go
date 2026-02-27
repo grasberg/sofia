@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/sipeed/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/logger"
 )
 
 var (
@@ -61,6 +61,7 @@ type SkillsLoader struct {
 	workspace       string
 	workspaceSkills string // workspace skills (project-level)
 	globalSkills    string // global skills (~/.sofia/skills)
+	antigravity     string // antigravity skills (~/.sofia/antigravity-kit/.agent/skills)
 	builtinSkills   string // builtin skills
 }
 
@@ -69,6 +70,7 @@ func NewSkillsLoader(workspace string, globalSkills string, builtinSkills string
 		workspace:       workspace,
 		workspaceSkills: filepath.Join(workspace, "skills"),
 		globalSkills:    globalSkills, // ~/.sofia/skills
+		antigravity:     resolveAntigravitySkillsDir(),
 		builtinSkills:   builtinSkills,
 	}
 }
@@ -115,9 +117,10 @@ func (sl *SkillsLoader) ListSkills() []SkillInfo {
 		}
 	}
 
-	// Priority: workspace > global > builtin
+	// Priority: workspace > global > antigravity > builtin
 	addSkills(sl.workspaceSkills, "workspace")
 	addSkills(sl.globalSkills, "global")
+	addSkills(sl.antigravity, "antigravity")
 	addSkills(sl.builtinSkills, "builtin")
 
 	return skills
@@ -140,7 +143,15 @@ func (sl *SkillsLoader) LoadSkill(name string) (string, bool) {
 		}
 	}
 
-	// 3. finally load from builtin skills
+	// 3. then load from antigravity skills
+	if sl.antigravity != "" {
+		skillFile := filepath.Join(sl.antigravity, name, "SKILL.md")
+		if content, err := os.ReadFile(skillFile); err == nil {
+			return sl.stripFrontmatter(string(content)), true
+		}
+	}
+
+	// 4. finally load from builtin skills
 	if sl.builtinSkills != "" {
 		skillFile := filepath.Join(sl.builtinSkills, name, "SKILL.md")
 		if content, err := os.ReadFile(skillFile); err == nil {
@@ -277,4 +288,23 @@ func escapeXML(s string) string {
 	s = strings.ReplaceAll(s, "<", "&lt;")
 	s = strings.ReplaceAll(s, ">", "&gt;")
 	return s
+}
+
+func resolveAntigravitySkillsDir() string {
+	if custom := os.Getenv("SOFIA_ANTIGRAVITY_SKILLS_DIR"); custom != "" {
+		if st, err := os.Stat(custom); err == nil && st.IsDir() {
+			return custom
+		}
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	dir := filepath.Join(home, ".sofia", "antigravity-kit", ".agent", "skills")
+	if st, err := os.Stat(dir); err == nil && st.IsDir() {
+		return dir
+	}
+	return ""
 }

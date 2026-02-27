@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/sipeed/sofia/cmd/sofia/internal"
+	"github.com/grasberg/sofia/cmd/sofia/internal"
 )
 
 func TestNewSofiaCommand(t *testing.T) {
