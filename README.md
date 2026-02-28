@@ -30,6 +30,10 @@ workspace-coder/
 
 ## 🚀 Installation & Kom igång
 
+### Krav
+
+Innan du bygger från källkod behöver du ha **Go installerat** (rekommenderat: Go 1.26 eller senare).
+
 ### Installera från källkod
 
 ```bash
