@@ -24,7 +24,7 @@ Download the binary for your platform from this repository's Releases page.
 ### Install from source
 
 ```bash
-git clone https://github.com/<your-account>/sofia.git
+git clone https://github.com/grasberg/sofia.git
 cd sofia
 make deps
 make build
@@ -60,41 +60,17 @@ sofia onboard
 }
 ```
 
-3. Run a one-shot message:
-
-```bash
-sofia agent -m "What is 2+2?"
-```
-
-4. Or start interactive mode:
-
-```bash
-sofia agent
-```
-
-## Common Commands
-
-```bash
-sofia onboard
-sofia agent -m "hello"
-sofia agent
-sofia gateway
-sofia status
-sofia cron list
-sofia skills list
-sofia auth status
-sofia version
-```
-
-## Gateway and Channels
-
-Run gateway mode:
+3. Start:
 
 ```bash
 sofia gateway
 ```
 
-Then enable and configure channels in `~/.sofia/config.json` under `channels`.
+4. Visit Sofias controlpanel:
+
+```bash
+open your webbrowser to http://127.0.0.1:18795
+```
 
 ## Scheduling
 
@@ -123,9 +99,3 @@ Sofia supports workspace restriction via:
 ```
 
 When enabled, file and command tools are constrained to the configured workspace path.
-
-## Documentation
-
-- End users: `docs/USER_GUIDE.md`
-- Developers: `docs/DEVELOPER_SETUP.md`
-- Tools configuration: `docs/tools_configuration.md`
