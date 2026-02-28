@@ -1,27 +1,36 @@
-# Sofia
+# Sofia - AI Workspace Assistant 🧠✨
 
-Sofia is a lightweight AI assistant written in Go.
+Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
-It provides a CLI-first agent workflow (`sofia agent`), a gateway mode for chat platforms (`sofia gateway`), scheduled tasks (`sofia cron`), pluggable skills, and configurable model providers via `model_list`.
+## ✨ Huvudfunktioner
 
-## Features
+*   🛠️ **Autonom Verktygsanvändning:** Kan läsa/redigera filer, köra bash-kommandon, interagera med Google CLI (Gmail/Calendar) och hämta data från webben.
+*   🧠 **Persistens & Minne:** Upprätthåller ett långtidsminne (`MEMORY.md`) och för dagliga anteckningar för att aldrig tappa kontexten över tid.
+*   🤖 **Multi-Agent Orkestrering:** Kan starta bakgrundsprocesser (`spawn`) och delegera komplexa uppgifter till parallella agenter.
+*   📚 **Antigravity Kit (Skill System):** Bestyckad med unika "skills" (expert-personas och kunskapsmoduler) för domänspecifik expertis inom allt från frontend-arkitektur till penetrationstestning.
+*   💬 **Gateway Mode:** Inbyggt stöd för chattplattformar som Telegram och Discord via `sofia gateway`.
 
-- Lightweight Go implementation with a single-binary runtime.
-- Interactive and one-shot agent usage from terminal.
-- Gateway channel support: Telegram and Discord.
-- Model-centric provider configuration (`model_list`) with vendor-style model references (for example `openai/gpt-5.2`, `anthropic/...`, `zhipu/...`).
-- Scheduled jobs and reminders with `cron` (`every` interval and cron expression support).
-- Skill management from CLI (`skills list/search/install/remove/show`).
-- Workspace-based sandboxing (`restrict_to_workspace`) to limit file and command access.
-- Built-in status/auth/version commands for operations and debugging.
+## 📂 Workspace-struktur
 
-## Install
+Sofias hjärna och arbetsyta är strukturerad enligt följande (placerad i `~/.sofia/workspace-coder`):
 
-### Install with precompiled binary
+```text
+workspace-coder/
+├── memory/
+│   ├── MEMORY.md          # Sofias långtidsminne och globala kontext
+│   └── YYYYMM/            # Dagliga anteckningar och task-tracking (ex. 20260228.md)
+├── skills/                # Antigravity Kit - Expertis och beteendemönster
+│   ├── frontend-specialist/
+│   ├── security-auditor/
+│   ├── devops-engineer/
+│   ├── clean-code/
+│   └── ... 
+└── workspace/             # Arbetsyta för kodgenerering och projekt
+```
 
-Download the binary for your platform from this repository's Releases page.
+## 🚀 Installation & Kom igång
 
-### Install from source
+### Installera från källkod
 
 ```bash
 git clone https://github.com/grasberg/sofia.git
@@ -30,18 +39,17 @@ make deps
 make build
 ```
 
-The built binary is available at `build/sofia`.
+Den kompilerade binären hamnar i `build/sofia`.
 
-## Quick Start
+### Quick Start
 
-1. Initialize config and workspace:
-
+1. **Initiera konfiguration och workspace:**
 ```bash
 sofia onboard
 ```
 
-2. Edit `~/.sofia/config.json` and set at least one model with an API key:
-
+2. **Konfigurera API-nycklar:**
+Redigera `~/.sofia/config.json` och ställ in minst en modell med en API-nyckel:
 ```json
 {
   "agents": {
@@ -54,39 +62,35 @@ sofia onboard
     {
       "model_name": "gpt-5.2",
       "model": "openai/gpt-5.2",
-      "api_key": "YOUR_API_KEY"
+      "api_key": "DIN_API_NYCKEL"
     }
   ]
 }
 ```
 
-3. Start:
-
+3. **Starta Gateway (för chatt/webb-gränssnitt):**
 ```bash
 sofia gateway
 ```
 
-4. Visit Sofias controlpanel:
+4. **Öppna Sofias kontrollpanel:**
+Surfa till `http://127.0.0.1:18795` i din webbläsare.
+
+## ⏱️ Schemaläggning (Cron)
+
+Sofia har inbyggt stöd för schemalagda jobb och påminnelser:
 
 ```bash
-open your webbrowser to http://127.0.0.1:18795
+# Varje 10:e minut
+sofia cron add --name followup --message "Kolla väntande uppgifter" --every 600
+
+# Varje dag kl 09:00 (Cron-uttryck)
+sofia cron add --name morning --message "Sammanfatta dagens prioriteringar" --cron "0 9 * * *"
 ```
 
-## Scheduling
+## 🔒 Säkerhetsmodell
 
-Add recurring and cron-based jobs:
-
-```bash
-# Every 10 minutes
-sofia cron add --name followup --message "Check pending tasks" --every 600
-
-# Every day at 09:00
-sofia cron add --name morning --message "Summarize today's priorities" --cron "0 9 * * *"
-```
-
-## Security Model
-
-Sofia supports workspace restriction via:
+Sofia stödjer workspace-restriktioner för att förhindra oavsiktlig modifiering av systemfiler:
 
 ```json
 {
@@ -97,5 +101,7 @@ Sofia supports workspace restriction via:
   }
 }
 ```
+När detta är aktiverat är fil- och kommandoverktyg strikt begränsade till den konfigurerade workspace-sökvägen.
 
-When enabled, file and command tools are constrained to the configured workspace path.
+---
+*Byggd för att accelerera utveckling. Din lokala AI-kollega.*
