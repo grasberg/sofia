@@ -44,6 +44,7 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop) *Server {
 	mux.HandleFunc("/api/agents", s.handleAgents)
 	mux.HandleFunc("/api/agent-templates", s.handleAgentTemplates)
 	mux.HandleFunc("/api/agent-templates/", s.handleAgentTemplateByName)
+	mux.HandleFunc("/api/workspace-docs", s.handleWorkspaceDocs)
 
 	s.server = &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.WebUI.Host, cfg.WebUI.Port),
@@ -361,6 +362,60 @@ func (s *Server) handleAgentTemplateByName(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(t)
 }
 
+func (s *Server) handleWorkspaceDocs(w http.ResponseWriter, r *http.Request) {
+	workspace := s.cfg.WorkspacePath()
+	identityPath := filepath.Join(workspace, "IDENTITY.md")
+	soulPath := filepath.Join(workspace, "SOUL.md")
+
+	if r.Method == http.MethodGet {
+		readOrEmpty := func(path string) string {
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return ""
+			}
+			return string(b)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"identity": readOrEmpty(identityPath),
+			"soul":     readOrEmpty(soulPath),
+		})
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		var req struct {
+			Identity string `json:"identity"`
+			Soul     string `json:"soul"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			s.sendJSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if err := os.MkdirAll(workspace, 0o755); err != nil {
+			s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if err := os.WriteFile(identityPath, []byte(req.Identity), 0o644); err != nil {
+			s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := os.WriteFile(soulPath, []byte(req.Soul), 0o644); err != nil {
+			s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+		return
+	}
+
+	s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
 func resolveAssetsDir() string {
 	if custom := os.Getenv("SOFIA_ASSETS_DIR"); custom != "" {
 		if stat, err := os.Stat(custom); err == nil && stat.IsDir() {
@@ -660,9 +715,14 @@ const indexHTML = `
     <!-- MAIN CONTENT -->
     <main class="flex-grow flex flex-col relative bg-[var(--bg-main)]">
         <!-- Top Header -->
-        <header class="h-16 border-b border-[var(--border-color)] flex items-center justify-between px-8 bg-[var(--bg-sidebar)]/50 backdrop-blur-md z-10 transition-colors duration-300">
-            <div class="flex items-center gap-4">
+        <header class="min-h-16 border-b border-[var(--border-color)] flex items-center justify-between px-8 py-3 bg-[var(--bg-sidebar)]/50 backdrop-blur-md z-10 transition-colors duration-300">
+            <div class="flex flex-col items-start">
                 <h2 id="view-title" class="text-sm font-semibold text-zinc-400 uppercase tracking-wider">Direct Chat</h2>
+                <div id="settings-header-tabs" class="hidden items-center gap-2 mt-2">
+                    <button id="settings-tab-models" onclick="showSettingsSubTab('models')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-[var(--bg-main)]">Models</button>
+                    <button id="settings-tab-prompts" onclick="showSettingsSubTab('prompts')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">SOUL.md & IDENTITY.md</button>
+                    <button id="settings-tab-channels" onclick="showSettingsSubTab('channels')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Channels</button>
+                </div>
             </div>
             <div class="flex items-center gap-4">
                 <div id="status-badge" class="flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--bg-main)] border border-[var(--border-color)] text-[11px] font-medium text-zinc-400 transition-colors duration-300">
@@ -894,55 +954,67 @@ const indexHTML = `
             </div>
 
             <!-- SETTINGS TAB -->
-            <div id="tab-settings" class="tab-content">
-                <div class="max-w-4xl mx-auto w-full space-y-8 overflow-y-auto pr-4">
-                    <div class="glass-panel p-8 rounded-3xl border border-[var(--border-color)] shadow-2xl transition-all duration-300">
-                        <div class="flex items-center gap-4 mb-8">
-                            <div class="w-12 h-12 rounded-2xl bg-sofia/10 flex items-center justify-center text-sofia">
-                                <i data-lucide="settings-2" class="w-6 h-6"></i>
-                            </div>
-                            <div>
-                                <h2 class="text-xl font-bold text-[var(--text-main)]">System Configuration</h2>
-                                <p class="text-sm text-zinc-500">Manage global settings and connections.</p>
-                            </div>
+            <div id="tab-settings" class="tab-content h-full">
+                <div class="h-full overflow-y-auto pr-2 space-y-6">
+                    <div id="settings-subtab-models" class="settings-subtab space-y-6">
+                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 ml-1">Default Model (LLM)</label>
+                            <select id="cfg-model" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]"></select>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
-                            <div class="space-y-6">
-                                <div>
-                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 ml-1">Default Model (LLM)</label>
-                                    <input type="text" id="cfg-model" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]">
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Enabled Channels</label>
-                                    <div class="grid grid-cols-2 gap-4">
-                                        <label class="flex items-center gap-3 p-3 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl cursor-pointer hover:bg-[var(--nav-hover)] transition-all">
-                                            <input type="checkbox" id="cfg-telegram" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
-                                            <span class="text-sm font-medium text-[var(--text-main)]">Telegram</span>
-                                        </label>
-                                        <label class="flex items-center gap-3 p-3 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl cursor-pointer hover:bg-[var(--nav-hover)] transition-all">
-                                            <input type="checkbox" id="cfg-discord" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
-                                            <span class="text-sm font-medium text-[var(--text-main)]">Discord</span>
-                                        </label>
-                                    </div>
-                                </div>
+                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500">Providers & Models</h3>
+                                <button onclick="addProviderModelRow()" class="px-3 py-1 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-xs hover:bg-[var(--nav-hover)]">Add Model</button>
+                            </div>
+                            <div id="provider-model-list" class="space-y-2"></div>
+                            <div class="mt-2 text-[10px] text-zinc-500">Add model aliases and provider endpoints (supports OpenAI-compatible APIs and other protocols).</div>
+                            <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+                                <i data-lucide="save" class="w-4 h-4"></i>
+                                Save changes
+                            </button>
+                        </div>
+                    </div>
 
-                                <button onclick="saveConfig()" class="bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
-                                    <i data-lucide="save" class="w-4 h-4"></i>
-                                    Save changes
-                                </button>
+                    <div id="settings-subtab-prompts" class="settings-subtab hidden space-y-4">
+                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+                            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Prompt Files</h3>
+                            <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">IDENTITY.md</label>
+                            <textarea id="cfg-identity-md" rows="16" class="w-full min-h-[28rem] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-mono text-[var(--text-main)] mb-3"></textarea>
+                            <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">SOUL.md</label>
+                            <textarea id="cfg-soul-md" rows="16" class="w-full min-h-[28rem] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-mono text-[var(--text-main)]"></textarea>
+                            <button onclick="saveWorkspaceDocs()" class="mt-3 px-4 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-xs hover:bg-[var(--nav-hover)]">Save prompt files</button>
+                        </div>
+                    </div>
+
+                    <div id="settings-subtab-channels" class="settings-subtab hidden space-y-4">
+                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Enabled Channels</label>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <label class="flex items-center gap-3 p-3 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl cursor-pointer hover:bg-[var(--nav-hover)] transition-all">
+                                    <input type="checkbox" id="cfg-telegram" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
+                                    <span class="text-sm font-medium text-[var(--text-main)]">Telegram</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl cursor-pointer hover:bg-[var(--nav-hover)] transition-all">
+                                    <input type="checkbox" id="cfg-discord" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
+                                    <span class="text-sm font-medium text-[var(--text-main)]">Discord</span>
+                                </label>
                             </div>
 
-                            <div class="bg-[var(--bg-sidebar)]/30 rounded-2xl p-6 border border-[var(--border-color)] flex flex-col gap-4 transition-colors duration-300">
-                                <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3">System Information</h3>
-                                <div id="system-details" class="text-sm space-y-4">
-                                    <!-- Filled by JS -->
-                                </div>
-                                <div class="mt-auto pt-4 flex gap-2">
-                                    <div class="px-3 py-1 rounded bg-[var(--bg-main)] border border-[var(--border-color)] text-[10px] font-mono text-zinc-500">v2.5.0-stable</div>
-                                    <div class="px-3 py-1 rounded bg-[var(--bg-main)] border border-[var(--border-color)] text-[10px] font-mono text-zinc-500">GO-1.26</div>
-                                </div>
+                            <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+                                <i data-lucide="save" class="w-4 h-4"></i>
+                                Save changes
+                            </button>
+                        </div>
+
+                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl flex flex-col gap-4 transition-colors duration-300">
+                            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3">System Information</h3>
+                            <div id="system-details" class="text-sm space-y-4">
+                                <!-- Filled by JS -->
+                            </div>
+                            <div class="mt-auto pt-4 flex gap-2">
+                                <div class="px-3 py-1 rounded bg-[var(--bg-main)] border border-[var(--border-color)] text-[10px] font-mono text-zinc-500">v2.5.0-stable</div>
+                                <div class="px-3 py-1 rounded bg-[var(--bg-main)] border border-[var(--border-color)] text-[10px] font-mono text-zinc-500">GO-1.26</div>
                             </div>
                         </div>
                     </div>
@@ -957,6 +1029,8 @@ const indexHTML = `
         let activeAgentID = null;
         let purposeTemplates = [];
         let purposeTemplateMap = {};
+        let currentConfig = null;
+        let currentSettingsSubTab = 'models';
 
         // Initialize Lucide Icons
         function refreshIcons() {
@@ -1018,6 +1092,7 @@ const indexHTML = `
             currentTab = tabId;
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(l => l.classList.remove('active'));
+            const settingsHeaderTabs = document.getElementById('settings-header-tabs');
             
             document.getElementById('tab-' + tabId).classList.add('active');
             document.getElementById('nav-' + tabId).classList.add('active');
@@ -1034,8 +1109,34 @@ const indexHTML = `
 
             if (tabId === 'agents') fetchAgents();
             if (tabId === 'skills') fetchStatus();
+            if (tabId === 'settings') {
+                settingsHeaderTabs.classList.remove('hidden');
+                settingsHeaderTabs.classList.add('flex');
+                fetchConfig();
+                showSettingsSubTab(currentSettingsSubTab);
+            } else {
+                settingsHeaderTabs.classList.add('hidden');
+                settingsHeaderTabs.classList.remove('flex');
+            }
             
             refreshIcons();
+        }
+
+        function showSettingsSubTab(tabId) {
+            currentSettingsSubTab = tabId;
+            const tabs = ['models', 'prompts', 'channels'];
+            tabs.forEach(t => {
+                const panel = document.getElementById('settings-subtab-' + t);
+                const button = document.getElementById('settings-tab-' + t);
+                if (!panel || !button) return;
+                if (t === tabId) {
+                    panel.classList.remove('hidden');
+                    button.classList.add('bg-[var(--bg-main)]', 'text-[var(--text-main)]');
+                } else {
+                    panel.classList.add('hidden');
+                    button.classList.remove('bg-[var(--bg-main)]', 'text-[var(--text-main)]');
+                }
+            });
         }
 
         async function fetchStatus() {
@@ -1342,14 +1443,173 @@ const indexHTML = `
 			refreshIcons();
 		}
 
+        function addProviderModelRow(seed) {
+            const list = document.getElementById("provider-model-list");
+            const row = document.createElement("div");
+            row.className = "provider-model-row p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)]";
+            row.innerHTML =
+                "<div class='grid grid-cols-12 gap-2'>" +
+                    "<input data-key='model_name' placeholder='model_name (alias)' class='col-span-3 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
+                    "<input data-key='model' placeholder='protocol/model-id' class='col-span-4 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
+                    "<input data-key='api_base' placeholder='api_base (optional)' class='col-span-3 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
+                    "<input data-key='api_key' placeholder='api_key' type='password' class='col-span-2 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
+                "</div>" +
+                "<div class='grid grid-cols-12 gap-2 mt-2'>" +
+                    "<input data-key='proxy' placeholder='proxy (optional)' class='col-span-3 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
+                    "<input data-key='auth_method' placeholder='auth_method' class='col-span-2 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
+                    "<input data-key='connect_mode' placeholder='connect_mode' class='col-span-2 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
+                    "<input data-key='workspace' placeholder='workspace' class='col-span-3 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
+                    "<button onclick='removeProviderModelRow(this)' class='col-span-2 text-xs border border-[var(--border-color)] rounded hover:bg-[var(--nav-hover)]'>Remove</button>" +
+                "</div>" +
+                "<div class='grid grid-cols-12 gap-2 mt-2'>" +
+                    "<input data-key='rpm' placeholder='rpm' type='number' min='0' class='col-span-2 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
+                    "<input data-key='request_timeout' placeholder='request_timeout' type='number' min='0' class='col-span-3 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
+                    "<input data-key='max_tokens_field' placeholder='max_tokens_field' class='col-span-4 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
+                    "<div class='col-span-3 text-[10px] text-zinc-500 flex items-center'>Advanced model settings</div>" +
+                "</div>";
+            list.appendChild(row);
+
+            if (seed) {
+                row.querySelector("[data-key='model_name']").value = seed.model_name || "";
+                row.querySelector("[data-key='model']").value = seed.model || "";
+                row.querySelector("[data-key='api_base']").value = seed.api_base || "";
+                row.querySelector("[data-key='api_key']").value = seed.api_key || "";
+                row.querySelector("[data-key='proxy']").value = seed.proxy || "";
+                row.querySelector("[data-key='auth_method']").value = seed.auth_method || "";
+                row.querySelector("[data-key='connect_mode']").value = seed.connect_mode || "";
+                row.querySelector("[data-key='workspace']").value = seed.workspace || "";
+                row.querySelector("[data-key='rpm']").value = seed.rpm || "";
+                row.querySelector("[data-key='request_timeout']").value = seed.request_timeout || "";
+                row.querySelector("[data-key='max_tokens_field']").value = seed.max_tokens_field || "";
+            }
+
+            row.querySelector("[data-key='model_name']").addEventListener("input", refreshDefaultModelOptions);
+            refreshDefaultModelOptions();
+        }
+
+        function removeProviderModelRow(btn) {
+            const row = btn.closest(".provider-model-row");
+            if (row) row.remove();
+            refreshDefaultModelOptions();
+        }
+
+        function getProviderModelsFromForm() {
+            const rows = Array.from(document.querySelectorAll(".provider-model-row"));
+            const models = [];
+            rows.forEach(row => {
+                const modelName = row.querySelector("[data-key='model_name']").value.trim();
+                const model = row.querySelector("[data-key='model']").value.trim();
+                const apiBase = row.querySelector("[data-key='api_base']").value.trim();
+                const apiKey = row.querySelector("[data-key='api_key']").value.trim();
+                const proxy = row.querySelector("[data-key='proxy']").value.trim();
+                const authMethod = row.querySelector("[data-key='auth_method']").value.trim();
+                const connectMode = row.querySelector("[data-key='connect_mode']").value.trim();
+                const workspace = row.querySelector("[data-key='workspace']").value.trim();
+                const rpmRaw = row.querySelector("[data-key='rpm']").value.trim();
+                const requestTimeoutRaw = row.querySelector("[data-key='request_timeout']").value.trim();
+                const maxTokensField = row.querySelector("[data-key='max_tokens_field']").value.trim();
+                if (!modelName || !model) return;
+                const entry = { model_name: modelName, model: model };
+                if (apiBase) entry.api_base = apiBase;
+                if (apiKey) entry.api_key = apiKey;
+                if (proxy) entry.proxy = proxy;
+                if (authMethod) entry.auth_method = authMethod;
+                if (connectMode) entry.connect_mode = connectMode;
+                if (workspace) entry.workspace = workspace;
+                if (maxTokensField) entry.max_tokens_field = maxTokensField;
+                const rpm = Number.parseInt(rpmRaw, 10);
+                if (!Number.isNaN(rpm) && rpm > 0) entry.rpm = rpm;
+                const requestTimeout = Number.parseInt(requestTimeoutRaw, 10);
+                if (!Number.isNaN(requestTimeout) && requestTimeout > 0) entry.request_timeout = requestTimeout;
+                models.push(entry);
+            });
+            return models;
+        }
+
+        function refreshDefaultModelOptions() {
+            const select = document.getElementById("cfg-model");
+            const previous = select.value;
+            const models = getProviderModelsFromForm();
+
+            select.innerHTML = "";
+            if (models.length === 0) {
+                const opt = document.createElement("option");
+                opt.value = "";
+                opt.textContent = "No models configured";
+                select.appendChild(opt);
+                return;
+            }
+
+            models.forEach(m => {
+                const opt = document.createElement("option");
+                opt.value = m.model_name;
+                opt.textContent = m.model_name + " (" + m.model + ")";
+                select.appendChild(opt);
+            });
+
+            if (models.some(m => m.model_name === previous)) {
+                select.value = previous;
+            }
+        }
+
+        async function fetchWorkspaceDocs() {
+            try {
+                const res = await fetch("/api/workspace-docs");
+                if (!res.ok) return;
+                const docs = await res.json();
+                document.getElementById("cfg-identity-md").value = docs.identity || "";
+                document.getElementById("cfg-soul-md").value = docs.soul || "";
+            } catch (e) {
+                console.error("Workspace docs fetch failed", e);
+            }
+        }
+
+        async function saveWorkspaceDocs() {
+            try {
+                const payload = {
+                    identity: document.getElementById("cfg-identity-md").value,
+                    soul: document.getElementById("cfg-soul-md").value,
+                };
+                const res = await fetch("/api/workspace-docs", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(payload),
+                });
+                if (res.ok) {
+                    alert("Prompt files saved!");
+                } else {
+                    const msg = await res.text();
+                    alert("Could not save prompt files: " + msg);
+                }
+            } catch (e) {
+                alert("Network error while saving prompt files.");
+            }
+        }
+
         async function fetchConfig() {
             try {
                 const res = await fetch("/api/config");
                 if (!res.ok) return;
                 const cfg = await res.json();
-                document.getElementById("cfg-model").value = cfg.agents.defaults.model_name || cfg.agents.defaults.model;
+                currentConfig = cfg;
+
                 document.getElementById("cfg-telegram").checked = cfg.channels.telegram.enabled;
                 document.getElementById("cfg-discord").checked = cfg.channels.discord.enabled;
+
+                const list = document.getElementById("provider-model-list");
+                list.innerHTML = "";
+                (cfg.model_list || []).forEach(m => addProviderModelRow(m));
+                if (!cfg.model_list || cfg.model_list.length === 0) {
+                    addProviderModelRow();
+                }
+
+                refreshDefaultModelOptions();
+                const defaultModel = cfg.agents.defaults.model_name || cfg.agents.defaults.model || "";
+                if (defaultModel) {
+                    document.getElementById("cfg-model").value = defaultModel;
+                }
+
+                fetchWorkspaceDocs();
             } catch (e) {
                 console.error("Config fetch failed", e);
             }
@@ -1555,10 +1815,16 @@ const indexHTML = `
 
         async function saveConfig() {
             try {
-                const res = await fetch("/api/config");
-                let cfg = await res.json();
-                
+                let cfg = currentConfig;
+                if (!cfg) {
+                    const res = await fetch("/api/config");
+                    cfg = await res.json();
+                }
+
+                cfg.model_list = getProviderModelsFromForm();
                 cfg.agents.defaults.model_name = document.getElementById("cfg-model").value;
+                cfg.agents.defaults.model = "";
+                
                 cfg.channels.telegram.enabled = document.getElementById("cfg-telegram").checked;
                 cfg.channels.discord.enabled = document.getElementById("cfg-discord").checked;
 
@@ -1569,6 +1835,7 @@ const indexHTML = `
                 });
                 
                 if (saveRes.ok) {
+                    currentConfig = cfg;
                     alert("Settings saved!");
                 } else {
                     alert("Could not save settings.");
@@ -1582,6 +1849,7 @@ const indexHTML = `
         fetchStatus();
         fetchConfig();
         fetchPurposeTemplates();
+        showSettingsSubTab('models');
         setupLogStream();
         updateThemeIcons();
         refreshIcons();
