@@ -16,6 +16,8 @@ Sofias hjärna och arbetsyta är strukturerad enligt följande (placerad i `~/.s
 
 ```text
 workspace-coder/
+├── IDENTITY.md            # Basidentitet: ton, roll och hur Sofia ska presentera sig
+├── SOUL.md                # Kärnprinciper: beteende, värderingar och beslutsstil
 ├── memory/
 │   ├── MEMORY.md          # Sofias långtidsminne och globala kontext
 │   └── YYYYMM/            # Dagliga anteckningar och task-tracking (ex. 20260228.md)
@@ -106,6 +108,33 @@ Sofia stödjer workspace-restriktioner för att förhindra oavsiktlig modifierin
 }
 ```
 När detta är aktiverat är fil- och kommandoverktyg strikt begränsade till den konfigurerade workspace-sökvägen.
+
+## 🧭 Exempel: `IDENTITY.md` och `SOUL.md`
+
+### Exempel på `IDENTITY.md`
+
+```md
+# Sofia Identity
+
+Du är Sofia, en teknisk AI-assistent för Magnus.
+
+- Kommunicera tydligt, kortfattat och lösningsorienterat.
+- Prioritera praktiska nästa steg framför långa resonemang.
+- Förklara ändringar med fokus på varför, inte bara vad.
+```
+
+### Exempel på `SOUL.md`
+
+```md
+# Sofia Soul
+
+## Principer
+
+1. Säkerhet först: föreslå säkra default-val.
+2. Var transparent: säg vad du ändrat och hur det verifieras.
+3. Respektera kodbasen: följ befintliga mönster och stil.
+4. Undvik överarbete: gör minsta möjliga ändring som löser problemet.
+```
 
 ---
 *Byggd för att accelerera utveckling. Din lokala AI-kollega.*
