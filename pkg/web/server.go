@@ -780,7 +780,7 @@ const indexHTML = `
                     </div>
 
                     <!-- Right Sidebar: Agent Monitor -->
-                    <div id="agent-monitor-sidebar" class="w-80 shrink-0 flex flex-col hidden">
+                    <div id="agent-monitor-sidebar" class="w-80 shrink-0 flex flex-col">
                         <div class="glass-panel rounded-2xl border border-[var(--border-color)] flex flex-col h-full overflow-hidden shadow-2xl transition-all duration-300">
                             <div class="p-4 border-b border-[var(--border-color)] bg-[var(--bg-sidebar)]/50 flex items-center justify-between transition-colors duration-300">
                                 <h3 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Agent Monitor</h3>
@@ -879,8 +879,10 @@ const indexHTML = `
                             </div>
                             <div>
                                 <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">AI Model</label>
-                                <input type="text" id="agent-model" placeholder="gemini-2.0-flash"
+                                <select id="agent-model"
                                     class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]">
+                                    <option value="">Default (System Default)</option>
+                                </select>
                             </div>
 							<div>
 								<label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Purpose Template (Antigravity)</label>
@@ -965,7 +967,48 @@ const indexHTML = `
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
                             <div class="flex items-center justify-between mb-3">
                                 <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500">Providers & Models</h3>
-                                <button onclick="addProviderModelRow()" class="px-3 py-1 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-xs hover:bg-[var(--nav-hover)]">Add Model</button>
+                                <div class="flex gap-2">
+                                    <select id="model-template-select" onchange="addModelFromTemplate()" class="px-3 py-1 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-xs hover:bg-[var(--nav-hover)] outline-none cursor-pointer">
+                                        <option value="">Quick Add Template...</option>
+                                        <optgroup label="Google Gemini">
+                                            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
+                                            <option value="gemini-3-pro-preview">Gemini 3.0 Pro Preview</option>
+                                            <option value="gemini-3-flash-preview">Gemini 3.0 Flash Preview</option>
+                                            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                                            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                            <option value="gemini-2.0-pro">Gemini 2.0 Pro</option>
+                                            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                                        </optgroup>
+                                        <optgroup label="OpenAI">
+                                            <option value="gpt-5.2-pro">GPT-5.2 Pro</option>
+                                            <option value="gpt-5.2-codex">GPT-5.2 Codex</option>
+                                            <option value="gpt-5.2">GPT-5.2</option>
+                                            <option value="gpt-5.1">GPT-5.1</option>
+                                            <option value="gpt-4.1">GPT-4.1</option>
+                                            <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
+                                            <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
+                                            <option value="gpt-4.5-preview">GPT-4.5 Preview</option>
+                                            <option value="o1">o1 (Reasoning)</option>
+                                            <option value="o3-mini">o3-mini</option>
+                                            <option value="gpt-4o">GPT-4o</option>
+                                        </optgroup>
+                                        <optgroup label="Anthropic">
+                                            <option value="claude-opus-4-6">Claude 4.6 Opus</option>
+                                            <option value="claude-sonnet-4-6">Claude 4.6 Sonnet</option>
+                                            <option value="claude-haiku-4-5">Claude 4.5 Haiku</option>
+                                        </optgroup>
+                                        <optgroup label="DeepSeek">
+                                            <option value="deepseek-v3">DeepSeek V3 (Chat)</option>
+                                            <option value="deepseek-r1">DeepSeek R1 (Reasoner)</option>
+                                        </optgroup>
+                                        <optgroup label="Groq">
+                                            <option value="llama-3.3-70b">Llama 3.3 70b</option>
+                                            <option value="mixtral-8x7b">Mixtral 8x7b</option>
+                                        </optgroup>
+                                    </select>
+                                    <button onclick="addProviderModelRow()" class="px-3 py-1 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-xs hover:bg-[var(--nav-hover)]">Add Custom</button>
+                                </div>
                             </div>
                             <div id="provider-model-list" class="space-y-2"></div>
                             <div class="mt-2 text-[10px] text-zinc-500">Add model aliases and provider endpoints (supports OpenAI-compatible APIs and other protocols).</div>
@@ -989,17 +1032,40 @@ const indexHTML = `
 
                     <div id="settings-subtab-channels" class="settings-subtab hidden space-y-4">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
-                            <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Enabled Channels</label>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <label class="flex items-center gap-3 p-3 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl cursor-pointer hover:bg-[var(--nav-hover)] transition-all">
-                                    <input type="checkbox" id="cfg-telegram" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
-                                    <span class="text-sm font-medium text-[var(--text-main)]">Telegram</span>
-                                </label>
-                                <label class="flex items-center gap-3 p-3 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl cursor-pointer hover:bg-[var(--nav-hover)] transition-all">
-                                    <input type="checkbox" id="cfg-discord" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
-                                    <span class="text-sm font-medium text-[var(--text-main)]">Discord</span>
-                                </label>
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Channel Setup</label>
+                            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3">
+                                    <label class="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" id="cfg-telegram" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
+                                        <span class="text-sm font-semibold text-[var(--text-main)]">Telegram</span>
+                                    </label>
+                                    <input type="password" id="cfg-telegram-token" placeholder="Bot token"
+                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                                    <input type="text" id="cfg-telegram-proxy" placeholder="Proxy URL (optional)"
+                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                                    <textarea id="cfg-telegram-allow-from" rows="3" placeholder="Allowed user IDs (comma or newline separated)"
+                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"></textarea>
+                                    <div id="cfg-telegram-warning" class="hidden text-[11px] text-yellow-500">Telegram is enabled but token is empty.</div>
+                                </div>
+
+                                <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3">
+                                    <label class="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" id="cfg-discord" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
+                                        <span class="text-sm font-semibold text-[var(--text-main)]">Discord</span>
+                                    </label>
+                                    <input type="password" id="cfg-discord-token" placeholder="Bot token"
+                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                                    <textarea id="cfg-discord-allow-from" rows="3" placeholder="Allowed user IDs (comma or newline separated)"
+                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"></textarea>
+                                    <label class="flex items-center gap-2 text-xs text-zinc-500">
+                                        <input type="checkbox" id="cfg-discord-mention-only" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
+                                        Respond only when bot is mentioned
+                                    </label>
+                                    <div id="cfg-discord-warning" class="hidden text-[11px] text-yellow-500">Discord is enabled but token is empty.</div>
+                                </div>
                             </div>
+
+                            <div id="cfg-channels-warning" class="hidden mt-3 text-[11px] text-yellow-500">One or more enabled channels are missing tokens.</div>
 
                             <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
                                 <i data-lucide="save" class="w-4 h-4"></i>
@@ -1031,6 +1097,69 @@ const indexHTML = `
         let purposeTemplateMap = {};
         let currentConfig = null;
         let currentSettingsSubTab = 'models';
+
+        const MODEL_TEMPLATES = {
+            // Google Gemini
+            "gemini-3.1-pro-preview": { model_name: "gemini-3.1-pro-preview", model: "gemini/gemini-3.1-pro-preview", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+            "gemini-3-pro-preview": { model_name: "gemini-3-pro-preview", model: "gemini/gemini-3-pro-preview", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+            "gemini-3-flash-preview": { model_name: "gemini-3-flash-preview", model: "gemini/gemini-3-flash-preview", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+            "gemini-2.5-pro": { model_name: "gemini-2.5-pro", model: "gemini/gemini-2.5-pro", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+            "gemini-2.5-flash": { model_name: "gemini-2.5-flash", model: "gemini/gemini-2.5-flash", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+            "gemini-2.0-pro": { model_name: "gemini-2.0-pro", model: "gemini/gemini-2.0-pro-exp-02-05", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+            "gemini-2.0-flash": { model_name: "gemini-2.0-flash", model: "gemini/gemini-2.0-flash", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+            "gemini-1.5-pro": { model_name: "gemini-1.5-pro", model: "gemini/gemini-1.5-pro", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+            
+            // OpenAI
+            "gpt-5.2-pro": { model_name: "gpt-5.2-pro", model: "openai/gpt-5.2-pro", api_base: "https://api.openai.com/v1" },
+            "gpt-5.2-codex": { model_name: "gpt-5.2-codex", model: "openai/gpt-5.2-codex", api_base: "https://api.openai.com/v1" },
+            "gpt-5.2": { model_name: "gpt-5.2", model: "openai/gpt-5.2", api_base: "https://api.openai.com/v1" },
+            "gpt-5.1": { model_name: "gpt-5.1", model: "openai/gpt-5.1", api_base: "https://api.openai.com/v1" },
+            "gpt-4.1": { model_name: "gpt-4.1", model: "openai/gpt-4.1", api_base: "https://api.openai.com/v1" },
+            "gpt-4.1-mini": { model_name: "gpt-4.1-mini", model: "openai/gpt-4.1-mini", api_base: "https://api.openai.com/v1" },
+            "gpt-4.1-nano": { model_name: "gpt-4.1-nano", model: "openai/gpt-4.1-nano", api_base: "https://api.openai.com/v1" },
+            "gpt-4.5-preview": { model_name: "gpt-4.5-preview", model: "openai/gpt-4.5-preview", api_base: "https://api.openai.com/v1" },
+            "o1": { model_name: "o1", model: "openai/o1", api_base: "https://api.openai.com/v1" },
+            "o3-mini": { model_name: "o3-mini", model: "openai/o3-mini", api_base: "https://api.openai.com/v1" },
+            "gpt-4o": { model_name: "gpt-4o", model: "openai/gpt-4o", api_base: "https://api.openai.com/v1" },
+            
+            // Anthropic
+            "claude-opus-4-6": { model_name: "claude-opus-4-6", model: "anthropic/claude-4-6-opus-latest", api_base: "https://api.anthropic.com/v1" },
+            "claude-sonnet-4-6": { model_name: "claude-sonnet-4-6", model: "anthropic/claude-4-6-sonnet-latest", api_base: "https://api.anthropic.com/v1" },
+            "claude-haiku-4-5": { model_name: "claude-haiku-4-5", model: "anthropic/claude-4-5-haiku-latest", api_base: "https://api.anthropic.com/v1" },
+            
+            // DeepSeek
+            "deepseek-v3": { model_name: "deepseek-v3", model: "deepseek/deepseek-chat", api_base: "https://api.deepseek.com/v1" },
+            "deepseek-r1": { model_name: "deepseek-r1", model: "deepseek/deepseek-reasoner", api_base: "https://api.deepseek.com/v1" },
+            
+            // Groq
+            "llama-3.3-70b": { model_name: "llama-3.3-70b", model: "groq/llama-3.3-70b-versatile", api_base: "https://api.groq.com/openai/v1" },
+            "mixtral-8x7b": { model_name: "mixtral-8x7b", model: "groq/mixtral-8x7b-32768", api_base: "https://api.groq.com/openai/v1" },
+        };
+
+        function addModelFromTemplate() {
+            const select = document.getElementById("model-template-select");
+            const val = select.value;
+            if (!val) return;
+            
+            const template = MODEL_TEMPLATES[val];
+            if (template) {
+                // Try to find an existing API key for this provider to auto-fill
+                const provider = template.model.split('/')[0];
+                const existingRows = Array.from(document.querySelectorAll(".provider-model-row"));
+                let existingKey = "";
+                for (const row of existingRows) {
+                    const m = row.querySelector("[data-key='model']").value;
+                    if (m.startsWith(provider + "/")) {
+                        existingKey = row.querySelector("[data-key='api_key']").value;
+                        if (existingKey) break;
+                    }
+                }
+                
+                const seed = { ...template, api_key: existingKey };
+                addProviderModelRow(seed);
+            }
+            select.value = "";
+        }
 
         // Initialize Lucide Icons
         function refreshIcons() {
@@ -1107,7 +1236,10 @@ const indexHTML = `
             };
             document.getElementById('view-title').innerText = titles[tabId];
 
-            if (tabId === 'agents') fetchAgents();
+            if (tabId === 'agents') {
+                fetchAgents();
+                fetchConfig(); // Ensure model dropdown is populated
+            }
             if (tabId === 'skills') fetchStatus();
             if (tabId === 'settings') {
                 settingsHeaderTabs.classList.remove('hidden');
@@ -1163,10 +1295,10 @@ const indexHTML = `
                 } else {
                     activeAgentID = null;
                     livePanel.classList.add("hidden");
-                    // Only hide sidebar if no sub-agent activity and live panel is hidden
-                    if (monitor.children.length === 0) {
-                        sidebar.classList.add("hidden");
-                    }
+                    // User requested sidebar to always be visible
+                    // if (monitor.children.length === 0) {
+                    //     sidebar.classList.add("hidden");
+                    // }
                 }
 
                 // If on agents tab, we might want to refresh to show active status
@@ -1422,7 +1554,24 @@ const indexHTML = `
 			document.getElementById("agent-id").disabled = true;
 			document.getElementById("agent-id").classList.add("opacity-50");
 			document.getElementById("agent-name").value = name;
-			document.getElementById("agent-model").value = model;
+			
+            const modelSelect = document.getElementById("agent-model");
+            // Check if model exists in options
+            let exists = false;
+            for (let i = 0; i < modelSelect.options.length; i++) {
+                if (modelSelect.options[i].value === model) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists && model) {
+                const opt = document.createElement("option");
+                opt.value = model;
+                opt.textContent = model + " (Not in list)";
+                modelSelect.appendChild(opt);
+            }
+            modelSelect.value = model || "";
+
 			document.getElementById("agent-template").value = template || "";
 			document.getElementById("agent-template-skills-mode").value = templateSkillsMode || "fallback";
 			onTemplateSelected();
@@ -1528,10 +1677,14 @@ const indexHTML = `
 
         function refreshDefaultModelOptions() {
             const select = document.getElementById("cfg-model");
+            const agentModelSelect = document.getElementById("agent-model");
             const previous = select.value;
+            const previousAgentModel = agentModelSelect.value;
             const models = getProviderModelsFromForm();
 
             select.innerHTML = "";
+            agentModelSelect.innerHTML = "<option value=''>Default (System Default)</option>";
+
             if (models.length === 0) {
                 const opt = document.createElement("option");
                 opt.value = "";
@@ -1541,15 +1694,58 @@ const indexHTML = `
             }
 
             models.forEach(m => {
-                const opt = document.createElement("option");
-                opt.value = m.model_name;
-                opt.textContent = m.model_name + " (" + m.model + ")";
-                select.appendChild(opt);
+                // Only add to selection if API key is provided
+                if (m.api_key && m.api_key.trim() !== "") {
+                    const opt = document.createElement("option");
+                    opt.value = m.model_name;
+                    opt.textContent = m.model_name + " (" + m.model + ")";
+                    select.appendChild(opt);
+
+                    const opt2 = document.createElement("option");
+                    opt2.value = m.model_name;
+                    opt2.textContent = m.model_name;
+                    agentModelSelect.appendChild(opt2);
+                }
             });
 
             if (models.some(m => m.model_name === previous)) {
                 select.value = previous;
             }
+            if (previousAgentModel === "" || Array.from(agentModelSelect.options).some(o => o.value === previousAgentModel)) {
+                agentModelSelect.value = previousAgentModel;
+            }
+        }
+
+        function formatAllowFrom(values) {
+            if (!Array.isArray(values) || values.length === 0) return "";
+            return values.join(", ");
+        }
+
+        function parseAllowFromInput(raw) {
+            return raw
+                .split(/[\n,]/)
+                .map(v => v.trim())
+                .filter(v => v.length > 0);
+        }
+
+        function validateChannelSettings() {
+            const telegramEnabled = document.getElementById("cfg-telegram").checked;
+            const telegramToken = document.getElementById("cfg-telegram-token").value.trim();
+            const discordEnabled = document.getElementById("cfg-discord").checked;
+            const discordToken = document.getElementById("cfg-discord-token").value.trim();
+
+            const telegramWarn = document.getElementById("cfg-telegram-warning");
+            const discordWarn = document.getElementById("cfg-discord-warning");
+            const globalWarn = document.getElementById("cfg-channels-warning");
+
+            const telegramInvalid = telegramEnabled && !telegramToken;
+            const discordInvalid = discordEnabled && !discordToken;
+
+            telegramWarn.classList.toggle("hidden", !telegramInvalid);
+            discordWarn.classList.toggle("hidden", !discordInvalid);
+            globalWarn.classList.toggle("hidden", !(telegramInvalid || discordInvalid));
+
+            return !(telegramInvalid || discordInvalid);
         }
 
         async function fetchWorkspaceDocs() {
@@ -1595,6 +1791,13 @@ const indexHTML = `
 
                 document.getElementById("cfg-telegram").checked = cfg.channels.telegram.enabled;
                 document.getElementById("cfg-discord").checked = cfg.channels.discord.enabled;
+                document.getElementById("cfg-telegram-token").value = cfg.channels.telegram.token || "";
+                document.getElementById("cfg-telegram-proxy").value = cfg.channels.telegram.proxy || "";
+                document.getElementById("cfg-telegram-allow-from").value = formatAllowFrom(cfg.channels.telegram.allow_from);
+                document.getElementById("cfg-discord-token").value = cfg.channels.discord.token || "";
+                document.getElementById("cfg-discord-allow-from").value = formatAllowFrom(cfg.channels.discord.allow_from);
+                document.getElementById("cfg-discord-mention-only").checked = !!cfg.channels.discord.mention_only;
+                validateChannelSettings();
 
                 const list = document.getElementById("provider-model-list");
                 list.innerHTML = "";
@@ -1739,11 +1942,42 @@ const indexHTML = `
                     const monitor = document.getElementById("agent-activity-monitor");
                     const sidebar = document.getElementById("agent-monitor-sidebar");
                     const livePanel = document.getElementById("live-activity-panel");
-                    if (monitor.children.length === 0 && livePanel.classList.contains("hidden")) {
-                        sidebar.classList.add("hidden");
-                    }
+                    // User requested sidebar to always be visible
+                    // if (monitor.children.length === 0 && livePanel.classList.contains("hidden")) {
+                    //     sidebar.classList.add("hidden");
+                    // }
                 }, 500);
             }, 10000);
+        }
+
+        function escapeHtml(text) {
+            return (text || "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/\"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
+        function formatAssistantMessage(text) {
+            let safe = escapeHtml(text);
+
+            // Code fences
+            safe = safe.replace(new RegExp("\\x60\\x60\\x60([\\w-]+)?\\n([\\s\\S]*?)\\x60\\x60\\x60", "g"), (_, lang, code) => {
+                const language = lang ? "<div class='text-[10px] text-zinc-400 mb-1 uppercase tracking-wider'>" + lang + "</div>" : "";
+                return "<div class='mt-3 mb-2 p-3 rounded-xl bg-black/20 border border-[var(--border-color)] overflow-x-auto'>" +
+                    language +
+                    "<pre class='text-xs text-zinc-200 whitespace-pre'><code>" + code + "</code></pre>" +
+                "</div>";
+            });
+
+            // Basic emphasis
+            safe = safe.replace(/\*\*(.*?)\*\*/g, "<strong class='text-[var(--text-main)]'>$1</strong>");
+            safe = safe.replace(new RegExp("\\x60([^\\x60]+)\\x60", "g"), "<code class='px-1 py-0.5 rounded bg-black/20 border border-[var(--border-color)] text-xs'>$1</code>");
+
+            // Preserve line breaks
+            safe = safe.replace(/\n/g, "<br>");
+            return safe;
         }
 
         async function sendChat() {
@@ -1795,7 +2029,7 @@ const indexHTML = `
                             "<img src='/assets/sofiamantis.png' class='w-5 h-5 opacity-80'>" +
                         "</div>" +
                         "<div>" +
-                            "<div class='chat-bubble-sofia px-4 py-3 rounded-2xl text-sm leading-relaxed max-w-[85%] text-zinc-300'>" + responseData.response + "</div>" +
+                            "<div class='chat-bubble-sofia px-4 py-3 rounded-2xl text-sm leading-relaxed max-w-[85%] text-zinc-300 whitespace-pre-wrap break-words'>" + formatAssistantMessage(responseData.response) + "</div>" +
                             "<div class='text-[9px] text-zinc-600 ml-1 mt-1 font-bold uppercase tracking-widest'>Sofia System</div>" +
                         "</div>" +
                     "</div>";
@@ -1827,6 +2061,13 @@ const indexHTML = `
                 
                 cfg.channels.telegram.enabled = document.getElementById("cfg-telegram").checked;
                 cfg.channels.discord.enabled = document.getElementById("cfg-discord").checked;
+                cfg.channels.telegram.token = document.getElementById("cfg-telegram-token").value.trim();
+                cfg.channels.telegram.proxy = document.getElementById("cfg-telegram-proxy").value.trim();
+                cfg.channels.telegram.allow_from = parseAllowFromInput(document.getElementById("cfg-telegram-allow-from").value);
+                cfg.channels.discord.token = document.getElementById("cfg-discord-token").value.trim();
+                cfg.channels.discord.allow_from = parseAllowFromInput(document.getElementById("cfg-discord-allow-from").value);
+                cfg.channels.discord.mention_only = document.getElementById("cfg-discord-mention-only").checked;
+                validateChannelSettings();
 
                 const saveRes = await fetch("/api/config", {
                     method: "POST",
@@ -1853,6 +2094,18 @@ const indexHTML = `
         setupLogStream();
         updateThemeIcons();
         refreshIcons();
+
+        [
+            "cfg-telegram",
+            "cfg-telegram-token",
+            "cfg-discord",
+            "cfg-discord-token",
+        ].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener("change", validateChannelSettings);
+            el.addEventListener("input", validateChannelSettings);
+        });
         
         // Auto-refresh status
         setInterval(fetchStatus, 2000);
