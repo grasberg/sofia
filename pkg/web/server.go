@@ -1257,9 +1257,30 @@ const indexHTML = `
                             <div id="cfg-channels-warning" class="hidden mt-3 text-[11px] text-yellow-500">One or more enabled channels are missing tokens.</div>
 
                             <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+                            <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
                                 <i data-lucide="save" class="w-4 h-4"></i>
                                 Save changes
                             </button>
+                        </div>
+
+                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Workspace Security</label>
+                            
+                            <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)]">
+                                <div class="flex items-start justify-between">
+                                    <div class="space-y-1 pr-6">
+                                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Restrict to Workspace</h4>
+                                        <p class="text-[11px] leading-relaxed text-zinc-500">
+                                            When enabled, Sofia's file and command tools are strictly sandboxed to the configured workspace path. 
+                                            This prevents accidental modification of system files or parent directories.
+                                        </p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                                        <input type="checkbox" id="cfg-restrict-workspace" class="sr-only peer" onchange="saveConfig()">
+                                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
 
 
@@ -2318,6 +2339,7 @@ const indexHTML = `
                 document.getElementById("cfg-discord-token").value = cfg.channels.discord.token || "";
                 document.getElementById("cfg-discord-allow-from").value = formatAllowFrom(cfg.channels.discord.allow_from);
                 document.getElementById("cfg-discord-mention-only").checked = !!cfg.channels.discord.mention_only;
+                document.getElementById("cfg-restrict-workspace").checked = !!cfg.agents.defaults.restrict_to_workspace;
                 validateChannelSettings();
 
 
@@ -2619,6 +2641,7 @@ const indexHTML = `
                 cfg.channels.discord.token = document.getElementById("cfg-discord-token").value.trim();
                 cfg.channels.discord.allow_from = parseAllowFromInput(document.getElementById("cfg-discord-allow-from").value);
                 cfg.channels.discord.mention_only = document.getElementById("cfg-discord-mention-only").checked;
+                cfg.agents.defaults.restrict_to_workspace = document.getElementById("cfg-restrict-workspace").checked;
                 validateChannelSettings();
 
                 const saveRes = await fetch("/api/config", {
