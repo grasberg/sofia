@@ -661,7 +661,19 @@ const indexHTML = `
             </a>
             <a href="#" onclick="showTab('skills')" id="nav-skills" class="nav-item">
                 <i data-lucide="zap" class="w-5 h-5"></i>
-                <span>Skills & Tools</span>
+                <span>Skills</span>
+            </a>
+            <a href="#" onclick="showTab('models')" id="nav-models" class="nav-item">
+                <i data-lucide="cpu" class="w-5 h-5"></i>
+                <span>Models</span>
+            </a>
+            <a href="#" onclick="showTab('channels')" id="nav-channels" class="nav-item">
+                <i data-lucide="radio" class="w-5 h-5"></i>
+                <span>Channels</span>
+            </a>
+            <a href="#" onclick="showTab('tools')" id="nav-tools" class="nav-item">
+                <i data-lucide="wrench" class="w-5 h-5"></i>
+                <span>Tools</span>
             </a>
             <a href="#" onclick="showTab('settings')" id="nav-settings" class="nav-item">
                 <i data-lucide="settings" class="w-5 h-5"></i>
@@ -719,9 +731,7 @@ const indexHTML = `
             <div class="flex flex-col items-start">
                 <h2 id="view-title" class="text-sm font-semibold text-zinc-400 uppercase tracking-wider">Direct Chat</h2>
                 <div id="settings-header-tabs" class="hidden items-center gap-2 mt-2">
-                    <button id="settings-tab-models" onclick="showSettingsSubTab('models')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-[var(--bg-main)]">Models</button>
                     <button id="settings-tab-prompts" onclick="showSettingsSubTab('prompts')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">SOUL.md & IDENTITY.md</button>
-                    <button id="settings-tab-channels" onclick="showSettingsSubTab('channels')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Channels</button>
                 </div>
             </div>
             <div class="flex items-center gap-4">
@@ -752,7 +762,7 @@ const indexHTML = `
                                     <img src="/assets/sofiamantis.png" class="w-5 h-5 opacity-80">
                                 </div>
                                 <div class="chat-bubble-sofia px-4 py-3 rounded-2xl text-sm leading-relaxed max-w-[85%] text-[var(--text-main)] transition-colors duration-300">
-                                    Welcome Magnus. System is ready for instructions. How can I assist you today?
+                                    Welcome User. System is ready for instructions. How can I assist you today?
                                 </div>
                             </div>
                         </div>
@@ -847,19 +857,8 @@ const indexHTML = `
             <!-- AGENTS TAB -->
             <div id="tab-agents" class="tab-content">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 h-full overflow-y-auto pr-2">
-                    <!-- Agent List -->
-                    <div class="md:col-span-2 space-y-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <h2 class="text-lg font-bold text-[var(--text-main)]">Configured Agents</h2>
-                            <span class="text-xs text-zinc-500" id="agent-count">0 agents</span>
-                        </div>
-                        <div id="agents-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <!-- Filled by JS -->
-                        </div>
-                    </div>
-
                     <!-- Add/Edit Agent -->
-                    <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl h-fit sticky top-0 transition-all duration-300">
+                    <div class="md:col-span-1 glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl h-fit sticky top-0 transition-all duration-300">
                         <div class="flex items-center gap-3 mb-6">
                             <div class="w-10 h-10 rounded-xl bg-sofia/10 flex items-center justify-center text-sofia">
                                 <i data-lucide="user-plus" class="w-5 h-5"></i>
@@ -893,22 +892,35 @@ const indexHTML = `
 								<div id="agent-template-missing-skills" class="mt-2 hidden text-[11px] text-yellow-500"></div>
 							</div>
 							<div>
-								<label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Template Skills Mode</label>
-								<select id="agent-template-skills-mode"
-									class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]">
-									<option value="fallback">Fallback (recommended)</option>
-									<option value="overwrite">Overwrite template skills</option>
-								</select>
-								<div class="mt-1 text-[10px] text-zinc-500">Fallback uses template skills only if the agent has no explicit skills.</div>
+								<label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Purpose &amp; Instructions</label>
+								<div id="agent-template-missing-skills" class="mb-2 hidden text-[11px] text-yellow-500"></div>
+								<div id="agent-template-hint" class="hidden mb-1.5 text-[10px] text-sofia/70">Pre-filled from template — you can edit freely.</div>
+								<textarea id="agent-instructions" rows="7" placeholder="Describe what this agent should do and how it should behave..."
+									class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)] resize-none"></textarea>
 							</div>
-							<div class="bg-black/5 dark:bg-zinc-900/40 border border-[var(--border-color)] rounded-xl p-3 transition-colors duration-300">
-                                <div id="agent-template-desc" class="text-xs text-zinc-500 dark:text-zinc-400 mb-2">Select a template to preview purpose and instructions.</div>
-                                <pre id="agent-template-preview" class="max-h-44 overflow-y-auto whitespace-pre-wrap text-[11px] leading-relaxed text-zinc-500">No template selected.</pre>
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Custom Skills</label>
+                                <div id="agent-custom-skills-tags" class="flex flex-wrap gap-1.5 mb-2 min-h-[24px]"></div>
+                                <select id="agent-custom-skills-picker" onchange="addCustomSkill()" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]">
+                                    <option value="">+ Add a skill...</option>
+                                </select>
+                                <div class="mt-1 text-[10px] text-zinc-500">Skills added here are always available to this agent, regardless of template.</div>
                             </div>
                             <div class="pt-4 flex flex-col gap-2">
                                 <button onclick="saveAgent()" class="w-full bg-sofia hover:bg-sofia-hover text-white font-bold py-3 rounded-xl transition shadow-lg shadow-sofia/10">Save Agent</button>
                                 <button onclick="resetAgentForm()" class="w-full py-2 text-zinc-500 hover:text-zinc-300 text-xs font-medium transition">Reset form</button>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Agent List -->
+                    <div class="md:col-span-2 space-y-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="text-lg font-bold text-[var(--text-main)]">Configured Agents</h2>
+                            <span class="text-xs text-zinc-500" id="agent-count">0 agents</span>
+                        </div>
+                        <div id="agents-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- Filled by JS -->
                         </div>
                     </div>
                 </div>
@@ -944,93 +956,166 @@ const indexHTML = `
                                 <button onclick="addSkill()" class="w-full bg-[var(--bg-sidebar)] hover:bg-[var(--nav-hover)] text-[var(--text-main)] border border-[var(--border-color)] font-bold py-2.5 rounded-xl transition text-sm">Install Skill</button>
                             </div>
                         </div>
-
-                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl flex-grow overflow-hidden flex flex-col transition-all duration-300">
-                            <h2 class="text-lg font-bold text-[var(--text-main)] mb-4">Tools (Native Tools)</h2>
-                            <div id="tools-list" class="flex-grow overflow-y-auto pr-2 space-y-3">
-                                <!-- Filled by JS -->
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- SETTINGS TAB -->
-            <div id="tab-settings" class="tab-content h-full">
-                <div class="h-full overflow-y-auto pr-2 space-y-6">
-                    <div id="settings-subtab-models" class="settings-subtab space-y-6">
-                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
-                            <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 ml-1">Default Model (LLM)</label>
-                            <select id="cfg-model" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]"></select>
-                        </div>
 
-                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
-                            <div class="flex items-center justify-between mb-3">
-                                <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500">Providers & Models</h3>
-                                <div class="flex gap-2">
-                                    <select id="model-template-select" onchange="addModelFromTemplate()" class="px-3 py-1 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-xs hover:bg-[var(--nav-hover)] outline-none cursor-pointer">
-                                        <option value="">Quick Add Template...</option>
-                                        <optgroup label="Google Gemini">
-                                            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
-                                            <option value="gemini-3-pro-preview">Gemini 3.0 Pro Preview</option>
-                                            <option value="gemini-3-flash-preview">Gemini 3.0 Flash Preview</option>
-                                            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                                            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                                            <option value="gemini-2.0-pro">Gemini 2.0 Pro</option>
-                                            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                                        </optgroup>
-                                        <optgroup label="OpenAI">
-                                            <option value="gpt-5.2-pro">GPT-5.2 Pro</option>
-                                            <option value="gpt-5.2-codex">GPT-5.2 Codex</option>
-                                            <option value="gpt-5.2">GPT-5.2</option>
-                                            <option value="gpt-5.1">GPT-5.1</option>
-                                            <option value="gpt-4.1">GPT-4.1</option>
-                                            <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
-                                            <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
-                                            <option value="gpt-4.5-preview">GPT-4.5 Preview</option>
-                                            <option value="o1">o1 (Reasoning)</option>
-                                            <option value="o3-mini">o3-mini</option>
-                                            <option value="gpt-4o">GPT-4o</option>
-                                        </optgroup>
-                                        <optgroup label="Anthropic">
-                                            <option value="claude-opus-4-6">Claude 4.6 Opus</option>
-                                            <option value="claude-sonnet-4-6">Claude 4.6 Sonnet</option>
-                                            <option value="claude-haiku-4-5">Claude 4.5 Haiku</option>
-                                        </optgroup>
-                                        <optgroup label="DeepSeek">
-                                            <option value="deepseek-v3">DeepSeek V3 (Chat)</option>
-                                            <option value="deepseek-r1">DeepSeek R1 (Reasoner)</option>
-                                        </optgroup>
-                                        <optgroup label="Groq">
-                                            <option value="llama-3.3-70b">Llama 3.3 70b</option>
-                                            <option value="mixtral-8x7b">Mixtral 8x7b</option>
-                                        </optgroup>
-                                    </select>
-                                    <button onclick="addProviderModelRow()" class="px-3 py-1 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-xs hover:bg-[var(--nav-hover)]">Add Custom</button>
+			<!-- TOOLS TAB -->
+			<div id="tab-tools" class="tab-content h-full">
+				<div class="h-full overflow-y-auto pr-2 space-y-6">
+					<div class="flex items-center justify-between mb-4">
+						<h2 class="text-xl font-bold text-[var(--text-main)]">Native Tools</h2>
+						<p class="text-sm text-zinc-500">Built-in tools available to all agents.</p>
+					</div>
+					<div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
+						<div id="tools-list" class="space-y-3">
+							<!-- Filled by JS -->
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- MODELS TAB -->
+			<div id="tab-models" class="tab-content h-full">
+				<div class="h-full overflow-y-auto pr-2 space-y-6">
+                        <input type="hidden" id="cfg-model" value="">
+                        
+
+                            <!-- Add/Edit Model Form (Progressive) -->
+                            <div id="model-config-form" class="hidden mb-6 glass-panel p-6 rounded-2xl border border-sofia/30 shadow-xl transition-all duration-300 bg-sofia/5">
+                                <div class="flex items-center justify-between mb-6">
+                                    <h3 id="model-form-title" class="text-sm font-bold text-sofia uppercase tracking-widest">Add New Model</h3>
+                                    <button onclick="closeModelForm()" class="text-zinc-500 hover:text-[var(--text-main)]">
+                                        <i data-lucide="x" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                                <input type="hidden" id="edit-model-index" value="-1">
+
+                                <div class="space-y-5">
+                                    <!-- Step 1: Provider -->
+                                    <div>
+                                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">1. Select Provider</label>
+                                        <select id="form-provider" onchange="onProviderChange()" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 text-[var(--text-main)]">
+                                            <option value="">-- Choose a Provider --</option>
+                                            <option value="Google Gemini">Google Gemini</option>
+                                            <option value="OpenAI">OpenAI</option>
+                                            <option value="Anthropic">Anthropic</option>
+                                            <option value="DeepSeek">DeepSeek</option>
+                                            <option value="Groq">Groq</option>
+                                            <option value="Custom">Custom / Other</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Step 2: Model (hidden until provider selected) -->
+                                    <div id="form-step-model" class="hidden animate-fade-in">
+                                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">2. Select Model</label>
+                                        <select id="form-model-select" onchange="onModelChange()" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 text-[var(--text-main)]">
+                                            <!-- Filled by JS -->
+                                        </select>
+                                        <div id="form-model-custom-wrapper" class="hidden mt-2">
+                                            <input type="text" id="form-model-custom" placeholder="e.g. custom/my-model-1" onchange="onModelChange()" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 text-[var(--text-main)]">
+                                            <p class="text-[10px] text-zinc-500 mt-1 ml-1 text-right">Enter protocol/model id (e.g. openai/my-model)</p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Step 3: Config (hidden until model selected) -->
+                                    <div id="form-step-config" class="hidden space-y-4 pt-5 border-t border-[var(--border-color)] animate-fade-in">
+                                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">3. Configuration Details</label>
+                                        
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Alias / Display Name</label>
+                                                <input type="text" id="form-model-alias" placeholder="e.g. GPT-4o (Personal)" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm text-[var(--text-main)] focus:outline-none focus:border-sofia/50 transition-all w-full">
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">API Key</label>
+                                                <input type="password" id="form-model-key" placeholder="sk-..." class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm text-[var(--text-main)] focus:outline-none focus:border-sofia/50 transition-all">
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">API Base URL (Optional)</label>
+                                                <input type="text" id="form-model-base" placeholder="leave blank for default" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm text-[var(--text-main)] focus:outline-none focus:border-sofia/50 transition-all opacity-80 focus:opacity-100">
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Workspace ID (Optional)</label>
+                                                <input type="text" id="form-model-workspace" placeholder="Optional identifier" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm text-[var(--text-main)] focus:outline-none focus:border-sofia/50 transition-all opacity-80 focus:opacity-100">
+                                            </div>
+                                        </div>
+
+                                        <details class="text-sm bg-black/5 dark:bg-zinc-900/40 border border-[var(--border-color)] rounded-xl mt-4 group">
+                                            <summary class="text-[11px] font-bold uppercase tracking-widest text-zinc-500 cursor-pointer p-4 hover:text-[var(--text-main)] focus:outline-none flex justify-between items-center group-open:border-b group-open:border-[var(--border-color)]">
+                                                Advanced Model Settings 
+                                                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform group-open:rotate-180"></i>
+                                            </summary>
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+                                                <div>
+                                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">RPM Limit</label>
+                                                    <input type="number" id="form-model-rpm" placeholder="0 = infinite" min="0" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Timeout (seconds)</label>
+                                                    <input type="number" id="form-model-timeout" placeholder="Client default" min="0" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Proxy URL</label>
+                                                    <input type="text" id="form-model-proxy" placeholder="http://..." class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Auth Method</label>
+                                                    <input type="text" id="form-model-auth" placeholder="Bearer" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Max Tokens Field</label>
+                                                    <input type="text" id="form-model-tokens-field" placeholder="max_tokens" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-[100px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Connect Mode</label>
+                                                    <input type="text" id="form-model-connect" placeholder="default" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
+                                                </div>
+                                            </div>
+                                        </details>
+
+                                        <div class="pt-4 flex gap-3 justify-end items-center mt-2">
+                                            <button onclick="closeModelForm()" class="px-6 py-2.5 bg-transparent border border-[var(--border-color)] hover:bg-[var(--bg-main)] text-[var(--text-main)] rounded-xl text-sm font-medium transition">
+                                                Cancel
+                                            </button>
+                                            <button onclick="saveModelForm()" class="px-8 bg-sofia hover:bg-sofia-hover text-white font-bold py-2.5 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+                                                <i data-lucide="check" class="w-4 h-4"></i> Save Model
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div id="provider-model-list" class="space-y-2"></div>
-                            <div class="mt-2 text-[10px] text-zinc-500">Add model aliases and provider endpoints (supports OpenAI-compatible APIs and other protocols).</div>
-                            <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
-                                <i data-lucide="save" class="w-4 h-4"></i>
-                                Save changes
-                            </button>
+
+                        <!-- Configured Models List -->
+                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500">Configured Models</h3>
+                                    <p class="text-[10px] text-zinc-500 mt-1">Select the standard model for system operations</p>
+                                </div>
+                                <button onclick="openModelForm()" class="px-4 py-2 bg-[var(--bg-main)] border border-[var(--border-color)] hover:bg-[var(--nav-hover)] text-[var(--text-main)] rounded-xl text-xs font-bold transition flex items-center gap-2">
+                                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Model
+                                </button>
+                            </div>
+
+                            <div id="provider-model-list" class="space-y-2 max-h-60 overflow-y-auto pr-2">
+                                <!-- Filled by JS -->
+                                <div class="text-sm text-zinc-500 italic p-4 text-center border border-dashed border-[var(--border-color)] rounded-xl">No models configured.</div>
+                            </div>
+                            <div class="mt-6 pt-4 border-t border-[var(--border-color)] flex justify-end">
+                                <button onclick="saveConfig()" class="bg-sofia hover:bg-sofia-hover text-white font-bold px-6 py-2.5 rounded-xl transition flex items-center gap-2 text-sm shadow-lg shadow-sofia/20">
+                                    <i data-lucide="save" class="w-4 h-4"></i> Save All Changes
+                                </button>
+                            </div>
                         </div>
                     </div>
+				</div>
+			</div>
 
-                    <div id="settings-subtab-prompts" class="settings-subtab hidden space-y-4">
-                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
-                            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Prompt Files</h3>
-                            <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">IDENTITY.md</label>
-                            <textarea id="cfg-identity-md" rows="16" class="w-full min-h-[28rem] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-mono text-[var(--text-main)] mb-3"></textarea>
-                            <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">SOUL.md</label>
-                            <textarea id="cfg-soul-md" rows="16" class="w-full min-h-[28rem] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-mono text-[var(--text-main)]"></textarea>
-                            <button onclick="saveWorkspaceDocs()" class="mt-3 px-4 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-xs hover:bg-[var(--nav-hover)]">Save prompt files</button>
-                        </div>
-                    </div>
-
-                    <div id="settings-subtab-channels" class="settings-subtab hidden space-y-4">
+			<!-- CHANNELS TAB -->
+<div id="tab-channels" class="tab-content h-full">
+	<div class="h-full overflow-y-auto pr-2 space-y-6">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Channel Setup</label>
                             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -1073,17 +1158,24 @@ const indexHTML = `
                             </button>
                         </div>
 
-                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl flex flex-col gap-4 transition-colors duration-300">
-                            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3">System Information</h3>
-                            <div id="system-details" class="text-sm space-y-4">
-                                <!-- Filled by JS -->
-                            </div>
-                            <div class="mt-auto pt-4 flex gap-2">
-                                <div class="px-3 py-1 rounded bg-[var(--bg-main)] border border-[var(--border-color)] text-[10px] font-mono text-zinc-500">v2.5.0-stable</div>
-                                <div class="px-3 py-1 rounded bg-[var(--bg-main)] border border-[var(--border-color)] text-[10px] font-mono text-zinc-500">GO-1.26</div>
-                            </div>
+
+	</div>
+</div>
+
+            <!-- SETTINGS TAB -->
+            <div id="tab-settings" class="tab-content h-full">
+                <div class="h-full overflow-y-auto pr-2 space-y-6">
+                    <div id="settings-subtab-prompts" class="settings-subtab hidden space-y-4">
+                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+                            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Prompt Files</h3>
+                            <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">IDENTITY.md</label>
+                            <textarea id="cfg-identity-md" rows="16" class="w-full min-h-[28rem] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-mono text-[var(--text-main)] mb-3"></textarea>
+                            <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">SOUL.md</label>
+                            <textarea id="cfg-soul-md" rows="16" class="w-full min-h-[28rem] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-mono text-[var(--text-main)]"></textarea>
+                            <button onclick="saveWorkspaceDocs()" class="mt-3 px-4 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-xs hover:bg-[var(--nav-hover)]">Save prompt files</button>
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -1098,68 +1190,324 @@ const indexHTML = `
         let currentConfig = null;
         let currentSettingsSubTab = 'models';
 
-        const MODEL_TEMPLATES = {
-            // Google Gemini
-            "gemini-3.1-pro-preview": { model_name: "gemini-3.1-pro-preview", model: "gemini/gemini-3.1-pro-preview", api_base: "https://generativelanguage.googleapis.com/v1beta" },
-            "gemini-3-pro-preview": { model_name: "gemini-3-pro-preview", model: "gemini/gemini-3-pro-preview", api_base: "https://generativelanguage.googleapis.com/v1beta" },
-            "gemini-3-flash-preview": { model_name: "gemini-3-flash-preview", model: "gemini/gemini-3-flash-preview", api_base: "https://generativelanguage.googleapis.com/v1beta" },
-            "gemini-2.5-pro": { model_name: "gemini-2.5-pro", model: "gemini/gemini-2.5-pro", api_base: "https://generativelanguage.googleapis.com/v1beta" },
-            "gemini-2.5-flash": { model_name: "gemini-2.5-flash", model: "gemini/gemini-2.5-flash", api_base: "https://generativelanguage.googleapis.com/v1beta" },
-            "gemini-2.0-pro": { model_name: "gemini-2.0-pro", model: "gemini/gemini-2.0-pro-exp-02-05", api_base: "https://generativelanguage.googleapis.com/v1beta" },
-            "gemini-2.0-flash": { model_name: "gemini-2.0-flash", model: "gemini/gemini-2.0-flash", api_base: "https://generativelanguage.googleapis.com/v1beta" },
-            "gemini-1.5-pro": { model_name: "gemini-1.5-pro", model: "gemini/gemini-1.5-pro", api_base: "https://generativelanguage.googleapis.com/v1beta" },
-            
-            // OpenAI
-            "gpt-5.2-pro": { model_name: "gpt-5.2-pro", model: "openai/gpt-5.2-pro", api_base: "https://api.openai.com/v1" },
-            "gpt-5.2-codex": { model_name: "gpt-5.2-codex", model: "openai/gpt-5.2-codex", api_base: "https://api.openai.com/v1" },
-            "gpt-5.2": { model_name: "gpt-5.2", model: "openai/gpt-5.2", api_base: "https://api.openai.com/v1" },
-            "gpt-5.1": { model_name: "gpt-5.1", model: "openai/gpt-5.1", api_base: "https://api.openai.com/v1" },
-            "gpt-4.1": { model_name: "gpt-4.1", model: "openai/gpt-4.1", api_base: "https://api.openai.com/v1" },
-            "gpt-4.1-mini": { model_name: "gpt-4.1-mini", model: "openai/gpt-4.1-mini", api_base: "https://api.openai.com/v1" },
-            "gpt-4.1-nano": { model_name: "gpt-4.1-nano", model: "openai/gpt-4.1-nano", api_base: "https://api.openai.com/v1" },
-            "gpt-4.5-preview": { model_name: "gpt-4.5-preview", model: "openai/gpt-4.5-preview", api_base: "https://api.openai.com/v1" },
-            "o1": { model_name: "o1", model: "openai/o1", api_base: "https://api.openai.com/v1" },
-            "o3-mini": { model_name: "o3-mini", model: "openai/o3-mini", api_base: "https://api.openai.com/v1" },
-            "gpt-4o": { model_name: "gpt-4o", model: "openai/gpt-4o", api_base: "https://api.openai.com/v1" },
-            
-            // Anthropic
-            "claude-opus-4-6": { model_name: "claude-opus-4-6", model: "anthropic/claude-4-6-opus-latest", api_base: "https://api.anthropic.com/v1" },
-            "claude-sonnet-4-6": { model_name: "claude-sonnet-4-6", model: "anthropic/claude-4-6-sonnet-latest", api_base: "https://api.anthropic.com/v1" },
-            "claude-haiku-4-5": { model_name: "claude-haiku-4-5", model: "anthropic/claude-4-5-haiku-latest", api_base: "https://api.anthropic.com/v1" },
-            
-            // DeepSeek
-            "deepseek-v3": { model_name: "deepseek-v3", model: "deepseek/deepseek-chat", api_base: "https://api.deepseek.com/v1" },
-            "deepseek-r1": { model_name: "deepseek-r1", model: "deepseek/deepseek-reasoner", api_base: "https://api.deepseek.com/v1" },
-            
-            // Groq
-            "llama-3.3-70b": { model_name: "llama-3.3-70b", model: "groq/llama-3.3-70b-versatile", api_base: "https://api.groq.com/openai/v1" },
-            "mixtral-8x7b": { model_name: "mixtral-8x7b", model: "groq/mixtral-8x7b-32768", api_base: "https://api.groq.com/openai/v1" },
+        // Provider → list of {label, model_id, api_base} presets
+        const PROVIDER_MODELS = {
+            "Google Gemini": [
+                { label: "Gemini 3.1 Pro Preview", model_id: "gemini/gemini-3.1-pro-preview", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+                { label: "Gemini 3.0 Pro Preview", model_id: "gemini/gemini-3-pro-preview", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+                { label: "Gemini 3.0 Flash Preview", model_id: "gemini/gemini-3-flash-preview", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+                { label: "Gemini 2.5 Pro", model_id: "gemini/gemini-2.5-pro", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+                { label: "Gemini 2.5 Flash", model_id: "gemini/gemini-2.5-flash", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+                { label: "Gemini 2.0 Flash", model_id: "gemini/gemini-2.0-flash", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+                { label: "Gemini 1.5 Pro", model_id: "gemini/gemini-1.5-pro", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+            ],
+            "OpenAI": [
+                { label: "GPT-5.2", model_id: "openai/gpt-5.2", api_base: "https://api.openai.com/v1" },
+                { label: "GPT-5.2 Codex", model_id: "openai/gpt-5.2-codex", api_base: "https://api.openai.com/v1" },
+                { label: "GPT-5.2 Pro", model_id: "openai/gpt-5.2-pro", api_base: "https://api.openai.com/v1" },
+                { label: "GPT-5 Mini", model_id: "openai/gpt-5-mini", api_base: "https://api.openai.com/v1" },
+            ],
+            "Anthropic": [
+                { label: "Claude 4.6 Opus", model_id: "anthropic/claude-4-6-opus-latest", api_base: "https://api.anthropic.com/v1" },
+                { label: "Claude 4.6 Sonnet", model_id: "anthropic/claude-4-6-sonnet-latest", api_base: "https://api.anthropic.com/v1" },
+                { label: "Claude 4.5 Haiku", model_id: "anthropic/claude-4-5-haiku-latest", api_base: "https://api.anthropic.com/v1" },
+            ],
+            "DeepSeek": [
+                { label: "DeepSeek V3 (Chat)", model_id: "deepseek/deepseek-chat", api_base: "https://api.deepseek.com/v1" },
+                { label: "DeepSeek R1 (Reasoner)", model_id: "deepseek/deepseek-reasoner", api_base: "https://api.deepseek.com/v1" },
+            ],
+            "Groq": [
+                { label: "Llama 3.3 70b", model_id: "groq/llama-3.3-70b-versatile", api_base: "https://api.groq.com/openai/v1" },
+                { label: "Mixtral 8x7b", model_id: "groq/mixtral-8x7b-32768", api_base: "https://api.groq.com/openai/v1" },
+            ],
+            "Custom": [],
         };
 
-        function addModelFromTemplate() {
-            const select = document.getElementById("model-template-select");
-            const val = select.value;
-            if (!val) return;
-            
-            const template = MODEL_TEMPLATES[val];
-            if (template) {
-                // Try to find an existing API key for this provider to auto-fill
-                const provider = template.model.split('/')[0];
-                const existingRows = Array.from(document.querySelectorAll(".provider-model-row"));
-                let existingKey = "";
-                for (const row of existingRows) {
-                    const m = row.querySelector("[data-key='model']").value;
-                    if (m.startsWith(provider + "/")) {
-                        existingKey = row.querySelector("[data-key='api_key']").value;
-                        if (existingKey) break;
+        // In-memory model list and standard model (populated from config)
+        let configuredModels = [];
+        let standardModel = "";
+
+        function renderConfiguredModels() {
+            const list = document.getElementById("provider-model-list");
+            const agentModelSelect = document.getElementById("agent-model");
+            const prevAgent = agentModelSelect ? agentModelSelect.value : "";
+            agentModelSelect.innerHTML = "<option value=''>Default (System Default)</option>";
+
+            if (configuredModels.length === 0) {
+                list.innerHTML = "<div class='text-sm text-zinc-500 italic p-4 text-center border border-dashed border-[var(--border-color)] rounded-xl'>No models configured. Click Add Model to get started.</div>";
+                return;
+            }
+
+            list.innerHTML = configuredModels.map(function(m, i) {
+                const isStandard = m.model_name === standardModel;
+                const borderClass = isStandard ? "border-sofia bg-sofia/5" : "border-[var(--border-color)] bg-[var(--bg-main)]";
+                const iconBgClass = isStandard ? "bg-sofia/15 text-sofia" : "bg-[var(--bg-sidebar)] text-zinc-400";
+                const iconName = isStandard ? "star" : "cpu";
+                const standardBadge = isStandard ? "<span class='px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-sofia text-white'>Standard</span>" : "";
+                const modelStr = m.model || "";
+                const keyBadge = m.api_key ? "\u00b7 \ud83d\udd11" : "\u00b7 no key";
+                const standardBtn = !isStandard ? "<button onclick=\"setStandardModel('" + m.model_name + "')\" title=\"Set as Standard\" class=\"px-2.5 py-1.5 rounded-lg text-[10px] font-bold border border-sofia/30 text-sofia hover:bg-sofia/10 transition whitespace-nowrap flex items-center gap-1\"><i data-lucide=\"star\" class=\"w-3 h-3\"></i> Standard</button>" : "";
+                return "<div class=\"flex items-center justify-between px-4 py-3 rounded-xl border " + borderClass + " transition-all\">" +
+                    "<div class=\"flex items-center gap-3 overflow-hidden\">" +
+                        "<div class=\"w-8 h-8 rounded-lg " + iconBgClass + " flex items-center justify-center shrink-0\">" +
+                            "<i data-lucide=\"" + iconName + "\" class=\"w-4 h-4\"></i>" +
+                        "</div>" +
+                        "<div class=\"overflow-hidden\">" +
+                            "<div class=\"text-sm font-semibold text-[var(--text-main)] flex items-center gap-2\">" +
+                                m.model_name + " " + standardBadge +
+                            "</div>" +
+                            "<div class=\"text-[10px] text-zinc-500 font-mono truncate\">" + modelStr + " " + keyBadge + "</div>" +
+                        "</div>" +
+                    "</div>" +
+                    "<div class=\"flex gap-1 shrink-0 ml-3\">" +
+                        standardBtn +
+                        "<button onclick=\"openModelForm(" + i + ")\" class=\"p-1.5 rounded-lg hover:bg-[var(--nav-hover)] text-zinc-500 hover:text-[var(--text-main)] transition\"><i data-lucide=\"edit-3\" class=\"w-3.5 h-3.5\"></i></button>" +
+                        "<button onclick=\"removeConfiguredModel(" + i + ")\" class=\"p-1.5 rounded-lg hover:bg-red-500/10 text-zinc-500 hover:text-red-400 transition\"><i data-lucide=\"trash-2\" class=\"w-3.5 h-3.5\"></i></button>" +
+                    "</div>" +
+                "</div>";
+            }).join("");
+
+
+
+
+            configuredModels.forEach(m => {
+                if (m.api_key) {
+                    const opt = document.createElement("option");
+                    opt.value = m.model_name;
+                    opt.textContent = m.model_name;
+                    agentModelSelect.appendChild(opt);
+                }
+            });
+            if (prevAgent === "" || Array.from(agentModelSelect.options).some(o => o.value === prevAgent)) {
+                agentModelSelect.value = prevAgent;
+            }
+
+            // Sync hidden cfg-model input
+            document.getElementById("cfg-model").value = standardModel;
+            refreshIcons();
+        }
+
+        function setStandardModel(modelName) {
+            standardModel = modelName;
+            renderConfiguredModels();
+        }
+
+        function removeConfiguredModel(index) {
+            const m = configuredModels[index];
+            if (!confirm("Remove model " + (m ? m.model_name : "") + "?")) return;
+            configuredModels.splice(index, 1);
+            if (standardModel === (m && m.model_name)) {
+                standardModel = configuredModels.length > 0 ? configuredModels[0].model_name : "";
+            }
+            renderConfiguredModels();
+        }
+
+        function openModelForm(editIndex) {
+            const form = document.getElementById("model-config-form");
+            const title = document.getElementById("model-form-title");
+            document.getElementById("edit-model-index").value = editIndex !== undefined ? editIndex : -1;
+
+            // Reset form fields
+            document.getElementById("form-provider").value = "";
+            document.getElementById("form-model-select").innerHTML = "";
+            document.getElementById("form-step-model").classList.add("hidden");
+            document.getElementById("form-step-config").classList.add("hidden");
+            document.getElementById("form-model-custom-wrapper").classList.add("hidden");
+            document.getElementById("form-model-alias").value = "";
+            document.getElementById("form-model-key").value = "";
+            document.getElementById("form-model-base").value = "";
+            document.getElementById("form-model-workspace").value = "";
+            document.getElementById("form-model-rpm").value = "";
+            document.getElementById("form-model-timeout").value = "";
+            document.getElementById("form-model-proxy").value = "";
+            document.getElementById("form-model-auth").value = "";
+            document.getElementById("form-model-tokens-field").value = "";
+            document.getElementById("form-model-connect").value = "";
+
+            if (editIndex !== undefined && editIndex >= 0) {
+                const m = configuredModels[editIndex];
+                title.textContent = "Edit Model";
+                // Detect provider from model string prefix
+                const prefix = m.model ? m.model.split("/")[0] : "";
+                const providerMap = { gemini: "Google Gemini", openai: "OpenAI", anthropic: "Anthropic", deepseek: "DeepSeek", groq: "Groq" };
+                const detectedProvider = providerMap[prefix] || "Custom";
+                document.getElementById("form-provider").value = detectedProvider;
+                onProviderChange();
+                // Try to select model in dropdown
+                const sel = document.getElementById("form-model-select");
+                let found = false;
+                for (let i = 0; i < sel.options.length; i++) {
+                    if (sel.options[i].value === m.model) { sel.value = m.model; found = true; break; }
+                }
+                if (!found) {
+                    // custom entry
+                    if (detectedProvider === "Custom") {
+                        document.getElementById("form-model-custom-wrapper").classList.remove("hidden");
+                        document.getElementById("form-model-custom").value = m.model || "";
                     }
                 }
-                
-                const seed = { ...template, api_key: existingKey };
-                addProviderModelRow(seed);
+                document.getElementById("form-step-config").classList.remove("hidden");
+                document.getElementById("form-model-alias").value = m.model_name || "";
+                document.getElementById("form-model-key").value = m.api_key || "";
+                document.getElementById("form-model-base").value = m.api_base || "";
+                document.getElementById("form-model-workspace").value = m.workspace || "";
+                document.getElementById("form-model-rpm").value = m.rpm || "";
+                document.getElementById("form-model-timeout").value = m.request_timeout || "";
+                document.getElementById("form-model-proxy").value = m.proxy || "";
+                document.getElementById("form-model-auth").value = m.auth_method || "";
+                document.getElementById("form-model-tokens-field").value = m.max_tokens_field || "";
+                document.getElementById("form-model-connect").value = m.connect_mode || "";
+            } else {
+                title.textContent = "Add New Model";
             }
-            select.value = "";
+
+            form.classList.remove("hidden");
+            form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            refreshIcons();
         }
+
+        function closeModelForm() {
+            document.getElementById("model-config-form").classList.add("hidden");
+        }
+
+        function onProviderChange() {
+            const provider = document.getElementById("form-provider").value;
+            const stepModel = document.getElementById("form-step-model");
+            const stepConfig = document.getElementById("form-step-config");
+            const sel = document.getElementById("form-model-select");
+            const customWrapper = document.getElementById("form-model-custom-wrapper");
+
+            if (!provider) {
+                stepModel.classList.add("hidden");
+                stepConfig.classList.add("hidden");
+                return;
+            }
+
+            stepModel.classList.remove("hidden");
+            stepConfig.classList.add("hidden");
+
+            if (provider === "Custom") {
+                sel.classList.add("hidden");
+                customWrapper.classList.remove("hidden");
+                document.getElementById("form-model-custom").value = "";
+            } else {
+                sel.classList.remove("hidden");
+                customWrapper.classList.add("hidden");
+                const models = PROVIDER_MODELS[provider] || [];
+                sel.innerHTML = "<option value=''>-- Select Model --</option>" +
+                    models.map(function(m) { return "<option value=\"" + m.model_id + "\" data-base=\"" + m.api_base + "\">" + m.label + "</option>"; }).join("");
+
+            }
+            refreshIcons();
+        }
+
+        function onModelChange() {
+            const provider = document.getElementById("form-provider").value;
+            let modelId = "";
+            let apiBase = "";
+            if (provider === "Custom") {
+                modelId = document.getElementById("form-model-custom").value.trim();
+            } else {
+                const sel = document.getElementById("form-model-select");
+                modelId = sel.value;
+                const opt = sel.options[sel.selectedIndex];
+                apiBase = opt ? (opt.getAttribute("data-base") || "") : "";
+            }
+
+            const stepConfig = document.getElementById("form-step-config");
+            if (!modelId) { stepConfig.classList.add("hidden"); return; }
+            stepConfig.classList.remove("hidden");
+
+            // Auto-fill API base and alias if empty
+            if (!document.getElementById("form-model-base").value) {
+                document.getElementById("form-model-base").value = apiBase;
+            }
+            if (!document.getElementById("form-model-alias").value) {
+                const parts = modelId.split("/");
+                document.getElementById("form-model-alias").value = parts[parts.length - 1];
+            }
+
+            // Try to inherit API key from same provider
+            if (!document.getElementById("form-model-key").value) {
+                const prefix = modelId.split("/")[0];
+                const existing = configuredModels.find(m => m.model && m.model.startsWith(prefix + "/") && m.api_key);
+                if (existing) document.getElementById("form-model-key").value = existing.api_key;
+            }
+            refreshIcons();
+        }
+
+        function saveModelForm() {
+            const provider = document.getElementById("form-provider").value;
+            let modelId = "";
+            if (provider === "Custom") {
+                modelId = document.getElementById("form-model-custom").value.trim();
+            } else {
+                modelId = document.getElementById("form-model-select").value;
+            }
+            const alias = document.getElementById("form-model-alias").value.trim();
+            if (!alias || !modelId) {
+                alert("Please select a model and provide an alias name.");
+                return;
+            }
+            const entry = {
+                model_name: alias,
+                model: modelId,
+            };
+            const apiBase = document.getElementById("form-model-base").value.trim();
+            const apiKey = document.getElementById("form-model-key").value.trim();
+            const workspace = document.getElementById("form-model-workspace").value.trim();
+            const rpm = parseInt(document.getElementById("form-model-rpm").value, 10);
+            const timeout = parseInt(document.getElementById("form-model-timeout").value, 10);
+            const proxy = document.getElementById("form-model-proxy").value.trim();
+            const auth = document.getElementById("form-model-auth").value.trim();
+            const tokensField = document.getElementById("form-model-tokens-field").value.trim();
+            const connectMode = document.getElementById("form-model-connect").value.trim();
+
+            if (apiBase) entry.api_base = apiBase;
+            if (apiKey) entry.api_key = apiKey;
+            if (workspace) entry.workspace = workspace;
+            if (!isNaN(rpm) && rpm > 0) entry.rpm = rpm;
+            if (!isNaN(timeout) && timeout > 0) entry.request_timeout = timeout;
+            if (proxy) entry.proxy = proxy;
+            if (auth) entry.auth_method = auth;
+            if (tokensField) entry.max_tokens_field = tokensField;
+            if (connectMode) entry.connect_mode = connectMode;
+
+            const editIndex = parseInt(document.getElementById("edit-model-index").value, 10);
+            if (editIndex >= 0) {
+                configuredModels[editIndex] = entry;
+            } else {
+                configuredModels.push(entry);
+                if (configuredModels.length === 1) standardModel = alias;
+            }
+            closeModelForm();
+            renderConfiguredModels();
+        }
+
+        function getProviderModelsFromForm() {
+            return configuredModels;
+        }
+
+        function refreshDefaultModelOptions() {
+            const agentModelSelect = document.getElementById("agent-model");
+            const prevAgent = agentModelSelect ? agentModelSelect.value : "";
+            agentModelSelect.innerHTML = "<option value=''>Default (System Default)</option>";
+            configuredModels.forEach(m => {
+                if (m.api_key) {
+                    const opt = document.createElement("option");
+                    opt.value = m.model_name;
+                    opt.textContent = m.model_name;
+                    agentModelSelect.appendChild(opt);
+                }
+            });
+            if (prevAgent === "" || Array.from(agentModelSelect.options).some(o => o.value === prevAgent)) {
+                agentModelSelect.value = prevAgent;
+            }
+            document.getElementById("cfg-model").value = standardModel;
+        }
+
+
+
 
         // Initialize Lucide Icons
         function refreshIcons() {
@@ -1231,7 +1579,10 @@ const indexHTML = `
                 'chat': 'Direct Chat',
                 'logs': 'System Logs',
                 'agents': 'Agent Management',
-                'skills': 'Library & Tools',
+                'skills': 'Skills',
+                'tools': 'Native Tools',
+                'models': 'Models Config',
+                'channels': 'Channels Setup',
                 'settings': 'System Settings'
             };
             document.getElementById('view-title').innerText = titles[tabId];
@@ -1240,7 +1591,7 @@ const indexHTML = `
                 fetchAgents();
                 fetchConfig(); // Ensure model dropdown is populated
             }
-            if (tabId === 'skills') fetchStatus();
+            if (tabId === 'skills' || tabId === 'tools') fetchStatus();
             if (tabId === 'settings') {
                 settingsHeaderTabs.classList.remove('hidden');
                 settingsHeaderTabs.classList.add('flex');
@@ -1318,11 +1669,13 @@ const indexHTML = `
 
                 // Update System Details in Settings
                 const details = document.getElementById("system-details");
-                details.innerHTML = 
-                    "<div class='flex justify-between items-center'><span class='text-zinc-500'>Active Agents:</span> <span class='text-zinc-200 font-medium'>" + data.agents.ids.length + "</span></div>" +
-                    "<div class='flex flex-wrap gap-1 mt-1'>" + data.agents.ids.map(id => "<span class='px-2 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-400 border border-zinc-700/50'>" + id + "</span>").join("") + "</div>" +
-                    "<div class='flex justify-between items-center mt-4'><span class='text-zinc-500'>Loaded Tools:</span> <span class='text-zinc-200 font-medium'>" + data.tools.count + "</span></div>" +
-                    "<div class='flex justify-between items-center'><span class='text-zinc-500'>Loaded Skills:</span> <span class='text-zinc-200 font-medium'>" + data.skills.total + "</span></div>";
+                if (details) {
+                    details.innerHTML = 
+                        "<div class='flex justify-between items-center'><span class='text-zinc-500'>Active Agents:</span> <span class='text-zinc-200 font-medium'>" + data.agents.ids.length + "</span></div>" +
+                        "<div class='flex flex-wrap gap-1 mt-1'>" + data.agents.ids.map(id => "<span class='px-2 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-400 border border-zinc-700/50'>" + id + "</span>").join("") + "</div>" +
+                        "<div class='flex justify-between items-center mt-4'><span class='text-zinc-500'>Loaded Tools:</span> <span class='text-zinc-200 font-medium'>" + data.tools.count + "</span></div>" +
+                        "<div class='flex justify-between items-center'><span class='text-zinc-500'>Loaded Skills:</span> <span class='text-zinc-200 font-medium'>" + data.skills.total + "</span></div>";
+                }
 
                 // Update Skills List
                 skillsData = data.skills.list || [];
@@ -1373,6 +1726,7 @@ const indexHTML = `
                 html += "</div>";
             }
             skillsList.innerHTML = html;
+            populateSkillPicker();
         }
 
         function filterSkills() {
@@ -1408,16 +1762,15 @@ const indexHTML = `
 
         async function onTemplateSelected() {
             const selected = document.getElementById("agent-template").value;
-            const preview = document.getElementById("agent-template-preview");
-            const desc = document.getElementById("agent-template-desc");
             const warning = document.getElementById("agent-template-missing-skills");
+            const hint = document.getElementById("agent-template-hint");
+            const textarea = document.getElementById("agent-instructions");
 
             warning.classList.add("hidden");
             warning.innerText = "";
+            hint.classList.add("hidden");
 
             if (!selected) {
-                preview.textContent = "No template selected.";
-                desc.textContent = "Select a template to preview purpose and instructions.";
                 return;
             }
 
@@ -1426,17 +1779,12 @@ const indexHTML = `
             if (!idInput.value) idInput.value = selected;
             if (!nameInput.value) nameInput.value = selected;
 
-            const meta = purposeTemplateMap[selected];
-            desc.textContent = meta && meta.description ? meta.description : "No description available.";
-
             try {
                 const res = await fetch("/api/agent-templates/" + encodeURIComponent(selected));
-                if (!res.ok) {
-                    preview.textContent = "Could not load template instructions.";
-                    return;
-                }
+                if (!res.ok) return;
                 const data = await res.json();
-                preview.textContent = data.instructions || "No instructions available.";
+                textarea.value = data.instructions || "";
+                hint.classList.remove("hidden");
 
                 const availableSkills = new Set((skillsData || []).map(s => s.name));
                 const missing = (data.skills || []).filter(s => !availableSkills.has(s));
@@ -1445,7 +1793,7 @@ const indexHTML = `
                     warning.classList.remove("hidden");
                 }
             } catch (e) {
-                preview.textContent = "Network error while loading template.";
+                console.error("Template load failed", e);
             }
         }
 
@@ -1462,18 +1810,20 @@ const indexHTML = `
                     return;
                 }
 
-				list.innerHTML = agents.map(a => {
+				list.innerHTML = agents.map(function(a) {
 					const isActive = a.id === activeAgentID;
 					const modelName = a.model && a.model.primary ? a.model.primary : (a.model || "");
 					const templateName = a.template || "";
 					const templateSkillsMode = a.template_skills_mode || "fallback";
-					return '<div data-agent-id="' + a.id + '" class="group p-5 bg-zinc-900/40 border ' + (isActive ? 'border-sofia bg-sofia/5' : 'border-zinc-800') + ' rounded-2xl hover:border-sofia/30 transition-all shadow-lg">' +
+					const agentSkillsJson = JSON.stringify(a.skills || []).replace(/"/g, "&quot;");
+					const skillCount = a.skills && a.skills.length ? a.skills.length : 0;
+					return '<div data-agent-id="' + a.id + '" data-agent-name="' + (a.name || '').replace(/'/g, "&#39;") + '" data-agent-model="' + modelName.replace(/'/g, "&#39;") + '" data-agent-template="' + templateName.replace(/'/g, "&#39;") + '" data-agent-tsm="' + templateSkillsMode + '" data-agent-skills="' + agentSkillsJson + '" class="group p-5 bg-zinc-900/40 border ' + (isActive ? 'border-sofia bg-sofia/5' : 'border-zinc-800') + ' rounded-2xl hover:border-sofia/30 transition-all shadow-lg">' +
                         '<div class="flex justify-between items-start mb-4">' +
                             '<div class="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-sofia group-hover:bg-sofia/10 transition-colors">' +
                                 '<i data-lucide="bot" class="w-5 h-5"></i>' +
                             '</div>' +
                             '<div class="flex gap-1">' +
-							'<button onclick="editAgent(\'' + a.id + '\', \'' + (a.name || '') + '\', \'' + modelName + '\', \'' + templateName + '\', \'' + templateSkillsMode + '\')" class="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>' +
+							'<button onclick="editAgentFromCard(this)" data-card-id="' + a.id + '" class="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>' +
                                 '<button onclick="deleteAgent(\'' + a.id + '\')" class="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>' +
                             '</div>' +
                         '</div>' +
@@ -1481,13 +1831,14 @@ const indexHTML = `
                             '<div class="font-bold text-zinc-200">' + (a.name || a.id) + '</div>' +
                             '<div class="text-[10px] font-mono text-zinc-600 uppercase tracking-tighter mt-0.5">' + a.id + '</div>' +
                             (templateName ? '<div class="mt-2 text-[10px] text-sofia/80 font-medium">Purpose: ' + templateName + '</div>' : '') +
+                            (skillCount > 0 ? '<div class="mt-1 text-[10px] text-zinc-500 flex items-center gap-1"><i data-lucide=\"zap\" class=\"w-2.5 h-2.5\"></i> ' + skillCount + ' custom skill' + (skillCount !== 1 ? 's' : '') + '</div>' : '') +
                             '<div class="mt-4 pt-4 border-t border-zinc-800/50 flex items-center justify-between">' +
                                 '<div class="text-[10px] text-zinc-500 font-medium flex items-center gap-1.5"><i data-lucide="cpu" class="w-3 h-3"></i> ' + (modelName || 'Default') + '</div>' +
                                 '<span class="w-1.5 h-1.5 rounded-full ' + (isActive ? 'bg-sofia animate-pulse' : 'bg-green-500/50') + '"></span>' +
                             '</div>' +
                         '</div>' +
                     '</div>';
-                }).join("");
+				}).join("");
                 refreshIcons();
             } catch (e) {
                 console.error("Agents fetch failed", e);
@@ -1499,7 +1850,6 @@ const indexHTML = `
 			const name = document.getElementById("agent-name").value;
 			const modelStr = document.getElementById("agent-model").value;
 			const template = document.getElementById("agent-template").value;
-			const templateSkillsMode = document.getElementById("agent-template-skills-mode").value;
             
             if (!id) {
                 alert("ID is required!");
@@ -1508,15 +1858,11 @@ const indexHTML = `
 
             const agent = { id, name };
             if (modelStr) agent.model = modelStr;
+            if (agentCustomSkills.length > 0) agent.skills = agentCustomSkills.slice();
+            const instructions = document.getElementById("agent-instructions").value.trim();
+            if (instructions) agent.instructions = instructions;
 			if (template) {
 				agent.template = template;
-				agent.template_skills_mode = templateSkillsMode || "fallback";
-				const meta = purposeTemplateMap[template];
-				if (meta && meta.skills && meta.skills.length > 0) {
-					if ((templateSkillsMode || "fallback") === "overwrite") {
-						agent.skills = meta.skills;
-					}
-				}
 			}
 
             try {
@@ -1549,7 +1895,26 @@ const indexHTML = `
             }
         }
 
-		function editAgent(id, name, model, template, templateSkillsMode) {
+		function editAgentFromCard(btn) {
+			const cardId = btn.getAttribute("data-card-id");
+			const el = document.querySelector('[data-agent-id="' + cardId + '"]');
+			editAgentFromEl(el);
+		}
+
+		function editAgentFromEl(el) {
+			if (!el) return;
+			const id = el.getAttribute("data-agent-id") || "";
+			const name = el.getAttribute("data-agent-name") || "";
+			const model = el.getAttribute("data-agent-model") || "";
+			const template = el.getAttribute("data-agent-template") || "";
+			const tsm = el.getAttribute("data-agent-tsm") || "fallback";
+			const instr = el.getAttribute("data-agent-instructions") || "";
+			let skills = [];
+			try { skills = JSON.parse(el.getAttribute("data-agent-skills") || "[]"); } catch(e) {}
+			editAgent(id, name, model, template, tsm, skills, instr);
+		}
+
+		function editAgent(id, name, model, template, templateSkillsMode, skills, instructions) {
 			document.getElementById("agent-id").value = id;
 			document.getElementById("agent-id").disabled = true;
 			document.getElementById("agent-id").classList.add("opacity-50");
@@ -1573,11 +1938,60 @@ const indexHTML = `
             modelSelect.value = model || "";
 
 			document.getElementById("agent-template").value = template || "";
-			document.getElementById("agent-template-skills-mode").value = templateSkillsMode || "fallback";
+            agentCustomSkills = (Array.isArray(skills) ? skills : []);
+            renderSkillTags();
+            document.getElementById("agent-instructions").value = instructions || "";
 			onTemplateSelected();
 			document.getElementById("agent-form-title").innerText = "Edit Agent";
 			refreshIcons();
 		}
+
+        // ── Custom Skills Tag UI ──────────────────────────────────────────
+        let agentCustomSkills = [];
+
+        function renderSkillTags() {
+            const container = document.getElementById("agent-custom-skills-tags");
+            if (!container) return;
+            if (agentCustomSkills.length === 0) {
+                container.innerHTML = "<span class='text-[10px] text-zinc-600 italic'>No custom skills added</span>";
+                return;
+            }
+            container.innerHTML = agentCustomSkills.map(function(s) {
+                return "<span class='inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-sofia/10 border border-sofia/20 text-[10px] font-medium text-sofia'>" + s +
+                    "<button type='button' onclick='removeCustomSkill(\"" + s + "\")' class='ml-0.5 text-sofia/60 hover:text-red-400 transition leading-none'>&times;</button></span>";
+            }).join("");
+        }
+
+        function addCustomSkill() {
+            const picker = document.getElementById("agent-custom-skills-picker");
+            const skill = picker.value;
+            if (!skill) return;
+            if (agentCustomSkills.indexOf(skill) === -1) {
+                agentCustomSkills.push(skill);
+                renderSkillTags();
+            }
+            picker.value = "";
+        }
+
+        function removeCustomSkill(skill) {
+            agentCustomSkills = agentCustomSkills.filter(function(s) { return s !== skill; });
+            renderSkillTags();
+        }
+
+        function populateSkillPicker() {
+            const picker = document.getElementById("agent-custom-skills-picker");
+            if (!picker) return;
+            const current = picker.value;
+            picker.innerHTML = "<option value=''>+ Add a skill...</option>";
+            (skillsData || []).forEach(function(s) {
+                const opt = document.createElement("option");
+                opt.value = s.name;
+                opt.textContent = s.name;
+                picker.appendChild(opt);
+            });
+            picker.value = current;
+        }
+        // ─────────────────────────────────────────────────────────────────
 
         function resetAgentForm() {
             document.getElementById("agent-id").value = "";
@@ -1586,135 +2000,17 @@ const indexHTML = `
 			document.getElementById("agent-name").value = "";
 			document.getElementById("agent-model").value = "";
 			document.getElementById("agent-template").value = "";
-			document.getElementById("agent-template-skills-mode").value = "fallback";
+
+            agentCustomSkills = [];
+            renderSkillTags();
+            document.getElementById("agent-instructions").value = "";
 			onTemplateSelected();
 			document.getElementById("agent-form-title").innerText = "New Agent";
 			refreshIcons();
 		}
 
-        function addProviderModelRow(seed) {
-            const list = document.getElementById("provider-model-list");
-            const row = document.createElement("div");
-            row.className = "provider-model-row p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)]";
-            row.innerHTML =
-                "<div class='grid grid-cols-12 gap-2'>" +
-                    "<input data-key='model_name' placeholder='model_name (alias)' class='col-span-3 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
-                    "<input data-key='model' placeholder='protocol/model-id' class='col-span-4 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
-                    "<input data-key='api_base' placeholder='api_base (optional)' class='col-span-3 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
-                    "<input data-key='api_key' placeholder='api_key' type='password' class='col-span-2 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
-                "</div>" +
-                "<div class='grid grid-cols-12 gap-2 mt-2'>" +
-                    "<input data-key='proxy' placeholder='proxy (optional)' class='col-span-3 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
-                    "<input data-key='auth_method' placeholder='auth_method' class='col-span-2 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
-                    "<input data-key='connect_mode' placeholder='connect_mode' class='col-span-2 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
-                    "<input data-key='workspace' placeholder='workspace' class='col-span-3 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
-                    "<button onclick='removeProviderModelRow(this)' class='col-span-2 text-xs border border-[var(--border-color)] rounded hover:bg-[var(--nav-hover)]'>Remove</button>" +
-                "</div>" +
-                "<div class='grid grid-cols-12 gap-2 mt-2'>" +
-                    "<input data-key='rpm' placeholder='rpm' type='number' min='0' class='col-span-2 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
-                    "<input data-key='request_timeout' placeholder='request_timeout' type='number' min='0' class='col-span-3 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
-                    "<input data-key='max_tokens_field' placeholder='max_tokens_field' class='col-span-4 bg-transparent border border-[var(--border-color)] rounded px-2 py-1 text-xs text-[var(--text-main)]'>" +
-                    "<div class='col-span-3 text-[10px] text-zinc-500 flex items-center'>Advanced model settings</div>" +
-                "</div>";
-            list.appendChild(row);
 
-            if (seed) {
-                row.querySelector("[data-key='model_name']").value = seed.model_name || "";
-                row.querySelector("[data-key='model']").value = seed.model || "";
-                row.querySelector("[data-key='api_base']").value = seed.api_base || "";
-                row.querySelector("[data-key='api_key']").value = seed.api_key || "";
-                row.querySelector("[data-key='proxy']").value = seed.proxy || "";
-                row.querySelector("[data-key='auth_method']").value = seed.auth_method || "";
-                row.querySelector("[data-key='connect_mode']").value = seed.connect_mode || "";
-                row.querySelector("[data-key='workspace']").value = seed.workspace || "";
-                row.querySelector("[data-key='rpm']").value = seed.rpm || "";
-                row.querySelector("[data-key='request_timeout']").value = seed.request_timeout || "";
-                row.querySelector("[data-key='max_tokens_field']").value = seed.max_tokens_field || "";
-            }
 
-            row.querySelector("[data-key='model_name']").addEventListener("input", refreshDefaultModelOptions);
-            refreshDefaultModelOptions();
-        }
-
-        function removeProviderModelRow(btn) {
-            const row = btn.closest(".provider-model-row");
-            if (row) row.remove();
-            refreshDefaultModelOptions();
-        }
-
-        function getProviderModelsFromForm() {
-            const rows = Array.from(document.querySelectorAll(".provider-model-row"));
-            const models = [];
-            rows.forEach(row => {
-                const modelName = row.querySelector("[data-key='model_name']").value.trim();
-                const model = row.querySelector("[data-key='model']").value.trim();
-                const apiBase = row.querySelector("[data-key='api_base']").value.trim();
-                const apiKey = row.querySelector("[data-key='api_key']").value.trim();
-                const proxy = row.querySelector("[data-key='proxy']").value.trim();
-                const authMethod = row.querySelector("[data-key='auth_method']").value.trim();
-                const connectMode = row.querySelector("[data-key='connect_mode']").value.trim();
-                const workspace = row.querySelector("[data-key='workspace']").value.trim();
-                const rpmRaw = row.querySelector("[data-key='rpm']").value.trim();
-                const requestTimeoutRaw = row.querySelector("[data-key='request_timeout']").value.trim();
-                const maxTokensField = row.querySelector("[data-key='max_tokens_field']").value.trim();
-                if (!modelName || !model) return;
-                const entry = { model_name: modelName, model: model };
-                if (apiBase) entry.api_base = apiBase;
-                if (apiKey) entry.api_key = apiKey;
-                if (proxy) entry.proxy = proxy;
-                if (authMethod) entry.auth_method = authMethod;
-                if (connectMode) entry.connect_mode = connectMode;
-                if (workspace) entry.workspace = workspace;
-                if (maxTokensField) entry.max_tokens_field = maxTokensField;
-                const rpm = Number.parseInt(rpmRaw, 10);
-                if (!Number.isNaN(rpm) && rpm > 0) entry.rpm = rpm;
-                const requestTimeout = Number.parseInt(requestTimeoutRaw, 10);
-                if (!Number.isNaN(requestTimeout) && requestTimeout > 0) entry.request_timeout = requestTimeout;
-                models.push(entry);
-            });
-            return models;
-        }
-
-        function refreshDefaultModelOptions() {
-            const select = document.getElementById("cfg-model");
-            const agentModelSelect = document.getElementById("agent-model");
-            const previous = select.value;
-            const previousAgentModel = agentModelSelect.value;
-            const models = getProviderModelsFromForm();
-
-            select.innerHTML = "";
-            agentModelSelect.innerHTML = "<option value=''>Default (System Default)</option>";
-
-            if (models.length === 0) {
-                const opt = document.createElement("option");
-                opt.value = "";
-                opt.textContent = "No models configured";
-                select.appendChild(opt);
-                return;
-            }
-
-            models.forEach(m => {
-                // Only add to selection if API key is provided
-                if (m.api_key && m.api_key.trim() !== "") {
-                    const opt = document.createElement("option");
-                    opt.value = m.model_name;
-                    opt.textContent = m.model_name + " (" + m.model + ")";
-                    select.appendChild(opt);
-
-                    const opt2 = document.createElement("option");
-                    opt2.value = m.model_name;
-                    opt2.textContent = m.model_name;
-                    agentModelSelect.appendChild(opt2);
-                }
-            });
-
-            if (models.some(m => m.model_name === previous)) {
-                select.value = previous;
-            }
-            if (previousAgentModel === "" || Array.from(agentModelSelect.options).some(o => o.value === previousAgentModel)) {
-                agentModelSelect.value = previousAgentModel;
-            }
-        }
 
         function formatAllowFrom(values) {
             if (!Array.isArray(values) || values.length === 0) return "";
@@ -1799,18 +2095,13 @@ const indexHTML = `
                 document.getElementById("cfg-discord-mention-only").checked = !!cfg.channels.discord.mention_only;
                 validateChannelSettings();
 
-                const list = document.getElementById("provider-model-list");
-                list.innerHTML = "";
-                (cfg.model_list || []).forEach(m => addProviderModelRow(m));
-                if (!cfg.model_list || cfg.model_list.length === 0) {
-                    addProviderModelRow();
-                }
 
-                refreshDefaultModelOptions();
-                const defaultModel = cfg.agents.defaults.model_name || cfg.agents.defaults.model || "";
-                if (defaultModel) {
-                    document.getElementById("cfg-model").value = defaultModel;
+                configuredModels = cfg.model_list ? cfg.model_list.slice() : [];
+                standardModel = cfg.agents.defaults.model_name || cfg.agents.defaults.model || "";
+                if (!standardModel && configuredModels.length > 0) {
+                    standardModel = configuredModels[0].model_name;
                 }
+                renderConfiguredModels();
 
                 fetchWorkspaceDocs();
             } catch (e) {
@@ -1873,81 +2164,108 @@ const indexHTML = `
             const sidebar = document.getElementById("agent-monitor-sidebar");
             
             if (!agentActivity[agentId]) {
-                // Create new box
-                agentActivity[agentId] = {
-                    lastSeen: Date.now(),
-                    timer: null
-                };
-                
+                agentActivity[agentId] = { lastSeen: Date.now(), timer: null };
                 sidebar.classList.remove("hidden");
                 
                 const box = document.createElement("div");
                 box.id = "agent-box-" + agentId;
-                box.className = "agent-log-box w-full bg-zinc-900/80 border border-sofia/20 rounded-xl overflow-hidden flex flex-col shadow-lg";
-                box.innerHTML = "<div class=\"px-3 py-2 bg-sofia/10 border-b border-sofia/10 flex items-center justify-between\">" +
-                    "<div class=\"flex items-center gap-2\">" +
-                    "<div class=\"w-2 h-2 rounded-full bg-sofia animate-pulse\"></div>" +
-                    "<span class=\"text-[10px] font-bold uppercase tracking-widest text-white\">" + agentId + "</span>" +
-                    "</div>" +
-                    "<span id=\"status-" + agentId + "\" class=\"text-[8px] text-sofia/80 font-mono\">WORKING</span>" +
-                    "</div>" +
-                    "<div id=\"logs-" + agentId + "\" class=\"p-2 h-32 overflow-y-auto bg-black/40 space-y-1\"></div>";
+                box.className = "agent-log-box w-full bg-zinc-900/80 border border-sofia/20 rounded-xl overflow-hidden flex flex-col shadow-lg transition-all duration-300";
+                box.innerHTML =
+                    '<div class="px-3 py-2 bg-sofia/10 border-b border-sofia/10 flex items-center justify-between">' +
+                    '  <div class="flex items-center gap-2">' +
+                    '    <div id="dot-' + agentId + '" class="w-2 h-2 rounded-full bg-sofia animate-pulse shadow-[0_0_6px_rgba(255,77,77,0.6)]"></div>' +
+                    '    <span class="text-[10px] font-bold uppercase tracking-widest text-white">' + agentId + '</span>' +
+                    '  </div>' +
+                    '  <span id="status-' + agentId + '" class="text-[8px] text-sofia/80 font-mono animate-pulse">WORKING</span>' +
+                    '</div>' +
+                    '<div id="logs-' + agentId + '" class="p-2 h-48 overflow-y-auto bg-black/40 space-y-0.5 font-mono text-[10px] leading-relaxed"></div>' +
+                    '<div id="typing-' + agentId + '" class="px-3 py-1.5 border-t border-zinc-800/50 flex items-center gap-1.5">' +
+                    '  <span class="w-1 h-1 rounded-full bg-sofia/60 animate-bounce" style="animation-delay:0ms"></span>' +
+                    '  <span class="w-1 h-1 rounded-full bg-sofia/60 animate-bounce" style="animation-delay:150ms"></span>' +
+                    '  <span class="w-1 h-1 rounded-full bg-sofia/60 animate-bounce" style="animation-delay:300ms"></span>' +
+                    '  <span class="text-[9px] text-zinc-600 ml-1">processing...</span>' +
+                    '</div>';
                 monitor.appendChild(box);
                 refreshIcons();
             }
 
-            // Update existing box
+            // Append log line with timestamp + color coding
             const logsDiv = document.getElementById("logs-" + agentId);
             const line = document.createElement("div");
-            line.className = "agent-log-line text-zinc-400";
-            line.textContent = entry.message;
+            const timeStr = entry.timestamp ? entry.timestamp.split("T")[1].replace("Z","").substring(0,8) : "";
+            const msg = entry.message || "";
+
+            // Color-code by log type
+            let textColor = "text-zinc-400";
+            let prefix = "";
+            if (msg.startsWith("Tool call:")) {
+                textColor = "text-amber-400";
+                prefix = "⚡ ";
+            } else if (msg.startsWith("Response:") || msg.startsWith("LLM response")) {
+                textColor = "text-green-400";
+                prefix = "✓ ";
+            } else if (msg.startsWith("LLM requested")) {
+                textColor = "text-sky-400";
+                prefix = "→ ";
+            } else if (entry.level === "ERROR" || entry.level === "FATAL") {
+                textColor = "text-red-400";
+                prefix = "✗ ";
+            } else if (entry.level === "WARN") {
+                textColor = "text-yellow-400";
+                prefix = "⚠ ";
+            }
+
+            line.className = "flex gap-1.5 py-0.5 border-b border-zinc-800/30 " + textColor;
+            line.innerHTML =
+                '<span class="text-zinc-600 shrink-0">' + timeStr + '</span>' +
+                '<span class="truncate">' + prefix + escapeHtml(msg) + '</span>';
             logsDiv.appendChild(line);
-            logsDiv.scrollTop = logsDiv.scrollHeight;
-            
-            // Reset completion timer
+
+            // Auto-scroll (but only if already near bottom)
+            if (logsDiv.scrollHeight - logsDiv.scrollTop < logsDiv.clientHeight + 60) {
+                logsDiv.scrollTop = logsDiv.scrollHeight;
+            }
+
+            // Reset done timer
             if (agentActivity[agentId].timer) clearTimeout(agentActivity[agentId].timer);
-            
             agentActivity[agentId].lastSeen = Date.now();
             agentActivity[agentId].timer = setTimeout(() => {
                 completeAgentTask(agentId);
-            }, 5000); // Consider "done" after 5s of silence
+            }, 8000);
         }
 
         function completeAgentTask(agentId) {
             const statusLabel = document.getElementById("status-" + agentId);
             const box = document.getElementById("agent-box-" + agentId);
-            const dot = box.querySelector('.rounded-full');
+            const dot = document.getElementById("dot-" + agentId);
+            const typing = document.getElementById("typing-" + agentId);
             
             if (statusLabel) {
-                statusLabel.innerText = "COMPLETED";
-                statusLabel.className = "text-[8px] text-green-500 font-mono";
+                statusLabel.innerText = "DONE";
+                statusLabel.className = "text-[8px] text-green-400 font-mono";
             }
             if (dot) {
                 dot.classList.remove("bg-sofia", "animate-pulse");
                 dot.classList.add("bg-green-500");
+                dot.style.boxShadow = "0 0 6px rgba(34,197,94,0.5)";
             }
-            
-            box.classList.add("border-green-500/20", "bg-green-500/5");
-            box.classList.remove("border-sofia/20", "bg-zinc-900/80");
+            if (typing) typing.remove();
+            if (box) {
+                box.classList.add("border-green-500/20");
+                box.classList.remove("border-sofia/20");
+            }
 
-            // Remove after a while
+            // Fade and remove after delay
             setTimeout(() => {
                 if (!box) return;
+                box.style.transition = "opacity 0.5s, transform 0.5s";
                 box.style.opacity = "0";
-                box.style.transform = "translateY(-10px)";
+                box.style.transform = "translateY(-8px)";
                 setTimeout(() => {
                     box.remove();
                     delete agentActivity[agentId];
-                    
-                    const monitor = document.getElementById("agent-activity-monitor");
-                    const sidebar = document.getElementById("agent-monitor-sidebar");
-                    const livePanel = document.getElementById("live-activity-panel");
-                    // User requested sidebar to always be visible
-                    // if (monitor.children.length === 0 && livePanel.classList.contains("hidden")) {
-                    //     sidebar.classList.add("hidden");
-                    // }
                 }, 500);
-            }, 10000);
+            }, 15000);
         }
 
         function escapeHtml(text) {
@@ -2090,7 +2408,8 @@ const indexHTML = `
         fetchStatus();
         fetchConfig();
         fetchPurposeTemplates();
-        showSettingsSubTab('models');
+        onTemplateSelected();
+        showSettingsSubTab('prompts');
         setupLogStream();
         updateThemeIcons();
         refreshIcons();

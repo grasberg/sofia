@@ -254,6 +254,6 @@ func DefaultConfig() *Config {
 			Host:    "127.0.0.1",
 			Port:    18795,
 		},
-		UserName: "Magnus",
+		UserName: "User",
 	}
 }
