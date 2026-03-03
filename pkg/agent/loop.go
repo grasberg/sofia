@@ -233,25 +233,23 @@ func (al *AgentLoop) SetChannelManager(cm *channels.Manager) {
 func (al *AgentLoop) ReloadAgents() {
 	logger.InfoCF("agent", "Reloading agents from config", nil)
 
-	// We need the provider from the existing registry
-	var provider providers.LLMProvider
-	if defaultAgent := al.registry.GetDefaultAgent(); defaultAgent != nil {
-		provider = defaultAgent.Provider
-	}
-
-	// If provider is still nil (e.g. fresh install, no model at startup),
-	// try to create one from the updated config.
-	if provider == nil {
-		newProvider, modelID, err := providers.CreateProvider(al.cfg)
-		if err != nil {
-			logger.ErrorCF("agent", "Cannot reload agents: provider creation failed", map[string]any{"error": err.Error()})
-			return
+	// Create a new provider from the updated config every time.
+	// This ensures changes to the default model or provider keys take effect immediately
+	// without requiring a full process restart.
+	provider, modelID, err := providers.CreateProvider(al.cfg)
+	if err != nil {
+		logger.ErrorCF("agent", "Cannot reload agents: provider creation failed", map[string]any{"error": err.Error()})
+		// Fallback to existing provider if creation fails, so we don't crash
+		if defaultAgent := al.registry.GetDefaultAgent(); defaultAgent != nil {
+			provider = defaultAgent.Provider
 		}
-		if newProvider == nil {
-			logger.WarnCF("agent", "Cannot reload agents: still no model configured", nil)
-			return
+	} else if provider == nil {
+		logger.WarnCF("agent", "Cannot reload agents: no model configured", nil)
+		// Fallback to existing
+		if defaultAgent := al.registry.GetDefaultAgent(); defaultAgent != nil {
+			provider = defaultAgent.Provider
 		}
-		provider = newProvider
+	} else {
 		if modelID != "" {
 			al.cfg.Agents.Defaults.ModelName = modelID
 		}

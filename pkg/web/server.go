@@ -2612,6 +2612,7 @@ const indexHTML = `
                 cfg.model_list = getProviderModelsFromForm();
                 cfg.agents.defaults.model_name = document.getElementById("cfg-model").value;
                 cfg.agents.defaults.model = "";
+                cfg.agents.defaults.provider = ""; // Clear legacy provider field
                 
                 cfg.channels.telegram.enabled = document.getElementById("cfg-telegram").checked;
                 cfg.channels.discord.enabled = document.getElementById("cfg-discord").checked;
