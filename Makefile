@@ -70,7 +70,7 @@ else
 	ARCH=$(UNAME_M)
 endif
 
-BINARY_PATH=$(BUILD_DIR)/$(BINARY_NAME)-$(PLATFORM)-$(ARCH)
+BINARY_PATH=$(BINARY_NAME)
 
 # Default target
 all: build
@@ -84,11 +84,9 @@ generate:
 
 ## build: Build the sofia binary for current platform
 build: generate
-	@echo "Building $(BINARY_NAME) for $(PLATFORM)/$(ARCH)..."
-	@mkdir -p $(BUILD_DIR)
+	@echo "Building $(BINARY_NAME)..."
 	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_PATH) ./$(CMD_DIR)
 	@echo "Build complete: $(BINARY_PATH)"
-	@ln -sf $(BINARY_NAME)-$(PLATFORM)-$(ARCH) $(BUILD_DIR)/$(BINARY_NAME)
 
 ## build-all: Build sofia for all platforms
 build-all: generate
