@@ -746,6 +746,7 @@ const indexHTML = `
                 <h2 id="view-title" class="text-sm font-semibold text-zinc-400 uppercase tracking-wider">Direct Chat</h2>
                 <div id="settings-header-tabs" class="hidden items-center gap-2 mt-2">
                     <button id="settings-tab-prompts" onclick="showSettingsSubTab('prompts')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">SOUL.md & IDENTITY.md</button>
+                    <button id="settings-tab-heartbeat" onclick="showSettingsSubTab('heartbeat')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Heartbeat</button>
                 </div>
             </div>
             <div class="flex items-center gap-4">
@@ -1290,7 +1291,7 @@ const indexHTML = `
             <!-- SETTINGS TAB -->
             <div id="tab-settings" class="tab-content h-full">
                 <div class="h-full overflow-y-auto pr-2 space-y-6">
-                    <div id="settings-subtab-prompts" class="settings-subtab hidden space-y-4">
+                    <div id="settings-subtab-heartbeat" class="settings-subtab hidden space-y-4">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Heartbeat Background Agent</h3>
                             
@@ -1321,7 +1322,9 @@ const indexHTML = `
                                 <!-- Days will be injected here via JS -->
                             </div>
                         </div>
+                    </div>
 
+                    <div id="settings-subtab-prompts" class="settings-subtab hidden space-y-4">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Prompt Files</h3>
                             <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">IDENTITY.md</label>
@@ -1849,7 +1852,7 @@ const indexHTML = `
 
         function showSettingsSubTab(tabId) {
             currentSettingsSubTab = tabId;
-            const tabs = ['models', 'prompts', 'channels'];
+            const tabs = ['models', 'prompts', 'channels', 'heartbeat'];
             tabs.forEach(t => {
                 const panel = document.getElementById('settings-subtab-' + t);
                 const button = document.getElementById('settings-tab-' + t);
