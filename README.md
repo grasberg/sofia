@@ -1,6 +1,6 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.27-blue)
+![Version](https://img.shields.io/badge/version-v0.0.28-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
@@ -63,6 +63,60 @@ sofia gateway
 
 3. **Öppna Sofias kontrollpanel:**
 Surfa till `http://127.0.0.1:18795` i din webbläsare. Gå till fliken **Models** för att lägga till din leverantör och API-nyckel.
+
+
+## 🔒 Säkerhetsmodell
+
+Sofia stödjer workspace-restriktioner för att förhindra oavsiktlig modifiering av systemfiler.
+
+**Via Web UI:**
+1.  Öppna Sofias Web UI → **Settings**.
+2.  Klicka på fliken **Security**.
+3.  Aktivera **Restrict to Workspace** — fil- och kommandoverktyg begränsas då strikt till den konfigurerade workspace-sökvägen.
+4.  Inställningen sparas automatiskt.
+
+## 💓 Heartbeat (Bakgrundsagent)
+
+Sofia kan automatiskt utföra uppgifter i bakgrunden enligt ett schema.
+
+**Via Web UI:**
+1.  Öppna Sofias Web UI → **Settings**.
+2.  Klicka på fliken **Heartbeat**.
+3.  Aktivera **Enable Heartbeat** och ange hur ofta agenten ska köra (i minuter).
+4.  Ange **Active Hours** i formatet `09:00-17:00` — lämna tomt för 24/7.
+5.  Välj **Active Days** — lämna tomt för att köra varje dag.
+6.  Inställningarna sparas automatiskt.
+
+## 🧭 Anpassa Sofias Personlighet
+
+Sofias beteende, ton och personlighet styrs av två filer: **IDENTITY.md** och **SOUL.md**. Du kan enkelt redigera dem direkt i webbgränssnittet:
+
+1.  **Starta Sofia:** `sofia gateway`
+2.  **Öppna webbläsaren:** Surfa till `http://127.0.0.1:18795`
+3.  **Gå till Settings** i vänstermenyn.
+4.  Redigera **IDENTITY.md** (vem Sofia är) och **SOUL.md** (hur Sofia beter sig) direkt i textrutorna.
+5.  Klicka **Save prompt files** — ändringarna träder i kraft omedelbart utan omstart.
+
+### `IDENTITY.md` — Vem är Sofia?
+Definierar Sofias roll, namn, och grundläggande kontext. Exempel:
+```md
+# Identity
+- Name: Sofia
+- Role: Personal AI assistant
+- Running: 24/7 on the user's own hardware
+```
+
+### `SOUL.md` — Hur beter sig Sofia?
+Definierar personlighet, språk, värderingar och beslutslogik. Exempel:
+```md
+# Soul
+- Svara alltid på svenska
+- Var proaktiv och självgående
+- Använd torr humor och driv
+- Prioritera handling framför att fråga om lov
+```
+
+> 💡 **Tips:** Du kan ge Sofia vilken personlighet du vill — formell, avslappnad, sarkastisk, pedagogisk, eller helt skräddarsydd för ditt arbetsflöde.
 
 ## 🔌 Integrationer
 
@@ -147,63 +201,6 @@ Sofia kan även vara aktiv i Discord-servrar och DM:s.
 
 > 💡 **Tips:** Sätt `mention_only` till `true` om Sofia är i en aktiv kanal med många användare — annars svarar hon på allt.
 
-## ⏱️ Schemaläggning (Cron)
-
-Sofia har inbyggt stöd för schemalagda jobb och påminnelser:
-
-```bash
-# Varje 10:e minut
-sofia cron add --name followup --message "Kolla väntande uppgifter" --every 600
-
-# Varje dag kl 09:00 (Cron-uttryck)
-sofia cron add --name morning --message "Sammanfatta dagens prioriteringar" --cron "0 9 * * *"
-```
-
-## 🔒 Säkerhetsmodell
-
-Sofia stödjer workspace-restriktioner för att förhindra oavsiktlig modifiering av systemfiler:
-
-```json
-{
-  "agents": {
-    "defaults": {
-      "restrict_to_workspace": true
-    }
-  }
-}
-```
-När detta är aktiverat är fil- och kommandoverktyg strikt begränsade till den konfigurerade workspace-sökvägen.
-
-## 🧭 Anpassa Sofias Personlighet
-
-Sofias beteende, ton och personlighet styrs av två filer: **IDENTITY.md** och **SOUL.md**. Du kan enkelt redigera dem direkt i webbgränssnittet:
-
-1.  **Starta Sofia:** `sofia gateway`
-2.  **Öppna webbläsaren:** Surfa till `http://127.0.0.1:18795`
-3.  **Gå till Settings** i vänstermenyn.
-4.  Redigera **IDENTITY.md** (vem Sofia är) och **SOUL.md** (hur Sofia beter sig) direkt i textrutorna.
-5.  Klicka **Save prompt files** — ändringarna träder i kraft omedelbart utan omstart.
-
-### `IDENTITY.md` — Vem är Sofia?
-Definierar Sofias roll, namn, och grundläggande kontext. Exempel:
-```md
-# Identity
-- Name: Sofia
-- Role: Personal AI assistant
-- Running: 24/7 on the user's own hardware
-```
-
-### `SOUL.md` — Hur beter sig Sofia?
-Definierar personlighet, språk, värderingar och beslutslogik. Exempel:
-```md
-# Soul
-- Svara alltid på svenska
-- Var proaktiv och självgående
-- Använd torr humor och driv
-- Prioritera handling framför att fråga om lov
-```
-
-> 💡 **Tips:** Du kan ge Sofia vilken personlighet du vill — formell, avslappnad, sarkastisk, pedagogisk, eller helt skräddarsydd för ditt arbetsflöde.
 
 ---
 *Byggd för att accelerera utveckling. Din lokala AI-kollega.*
