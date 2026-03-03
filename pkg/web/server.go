@@ -1558,7 +1558,7 @@ const indexHTML = `
                 configuredModels[editIndex] = entry;
             } else {
                 configuredModels.push(entry);
-                if (configuredModels.length === 1) standardModel = alias;
+                standardModel = alias; // Auto-set new model as standard
             }
             closeModelForm();
             renderConfiguredModels();
