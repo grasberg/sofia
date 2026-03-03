@@ -747,6 +747,7 @@ const indexHTML = `
                 <div id="settings-header-tabs" class="hidden items-center gap-2 mt-2">
                     <button id="settings-tab-prompts" onclick="showSettingsSubTab('prompts')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">SOUL.md & IDENTITY.md</button>
                     <button id="settings-tab-heartbeat" onclick="showSettingsSubTab('heartbeat')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Heartbeat</button>
+                    <button id="settings-tab-security" onclick="showSettingsSubTab('security')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Security</button>
                 </div>
             </div>
             <div class="flex items-center gap-4">
@@ -1264,15 +1265,25 @@ const indexHTML = `
                             </button>
                         </div>
 
+
+
+	</div>
+</div>
+
+            <!-- SETTINGS TAB -->
+            <div id="tab-settings" class="tab-content h-full">
+                <div class="h-full overflow-y-auto pr-2 space-y-6">
+                    
+                    <div id="settings-subtab-security" class="settings-subtab hidden space-y-4">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
-                            <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Workspace Security</label>
-                            
+                            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Workspace Security</h3>
+
                             <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)]">
                                 <div class="flex items-start justify-between">
                                     <div class="space-y-1 pr-6">
                                         <h4 class="text-sm font-semibold text-[var(--text-main)]">Restrict to Workspace</h4>
                                         <p class="text-[11px] leading-relaxed text-zinc-500">
-                                            When enabled, Sofia's file and command tools are strictly sandboxed to the configured workspace path. 
+                                            When enabled, Sofia's file and command tools are strictly sandboxed to the configured workspace path.
                                             This prevents accidental modification of system files or parent directories.
                                         </p>
                                     </div>
@@ -1283,14 +1294,8 @@ const indexHTML = `
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-
-	</div>
-</div>
-
-            <!-- SETTINGS TAB -->
-            <div id="tab-settings" class="tab-content h-full">
-                <div class="h-full overflow-y-auto pr-2 space-y-6">
                     <div id="settings-subtab-heartbeat" class="settings-subtab hidden space-y-4">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Heartbeat Background Agent</h3>
@@ -1852,7 +1857,7 @@ const indexHTML = `
 
         function showSettingsSubTab(tabId) {
             currentSettingsSubTab = tabId;
-            const tabs = ['models', 'prompts', 'channels', 'heartbeat'];
+            const tabs = ['models', 'prompts', 'channels', 'heartbeat', 'security'];
             tabs.forEach(t => {
                 const panel = document.getElementById('settings-subtab-' + t);
                 const button = document.getElementById('settings-tab-' + t);
