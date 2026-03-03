@@ -239,9 +239,23 @@ func (al *AgentLoop) ReloadAgents() {
 		provider = defaultAgent.Provider
 	}
 
+	// If provider is still nil (e.g. fresh install, no model at startup),
+	// try to create one from the updated config.
 	if provider == nil {
-		logger.ErrorCF("agent", "Cannot reload agents: provider not found", nil)
-		return
+		newProvider, modelID, err := providers.CreateProvider(al.cfg)
+		if err != nil {
+			logger.ErrorCF("agent", "Cannot reload agents: provider creation failed", map[string]any{"error": err.Error()})
+			return
+		}
+		if newProvider == nil {
+			logger.WarnCF("agent", "Cannot reload agents: still no model configured", nil)
+			return
+		}
+		provider = newProvider
+		if modelID != "" {
+			al.cfg.Agents.Defaults.ModelName = modelID
+		}
+		logger.InfoCF("agent", "Created provider from updated config", map[string]any{"model": modelID})
 	}
 
 	newRegistry := NewAgentRegistry(al.cfg, provider)

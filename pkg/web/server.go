@@ -122,6 +122,9 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Hot-reload agents so model changes take effect immediately
+		s.agentLoop.ReloadAgents()
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 		return
