@@ -1303,13 +1303,13 @@ const indexHTML = `
         // Provider → list of {label, model_id, api_base} presets
         const PROVIDER_MODELS = {
             "Google Gemini": [
-                { label: "Gemini 3.1 Pro (Preview)", model_id: "gemini/gemini-3.1-pro-preview", api_base: "https://generativelanguage.googleapis.com/v1beta" },
-                { label: "Gemini 3.1 Flash-Lite (Preview)", model_id: "gemini/gemini-3.1-flash-lite-preview", api_base: "https://generativelanguage.googleapis.com/v1beta" },
-                { label: "Gemini 3 Flash (Preview)", model_id: "gemini/gemini-3-flash-preview", api_base: "https://generativelanguage.googleapis.com/v1beta" },
-                { label: "Gemini 2.5 Pro", model_id: "gemini/gemini-2.5-pro", api_base: "https://generativelanguage.googleapis.com/v1beta" },
-                { label: "Gemini 2.5 Flash", model_id: "gemini/gemini-2.5-flash", api_base: "https://generativelanguage.googleapis.com/v1beta" },
-                { label: "Gemini 2.5 Flash-Lite", model_id: "gemini/gemini-2.5-flash-lite", api_base: "https://generativelanguage.googleapis.com/v1beta" },
-                { label: "Gemini 2.0 Flash", model_id: "gemini/gemini-2.0-flash", api_base: "https://generativelanguage.googleapis.com/v1beta" },
+                { label: "Gemini 3.1 Pro (Preview)", model_id: "gemini/gemini-3.1-pro-preview", api_base: "https://generativelanguage.googleapis.com/v1beta/openai" },
+                { label: "Gemini 3.1 Flash-Lite (Preview)", model_id: "gemini/gemini-3.1-flash-lite-preview", api_base: "https://generativelanguage.googleapis.com/v1beta/openai" },
+                { label: "Gemini 3 Flash (Preview)", model_id: "gemini/gemini-3-flash-preview", api_base: "https://generativelanguage.googleapis.com/v1beta/openai" },
+                { label: "Gemini 2.5 Pro", model_id: "gemini/gemini-2.5-pro", api_base: "https://generativelanguage.googleapis.com/v1beta/openai" },
+                { label: "Gemini 2.5 Flash", model_id: "gemini/gemini-2.5-flash", api_base: "https://generativelanguage.googleapis.com/v1beta/openai" },
+                { label: "Gemini 2.5 Flash-Lite", model_id: "gemini/gemini-2.5-flash-lite", api_base: "https://generativelanguage.googleapis.com/v1beta/openai" },
+                { label: "Gemini 2.0 Flash", model_id: "gemini/gemini-2.0-flash", api_base: "https://generativelanguage.googleapis.com/v1beta/openai" },
             ],
             "OpenAI": [
                 { label: "GPT-5.2", model_id: "openai/gpt-5.2", api_base: "https://api.openai.com/v1" },

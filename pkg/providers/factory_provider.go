@@ -151,7 +151,7 @@ func getDefaultAPIBase(protocol string) string {
 	case "groq":
 		return "https://api.groq.com/openai/v1"
 	case "gemini":
-		return "https://generativelanguage.googleapis.com/v1beta"
+		return "https://generativelanguage.googleapis.com/v1beta/openai"
 	case "nvidia":
 		return "https://integrate.api.nvidia.com/v1"
 	case "ollama":
