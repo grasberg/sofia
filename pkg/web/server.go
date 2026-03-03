@@ -22,15 +22,17 @@ import (
 type Server struct {
 	cfg            *config.Config
 	agentLoop      *agent.AgentLoop
+	Version        string
 	server         *http.Server
 	mu             sync.RWMutex
 	skillInstaller *skills.SkillInstaller
 }
 
-func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop) *Server {
+func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *Server {
 	s := &Server{
 		cfg:            cfg,
 		agentLoop:      agentLoop,
+		Version:        version,
 		skillInstaller: skills.NewSkillInstaller(cfg.WorkspacePath()),
 	}
 
@@ -91,6 +93,11 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	info := s.agentLoop.GetStartupInfo()
+
+	// Inject the dynamic version directly here
+	// to avoid cyclic dependencies in pkg/agent
+	info["version"] = s.Version
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(info)
 }
@@ -724,6 +731,7 @@ const indexHTML = `
                     <span class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span>
                 </div>
                 <div id="mini-status" class="text-xs text-zinc-400 space-y-1">
+                    <div class="flex justify-between"><span>Version:</span> <span id="stat-version" class="text-[var(--text-main)] font-mono">-</span></div>
                     <div class="flex justify-between"><span>Tools:</span> <span id="stat-tools" class="text-[var(--text-main)] font-mono">-</span></div>
                     <div class="flex justify-between"><span>Skills:</span> <span id="stat-skills" class="text-[var(--text-main)] font-mono">-</span></div>
                 </div>
@@ -1814,6 +1822,7 @@ const indexHTML = `
                 const data = await res.json();
                 
                 // Update Mini Status in Sidebar
+                document.getElementById("stat-version").innerText = data.version || "dev";
                 document.getElementById("stat-tools").innerText = data.tools.count;
                 document.getElementById("stat-skills").innerText = data.skills.total;
 

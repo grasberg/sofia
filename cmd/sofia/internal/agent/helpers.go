@@ -61,7 +61,7 @@ func agentCmd(message, sessionKey, model string, debug bool) error {
 		})
 
 	if cfg.WebUI.Enabled {
-		webServer := web.NewServer(cfg, agentLoop)
+		webServer := web.NewServer(cfg, agentLoop, internal.FormatVersion())
 		go func() {
 			if err := webServer.Start(context.Background()); err != nil {
 				logger.ErrorCF("web", "Web UI error", map[string]any{"error": err.Error()})
@@ -139,7 +139,7 @@ func interactiveMode(agentLoop *agent.AgentLoop, sessionKey string) {
 func simpleInteractiveMode(agentLoop *agent.AgentLoop, sessionKey string) {
 	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Print(fmt.Sprintf("%s You: ", internal.Logo))
+		fmt.Printf("%s You: ", internal.Logo)
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
