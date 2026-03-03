@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/grasberg/sofia/pkg/agent"
@@ -45,6 +47,8 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop) *Server {
 	mux.HandleFunc("/api/agent-templates", s.handleAgentTemplates)
 	mux.HandleFunc("/api/agent-templates/", s.handleAgentTemplateByName)
 	mux.HandleFunc("/api/workspace-docs", s.handleWorkspaceDocs)
+	mux.HandleFunc("/api/restart", s.handleRestart)
+	mux.HandleFunc("/api/update", s.handleUpdate)
 
 	s.server = &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.WebUI.Host, cfg.WebUI.Port),
@@ -741,6 +745,17 @@ const indexHTML = `
                 <div id="status-badge" class="flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--bg-main)] border border-[var(--border-color)] text-[11px] font-medium text-zinc-400 transition-colors duration-300">
                     <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                     Gateway Online
+                </div>
+                <!-- Update & Restart Buttons -->
+                <div class="flex items-center gap-2 border-l border-[var(--border-color)] pl-4 ml-2">
+                    <button onclick="updateSofia()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--nav-hover)] hover:bg-sofia/20 text-[var(--sofia-red)] transition-colors border border-[var(--border-color)]">
+                        <i data-lucide="download-cloud" class="w-3.5 h-3.5"></i>
+                        Update
+                    </button>
+                    <button onclick="restartSofia()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--nav-hover)] hover:bg-sofia/20 text-[var(--sofia-red)] transition-colors border border-[var(--border-color)]">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                        Restart
+                    </button>
                 </div>
                 <button id="theme-toggle" onclick="toggleTheme()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--nav-hover)] transition text-zinc-500">
                     <i data-lucide="moon" class="w-4 h-4"></i>
@@ -1644,6 +1659,37 @@ const indexHTML = `
         // Initialize Lucide Icons
         function refreshIcons() {
             lucide.createIcons();
+        }
+
+        async function updateSofia() {
+            if (!confirm("This will pull the latest code from Git, recompile Sofia, and restart. Continue?")) return;
+            try {
+                const res = await fetch("/api/update", { method: "POST" });
+                if (res.ok) {
+                    alert("Update successful! Sofia is restarting. The page will reload shortly.");
+                    setTimeout(() => window.location.reload(), 3000);
+                } else {
+                    const text = await res.text();
+                    alert("Update failed: " + text);
+                }
+            } catch (err) {
+                alert("Error calling update: " + err);
+            }
+        }
+
+        async function restartSofia() {
+            if (!confirm("Are you sure you want to restart Sofia?")) return;
+            try {
+                const res = await fetch("/api/restart", { method: "POST" });
+                if (res.ok) {
+                    alert("Sofia is restarting. The page will reload shortly.");
+                    setTimeout(() => window.location.reload(), 2000);
+                } else {
+                    alert("Failed to restart");
+                }
+            } catch (err) {
+                alert("Error calling restart: " + err);
+            }
         }
 
         function toggleTheme() {
@@ -2610,3 +2656,72 @@ const indexHTML = `
 </body>
 </html>
 `
+
+func (s *Server) handleRestart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"success": true})
+
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		argv0, err := os.Executable()
+		if err != nil {
+			logger.ErrorCF("web", "Failed to get executable for restart", map[string]any{"error": err.Error()})
+			os.Exit(1)
+		}
+		logger.InfoCF("web", "Restarting Sofia via Web UI...", nil)
+		err = syscall.Exec(argv0, os.Args, os.Environ())
+		if err != nil {
+			logger.ErrorCF("web", "Exec failed", map[string]any{"error": err.Error()})
+			os.Exit(1)
+		}
+	}()
+}
+
+func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	logger.InfoCF("web", "Starting update process via Web UI...", nil)
+
+	cmd := exec.Command("git", "pull")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		logger.ErrorCF("web", "Git pull failed", map[string]any{"error": err.Error()})
+		http.Error(w, "Failed to pull updates: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	cmd = exec.Command("make", "build")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		logger.ErrorCF("web", "Make build failed", map[string]any{"error": err.Error()})
+		http.Error(w, "Failed to build: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"success": true})
+
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		argv0, err := os.Executable()
+		if err != nil {
+			logger.ErrorCF("web", "Failed to get executable for restart", map[string]any{"error": err.Error()})
+			os.Exit(1)
+		}
+		logger.InfoCF("web", "Restarting Sofia after update...", nil)
+		err = syscall.Exec(argv0, os.Args, os.Environ())
+		if err != nil {
+			logger.ErrorCF("web", "Exec failed after update", map[string]any{"error": err.Error()})
+			os.Exit(1)
+		}
+	}()
+}
