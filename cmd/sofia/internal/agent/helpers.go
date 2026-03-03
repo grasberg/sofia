@@ -61,7 +61,7 @@ func agentCmd(message, sessionKey, model string, debug bool) error {
 		})
 
 	if cfg.WebUI.Enabled {
-		webServer := web.NewServer(cfg, agentLoop, internal.FormatVersion())
+		webServer := web.NewServer(cfg, agentLoop, internal.GetVersion())
 		go func() {
 			if err := webServer.Start(context.Background()); err != nil {
 				logger.ErrorCF("web", "Web UI error", map[string]any{"error": err.Error()})

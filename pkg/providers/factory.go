@@ -144,6 +144,51 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 					sel.apiBase = "https://integrate.api.nvidia.com/v1"
 				}
 			}
+		case "moonshot":
+			if cfg.Providers.Moonshot.APIKey != "" {
+				sel.apiKey = cfg.Providers.Moonshot.APIKey
+				sel.apiBase = cfg.Providers.Moonshot.APIBase
+				sel.proxy = cfg.Providers.Moonshot.Proxy
+				if sel.apiBase == "" {
+					sel.apiBase = "https://api.moonshot.cn/v1"
+				}
+			}
+		case "qwen":
+			if cfg.Providers.Qwen.APIKey != "" {
+				sel.apiKey = cfg.Providers.Qwen.APIKey
+				sel.apiBase = cfg.Providers.Qwen.APIBase
+				sel.proxy = cfg.Providers.Qwen.Proxy
+				if sel.apiBase == "" {
+					sel.apiBase = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+				}
+			}
+		case "minimax":
+			if cfg.Providers.MiniMax.APIKey != "" {
+				sel.apiKey = cfg.Providers.MiniMax.APIKey
+				sel.apiBase = cfg.Providers.MiniMax.APIBase
+				sel.proxy = cfg.Providers.MiniMax.Proxy
+				if sel.apiBase == "" {
+					sel.apiBase = "https://api.minimax.io/v1"
+				}
+			}
+		case "zai":
+			if cfg.Providers.Zai.APIKey != "" {
+				sel.apiKey = cfg.Providers.Zai.APIKey
+				sel.apiBase = cfg.Providers.Zai.APIBase
+				sel.proxy = cfg.Providers.Zai.Proxy
+				if sel.apiBase == "" {
+					sel.apiBase = "https://api.z.ai/api/paas/v4"
+				}
+			}
+		case "grok", "xai":
+			if cfg.Providers.Grok.APIKey != "" {
+				sel.apiKey = cfg.Providers.Grok.APIKey
+				sel.apiBase = cfg.Providers.Grok.APIBase
+				sel.proxy = cfg.Providers.Grok.Proxy
+				if sel.apiBase == "" {
+					sel.apiBase = "https://api.x.ai/v1"
+				}
+			}
 		case "claude-cli", "claude-code", "claudecode":
 			workspace := cfg.WorkspacePath()
 			if workspace == "" {

@@ -248,6 +248,9 @@ type ProvidersConfig struct {
 	Antigravity   ProviderConfig       `json:"antigravity"`
 	Qwen          ProviderConfig       `json:"qwen"`
 	Mistral       ProviderConfig       `json:"mistral"`
+	MiniMax       ProviderConfig       `json:"minimax"`
+	Zai           ProviderConfig       `json:"zai"`
+	Grok          ProviderConfig       `json:"grok"`
 }
 
 // IsEmpty checks if all provider configs are empty (no API keys or API bases set)
