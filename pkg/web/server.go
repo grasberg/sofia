@@ -1311,6 +1311,44 @@ const indexHTML = `
                 { label: "Llama 3.3 70b", model_id: "groq/llama-3.3-70b-versatile", api_base: "https://api.groq.com/openai/v1" },
                 { label: "Mixtral 8x7b", model_id: "groq/mixtral-8x7b-32768", api_base: "https://api.groq.com/openai/v1" },
             ],
+            "Mistral": [
+                { label: "Mistral Large (Latest)", model_id: "mistral/mistral-large-latest", api_base: "https://api.mistral.ai/v1" },
+                { label: "Mistral Medium 3.1", model_id: "mistral/mistral-medium-latest", api_base: "https://api.mistral.ai/v1" },
+                { label: "Mistral Small 3.2", model_id: "mistral/mistral-small-latest", api_base: "https://api.mistral.ai/v1" },
+                { label: "Codestral (Latest)", model_id: "mistral/codestral-latest", api_base: "https://api.mistral.ai/v1" },
+                { label: "Devstral 2", model_id: "mistral/devstral-latest", api_base: "https://api.mistral.ai/v1" },
+                { label: "Pixtral Large", model_id: "mistral/pixtral-large-latest", api_base: "https://api.mistral.ai/v1" },
+            ],
+            "Qwen": [
+                { label: "Qwen3.5 Plus", model_id: "qwen/qwen3.5-plus", api_base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+                { label: "Qwen3 Max", model_id: "qwen/qwen3-max", api_base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+                { label: "Qwen Plus", model_id: "qwen/qwen-plus-latest", api_base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+                { label: "Qwen Turbo", model_id: "qwen/qwen-turbo-latest", api_base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+                { label: "Qwen3 Coder", model_id: "qwen/qwen3-coder-next", api_base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+            ],
+            "Moonshot": [
+                { label: "Kimi K2.5", model_id: "moonshot/kimi-k2.5", api_base: "https://api.moonshot.cn/v1" },
+            ],
+            "xAI (Grok)": [
+                { label: "Grok 4", model_id: "grok/grok-4-0709", api_base: "https://api.x.ai/v1" },
+                { label: "Grok 4.1 Fast", model_id: "grok/grok-4-1-fast-reasoning", api_base: "https://api.x.ai/v1" },
+                { label: "Grok 3", model_id: "grok/grok-3", api_base: "https://api.x.ai/v1" },
+                { label: "Grok 3 Mini", model_id: "grok/grok-3-mini", api_base: "https://api.x.ai/v1" },
+                { label: "Grok 2", model_id: "grok/grok-2-1212", api_base: "https://api.x.ai/v1" },
+            ],
+            "Z.ai": [
+                { label: "GLM-5", model_id: "zai/glm-5", api_base: "https://api.z.ai/api/paas/v4" },
+                { label: "GLM-4.7 FlashX", model_id: "zai/glm-4.7-flashx", api_base: "https://api.z.ai/api/paas/v4" },
+                { label: "GLM-4.5", model_id: "zai/glm-4.5", api_base: "https://api.z.ai/api/paas/v4" },
+                { label: "GLM-4.5 Air", model_id: "zai/glm-4.5-air", api_base: "https://api.z.ai/api/paas/v4" },
+            ],
+            "MiniMax": [
+                { label: "MiniMax M2.5", model_id: "minimax/MiniMax-M2.5", api_base: "https://api.minimax.io/v1" },
+                { label: "MiniMax M1 80k", model_id: "minimax/MiniMax-M1-80k", api_base: "https://api.minimax.io/v1" },
+                { label: "abab7", model_id: "minimax/abab7", api_base: "https://api.minimax.io/v1" },
+                { label: "abab6.5s", model_id: "minimax/abab6.5s", api_base: "https://api.minimax.io/v1" },
+            ],
+            "OpenRouter": [],
             "Custom": [],
         };
 
@@ -1477,10 +1515,13 @@ const indexHTML = `
             stepModel.classList.remove("hidden");
             stepConfig.classList.add("hidden");
 
-            if (provider === "Custom") {
+            if (provider === "Custom" || provider === "OpenRouter") {
                 sel.classList.add("hidden");
                 customWrapper.classList.remove("hidden");
-                document.getElementById("form-model-custom").value = "";
+                document.getElementById("form-model-custom").value = provider === "OpenRouter" ? "openrouter/" : "";
+                if (provider === "OpenRouter") {
+                    document.getElementById("form-model-base").value = "https://openrouter.ai/api/v1";
+                }
             } else {
                 sel.classList.remove("hidden");
                 customWrapper.classList.add("hidden");
@@ -1496,7 +1537,7 @@ const indexHTML = `
             const provider = document.getElementById("form-provider").value;
             let modelId = "";
             let apiBase = "";
-            if (provider === "Custom") {
+            if (provider === "Custom" || provider === "OpenRouter") {
                 modelId = document.getElementById("form-model-custom").value.trim();
             } else {
                 const sel = document.getElementById("form-model-select");
@@ -1530,7 +1571,7 @@ const indexHTML = `
         function saveModelForm() {
             const provider = document.getElementById("form-provider").value;
             let modelId = "";
-            if (provider === "Custom") {
+            if (provider === "Custom" || provider === "OpenRouter") {
                 modelId = document.getElementById("form-model-custom").value.trim();
             } else {
                 modelId = document.getElementById("form-model-select").value;

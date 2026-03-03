@@ -53,7 +53,7 @@ func ExtractProtocol(model string) (protocol, modelID string) {
 
 // CreateProviderFromConfig creates a provider based on the ModelConfig.
 // It uses the protocol prefix in the Model field to determine which provider to create.
-// Supported protocols: openai, anthropic, antigravity, claude-cli, codex-cli, github-copilot
+// Supported protocols: openai, anthropic, gemini, deepseek, groq, openrouter, mistral, ollama, nvidia, cerebras, qwen, moonshot, volcengine, grok, zai, minimax
 // Returns the provider, the model ID (without protocol prefix), and any error.
 func CreateProviderFromConfig(cfg *config.ModelConfig) (LLMProvider, string, error) {
 	if cfg == nil {
@@ -92,9 +92,9 @@ func CreateProviderFromConfig(cfg *config.ModelConfig) (LLMProvider, string, err
 			cfg.RequestTimeout,
 		), modelID, nil
 
-	case "openrouter", "groq", "zhipu", "gemini", "nvidia",
-		"ollama", "moonshot", "shengsuanyun", "deepseek", "cerebras",
-		"volcengine", "vllm", "qwen", "mistral":
+	case "openrouter", "groq", "gemini", "nvidia",
+		"ollama", "moonshot", "deepseek", "cerebras",
+		"volcengine", "qwen", "mistral", "grok", "zai", "minimax":
 		// All other OpenAI-compatible HTTP providers
 		if cfg.APIKey == "" && cfg.APIBase == "" {
 			return nil, "", fmt.Errorf("api_key or api_base is required for HTTP-based protocol %q", protocol)
@@ -136,38 +136,6 @@ func CreateProviderFromConfig(cfg *config.ModelConfig) (LLMProvider, string, err
 			cfg.RequestTimeout,
 		), modelID, nil
 
-	case "antigravity":
-		return NewAntigravityProvider(), modelID, nil
-
-	case "claude-cli", "claudecli":
-		workspace := cfg.Workspace
-		if workspace == "" {
-			workspace = "."
-		}
-		return NewClaudeCliProvider(workspace), modelID, nil
-
-	case "codex-cli", "codexcli":
-		workspace := cfg.Workspace
-		if workspace == "" {
-			workspace = "."
-		}
-		return NewCodexCliProvider(workspace), modelID, nil
-
-	case "github-copilot", "copilot":
-		apiBase := cfg.APIBase
-		if apiBase == "" {
-			apiBase = "localhost:4321"
-		}
-		connectMode := cfg.ConnectMode
-		if connectMode == "" {
-			connectMode = "grpc"
-		}
-		provider, err := NewGitHubCopilotProvider(apiBase, connectMode, modelID)
-		if err != nil {
-			return nil, "", err
-		}
-		return provider, modelID, nil
-
 	default:
 		return nil, "", fmt.Errorf("unknown protocol %q in model %q", protocol, cfg.Model)
 	}
@@ -182,8 +150,6 @@ func getDefaultAPIBase(protocol string) string {
 		return "https://openrouter.ai/api/v1"
 	case "groq":
 		return "https://api.groq.com/openai/v1"
-	case "zhipu":
-		return "https://open.bigmodel.cn/api/paas/v4"
 	case "gemini":
 		return "https://generativelanguage.googleapis.com/v1beta"
 	case "nvidia":
@@ -192,8 +158,6 @@ func getDefaultAPIBase(protocol string) string {
 		return "http://localhost:11434/v1"
 	case "moonshot":
 		return "https://api.moonshot.cn/v1"
-	case "shengsuanyun":
-		return "https://router.shengsuanyun.com/api/v1"
 	case "deepseek":
 		return "https://api.deepseek.com/v1"
 	case "cerebras":
@@ -202,10 +166,14 @@ func getDefaultAPIBase(protocol string) string {
 		return "https://ark.cn-beijing.volces.com/api/v3"
 	case "qwen":
 		return "https://dashscope.aliyuncs.com/compatible-mode/v1"
-	case "vllm":
-		return "http://localhost:8000/v1"
 	case "mistral":
 		return "https://api.mistral.ai/v1"
+	case "grok":
+		return "https://api.x.ai/v1"
+	case "zai":
+		return "https://api.z.ai/api/paas/v4"
+	case "minimax":
+		return "https://api.minimax.io/v1"
 	default:
 		return ""
 	}
