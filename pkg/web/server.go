@@ -1208,14 +1208,9 @@ const indexHTML = `
                                 </button>
                             </div>
 
-                            <div id="provider-model-list" class="space-y-2 max-h-60 overflow-y-auto pr-2">
+                            <div id="provider-model-list" class="space-y-2 max-h-96 overflow-y-auto pr-2">
                                 <!-- Filled by JS -->
                                 <div class="text-sm text-zinc-500 italic p-4 text-center border border-dashed border-[var(--border-color)] rounded-xl">No models configured.</div>
-                            </div>
-                            <div class="mt-6 pt-4 border-t border-[var(--border-color)] flex justify-end">
-                                <button onclick="saveConfig()" class="bg-sofia hover:bg-sofia-hover text-white font-bold px-6 py-2.5 rounded-xl transition flex items-center gap-2 text-sm shadow-lg shadow-sofia/20">
-                                    <i data-lucide="save" class="w-4 h-4"></i> Save All Changes
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -1448,6 +1443,7 @@ const indexHTML = `
         function setStandardModel(modelName) {
             standardModel = modelName;
             renderConfiguredModels();
+            saveConfig();
         }
 
         function removeConfiguredModel(index) {
@@ -1458,6 +1454,7 @@ const indexHTML = `
                 standardModel = configuredModels.length > 0 ? configuredModels[0].model_name : "";
             }
             renderConfiguredModels();
+            saveConfig();
         }
 
         function openModelForm(editIndex) {
@@ -1643,6 +1640,7 @@ const indexHTML = `
             }
             closeModelForm();
             renderConfiguredModels();
+            saveConfig();
         }
 
         function getProviderModelsFromForm() {
