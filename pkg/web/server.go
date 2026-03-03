@@ -1288,9 +1288,11 @@ const indexHTML = `
                 { label: "GPT-5 Mini", model_id: "openai/gpt-5-mini", api_base: "https://api.openai.com/v1" },
             ],
             "Anthropic": [
-                { label: "Claude 4.6 Opus", model_id: "anthropic/claude-4-6-opus-latest", api_base: "https://api.anthropic.com/v1" },
-                { label: "Claude 4.6 Sonnet", model_id: "anthropic/claude-4-6-sonnet-latest", api_base: "https://api.anthropic.com/v1" },
-                { label: "Claude 4.5 Haiku", model_id: "anthropic/claude-4-5-haiku-latest", api_base: "https://api.anthropic.com/v1" },
+                { label: "Claude Opus 4.6", model_id: "anthropic/claude-opus-4-6-20260205", api_base: "https://api.anthropic.com/v1" },
+                { label: "Claude Sonnet 4.6", model_id: "anthropic/claude-sonnet-4-6-20260217", api_base: "https://api.anthropic.com/v1" },
+                { label: "Claude Opus 4.5", model_id: "anthropic/claude-opus-4-5-20251101", api_base: "https://api.anthropic.com/v1" },
+                { label: "Claude Sonnet 4.5", model_id: "anthropic/claude-sonnet-4-5-20250929", api_base: "https://api.anthropic.com/v1" },
+                { label: "Claude Haiku 4.5", model_id: "anthropic/claude-haiku-4-5-20251001", api_base: "https://api.anthropic.com/v1" },
             ],
             "DeepSeek": [
                 { label: "DeepSeek V3 (Chat)", model_id: "deepseek/deepseek-chat", api_base: "https://api.deepseek.com/v1" },
