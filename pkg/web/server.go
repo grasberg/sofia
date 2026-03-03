@@ -968,9 +968,86 @@ const indexHTML = `
 						<h2 class="text-xl font-bold text-[var(--text-main)]">Native Tools</h2>
 						<p class="text-sm text-zinc-500">Built-in tools available to all agents.</p>
 					</div>
-					<div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
+			<div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
 						<div id="tools-list" class="space-y-3">
 							<!-- Filled by JS -->
+						</div>
+					</div>
+
+					<!-- Google CLI Tool (gog) -->
+					<div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
+						<div class="flex items-center justify-between mb-4">
+							<div class="flex items-center gap-3">
+								<div class="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center">
+									<i data-lucide="mail" class="w-5 h-5 text-blue-400"></i>
+								</div>
+								<div>
+									<h3 class="text-sm font-bold text-[var(--text-main)]">Google Tools (gog CLI)</h3>
+									<p class="text-[10px] text-zinc-500">Gmail, Google Drive, Google Calendar integration</p>
+								</div>
+							</div>
+							<label class="relative inline-flex items-center cursor-pointer">
+								<input type="checkbox" id="cfg-google-enabled" class="sr-only peer" onchange="saveToolsConfig()">
+								<div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+							</label>
+						</div>
+
+						<div id="google-tool-config" class="space-y-3 mb-4">
+							<div class="grid grid-cols-2 gap-3">
+								<div>
+									<label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Binary Path</label>
+									<input type="text" id="cfg-google-binary" placeholder="gog"
+										class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+								</div>
+								<div>
+									<label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Timeout (seconds)</label>
+									<input type="number" id="cfg-google-timeout" placeholder="90"
+										class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+								</div>
+							</div>
+							<div>
+								<label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Allowed Commands</label>
+								<input type="text" id="cfg-google-commands" placeholder="gmail, drive, calendar"
+									class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+							</div>
+							<button onclick="saveToolsConfig()" class="px-4 py-2 rounded-lg bg-sofia hover:bg-sofia-hover text-white text-xs font-bold transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+								<i data-lucide="save" class="w-3 h-3"></i> Save Google Settings
+							</button>
+						</div>
+
+						<div class="mt-3 p-3 rounded-xl bg-[var(--bg-main)] border border-[var(--border-color)]">
+							<h4 class="text-[10px] uppercase tracking-widest text-zinc-500 mb-2 font-bold">Setup Instructions</h4>
+							<ol class="text-[11px] text-zinc-400 leading-relaxed space-y-1.5 list-decimal list-inside">
+								<li>Clone the repo: <code class="px-1 py-0.5 rounded bg-zinc-800 text-sofia text-[10px]">git clone https://github.com/steipete/gogcli.git</code> then <code class="px-1 py-0.5 rounded bg-zinc-800 text-sofia text-[10px]">cd gogcli &amp;&amp; go build -o gog . &amp;&amp; mv gog /usr/local/bin/</code></li>
+								<li>Run <code class="px-1 py-0.5 rounded bg-zinc-800 text-sofia text-[10px]">gog auth login</code> to authenticate with Google</li>
+								<li>Enable the toggle above and save. Restart Sofia after saving.</li>
+								<li>Sofia will now have access to Gmail, Drive and Calendar tools.</li>
+							</ol>
+						</div>
+					</div>
+
+					<!-- GitHub CLI Tool -->
+					<div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
+						<div class="flex items-center justify-between mb-4">
+							<div class="flex items-center gap-3">
+								<div class="w-9 h-9 rounded-xl bg-purple-500/10 flex items-center justify-center">
+									<i data-lucide="github" class="w-5 h-5 text-purple-400"></i>
+								</div>
+								<div>
+									<h3 class="text-sm font-bold text-[var(--text-main)]">GitHub Integration</h3>
+									<p class="text-[10px] text-zinc-500">Access GitHub repositories, issues, and pull requests</p>
+								</div>
+							</div>
+							<span class="px-2 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-500 border border-zinc-700/50">Coming Soon</span>
+						</div>
+
+						<div class="p-3 rounded-xl bg-[var(--bg-main)] border border-[var(--border-color)]">
+							<h4 class="text-[10px] uppercase tracking-widest text-zinc-500 mb-2 font-bold">Preparation</h4>
+							<ol class="text-[11px] text-zinc-400 leading-relaxed space-y-1.5 list-decimal list-inside">
+								<li>Install GitHub CLI: <code class="px-1 py-0.5 rounded bg-zinc-800 text-sofia text-[10px]">brew install gh</code> (macOS) or <a href="https://cli.github.com/" target="_blank" class="text-sofia hover:underline">cli.github.com</a></li>
+								<li>Authenticate: <code class="px-1 py-0.5 rounded bg-zinc-800 text-sofia text-[10px]">gh auth login</code></li>
+								<li>GitHub tool support is under development. Once available, you can enable it here.</li>
+							</ol>
 						</div>
 					</div>
 				</div>
@@ -2078,6 +2155,40 @@ const indexHTML = `
             }
         }
 
+        async function saveToolsConfig() {
+            try {
+                let cfg = currentConfig;
+                if (!cfg) {
+                    const res = await fetch("/api/config");
+                    cfg = await res.json();
+                }
+
+                if (!cfg.tools) cfg.tools = {};
+                if (!cfg.tools.google) cfg.tools.google = {};
+
+                cfg.tools.google.enabled = document.getElementById("cfg-google-enabled").checked;
+                cfg.tools.google.binary_path = document.getElementById("cfg-google-binary").value.trim() || "gog";
+                cfg.tools.google.timeout_seconds = parseInt(document.getElementById("cfg-google-timeout").value) || 90;
+                const cmdsStr = document.getElementById("cfg-google-commands").value.trim();
+                cfg.tools.google.allowed_commands = cmdsStr ? cmdsStr.split(",").map(s => s.trim()).filter(Boolean) : ["gmail", "drive", "calendar"];
+
+                const saveRes = await fetch("/api/config", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(cfg)
+                });
+
+                if (saveRes.ok) {
+                    currentConfig = cfg;
+                    alert("Google tool settings saved! Restart Sofia to apply changes.");
+                } else {
+                    alert("Could not save settings.");
+                }
+            } catch (e) {
+                alert("An error occurred while saving tool settings.");
+            }
+        }
+
         async function fetchConfig() {
             try {
                 const res = await fetch("/api/config");
@@ -2102,6 +2213,14 @@ const indexHTML = `
                     standardModel = configuredModels[0].model_name;
                 }
                 renderConfiguredModels();
+
+                // Populate Google tool settings
+                if (cfg.tools && cfg.tools.google) {
+                    document.getElementById("cfg-google-enabled").checked = !!cfg.tools.google.enabled;
+                    document.getElementById("cfg-google-binary").value = cfg.tools.google.binary_path || "gog";
+                    document.getElementById("cfg-google-timeout").value = cfg.tools.google.timeout_seconds || 90;
+                    document.getElementById("cfg-google-commands").value = (cfg.tools.google.allowed_commands || []).join(", ");
+                }
 
                 fetchWorkspaceDocs();
             } catch (e) {

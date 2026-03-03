@@ -24,8 +24,8 @@ import (
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/state"
 	"github.com/grasberg/sofia/pkg/tools"
-	"github.com/grasberg/sofia/pkg/web"
 	"github.com/grasberg/sofia/pkg/voice"
+	"github.com/grasberg/sofia/pkg/web"
 )
 
 func gatewayCmd(debug bool) error {
@@ -42,6 +42,10 @@ func gatewayCmd(debug bool) error {
 	provider, modelID, err := providers.CreateProvider(cfg)
 	if err != nil {
 		return fmt.Errorf("error creating provider: %w", err)
+	}
+
+	if provider == nil {
+		fmt.Println("⚠  No default model configured. Start the Web UI and configure a model to begin.")
 	}
 
 	// Use the resolved model ID from provider creation

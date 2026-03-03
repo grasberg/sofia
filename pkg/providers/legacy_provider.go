@@ -35,9 +35,10 @@ func CreateProvider(cfg *config.Config) (LLMProvider, string, error) {
 		}
 	}
 
-	// Must have model_list at this point
-	if len(cfg.ModelList) == 0 {
-		return nil, "", fmt.Errorf("no providers configured. Please add entries to model_list in your config")
+	// If no model is configured, return nil provider so the gateway can still start.
+	// The user can configure a model later from the Web UI.
+	if model == "" || len(cfg.ModelList) == 0 {
+		return nil, "", nil
 	}
 
 	// Get model config from model_list

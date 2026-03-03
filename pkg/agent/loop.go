@@ -232,7 +232,7 @@ func (al *AgentLoop) SetChannelManager(cm *channels.Manager) {
 // ReloadAgents reloads the agent registry and shared tools from the current config.
 func (al *AgentLoop) ReloadAgents() {
 	logger.InfoCF("agent", "Reloading agents from config", nil)
-	
+
 	// We need the provider from the existing registry
 	var provider providers.LLMProvider
 	if defaultAgent := al.registry.GetDefaultAgent(); defaultAgent != nil {
@@ -246,7 +246,7 @@ func (al *AgentLoop) ReloadAgents() {
 
 	newRegistry := NewAgentRegistry(al.cfg, provider)
 	registerSharedTools(al.cfg, al.bus, newRegistry, provider)
-	
+
 	al.registry = newRegistry
 	logger.InfoCF("agent", "Agents reloaded successfully", nil)
 }
@@ -431,6 +431,20 @@ func (al *AgentLoop) processSystemMessage(ctx context.Context, msg bus.InboundMe
 // runAgentLoop is the core message processing logic.
 func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opts processOptions) (string, error) {
 	agentComp := fmt.Sprintf("agent:%s", agent.ID)
+
+	// Guard: if no provider is configured, return a friendly message
+	if agent.Provider == nil {
+		noModelMsg := "No model is configured. Please open the Web UI → Models page and add a model to get started."
+		logger.WarnCF(agentComp, noModelMsg, nil)
+		if opts.SendResponse && opts.Channel != "" && opts.ChatID != "" {
+			al.bus.PublishOutbound(bus.OutboundMessage{
+				Channel: opts.Channel,
+				ChatID:  opts.ChatID,
+				Content: noModelMsg,
+			})
+		}
+		return noModelMsg, nil
+	}
 
 	// 0. Record last channel for heartbeat notifications (skip internal channels)
 	if opts.Channel != "" && opts.ChatID != "" {
