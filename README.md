@@ -7,6 +7,7 @@ Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerar
 *   🛠️ **Autonom Verktygsanvändning:** Kan läsa/redigera filer, köra bash-kommandon, interagera med Google CLI (Gmail/Calendar) och hämta data från webben.
 *   🧠 **Persistens & Minne:** Upprätthåller ett långtidsminne (`MEMORY.md`) och för dagliga anteckningar för att aldrig tappa kontexten över tid.
 *   🤖 **Multi-Agent Orkestrering:** Kan starta bakgrundsprocesser (`spawn`) och delegera komplexa uppgifter till parallella agenter.
+*   🌐 **Brett AI-stöd:** Inbyggt stöd för 16 olika AI-leverantörer inkl. OpenAI, Anthropic, Gemini, DeepSeek, Grok, MiniMax och fler via ett enkelt webbgränssnitt.
 *   📚 **Antigravity Kit (Skill System):** Bestyckad med unika "skills" (expert-personas och kunskapsmoduler) för domänspecifik expertis inom allt från frontend-arkitektur till penetrationstestning.
 *   💬 **Gateway Mode:** Inbyggt stöd för chattplattformar som Telegram och Discord via `sofia gateway`.
 
