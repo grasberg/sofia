@@ -1098,6 +1098,13 @@ const indexHTML = `
                                             <option value="Anthropic">Anthropic</option>
                                             <option value="DeepSeek">DeepSeek</option>
                                             <option value="Groq">Groq</option>
+                                            <option value="Mistral">Mistral</option>
+                                            <option value="OpenRouter">OpenRouter</option>
+                                            <option value="Qwen">Qwen</option>
+                                            <option value="Moonshot">Moonshot</option>
+                                            <option value="xAI (Grok)">xAI (Grok)</option>
+                                            <option value="Z.ai">Z.ai</option>
+                                            <option value="MiniMax">MiniMax</option>
                                             <option value="Custom">Custom / Other</option>
                                         </select>
                                     </div>
