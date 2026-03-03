@@ -672,22 +672,10 @@ const indexHTML = `
                 <i data-lucide="users" class="w-5 h-5"></i>
                 <span>Agents</span>
             </a>
-            <a href="#" onclick="showTab('skills')" id="nav-skills" class="nav-item">
-                <i data-lucide="zap" class="w-5 h-5"></i>
-                <span>Skills</span>
-            </a>
-            <a href="#" onclick="showTab('models')" id="nav-models" class="nav-item">
-                <i data-lucide="cpu" class="w-5 h-5"></i>
-                <span>Models</span>
-            </a>
-            <a href="#" onclick="showTab('channels')" id="nav-channels" class="nav-item">
-                <i data-lucide="radio" class="w-5 h-5"></i>
-                <span>Channels</span>
-            </a>
-            <a href="#" onclick="showTab('tools')" id="nav-tools" class="nav-item">
-                <i data-lucide="wrench" class="w-5 h-5"></i>
-                <span>Tools</span>
-            </a>
+
+
+
+
             <a href="#" onclick="showTab('settings')" id="nav-settings" class="nav-item">
                 <i data-lucide="settings" class="w-5 h-5"></i>
                 <span>Settings</span>
@@ -747,6 +735,10 @@ const indexHTML = `
                 <div id="settings-header-tabs" class="hidden items-center gap-2 mt-2">
                     <button id="settings-tab-prompts" onclick="showSettingsSubTab('prompts')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">SOUL.md & IDENTITY.md</button>
                     <button id="settings-tab-heartbeat" onclick="showSettingsSubTab('heartbeat')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Heartbeat</button>
+                    <button id="settings-tab-models" onclick="showSettingsSubTab('models')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Models</button>
+                    <button id="settings-tab-channels" onclick="showSettingsSubTab('channels')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Channels</button>
+                    <button id="settings-tab-tools" onclick="showSettingsSubTab('tools')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Tools</button>
+                    <button id="settings-tab-skills" onclick="showSettingsSubTab('skills')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Skills</button>
                     <button id="settings-tab-security" onclick="showSettingsSubTab('security')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Security</button>
                 </div>
             </div>
@@ -954,7 +946,7 @@ const indexHTML = `
             </div>
 
             <!-- SKILLS TAB -->
-            <div id="tab-skills" class="tab-content">
+            <div id="settings-subtab-skills" class="settings-subtab hidden h-full">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8 h-full">
                     <!-- Skills List -->
                     <div class="flex flex-col h-full overflow-hidden">
@@ -989,7 +981,7 @@ const indexHTML = `
 
 
 			<!-- TOOLS TAB -->
-			<div id="tab-tools" class="tab-content h-full">
+			<div id="settings-subtab-tools" class="settings-subtab hidden h-full">
 				<div class="h-full overflow-y-auto pr-2 space-y-6">
 					<div class="flex items-center justify-between mb-4">
 						<h2 class="text-xl font-bold text-[var(--text-main)]">Native Tools</h2>
@@ -1081,7 +1073,7 @@ const indexHTML = `
 			</div>
 
 			<!-- MODELS TAB -->
-			<div id="tab-models" class="tab-content h-full">
+			<div id="settings-subtab-models" class="settings-subtab hidden h-full">
 				<div class="h-full overflow-y-auto pr-2 space-y-6">
                         <input type="hidden" id="cfg-model" value="">
                         
@@ -1220,7 +1212,7 @@ const indexHTML = `
 			</div>
 
 			<!-- CHANNELS TAB -->
-<div id="tab-channels" class="tab-content h-full">
+<div id="settings-subtab-channels" class="settings-subtab hidden h-full">
 	<div class="h-full overflow-y-auto pr-2 space-y-6">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Channel Setup</label>
@@ -1829,10 +1821,6 @@ const indexHTML = `
                 'chat': 'Direct Chat',
                 'logs': 'System Logs',
                 'agents': 'Agent Management',
-                'skills': 'Skills',
-                'tools': 'Native Tools',
-                'models': 'Models Config',
-                'channels': 'Channels Setup',
                 'settings': 'System Settings'
             };
             document.getElementById('view-title').innerText = titles[tabId];
@@ -1841,11 +1829,12 @@ const indexHTML = `
                 fetchAgents();
                 fetchConfig(); // Ensure model dropdown is populated
             }
-            if (tabId === 'skills' || tabId === 'tools') fetchStatus();
+
             if (tabId === 'settings') {
                 settingsHeaderTabs.classList.remove('hidden');
                 settingsHeaderTabs.classList.add('flex');
                 fetchConfig();
+                fetchStatus();
                 showSettingsSubTab(currentSettingsSubTab);
             } else {
                 settingsHeaderTabs.classList.add('hidden');
@@ -1857,7 +1846,7 @@ const indexHTML = `
 
         function showSettingsSubTab(tabId) {
             currentSettingsSubTab = tabId;
-            const tabs = ['models', 'prompts', 'channels', 'heartbeat', 'security'];
+            const tabs = ['prompts', 'heartbeat', 'security', 'models', 'channels', 'tools', 'skills'];
             tabs.forEach(t => {
                 const panel = document.getElementById('settings-subtab-' + t);
                 const button = document.getElementById('settings-tab-' + t);
