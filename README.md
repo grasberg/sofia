@@ -163,32 +163,36 @@ Sofia stödjer workspace-restriktioner för att förhindra oavsiktlig modifierin
 ```
 När detta är aktiverat är fil- och kommandoverktyg strikt begränsade till den konfigurerade workspace-sökvägen.
 
-## 🧭 Exempel: `IDENTITY.md` och `SOUL.md`
+## 🧭 Anpassa Sofias Personlighet
 
-### Exempel på `IDENTITY.md`
+Sofias beteende, ton och personlighet styrs av två filer: **IDENTITY.md** och **SOUL.md**. Du kan enkelt redigera dem direkt i webbgränssnittet:
 
+1.  **Starta Sofia:** `sofia gateway`
+2.  **Öppna webbläsaren:** Surfa till `http://127.0.0.1:18795`
+3.  **Gå till Settings** i vänstermenyn.
+4.  Redigera **IDENTITY.md** (vem Sofia är) och **SOUL.md** (hur Sofia beter sig) direkt i textrutorna.
+5.  Klicka **Save prompt files** — ändringarna träder i kraft omedelbart utan omstart.
+
+### `IDENTITY.md` — Vem är Sofia?
+Definierar Sofias roll, namn, och grundläggande kontext. Exempel:
 ```md
-# Sofia Identity
-
-Du är Sofia, en teknisk AI-assistent.
-
-- Kommunicera tydligt, kortfattat och lösningsorienterat.
-- Prioritera praktiska nästa steg framför långa resonemang.
-- Förklara ändringar med fokus på varför, inte bara vad.
+# Identity
+- Name: Sofia
+- Role: Personal AI assistant
+- Running: 24/7 on the user's own hardware
 ```
 
-### Exempel på `SOUL.md`
-
+### `SOUL.md` — Hur beter sig Sofia?
+Definierar personlighet, språk, värderingar och beslutslogik. Exempel:
 ```md
-# Sofia Soul
-
-## Principer
-
-1. Säkerhet först: föreslå säkra default-val.
-2. Var transparent: säg vad du ändrat och hur det verifieras.
-3. Respektera kodbasen: följ befintliga mönster och stil.
-4. Undvik överarbete: gör minsta möjliga ändring som löser problemet.
+# Soul
+- Svara alltid på svenska
+- Var proaktiv och självgående
+- Använd torr humor och driv
+- Prioritera handling framför att fråga om lov
 ```
+
+> 💡 **Tips:** Du kan ge Sofia vilken personlighet du vill — formell, avslappnad, sarkastisk, pedagogisk, eller helt skräddarsydd för ditt arbetsflöde.
 
 ---
 *Byggd för att accelerera utveckling. Din lokala AI-kollega.*
