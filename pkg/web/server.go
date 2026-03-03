@@ -687,30 +687,7 @@ const indexHTML = `
         </nav>
 
         <div class="p-4 border-t border-[var(--border-color)] space-y-4">
-            <!-- System Activity (Moved from Chat) -->
-            <div class="bg-[var(--bg-main)] rounded-xl p-4 border border-[var(--border-color)]">
-                <h3 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3">System Resources</h3>
-                <div class="space-y-3">
-                    <div class="flex items-center gap-3">
-                        <div class="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500">
-                            <i data-lucide="activity" class="w-3.5 h-3.5"></i>
-                        </div>
-                        <div class="overflow-hidden">
-                            <div class="text-[10px] font-semibold text-[var(--text-main)]">CPU</div>
-                            <div class="text-[9px] text-zinc-500 uppercase">Normal</div>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <div class="w-7 h-7 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500">
-                            <i data-lucide="database" class="w-3.5 h-3.5"></i>
-                        </div>
-                        <div class="overflow-hidden">
-                            <div class="text-[10px] font-semibold text-[var(--text-main)]">Memory</div>
-                            <div class="text-[9px] text-zinc-500 uppercase">Stable</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+
 
             <div class="bg-[var(--bg-main)] rounded-xl p-4 border border-[var(--border-color)]">
                 <div class="flex items-center justify-between mb-2">
@@ -719,8 +696,6 @@ const indexHTML = `
                 </div>
                 <div id="mini-status" class="text-xs text-zinc-400 space-y-1">
                     <div class="flex justify-between"><span>Version:</span> <span id="stat-version" class="text-[var(--text-main)] font-mono">-</span></div>
-                    <div class="flex justify-between"><span>Tools:</span> <span id="stat-tools" class="text-[var(--text-main)] font-mono">-</span></div>
-                    <div class="flex justify-between"><span>Skills:</span> <span id="stat-skills" class="text-[var(--text-main)] font-mono">-</span></div>
                 </div>
             </div>
         </div>
@@ -743,6 +718,16 @@ const indexHTML = `
                 </div>
             </div>
             <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 text-[11px] text-zinc-500 border border-[var(--border-color)] rounded-full px-3 py-1 bg-[var(--bg-main)]">
+                    <i data-lucide="activity" class="w-3 h-3 text-blue-400"></i>
+                    <span class="text-zinc-400">CPU</span>
+                    <span id="stat-cpu" class="text-[var(--text-main)] font-mono font-medium">-</span>
+                </div>
+                <div class="flex items-center gap-2 text-[11px] text-zinc-500 border border-[var(--border-color)] rounded-full px-3 py-1 bg-[var(--bg-main)]">
+                    <i data-lucide="database" class="w-3 h-3 text-green-400"></i>
+                    <span class="text-zinc-400">RAM</span>
+                    <span id="stat-mem" class="text-[var(--text-main)] font-mono font-medium">-</span>
+                </div>
                 <div id="status-badge" class="flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--bg-main)] border border-[var(--border-color)] text-[11px] font-medium text-zinc-400 transition-colors duration-300">
                     <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                     Gateway Online
@@ -1869,8 +1854,12 @@ const indexHTML = `
                 
                 // Update Mini Status in Sidebar
                 document.getElementById("stat-version").innerText = data.version || "dev";
-                document.getElementById("stat-tools").innerText = data.tools.count;
-                document.getElementById("stat-skills").innerText = data.skills.total;
+                
+                // Update CPU & Memory pills in header
+                const cpuEl = document.getElementById("stat-cpu");
+                const memEl = document.getElementById("stat-mem");
+                if (cpuEl) cpuEl.innerText = data.system && data.system.cpu_percent != null ? data.system.cpu_percent.toFixed(1) + "%" : "-";
+                if (memEl) memEl.innerText = data.system && data.system.mem_used_mb != null ? data.system.mem_used_mb.toFixed(0) + " MB" : "-";
 
                 // Update Live Activity
                 const livePanel = document.getElementById("live-activity-panel");
