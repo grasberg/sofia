@@ -579,7 +579,7 @@ const indexHTML = `
 
         .tab-content { display: none; height: 100%; opacity: 0; transform: translateY(10px); }
         .tab-content.active { display: flex; flex-direction: column; opacity: 1; transform: translateY(0); transition: all 0.3s ease-out; }
-        .settings-subtab:not(.hidden) { display: flex; flex-direction: column; flex-grow: 1; }
+        .settings-subtab:not(.hidden) { display: flex !important; flex-direction: column; flex-grow: 1; min-height: 0; }
 
         /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
@@ -837,8 +837,8 @@ const indexHTML = `
             </div>
 
             <!-- LOGS TAB -->
-            <div id="settings-subtab-logs" class="settings-subtab hidden flex-grow overflow-y-auto pr-2">
-                <div class="glass-panel rounded-2xl border border-[var(--border-color)] p-6 flex flex-col h-full overflow-hidden shadow-2xl transition-all duration-300">
+            <div id="settings-subtab-logs" class="settings-subtab hidden flex-col flex-grow min-h-0 pr-2 overflow-y-auto">
+                <div class="glass-panel rounded-2xl border border-[var(--border-color)] p-6 flex flex-col flex-grow min-h-0 shadow-2xl transition-all duration-300">
                     <div class="flex items-center justify-between mb-6">
                         <div>
                             <h2 class="text-xl font-bold text-[var(--text-main)]">System Logs</h2>
@@ -930,7 +930,7 @@ const indexHTML = `
             </div>
 
             <!-- SKILLS TAB -->
-            <div id="settings-subtab-skills" class="settings-subtab hidden flex-grow overflow-y-auto pr-2">
+            <div id="settings-subtab-skills" class="settings-subtab hidden flex-col flex-grow min-h-0 pr-2 overflow-y-auto">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8 h-full">
                     <!-- Skills List -->
                     <div class="flex flex-col h-full overflow-hidden">
@@ -965,8 +965,8 @@ const indexHTML = `
 
 
 			<!-- TOOLS TAB -->
-			<div id="settings-subtab-tools" class="settings-subtab hidden flex-grow overflow-y-auto pr-2">
-				<div class="h-full overflow-y-auto pr-2">
+			<div id="settings-subtab-tools" class="settings-subtab hidden flex-col flex-grow min-h-0 pr-2 overflow-y-auto">
+				<div class="flex-grow min-h-0 overflow-y-auto pr-2">
 					<div class="flex items-center justify-between mb-4">
 						<h2 class="text-xl font-bold text-[var(--text-main)]">Native Tools</h2>
 						<p class="text-sm text-zinc-500">Built-in tools available to all agents.</p>
@@ -1057,8 +1057,8 @@ const indexHTML = `
 			</div>
 
 			<!-- MODELS TAB -->
-			<div id="settings-subtab-models" class="settings-subtab hidden flex-grow overflow-y-auto pr-2">
-				<div class="h-full overflow-y-auto pr-2">
+			<div id="settings-subtab-models" class="settings-subtab hidden flex-col flex-grow min-h-0 pr-2 overflow-y-auto">
+				<div class="flex-grow min-h-0 overflow-y-auto pr-2">
                         <input type="hidden" id="cfg-model" value="">
                         
 
@@ -1196,8 +1196,8 @@ const indexHTML = `
 			</div>
 
 			<!-- CHANNELS TAB -->
-<div id="settings-subtab-channels" class="settings-subtab hidden flex-grow overflow-y-auto pr-2">
-	<div class="h-full overflow-y-auto pr-2">
+<div id="settings-subtab-channels" class="settings-subtab hidden flex-col flex-grow min-h-0 pr-2 overflow-y-auto">
+	<div class="flex-grow min-h-0 overflow-y-auto pr-2">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Channel Setup</label>
                             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -1248,9 +1248,9 @@ const indexHTML = `
 
             <!-- SETTINGS TAB -->
             <div id="tab-settings" class="tab-content h-full">
-                <div class="flex flex-col h-full">
+                <div class="flex flex-col flex-grow min-h-0">
                     
-                    <div id="settings-subtab-security" class="settings-subtab hidden flex-grow overflow-y-auto space-y-4 pr-2">
+                    <div id="settings-subtab-security" class="settings-subtab hidden flex-col flex-grow min-h-0 space-y-4 pr-2 overflow-y-auto">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Workspace Security</h3>
 
@@ -1272,7 +1272,7 @@ const indexHTML = `
                         </div>
                     </div>
 
-                    <div id="settings-subtab-heartbeat" class="settings-subtab hidden flex-grow overflow-y-auto space-y-4 pr-2">
+                    <div id="settings-subtab-heartbeat" class="settings-subtab hidden flex-col flex-grow min-h-0 space-y-4 pr-2 overflow-y-auto">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Heartbeat Background Agent</h3>
                             
@@ -1305,7 +1305,7 @@ const indexHTML = `
                         </div>
                     </div>
 
-                    <div id="settings-subtab-prompts" class="settings-subtab hidden flex-grow overflow-y-auto space-y-4 pr-2">
+                    <div id="settings-subtab-prompts" class="settings-subtab hidden flex-col flex-grow min-h-0 space-y-4 pr-2 overflow-y-auto">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Prompt Files</h3>
                             <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">IDENTITY.md</label>
