@@ -1,6 +1,6 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.22-blue)
+![Version](https://img.shields.io/badge/version-v0.0.23-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
@@ -56,38 +56,13 @@ Den kompilerade binären hamnar direkt i projektets rotmapp som `./sofia`.
 sofia onboard
 ```
 
-2. **Konfigurera API-nycklar:**
-Du kan antingen redigera `~/.sofia/config.json` manuellt eller använda webbgränssnittet (rekommenderas):
-*   Starta Sofia: `sofia gateway`
-*   Gå till fliken **Models** i webbläsaren.
-*   Lägg till din leverantör och API-nyckel där.
-
-Om du föredrar manuell konfiguration, se till att `config.json` har minst en modell:
-```json
-{
-  "agents": {
-    "defaults": {
-      "workspace": "~/.sofia/workspace",
-      "model": "gpt-5.2"
-    }
-  },
-  "model_list": [
-    {
-      "model_name": "gpt-5.2",
-      "model": "openai/gpt-5.2",
-      "api_key": "DIN_API_NYCKEL"
-    }
-  ]
-}
-```
-
-3. **Starta Gateway (för chatt/webb-gränssnitt):**
+2. **Starta Gateway (för chatt/webb-gränssnitt):**
 ```bash
 sofia gateway
 ```
 
-4. **Öppna Sofias kontrollpanel:**
-Surfa till `http://127.0.0.1:18795` i din webbläsare.
+3. **Öppna Sofias kontrollpanel:**
+Surfa till `http://127.0.0.1:18795` i din webbläsare. Gå till fliken **Models** för att lägga till din leverantör och API-nyckel.
 
 ## 🔌 Integrationer
 
@@ -150,18 +125,7 @@ Sofia kan kopplas till Telegram och svara på meddelanden direkt i chatten.
 5.  Under **Allow From** kan du begränsa vilka Telegram-användare som får prata med Sofia (frivilligt, lämna tomt för alla).
 6.  Klicka **Save Settings** och starta om Sofia.
 
-**Manuell konfiguration i `config.json`:**
-```json
-{
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "token": "DIN_BOT_TOKEN",
-      "allow_from": ["ditt_telegram_användarnamn"]
-    }
-  }
-}
-```
+
 
 > 💡 **Tips:** Om du kör Sofia bakom en brandvägg eller VPN kan du ange en proxy under **Proxy**-fältet i Channels-sidan.
 
@@ -179,19 +143,7 @@ Sofia kan även vara aktiv i Discord-servrar och DM:s.
 7.  **Mention Only** — om aktiverat svarar Sofia bara när hon @-nämns, annars svarar hon på alla meddelanden i kanaler hon har tillgång till.
 8.  Klicka **Save Settings** och starta om Sofia.
 
-**Manuell konfiguration i `config.json`:**
-```json
-{
-  "channels": {
-    "discord": {
-      "enabled": true,
-      "token": "DIN_DISCORD_BOT_TOKEN",
-      "allow_from": ["ditt_discord_användarnamn"],
-      "mention_only": true
-    }
-  }
-}
-```
+
 
 > 💡 **Tips:** Sätt `mention_only` till `true` om Sofia är i en aktiv kanal med många användare — annars svarar hon på allt.
 
