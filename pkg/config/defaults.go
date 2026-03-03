@@ -251,7 +251,7 @@ func DefaultConfig() *Config {
 		},
 		WebUI: WebUIConfig{
 			Enabled: true,
-			Host:    "127.0.0.1",
+			Host:    "0.0.0.0",
 			Port:    18795,
 		},
 		UserName: "User",
