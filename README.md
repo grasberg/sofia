@@ -82,6 +82,55 @@ sofia gateway
 4. **Öppna Sofias kontrollpanel:**
 Surfa till `http://127.0.0.1:18795` i din webbläsare.
 
+## 🔌 Integrationer
+
+För att ge Sofia full kraft kan du koppla samman henne med externa tjänster.
+
+### 📧 Google (Gmail & Kalender)
+
+Sofia använder `gogcli` för att interagera med Google Services.
+
+1.  **Installera gogcli:** Se till att `gog` finns i din PATH.
+2.  **Autentisera:** Kör följande i terminalen och följ instruktionerna:
+    ```bash
+    gog login din.email@gmail.com
+    ```
+3.  **Aktivera i Sofia:** Lägg till följande i din `~/.sofia/config.json`:
+    ```json
+    {
+      "tools": {
+        "google": {
+          "enabled": true,
+          "binary_path": "gog",
+          "allowed_commands": ["gmail", "calendar", "drive"]
+        }
+      }
+    }
+    ```
+
+### 🐙 GitHub
+
+För att Sofia ska kunna hantera repon, skapa PRs och pusha kod behöver hon en åtkomsttoken.
+
+1.  **Skapa en Personal Access Token (PAT):** Gå till GitHub Settings -> Developer Settings -> Personal Access Tokens (Fine-grained rekommenderas). Ge behörighet för `contents`, `pull requests` och `metadata`.
+2.  **Konfigurera i Sofia:** Du kan antingen sätta en miljövariabel i din `.env`-fil:
+    ```bash
+    GITHUB_TOKEN=your_token_here
+    ```
+    Eller lägga till det i `config.json` under `env_vars`:
+    ```json
+    {
+      "env_vars": {
+        "GITHUB_TOKEN": "your_token_here"
+      }
+    }
+    ```
+3.  **Git-identitet:** Se till att din lokala git är konfigurerad så att Sofia kan committa i ditt namn:
+    ```bash
+    git config --global user.name "Ditt Namn"
+    git config --global user.email "din.email@example.com"
+    ```
+
 ## ⏱️ Schemaläggning (Cron)
 
 Sofia har inbyggt stöd för schemalagda jobb och påminnelser:
