@@ -124,6 +124,11 @@ func (p *Provider) Chat(
 	}
 
 	if maxTokens, ok := asInt(options["max_tokens"]); ok {
+		// DeepSeek strictly rejects max_tokens > 8192
+		if strings.Contains(strings.ToLower(p.apiBase), "api.deepseek.com") && maxTokens > 8192 {
+			maxTokens = 8192
+		}
+
 		// Use configured maxTokensField if specified, otherwise fallback to model-based detection
 		fieldName := p.maxTokensField
 		if fieldName == "" {
