@@ -680,10 +680,7 @@ const indexHTML = `
                 <i data-lucide="settings" class="w-5 h-5"></i>
                 <span>Settings</span>
             </a>
-            <a href="#" onclick="showTab('logs')" id="nav-logs" class="nav-item">
-                <i data-lucide="terminal" class="w-5 h-5"></i>
-                <span>Logs</span>
-            </a>
+
         </nav>
 
         <div class="p-4 border-t border-[var(--border-color)] space-y-4">
@@ -714,6 +711,7 @@ const indexHTML = `
                     <button id="settings-tab-channels" onclick="showSettingsSubTab('channels')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Channels</button>
                     <button id="settings-tab-tools" onclick="showSettingsSubTab('tools')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Tools</button>
                     <button id="settings-tab-skills" onclick="showSettingsSubTab('skills')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Skills</button>
+                    <button id="settings-tab-logs" onclick="showSettingsSubTab('logs')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Logs</button>
                     <button id="settings-tab-security" onclick="showSettingsSubTab('security')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Security</button>
                 </div>
             </div>
@@ -838,7 +836,7 @@ const indexHTML = `
             </div>
 
             <!-- LOGS TAB -->
-            <div id="tab-logs" class="tab-content">
+            <div id="settings-subtab-logs" class="settings-subtab hidden h-full overflow-y-auto pr-1">
                 <div class="glass-panel rounded-2xl border border-[var(--border-color)] p-6 flex flex-col h-full overflow-hidden shadow-2xl transition-all duration-300">
                     <div class="flex items-center justify-between mb-6">
                         <div>
@@ -931,7 +929,7 @@ const indexHTML = `
             </div>
 
             <!-- SKILLS TAB -->
-            <div id="settings-subtab-skills" class="settings-subtab hidden h-full">
+            <div id="settings-subtab-skills" class="settings-subtab hidden h-full overflow-y-auto pr-1">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8 h-full">
                     <!-- Skills List -->
                     <div class="flex flex-col h-full overflow-hidden">
@@ -966,8 +964,8 @@ const indexHTML = `
 
 
 			<!-- TOOLS TAB -->
-			<div id="settings-subtab-tools" class="settings-subtab hidden h-full">
-				<div class="h-full overflow-y-auto pr-2 space-y-6">
+			<div id="settings-subtab-tools" class="settings-subtab hidden h-full overflow-y-auto pr-1">
+				<div class="h-full overflow-y-auto pr-2">
 					<div class="flex items-center justify-between mb-4">
 						<h2 class="text-xl font-bold text-[var(--text-main)]">Native Tools</h2>
 						<p class="text-sm text-zinc-500">Built-in tools available to all agents.</p>
@@ -1058,8 +1056,8 @@ const indexHTML = `
 			</div>
 
 			<!-- MODELS TAB -->
-			<div id="settings-subtab-models" class="settings-subtab hidden h-full">
-				<div class="h-full overflow-y-auto pr-2 space-y-6">
+			<div id="settings-subtab-models" class="settings-subtab hidden h-full overflow-y-auto pr-1">
+				<div class="h-full overflow-y-auto pr-2">
                         <input type="hidden" id="cfg-model" value="">
                         
 
@@ -1187,7 +1185,7 @@ const indexHTML = `
                                 </button>
                             </div>
 
-                            <div id="provider-model-list" class="space-y-2 max-h-96 overflow-y-auto pr-2">
+                            <div id="provider-model-list" class="space-y-2 pr-2">
                                 <!-- Filled by JS -->
                                 <div class="text-sm text-zinc-500 italic p-4 text-center border border-dashed border-[var(--border-color)] rounded-xl">No models configured.</div>
                             </div>
@@ -1197,8 +1195,8 @@ const indexHTML = `
 			</div>
 
 			<!-- CHANNELS TAB -->
-<div id="settings-subtab-channels" class="settings-subtab hidden h-full">
-	<div class="h-full overflow-y-auto pr-2 space-y-6">
+<div id="settings-subtab-channels" class="settings-subtab hidden h-full overflow-y-auto pr-1">
+	<div class="h-full overflow-y-auto pr-2">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Channel Setup</label>
                             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -1249,9 +1247,9 @@ const indexHTML = `
 
             <!-- SETTINGS TAB -->
             <div id="tab-settings" class="tab-content h-full">
-                <div class="h-full overflow-y-auto pr-2 space-y-6">
+                <div class="h-full overflow-y-auto pr-2">
                     
-                    <div id="settings-subtab-security" class="settings-subtab hidden space-y-4">
+                    <div id="settings-subtab-security" class="settings-subtab hidden h-full space-y-4 overflow-y-auto pr-1">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Workspace Security</h3>
 
@@ -1273,7 +1271,7 @@ const indexHTML = `
                         </div>
                     </div>
 
-                    <div id="settings-subtab-heartbeat" class="settings-subtab hidden space-y-4">
+                    <div id="settings-subtab-heartbeat" class="settings-subtab hidden h-full space-y-4 overflow-y-auto pr-1">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Heartbeat Background Agent</h3>
                             
@@ -1306,7 +1304,7 @@ const indexHTML = `
                         </div>
                     </div>
 
-                    <div id="settings-subtab-prompts" class="settings-subtab hidden space-y-4">
+                    <div id="settings-subtab-prompts" class="settings-subtab hidden h-full space-y-4 overflow-y-auto pr-1">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Prompt Files</h3>
                             <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">IDENTITY.md</label>
@@ -1804,7 +1802,6 @@ const indexHTML = `
             // Update Title
             const titles = {
                 'chat': 'Direct Chat',
-                'logs': 'System Logs',
                 'agents': 'Agent Management',
                 'settings': 'System Settings'
             };
@@ -1831,7 +1828,7 @@ const indexHTML = `
 
         function showSettingsSubTab(tabId) {
             currentSettingsSubTab = tabId;
-            const tabs = ['prompts', 'heartbeat', 'security', 'models', 'channels', 'tools', 'skills'];
+            const tabs = ['prompts', 'heartbeat', 'security', 'models', 'channels', 'tools', 'skills', 'logs'];
             tabs.forEach(t => {
                 const panel = document.getElementById('settings-subtab-' + t);
                 const button = document.getElementById('settings-tab-' + t);
