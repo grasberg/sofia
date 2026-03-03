@@ -660,7 +660,6 @@ const indexHTML = `
             </div>
             <div>
                 <h1 class="text-xl font-bold tracking-tight text-[var(--text-main)] transition-colors duration-300">Sofia</h1>
-                <p class="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Alpha v2.5</p>
             </div>
         </div>
 
