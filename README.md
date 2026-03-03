@@ -34,7 +34,7 @@ workspace-coder/
 
 ### Krav
 
-Innan du bygger från källkod behöver du ha **Go installerat** (rekommenderat: Go 1.26 eller senare).
+Innan du bygger från källkod behöver du ha **Go installerat** (rekommenderat: Go 1.26 eller senare). Du kan ladda ner Go från [go.dev/dl](https://go.dev/dl/).
 
 ### Installera från källkod
 
