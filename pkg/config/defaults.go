@@ -89,8 +89,10 @@ func DefaultConfig() *Config {
 			},
 		},
 		Heartbeat: HeartbeatConfig{
-			Enabled:  true,
-			Interval: 30,
+			Enabled:     true,
+			Interval:    30,
+			ActiveHours: "",
+			ActiveDays:  []string{},
 		},
 		Devices: DevicesConfig{
 			Enabled:    false,

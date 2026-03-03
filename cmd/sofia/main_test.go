@@ -37,7 +37,6 @@ func TestNewSofiaCommand(t *testing.T) {
 		"auth",
 		"cron",
 		"gateway",
-		"migrate",
 		"onboard",
 		"skills",
 		"status",

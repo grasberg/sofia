@@ -87,8 +87,7 @@ func gatewayCmd(debug bool) error {
 
 	heartbeatService := heartbeat.NewHeartbeatService(
 		cfg.WorkspacePath(),
-		cfg.Heartbeat.Interval,
-		cfg.Heartbeat.Enabled,
+		cfg.Heartbeat,
 	)
 	heartbeatService.SetBus(msgBus)
 	heartbeatService.SetHandler(func(prompt, channel, chatID string) *tools.ToolResult {

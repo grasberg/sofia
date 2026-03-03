@@ -17,7 +17,6 @@ import (
 	"github.com/grasberg/sofia/cmd/sofia/internal/auth"
 	"github.com/grasberg/sofia/cmd/sofia/internal/cron"
 	"github.com/grasberg/sofia/cmd/sofia/internal/gateway"
-	"github.com/grasberg/sofia/cmd/sofia/internal/migrate"
 	"github.com/grasberg/sofia/cmd/sofia/internal/onboard"
 	"github.com/grasberg/sofia/cmd/sofia/internal/skills"
 	"github.com/grasberg/sofia/cmd/sofia/internal/status"
@@ -40,7 +39,6 @@ func NewSofiaCommand() *cobra.Command {
 		gateway.NewGatewayCommand(),
 		status.NewStatusCommand(),
 		cron.NewCronCommand(),
-		migrate.NewMigrateCommand(),
 		skills.NewSkillsCommand(),
 		version.NewVersionCommand(),
 	)

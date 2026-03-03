@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/tools"
 )
 
@@ -16,7 +17,7 @@ func TestExecuteHeartbeat_Async(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	hs := NewHeartbeatService(tmpDir, 30, true)
+	hs := NewHeartbeatService(tmpDir, config.HeartbeatConfig{Interval: 30, Enabled: true})
 	hs.stopChan = make(chan struct{}) // Enable for testing
 
 	asyncCalled := false
@@ -54,7 +55,7 @@ func TestExecuteHeartbeat_Error(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	hs := NewHeartbeatService(tmpDir, 30, true)
+	hs := NewHeartbeatService(tmpDir, config.HeartbeatConfig{Interval: 30, Enabled: true})
 	hs.stopChan = make(chan struct{}) // Enable for testing
 
 	hs.SetHandler(func(prompt, channel, chatID string) *tools.ToolResult {
@@ -92,7 +93,7 @@ func TestExecuteHeartbeat_Silent(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	hs := NewHeartbeatService(tmpDir, 30, true)
+	hs := NewHeartbeatService(tmpDir, config.HeartbeatConfig{Interval: 30, Enabled: true})
 	hs.stopChan = make(chan struct{}) // Enable for testing
 
 	hs.SetHandler(func(prompt, channel, chatID string) *tools.ToolResult {
@@ -130,7 +131,7 @@ func TestHeartbeatService_StartStop(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	hs := NewHeartbeatService(tmpDir, 1, true)
+	hs := NewHeartbeatService(tmpDir, config.HeartbeatConfig{Interval: 1, Enabled: true})
 
 	err = hs.Start()
 	if err != nil {
@@ -149,7 +150,7 @@ func TestHeartbeatService_Disabled(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	hs := NewHeartbeatService(tmpDir, 1, false)
+	hs := NewHeartbeatService(tmpDir, config.HeartbeatConfig{Interval: 1, Enabled: false})
 
 	if hs.enabled != false {
 		t.Error("Expected service to be disabled")
@@ -166,7 +167,7 @@ func TestExecuteHeartbeat_NilResult(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	hs := NewHeartbeatService(tmpDir, 30, true)
+	hs := NewHeartbeatService(tmpDir, config.HeartbeatConfig{Interval: 30, Enabled: true})
 	hs.stopChan = make(chan struct{}) // Enable for testing
 
 	hs.SetHandler(func(prompt, channel, chatID string) *tools.ToolResult {
@@ -188,7 +189,7 @@ func TestLogPath(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	hs := NewHeartbeatService(tmpDir, 30, true)
+	hs := NewHeartbeatService(tmpDir, config.HeartbeatConfig{Interval: 30, Enabled: true})
 
 	// Write a log entry
 	hs.logf("INFO", "Test log entry")
@@ -208,7 +209,7 @@ func TestHeartbeatFilePath(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	hs := NewHeartbeatService(tmpDir, 30, true)
+	hs := NewHeartbeatService(tmpDir, config.HeartbeatConfig{Interval: 30, Enabled: true})
 
 	// Trigger default template creation
 	hs.buildPrompt()

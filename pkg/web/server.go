@@ -1292,6 +1292,37 @@ const indexHTML = `
                 <div class="h-full overflow-y-auto pr-2 space-y-6">
                     <div id="settings-subtab-prompts" class="settings-subtab hidden space-y-4">
                         <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+                            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Heartbeat Background Agent</h3>
+                            
+                            <div class="flex items-start justify-between mb-4 pb-4 border-b border-[var(--border-color)]">
+                                <div>
+                                    <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable Heartbeat</h4>
+                                    <p class="text-[11px] leading-relaxed text-zinc-500 mt-1">Sofia will automatically spawn background agents on a schedule.</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer mt-1">
+                                    <input type="checkbox" id="cfg-heartbeat-enabled" class="sr-only peer" onchange="saveConfig()">
+                                    <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full relative"></div>
+                                </label>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Interval (minutes)</label>
+                                    <input type="number" id="cfg-heartbeat-interval" min="5" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)] transition-colors focus:border-sofia focus:ring-1 focus:ring-sofia/20" onchange="saveConfig()">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Active Hours</label>
+                                    <input type="text" id="cfg-heartbeat-hours" placeholder="09:00-17:00 (Leave empty for 24/7)" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)] transition-colors focus:border-sofia focus:ring-1 focus:ring-sofia/20" onchange="saveConfig()">
+                                </div>
+                            </div>
+
+                            <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Active Days (Leave empty for every day)</label>
+                            <div class="flex flex-wrap gap-2 mb-6" id="cfg-heartbeat-days-container">
+                                <!-- Days will be injected here via JS -->
+                            </div>
+                        </div>
+
+                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Prompt Files</h3>
                             <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">IDENTITY.md</label>
                             <textarea id="cfg-identity-md" rows="16" class="w-full min-h-[28rem] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-mono text-[var(--text-main)] mb-3"></textarea>
@@ -2340,6 +2371,17 @@ const indexHTML = `
                 document.getElementById("cfg-discord-allow-from").value = formatAllowFrom(cfg.channels.discord.allow_from);
                 document.getElementById("cfg-discord-mention-only").checked = !!cfg.channels.discord.mention_only;
                 document.getElementById("cfg-restrict-workspace").checked = !!cfg.agents.defaults.restrict_to_workspace;
+                
+                // Heartbeat mapping
+                if (cfg.heartbeat) {
+                    document.getElementById("cfg-heartbeat-enabled").checked = !!cfg.heartbeat.enabled;
+                    document.getElementById("cfg-heartbeat-interval").value = cfg.heartbeat.interval || 30;
+                    document.getElementById("cfg-heartbeat-hours").value = cfg.heartbeat.active_hours || "";
+                    renderHeartbeatDays(cfg.heartbeat.active_days || []);
+                } else {
+                    renderHeartbeatDays([]);
+                }
+                
                 validateChannelSettings();
 
 
@@ -2642,6 +2684,16 @@ const indexHTML = `
                 cfg.channels.discord.allow_from = parseAllowFromInput(document.getElementById("cfg-discord-allow-from").value);
                 cfg.channels.discord.mention_only = document.getElementById("cfg-discord-mention-only").checked;
                 cfg.agents.defaults.restrict_to_workspace = document.getElementById("cfg-restrict-workspace").checked;
+                
+                // Save Heartbeat settings if block exists
+                if (document.getElementById("cfg-heartbeat-enabled")) {
+                    if (!cfg.heartbeat) cfg.heartbeat = {};
+                    cfg.heartbeat.enabled = document.getElementById("cfg-heartbeat-enabled").checked;
+                    cfg.heartbeat.interval = parseInt(document.getElementById("cfg-heartbeat-interval").value) || 30;
+                    cfg.heartbeat.active_hours = document.getElementById("cfg-heartbeat-hours").value.trim();
+                    cfg.heartbeat.active_days = getCheckedHeartbeatDays();
+                }
+
                 validateChannelSettings();
 
                 const saveRes = await fetch("/api/config", {
@@ -2670,6 +2722,40 @@ const indexHTML = `
         setupLogStream();
         updateThemeIcons();
         refreshIcons();
+
+        [
+            "cfg-telegram",
+            "cfg-telegram-token",
+            "cfg-discord",
+            "cfg-discord-token",
+        ].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('blur', saveConfig);
+            }
+        });
+
+        // Heartbeat Day Checkbox Handlers
+        function renderHeartbeatDays(activeDays) {
+            const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+            const container = document.getElementById("cfg-heartbeat-days-container");
+            if (!container) return;
+
+            container.innerHTML = "";
+            days.forEach(day => {
+                const isChecked = activeDays.includes(day);
+                container.innerHTML += 
+                    "<label class=\"flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)] cursor-pointer hover:border-sofia/50 transition-colors\">" +
+                        "<input type=\"checkbox\" value=\"" + day + "\" class=\"hb-day-checkbox w-3.5 h-3.5 text-sofia bg-zinc-800 border-zinc-600 rounded focus:ring-sofia\" " + (isChecked ? "checked" : "") + " onchange=\"saveConfig()\">" +
+                        "<span class=\"text-[11px] text-[var(--text-main)]\">" + day + "</span>" +
+                    "</label>";
+            });
+        }
+
+        function getCheckedHeartbeatDays() {
+            const checkboxes = document.querySelectorAll('.hb-day-checkbox:checked');
+            return Array.from(checkboxes).map(box => box.value);
+        }
 
         [
             "cfg-telegram",

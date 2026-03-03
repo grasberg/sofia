@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/grasberg/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/constants"
 	"github.com/grasberg/sofia/pkg/fileutil"
 	"github.com/grasberg/sofia/pkg/logger"
@@ -34,18 +35,21 @@ type HeartbeatHandler func(prompt, channel, chatID string) *tools.ToolResult
 
 // HeartbeatService manages periodic heartbeat checks
 type HeartbeatService struct {
-	workspace string
-	bus       *bus.MessageBus
-	state     *state.Manager
-	handler   HeartbeatHandler
-	interval  time.Duration
-	enabled   bool
-	mu        sync.RWMutex
-	stopChan  chan struct{}
+	workspace   string
+	bus         *bus.MessageBus
+	state       *state.Manager
+	handler     HeartbeatHandler
+	interval    time.Duration
+	enabled     bool
+	activeHours string
+	activeDays  []string
+	mu          sync.RWMutex
+	stopChan    chan struct{}
 }
 
 // NewHeartbeatService creates a new heartbeat service
-func NewHeartbeatService(workspace string, intervalMinutes int, enabled bool) *HeartbeatService {
+func NewHeartbeatService(workspace string, cfg config.HeartbeatConfig) *HeartbeatService {
+	intervalMinutes := cfg.Interval
 	// Apply minimum interval
 	if intervalMinutes < minIntervalMinutes && intervalMinutes != 0 {
 		intervalMinutes = minIntervalMinutes
@@ -56,10 +60,12 @@ func NewHeartbeatService(workspace string, intervalMinutes int, enabled bool) *H
 	}
 
 	return &HeartbeatService{
-		workspace: workspace,
-		interval:  time.Duration(intervalMinutes) * time.Minute,
-		enabled:   enabled,
-		state:     state.NewManager(workspace),
+		workspace:   workspace,
+		interval:    time.Duration(intervalMinutes) * time.Minute,
+		enabled:     cfg.Enabled,
+		activeHours: cfg.ActiveHours,
+		activeDays:  cfg.ActiveDays,
+		state:       state.NewManager(workspace),
 	}
 }
 
@@ -158,6 +164,11 @@ func (hs *HeartbeatService) executeHeartbeat() {
 		return
 	}
 
+	if !hs.isScheduleActive() {
+		logger.DebugC("heartbeat", "Skipping heartbeat - outside of configured schedule")
+		return
+	}
+
 	logger.DebugC("heartbeat", "Executing heartbeat")
 
 	prompt := hs.buildPrompt()
@@ -214,6 +225,55 @@ func (hs *HeartbeatService) executeHeartbeat() {
 	}
 
 	hs.logInfof("Heartbeat completed: %s", result.ForLLM)
+}
+
+// isScheduleActive checks if current time is within configured active days/hours
+func (hs *HeartbeatService) isScheduleActive() bool {
+	hs.mu.RLock()
+	days := hs.activeDays
+	hoursStr := hs.activeHours
+	hs.mu.RUnlock()
+
+	now := time.Now()
+
+	// Check Days
+	if len(days) > 0 {
+		dayMatch := false
+		currentDay := now.Weekday().String()
+		for _, d := range days {
+			if strings.EqualFold(d, currentDay) {
+				dayMatch = true
+				break
+			}
+		}
+		if !dayMatch {
+			return false
+		}
+	}
+
+	// Check Hours
+	if hoursStr != "" {
+		parts := strings.Split(hoursStr, "-")
+		if len(parts) == 2 {
+			startEnv := strings.TrimSpace(parts[0])
+			endEnv := strings.TrimSpace(parts[1])
+
+			// Parse HH:mm
+			startParsed, err1 := time.Parse("15:04", startEnv)
+			endParsed, err2 := time.Parse("15:04", endEnv)
+
+			if err1 == nil && err2 == nil {
+				// Convert current time to a comparable time of day limit (same 0 year trick)
+				nowTime, _ := time.Parse("15:04", now.Format("15:04"))
+
+				if nowTime.Before(startParsed) || nowTime.After(endParsed) {
+					return false
+				}
+			}
+		}
+	}
+
+	return true
 }
 
 // buildPrompt builds the heartbeat prompt from HEARTBEAT.md

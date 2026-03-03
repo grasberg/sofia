@@ -220,8 +220,10 @@ type DiscordConfig struct {
 }
 
 type HeartbeatConfig struct {
-	Enabled  bool `json:"enabled"  env:"SOFIA_HEARTBEAT_ENABLED"`
-	Interval int  `json:"interval" env:"SOFIA_HEARTBEAT_INTERVAL"` // minutes, min 5
+	Enabled     bool     `json:"enabled"      env:"SOFIA_HEARTBEAT_ENABLED"`
+	Interval    int      `json:"interval"     env:"SOFIA_HEARTBEAT_INTERVAL"`     // minutes, min 5
+	ActiveHours string   `json:"active_hours" env:"SOFIA_HEARTBEAT_ACTIVE_HOURS"` // e.g. "09:00-17:00"
+	ActiveDays  []string `json:"active_days"  env:"SOFIA_HEARTBEAT_ACTIVE_DAYS"`  // e.g. ["Monday", "Tuesday"]
 }
 
 type DevicesConfig struct {
