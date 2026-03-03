@@ -55,7 +55,12 @@ sofia onboard
 ```
 
 2. **Konfigurera API-nycklar:**
-Redigera `~/.sofia/config.json` och ställ in minst en modell med en API-nyckel:
+Du kan antingen redigera `~/.sofia/config.json` manuellt eller använda webbgränssnittet (rekommenderas):
+*   Starta Sofia: `sofia gateway`
+*   Gå till fliken **Models** i webbläsaren.
+*   Lägg till din leverantör och API-nyckel där.
+
+Om du föredrar manuell konfiguration, se till att `config.json` har minst en modell:
 ```json
 {
   "agents": {
