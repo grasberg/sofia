@@ -579,7 +579,37 @@ const indexHTML = `
 
         .tab-content { display: none; height: 100%; opacity: 0; transform: translateY(10px); }
         .tab-content.active { display: flex; flex-direction: column; opacity: 1; transform: translateY(0); transition: all 0.3s ease-out; }
-        .settings-subtab:not(.hidden) { display: flex !important; flex-direction: column; flex-grow: 1; min-height: 0; }
+        
+        /* Settings sub-tab full height layout */
+        #tab-settings {
+            display: flex !important;
+            flex-direction: column;
+        }
+        #tab-settings > div {
+            flex: 1 1 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .settings-subtab:not(.hidden) {
+            flex: 1 1 0 !important;
+            min-height: 0 !important;
+            display: flex !important;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        .settings-subtab > div {
+            flex-shrink: 0;
+        }
+        /* Log view should fill its flex parent */
+        #settings-subtab-logs .glass-panel {
+            flex: 1 1 0;
+            min-height: 0;
+        }
+        #log-view {
+            flex: 1 1 0;
+            min-height: 200px;
+        }
 
         /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
@@ -1186,7 +1216,7 @@ const indexHTML = `
                                 </button>
                             </div>
 
-                            <div id="provider-model-list" class="space-y-2 pr-2">
+                            <div id="provider-model-list" class="space-y-2 pr-2 pb-4">
                                 <!-- Filled by JS -->
                                 <div class="text-sm text-zinc-500 italic p-4 text-center border border-dashed border-[var(--border-color)] rounded-xl">No models configured.</div>
                             </div>
