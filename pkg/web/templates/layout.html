@@ -97,6 +97,11 @@
                 <i data-lucide="users" class="w-5 h-5"></i>
                 <span class="hidden lg:inline">Agents</span>
             </a>
+            <a href="#" hx-get="/ui/history" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-history"
+                class="nav-item">
+                <i data-lucide="clock" class="w-5 h-5"></i>
+                <span class="hidden lg:inline">History</span>
+            </a>
             <a href="#" hx-get="/ui/settings" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-settings"
                 class="nav-item">
                 <i data-lucide="settings" class="w-5 h-5"></i>
@@ -643,6 +648,7 @@
             const tabById = {
                 'nav-chat': 'chat',
                 'nav-agents': 'agents',
+                'nav-history': 'history',
                 'nav-settings': 'settings',
             };
             currentTab = tabById[clickedEl.id] || 'chat';
@@ -661,6 +667,7 @@
             const titles = {
                 'nav-chat': 'Direct Chat',
                 'nav-agents': 'Agent Management',
+                'nav-history': 'Chat History',
                 'nav-settings': 'System Settings'
             };
             document.getElementById('view-title').innerText = titles[clickedEl.id] || 'Sofia';
@@ -713,31 +720,16 @@
                 // Update Mini Status in Sidebar
                 document.getElementById("stat-version").innerText = data.version || "dev";
 
+                // Render persistent agent cards
+                if (data.agents && data.agents.list) {
+                    renderAgentCards(data.agents.list, data.agents.active);
+                }
 
-
-                // Update Live Activity
-                const livePanel = document.getElementById("live-activity-panel");
-                const sidebar = document.getElementById("agent-monitor-sidebar");
-                const monitor = document.getElementById("agent-activity-monitor");
-
+                // Track active agent ID for Agents tab highlighting
                 if (data.agents.active && data.agents.active.id) {
                     activeAgentID = data.agents.active.id;
-                    if (livePanel) livePanel.classList.remove("hidden");
-                    if (sidebar) sidebar.classList.remove("hidden");
-                    const activeAgentName = document.getElementById("active-agent-name");
-                    const activeAgentStatus = document.getElementById("active-agent-status");
-                    if (activeAgentName) {
-                        const meta = agentMeta[data.agents.active.id];
-                        activeAgentName.innerText = (meta && meta.name) ? meta.name : data.agents.active.id;
-                    }
-                    if (activeAgentStatus) activeAgentStatus.innerText = data.agents.active.status;
                 } else {
                     activeAgentID = null;
-                    if (livePanel) livePanel.classList.add("hidden");
-                    // User requested sidebar to always be visible
-                    // if (monitor.children.length === 0) {
-                    //     sidebar.classList.add("hidden");
-                    // }
                 }
 
                 // If on agents tab, we might want to refresh to show active status
@@ -1305,7 +1297,6 @@
             }
         }
 
-        let agentActivity = {};
         let logEventSource = null;
         let logReconnectTimer = null;
         let logStreamEnabled = false;
@@ -1581,128 +1572,155 @@
             };
         }
 
+        // renderAgentCards builds/updates the persistent per-agent status cards.
+        // Called every 2s from fetchStatus(). Creates cards on first call, then
+        // only updates the status/activity fields without tearing down existing cards.
+        function renderAgentCards(agentList, active) {
+            const container = document.getElementById("agent-card-list");
+            const pulse = document.getElementById("monitor-pulse");
+            if (!container) return;
+
+            const activeId = (active && active.id) ? active.id : null;
+            const activeStatus = (active && active.status) ? active.status : "Idle";
+
+            // Pulse indicator: red+animate when any agent is active
+            if (pulse) {
+                if (activeId) {
+                    pulse.className = "w-1.5 h-1.5 bg-sofia animate-pulse";
+                } else {
+                    pulse.className = "w-1.5 h-1.5 bg-zinc-600";
+                }
+            }
+
+            // Build set of known card IDs
+            const existingIds = new Set();
+            container.querySelectorAll('[data-agent-card]').forEach(function(el) {
+                existingIds.add(el.getAttribute('data-agent-card'));
+            });
+
+            agentList.forEach(function(a) {
+                const isMain = (a.role === 'sofia' || a.id === 'main');
+                const isActive = (a.id === activeId);
+                const status = isActive ? activeStatus : 'Idle';
+                const statusColor = isActive ? 'text-sofia animate-pulse' : 'text-zinc-600';
+                const dotColor = isActive ? 'bg-sofia animate-pulse shadow-[0_0_4px_rgba(255,77,77,0.6)]' : 'bg-zinc-700';
+                const borderColor = isActive ? 'border-sofia/40' : 'border-[var(--border-color)]';
+                const roleLabel = isMain ? 'Primary' : 'Sub-agent';
+                const roleLabelColor = isMain ? 'text-sofia' : 'text-zinc-500';
+
+                if (!existingIds.has(a.id)) {
+                    // Create new card
+                    const card = document.createElement('div');
+                    card.setAttribute('data-agent-card', a.id);
+                    card.className = 'agent-status-card p-2.5 border ' + borderColor + ' bg-black/30 transition-all duration-300';
+                    card.innerHTML =
+                        '<div class="flex items-center gap-2 mb-1.5">' +
+                        '  <div id="card-dot-' + a.id + '" class="w-2 h-2 shrink-0 ' + dotColor + '"></div>' +
+                        '  <span class="text-[10px] font-bold uppercase tracking-wider text-zinc-200 truncate flex-grow">' + escapeHtml(a.name || a.id) + '</span>' +
+                        '  <span class="text-[8px] font-bold uppercase ' + roleLabelColor + ' shrink-0">' + roleLabel + '</span>' +
+                        '</div>' +
+                        '<div class="text-[8px] text-zinc-600 font-mono mb-1.5 truncate">' + escapeHtml(a.model || '') + '</div>' +
+                        '<div class="flex items-center gap-1.5">' +
+                        '  <span id="card-status-' + a.id + '" class="text-[9px] font-mono ' + statusColor + ' truncate">' + escapeHtml(status) + '</span>' +
+                        '</div>' +
+                        '<div id="card-task-' + a.id + '" class="mt-1 text-[8px] text-zinc-600 font-mono truncate hidden"></div>';
+                    container.appendChild(card);
+                    refreshIcons();
+                } else {
+                    // Update existing card
+                    const card = container.querySelector('[data-agent-card="' + a.id + '"]');
+                    if (!card) return;
+                    card.className = 'agent-status-card p-2.5 border ' + borderColor + ' bg-black/30 transition-all duration-300';
+                    const dot = document.getElementById('card-dot-' + a.id);
+                    const statusEl = document.getElementById('card-status-' + a.id);
+                    if (dot) dot.className = 'w-2 h-2 shrink-0 ' + dotColor;
+                    if (statusEl) {
+                        statusEl.className = 'text-[9px] font-mono ' + statusColor + ' truncate';
+                        statusEl.textContent = status;
+                    }
+                }
+            });
+
+            // Remove cards for agents no longer in list
+            existingIds.forEach(function(id) {
+                if (!agentList.find(function(a) { return a.id === id; })) {
+                    const card = container.querySelector('[data-agent-card="' + id + '"]');
+                    if (card) card.remove();
+                }
+            });
+        }
+
         function handleAgentLog(entry) {
             const agentId = entry.component.replace("agent:", "");
-            const monitor = document.getElementById("agent-activity-monitor");
-            const sidebar = document.getElementById("agent-monitor-sidebar");
-            if (!monitor || !sidebar) return;
 
-            if (!agentActivity[agentId]) {
-                agentActivity[agentId] = { lastSeen: Date.now(), timer: null };
-                sidebar.classList.remove("hidden");
-
-                const box = document.createElement("div");
-                box.id = "agent-box-" + agentId;
-                box.className = "agent-log-box w-full bg-zinc-900/80 border border-sofia/20 rounded-xl overflow-hidden flex flex-col shadow-lg transition-all duration-300";
-                box.innerHTML =
-                    '<div class="px-3 py-2 bg-sofia/10 border-b border-sofia/10 flex items-center justify-between">' +
-                    '  <div class="flex items-center gap-2">' +
-                    '    <div id="dot-' + agentId + '" class="w-2 h-2 rounded-full bg-sofia animate-pulse shadow-[0_0_6px_rgba(255,77,77,0.6)]"></div>' +
-                    '    <span class="text-[10px] font-bold uppercase tracking-widest text-white">' + (agentMeta[agentId] ? agentMeta[agentId].name : agentId) + '</span>' +
-                    (agentMeta[agentId] && agentMeta[agentId].model ? '<span class="text-[8px] text-zinc-500 font-mono ml-1">' + agentMeta[agentId].model + '</span>' : '') +
-                    '  </div>' +
-                    '  <span id="status-' + agentId + '" class="text-[8px] text-sofia/80 font-mono animate-pulse">WORKING</span>' +
-                    '</div>' +
-                    '<div id="logs-' + agentId + '" class="p-2 h-48 overflow-y-auto bg-black/40 space-y-0.5 font-mono text-[10px] leading-relaxed"></div>' +
-                    '<div id="typing-' + agentId + '" class="px-3 py-1.5 border-t border-zinc-800/50 flex items-center gap-1.5">' +
-                    '  <span class="w-1 h-1 rounded-full bg-sofia/60 animate-bounce" style="animation-delay:0ms"></span>' +
-                    '  <span class="w-1 h-1 rounded-full bg-sofia/60 animate-bounce" style="animation-delay:150ms"></span>' +
-                    '  <span class="w-1 h-1 rounded-full bg-sofia/60 animate-bounce" style="animation-delay:300ms"></span>' +
-                    '  <span class="text-[9px] text-zinc-600 ml-1">processing...</span>' +
-                    '</div>';
-                monitor.appendChild(box);
-                refreshIcons();
+            // Update the task label on the persistent card if it exists
+            const taskEl = document.getElementById('card-task-' + agentId);
+            if (taskEl) {
+                const msg = entry.message || "";
+                // Show a condensed task hint from key log messages
+                let hint = "";
+                if (msg.startsWith("TOOL:")) {
+                    hint = msg.replace(/^TOOL:\s*/, "");
+                } else if (msg.startsWith("SUBAGENT:")) {
+                    hint = msg.replace(/^SUBAGENT:\s*/, "");
+                } else if (msg.startsWith("SOFIA:")) {
+                    hint = msg.replace(/^SOFIA:\s*/, "");
+                }
+                if (hint) {
+                    taskEl.textContent = hint.length > 60 ? hint.substring(0, 60) + "…" : hint;
+                    taskEl.classList.remove("hidden");
+                    // Clear after 10s
+                    if (taskEl._clearTimer) clearTimeout(taskEl._clearTimer);
+                    taskEl._clearTimer = setTimeout(function() {
+                        taskEl.textContent = "";
+                        taskEl.classList.add("hidden");
+                    }, 10000);
+                }
             }
 
-            // Append log line with timestamp + color coding
-            const logsDiv = document.getElementById("logs-" + agentId);
-            const line = document.createElement("div");
-            const timeStr = entry.timestamp ? entry.timestamp.split("T")[1].replace("Z", "").substring(0, 8) : "";
-            const msg = entry.message || "";
+            // Append to the live-log strip at the bottom
+            const liveLog = document.getElementById("agent-live-log");
+            const linesDiv = document.getElementById("agent-live-log-lines");
+            if (liveLog && linesDiv) {
+                liveLog.classList.remove("hidden");
 
-            // Color-code by log type
-            let textColor = "text-zinc-400";
-            let prefix = "";
-            if (msg.startsWith("TOOL:")) {
-                textColor = "text-yellow-300";
-                prefix = "⚡ ";
-            } else if (msg.startsWith("SUBAGENT:")) {
-                textColor = "text-amber-400";
-                prefix = "◈ ";
-            } else if (msg.startsWith("SOFIA:") && (msg.includes("response ready") || msg.includes("direct answer") || msg.includes("synthesis"))) {
-                textColor = "text-green-400";
-                prefix = "✓ ";
-            } else if (msg.startsWith("SOFIA:") || msg.startsWith("ROUTER:")) {
-                textColor = "text-sky-400";
-                prefix = "→ ";
-            } else if (entry.level === "ERROR" || entry.level === "FATAL") {
-                textColor = "text-red-400";
-                prefix = "✗ ";
-            } else if (entry.level === "WARN") {
-                textColor = "text-yellow-400";
-                prefix = "⚠ ";
+                const msg = entry.message || "";
+                let textColor = "text-zinc-500";
+                let prefix = "";
+                if (msg.startsWith("TOOL:")) { textColor = "text-yellow-400"; prefix = "⚡ "; }
+                else if (msg.startsWith("SUBAGENT:")) { textColor = "text-amber-400"; prefix = "◈ "; }
+                else if (msg.startsWith("SOFIA:") && (msg.includes("response ready") || msg.includes("direct answer") || msg.includes("synthesis"))) { textColor = "text-green-400"; prefix = "✓ "; }
+                else if (msg.startsWith("SOFIA:") || msg.startsWith("ROUTER:")) { textColor = "text-sky-400"; prefix = "→ "; }
+                else if (entry.level === "ERROR" || entry.level === "FATAL") { textColor = "text-red-400"; prefix = "✗ "; }
+                else if (entry.level === "WARN") { textColor = "text-yellow-400"; prefix = "⚠ "; }
+
+                const meta = agentMeta[agentId];
+                const agentLabel = meta ? meta.name : agentId;
+                const timeStr = entry.timestamp ? entry.timestamp.split("T")[1].replace("Z","").substring(0,8) : "";
+
+                const line = document.createElement("div");
+                line.className = "flex gap-1.5 py-0.5 " + textColor;
+                line.innerHTML =
+                    '<span class="text-zinc-700 shrink-0">' + timeStr + '</span>' +
+                    '<span class="text-zinc-600 shrink-0 font-bold">' + escapeHtml(agentLabel) + '</span>' +
+                    '<span class="truncate">' + prefix + escapeHtml(msg) + '</span>';
+                linesDiv.appendChild(line);
+
+                // Keep max 80 lines
+                while (linesDiv.children.length > 80) {
+                    linesDiv.removeChild(linesDiv.firstChild);
+                }
+
+                if (linesDiv.scrollHeight - linesDiv.scrollTop < linesDiv.clientHeight + 60) {
+                    linesDiv.scrollTop = linesDiv.scrollHeight;
+                }
+
+                // Hide live log when idle for 20s
+                if (liveLog._hideTimer) clearTimeout(liveLog._hideTimer);
+                liveLog._hideTimer = setTimeout(function() {
+                    liveLog.classList.add("hidden");
+                }, 20000);
             }
-
-            line.className = "flex gap-1.5 py-0.5 border-b border-zinc-800/30 " + textColor;
-            line.innerHTML =
-                '<span class="text-zinc-600 shrink-0">' + timeStr + '</span>' +
-                '<span class="truncate">' + prefix + escapeHtml(msg) + '</span>';
-            logsDiv.appendChild(line);
-
-            // Auto-scroll (but only if already near bottom)
-            if (logsDiv.scrollHeight - logsDiv.scrollTop < logsDiv.clientHeight + 60) {
-                logsDiv.scrollTop = logsDiv.scrollHeight;
-            }
-
-            // Reset done timer
-            if (agentActivity[agentId].timer) clearTimeout(agentActivity[agentId].timer);
-            agentActivity[agentId].lastSeen = Date.now();
-            agentActivity[agentId].timer = setTimeout(() => {
-                completeAgentTask(agentId);
-            }, 8000);
-        }
-
-        function completeAgentTask(agentId) {
-            const statusLabel = document.getElementById("status-" + agentId);
-            const box = document.getElementById("agent-box-" + agentId);
-            const dot = document.getElementById("dot-" + agentId);
-            const typing = document.getElementById("typing-" + agentId);
-
-            if (statusLabel) {
-                statusLabel.innerText = "DONE";
-                statusLabel.className = "text-[8px] text-green-400 font-mono";
-            }
-            if (dot) {
-                dot.classList.remove("bg-sofia", "animate-pulse");
-                dot.classList.add("bg-green-500");
-                dot.style.boxShadow = "0 0 6px rgba(34,197,94,0.5)";
-            }
-            if (typing) typing.remove();
-            if (box) {
-                box.classList.add("border-green-500/20");
-                box.classList.remove("border-sofia/20");
-            }
-
-            // Fade and remove after delay
-            setTimeout(() => {
-                if (!box) return;
-                box.style.transition = "opacity 0.5s, transform 0.5s";
-                box.style.opacity = "0";
-                box.style.transform = "translateY(-8px)";
-                setTimeout(() => {
-                    box.remove();
-                    delete agentActivity[agentId];
-                }, 500);
-            }, 15000);
-        }
-
-        function escapeHtml(text) {
-            return (text || "")
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/\"/g, "&quot;")
-                .replace(/'/g, "&#39;");
         }
 
         function formatAssistantMessage(text) {
@@ -1831,7 +1849,7 @@
                 const res = await fetch("/api/chat", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ message: msg, files: filesToSend })
+                    body: JSON.stringify({ message: msg, files: filesToSend, session_key: (typeof currentSessionKey !== 'undefined' ? currentSessionKey : '') })
                 });
 
                 const contentType = res.headers.get("content-type");
@@ -1846,6 +1864,12 @@
 
                 if (!res.ok) {
                     throw new Error(responseData.error || "Unknown error");
+                }
+
+                // Persist the session key returned by the server
+                if (responseData.session_key && typeof currentSessionKey !== 'undefined') {
+                    currentSessionKey = responseData.session_key;
+                    if (typeof updateSessionLabel === 'function') updateSessionLabel();
                 }
 
                 indicator.classList.add("hidden");
@@ -1889,6 +1913,8 @@
                 history.innerHTML += html;
             });
             history.scrollTop = history.scrollHeight;
+            // Restore session label
+            if (typeof updateSessionLabel === 'function') updateSessionLabel();
         }
 
         async function saveConfig() {

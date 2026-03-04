@@ -54,6 +54,9 @@ var settingsPromptsHTML []byte
 //go:embed templates/settings/logs.html
 var settingsLogsHTML []byte
 
+//go:embed templates/history.html
+var historyHTML []byte
+
 type Server struct {
 	cfg            *config.Config
 	agentLoop      *agent.AgentLoop
@@ -129,6 +132,10 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(settingsLogsHTML)
 	})
+	mux.HandleFunc("/ui/history", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(historyHTML)
+	})
 
 	mux.HandleFunc("/api/status", s.handleStatus)
 	mux.HandleFunc("/api/config", s.handleConfig)
@@ -141,6 +148,8 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/api/workspace-docs", s.handleWorkspaceDocs)
 	mux.HandleFunc("/api/restart", s.handleRestart)
 	mux.HandleFunc("/api/update", s.handleUpdate)
+	mux.HandleFunc("/api/sessions", s.handleSessions)
+	mux.HandleFunc("/api/sessions/", s.handleSessionDetail)
 
 	s.server = &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.WebUI.Host, cfg.WebUI.Port),
@@ -241,8 +250,9 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Message string `json:"message"`
-		Files   []struct {
+		Message    string `json:"message"`
+		SessionKey string `json:"session_key"`
+		Files      []struct {
 			Name    string `json:"name"`
 			Type    string `json:"type"`
 			IsText  bool   `json:"isText"`
@@ -252,6 +262,12 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.sendJSONError(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	// Determine session key: use provided key, or generate a new timestamped one.
+	sessionKey := req.SessionKey
+	if sessionKey == "" {
+		sessionKey = "web:ui:" + time.Now().UTC().Format(time.RFC3339)
 	}
 
 	// Separate images (for native vision) from other files (inline text context)
@@ -293,9 +309,9 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	if len(imageDataURLs) > 0 {
-		response, err = s.agentLoop.ProcessDirectWithImages(ctx, fullMessage, "web:ui", imageDataURLs)
+		response, err = s.agentLoop.ProcessDirectWithImages(ctx, fullMessage, sessionKey, imageDataURLs)
 	} else {
-		response, err = s.agentLoop.ProcessDirect(ctx, fullMessage, "web:ui")
+		response, err = s.agentLoop.ProcessDirect(ctx, fullMessage, sessionKey)
 	}
 
 	if err != nil {
@@ -304,7 +320,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"response": response})
+	json.NewEncoder(w).Encode(map[string]string{"response": response, "session_key": sessionKey})
 
 }
 
@@ -691,4 +707,67 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 			os.Exit(1)
 		}
 	}()
+}
+
+// handleSessions handles GET /api/sessions — returns a list of session metadata
+// sorted by most recently updated.
+func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	sm := s.agentLoop.GetDefaultSessionManager()
+	if sm == nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	metas := sm.ListSessions()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(metas)
+}
+
+// handleSessionDetail handles GET /api/sessions/<key> and DELETE /api/sessions/<key>.
+func (s *Server) handleSessionDetail(w http.ResponseWriter, r *http.Request) {
+	// Extract session key from URL path: /api/sessions/<key>
+	key := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
+	if key == "" {
+		s.sendJSONError(w, "Missing session key", http.StatusBadRequest)
+		return
+	}
+
+	sm := s.agentLoop.GetDefaultSessionManager()
+	if sm == nil {
+		s.sendJSONError(w, "Session manager unavailable", http.StatusInternalServerError)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		messages := sm.GetHistory(key)
+		// Filter to user and assistant messages only (hide tool calls/results).
+		type msgView struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		}
+		visible := make([]msgView, 0, len(messages))
+		for _, m := range messages {
+			if m.Role == "user" || m.Role == "assistant" {
+				visible = append(visible, msgView{Role: m.Role, Content: m.Content})
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(visible)
+
+	case http.MethodDelete:
+		if err := sm.DeleteSession(key); err != nil {
+			s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+
+	default:
+		s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
 }

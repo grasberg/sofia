@@ -23,6 +23,7 @@ import (
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/routing"
+	"github.com/grasberg/sofia/pkg/session"
 	"github.com/grasberg/sofia/pkg/skills"
 	"github.com/grasberg/sofia/pkg/state"
 	"github.com/grasberg/sofia/pkg/tools"
@@ -401,7 +402,7 @@ func (al *AgentLoop) ProcessHeartbeat(ctx context.Context, content, channel, cha
 
 func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage) (string, error) {
 	preview := utils.Truncate(msg.Content, 120)
-	logger.InfoCF("agent", fmt.Sprintf("SOFIA: message received — %s", preview),
+	logger.InfoCF("agent:main", fmt.Sprintf("SOFIA: message received — %s", preview),
 		map[string]any{
 			"channel":     msg.Channel,
 			"chat_id":     msg.ChatID,
@@ -444,7 +445,8 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 		sessionKey = msg.SessionKey
 	}
 
-	logger.InfoCF("agent", fmt.Sprintf("ROUTER: routed to agent %q via %s", agent.ID, route.MatchedBy),
+	agentComp := fmt.Sprintf("agent:%s", agent.ID)
+	logger.InfoCF(agentComp, fmt.Sprintf("ROUTER: routed to agent %q via %s", agent.ID, route.MatchedBy),
 		map[string]any{
 			"agent_id":    agent.ID,
 			"session_key": sessionKey,
@@ -457,9 +459,9 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 	// synchronously and fold the result back into Sofia's context.
 	if subagent := al.delegateTo(msg.Content); subagent != nil {
 		score := scoreCandidate(subagent, strings.ToLower(msg.Content))
-		logger.InfoCF("agent", fmt.Sprintf("SOFIA: delegating to %q (score=%.2f, threshold=%.2f)", subagent.Name, score, delegationThreshold),
+		logger.InfoCF(agentComp, fmt.Sprintf("SOFIA: delegating to %q (score=%.2f, threshold=%.2f)", subagent.Name, score, delegationThreshold),
 			map[string]any{
-				"from_agent": "main",
+				"from_agent": agent.ID,
 				"to_agent":   subagent.ID,
 				"agent_name": subagent.Name,
 				"score":      fmt.Sprintf("%.2f", score),
@@ -471,14 +473,14 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 		subResult, err := al.runSpawnedTaskAsAgent(ctx, subagent.ID, "", msg.Content, msg.Channel, msg.ChatID)
 		delegateDur := time.Since(delegateStart).Milliseconds()
 		if err != nil {
-			logger.WarnCF("agent", fmt.Sprintf("SOFIA: delegation to %q failed — falling back to Sofia", subagent.Name),
+			logger.WarnCF(agentComp, fmt.Sprintf("SOFIA: delegation to %q failed — falling back to Sofia", subagent.Name),
 				map[string]any{
 					"to_agent":    subagent.ID,
 					"duration_ms": delegateDur,
 					"error":       err.Error(),
 				})
 		} else {
-			logger.InfoCF("agent", fmt.Sprintf("SOFIA: sub-agent %q done, synthesising result", subagent.Name),
+			logger.InfoCF(agentComp, fmt.Sprintf("SOFIA: sub-agent %q done, synthesising result", subagent.Name),
 				map[string]any{
 					"to_agent":       subagent.ID,
 					"duration_ms":    delegateDur,
@@ -1070,6 +1072,16 @@ func (al *AgentLoop) forceCompression(agent *AgentInstance, sessionKey string) {
 		"dropped_msgs": droppedCount,
 		"new_count":    len(newHistory),
 	})
+}
+
+// GetDefaultSessionManager returns the session manager for the default agent.
+// This is used by the web server to expose session history endpoints.
+func (al *AgentLoop) GetDefaultSessionManager() *session.SessionManager {
+	agent := al.registry.GetDefaultAgent()
+	if agent == nil {
+		return nil
+	}
+	return agent.Sessions
 }
 
 // GetStartupInfo returns information about loaded tools and skills for logging.

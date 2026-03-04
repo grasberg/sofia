@@ -1,0 +1,244 @@
+<!-- HISTORY TAB -->
+<div id="tab-history" class="tab-content active flex flex-col flex-grow min-h-0 gap-4 lg:flex-row">
+
+    <!-- Session List -->
+    <div class="w-full lg:w-80 shrink-0 flex flex-col glass-panel border border-[var(--border-color)] shadow-2xl">
+        <div class="p-3 border-b border-[var(--border-color)] bg-black/40 flex items-center justify-between">
+            <h3 class="text-[9px] font-bold uppercase tracking-[0.2em] text-sofia">Past Conversations</h3>
+            <button onclick="loadHistory()" title="Refresh"
+                class="p-1 text-zinc-600 hover:text-sofia transition-colors">
+                <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+            </button>
+        </div>
+        <div id="history-session-list" class="flex-grow overflow-y-auto p-2 space-y-1">
+            <div class="text-[10px] text-zinc-600 italic p-3 text-center">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Session Detail -->
+    <div class="flex-grow flex flex-col glass-panel border border-[var(--border-color)] shadow-2xl min-h-0">
+        <div class="p-3 border-b border-[var(--border-color)] bg-black/40 flex items-center justify-between">
+            <div>
+                <h3 id="history-detail-title" class="text-[9px] font-bold uppercase tracking-[0.2em] text-sofia">
+                    Select a conversation
+                </h3>
+                <div id="history-detail-meta" class="text-[9px] text-zinc-600 font-mono mt-0.5 hidden"></div>
+            </div>
+            <button id="history-resume-btn" onclick="resumeSession()" title="Resume this conversation in Terminal"
+                class="hidden px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider border border-sofia text-sofia hover:bg-sofia hover:text-black transition-all">
+                Resume
+            </button>
+        </div>
+
+        <div id="history-detail-content" class="flex-grow overflow-y-auto p-4 lg:p-6 space-y-6">
+            <div class="flex items-center justify-center h-full">
+                <p class="text-[10px] text-zinc-700 italic uppercase tracking-widest">
+                    Select a conversation from the list
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let activeHistorySessionKey = null;
+
+    function channelBadgeClass(channel) {
+        const map = {
+            web: 'bg-sofia/10 text-sofia border-sofia/30',
+            telegram: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+            discord: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+            slack: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+            cli: 'bg-zinc-700/30 text-zinc-400 border-zinc-600/30',
+            subagent: 'bg-green-500/10 text-green-400 border-green-500/30',
+        };
+        return map[channel] || 'bg-zinc-700/30 text-zinc-400 border-zinc-600/30';
+    }
+
+    function formatRelativeTime(isoString) {
+        if (!isoString) return '';
+        const d = new Date(isoString);
+        if (isNaN(d)) return '';
+        const now = new Date();
+        const diff = now - d;
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return 'just now';
+        if (mins < 60) return mins + 'm ago';
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return hrs + 'h ago';
+        const days = Math.floor(hrs / 24);
+        if (days < 30) return days + 'd ago';
+        return d.toLocaleDateString();
+    }
+
+    function formatFullDate(isoString) {
+        if (!isoString) return '';
+        const d = new Date(isoString);
+        if (isNaN(d)) return isoString;
+        return d.toLocaleString();
+    }
+
+    async function loadHistory() {
+        const list = document.getElementById('history-session-list');
+        list.innerHTML = '<div class="text-[10px] text-zinc-600 italic p-3 text-center">Loading...</div>';
+        try {
+            const res = await fetch('/api/sessions');
+            if (!res.ok) throw new Error('Failed to load sessions');
+            const sessions = await res.json();
+
+            if (!sessions || sessions.length === 0) {
+                list.innerHTML = '<div class="text-[10px] text-zinc-600 italic p-3 text-center">No conversations yet.</div>';
+                return;
+            }
+
+            list.innerHTML = sessions.map(function(s) {
+                const badgeClass = channelBadgeClass(s.channel);
+                const isActive = s.key === activeHistorySessionKey;
+                const activeBorder = isActive ? 'border-sofia bg-sofia/5' : 'border-transparent hover:border-[var(--border-color)]';
+                const preview = s.preview || '(no messages)';
+                const msgCount = s.message_count || 0;
+                const safeKey = encodeURIComponent(s.key);
+                return '<div class="group flex items-start gap-2 p-2 cursor-pointer border ' + activeBorder + ' transition-all rounded-sm" ' +
+                    'onclick="loadSessionDetail(\'' + s.key.replace(/'/g, "\\'") + '\')" ' +
+                    'data-session-key="' + s.key.replace(/"/g, '&quot;') + '">' +
+                    '<div class="flex-grow overflow-hidden">' +
+                    '<div class="flex items-center gap-1.5 mb-1">' +
+                    '<span class="px-1 py-0.5 text-[8px] font-bold uppercase border ' + badgeClass + '">' + (s.channel || 'web') + '</span>' +
+                    '<span class="text-[9px] text-zinc-600 font-mono">' + formatRelativeTime(s.updated) + '</span>' +
+                    '<span class="text-[8px] text-zinc-700">' + msgCount + ' msg' + (msgCount !== 1 ? 's' : '') + '</span>' +
+                    '</div>' +
+                    '<div class="text-[10px] text-zinc-400 truncate leading-relaxed">' + escapeHtml(preview) + '</div>' +
+                    '</div>' +
+                    '<button onclick="confirmDeleteSession(event, \'' + s.key.replace(/'/g, "\\'") + '\')" ' +
+                    'title="Delete" class="shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 p-1 text-zinc-600 hover:text-red-400 transition-all">' +
+                    '<i data-lucide="trash-2" class="w-3 h-3"></i>' +
+                    '</button>' +
+                    '</div>';
+            }).join('');
+
+            refreshIcons();
+        } catch (e) {
+            list.innerHTML = '<div class="text-[10px] text-red-400 italic p-3 text-center">Error loading sessions.</div>';
+            console.error('History load failed', e);
+        }
+    }
+
+    async function loadSessionDetail(key) {
+        activeHistorySessionKey = key;
+
+        // Highlight active item in list
+        document.querySelectorAll('#history-session-list [data-session-key]').forEach(function(el) {
+            const elKey = el.getAttribute('data-session-key');
+            if (elKey === key) {
+                el.classList.add('border-sofia', 'bg-sofia/5');
+                el.classList.remove('border-transparent');
+            } else {
+                el.classList.remove('border-sofia', 'bg-sofia/5');
+                el.classList.add('border-transparent');
+            }
+        });
+
+        const titleEl = document.getElementById('history-detail-title');
+        const metaEl = document.getElementById('history-detail-meta');
+        const contentEl = document.getElementById('history-detail-content');
+        const resumeBtn = document.getElementById('history-resume-btn');
+
+        titleEl.textContent = key;
+        contentEl.innerHTML = '<div class="flex items-center justify-center h-full"><p class="text-[10px] text-zinc-600 italic animate-pulse">Loading transcript...</p></div>';
+        metaEl.classList.add('hidden');
+        resumeBtn.classList.add('hidden');
+
+        try {
+            const res = await fetch('/api/sessions/' + encodeURIComponent(key));
+            if (!res.ok) throw new Error('Failed to load session');
+            const messages = await res.json();
+
+            if (!messages || messages.length === 0) {
+                contentEl.innerHTML = '<div class="flex items-center justify-center h-full"><p class="text-[10px] text-zinc-600 italic">This conversation has no messages.</p></div>';
+                return;
+            }
+
+            // Shorten title to last segment of key
+            const keyParts = key.split(':');
+            const shortTitle = keyParts.length > 2 ? keyParts.slice(0, 2).join(':') + ':…' : key;
+            titleEl.textContent = shortTitle;
+            metaEl.textContent = key;
+            metaEl.classList.remove('hidden');
+
+            // Show resume button for web sessions
+            if (key.startsWith('web:')) {
+                resumeBtn.classList.remove('hidden');
+            }
+
+            contentEl.innerHTML = messages.map(function(m) {
+                const isUser = m.role === 'user';
+                const bubbleClass = isUser
+                    ? 'bg-zinc-900/60 border border-zinc-700/50 text-zinc-200 self-end ml-8'
+                    : 'chat-bubble-sofia text-zinc-300 mr-8';
+                const label = isUser ? 'You' : 'Sofia';
+                const labelClass = isUser ? 'text-zinc-500' : 'text-sofia';
+                const content = escapeHtml(m.content || '').replace(/\n/g, '<br>');
+                return '<div class="flex gap-3 animate-fade-in ' + (isUser ? 'flex-row-reverse' : '') + '">' +
+                    (isUser
+                        ? '<div class="w-7 h-7 bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0"><i data-lucide="user" class="w-3.5 h-3.5 text-zinc-400"></i></div>'
+                        : '<div class="w-7 h-7 bg-sofia/10 border border-sofia/20 flex items-center justify-center shrink-0"><img src="/assets/sofiamantis.png" class="w-4 h-4 opacity-80"></div>') +
+                    '<div class="' + bubbleClass + ' px-4 py-3 text-xs leading-relaxed max-w-[85%]">' +
+                    '<div class="text-[8px] font-bold uppercase tracking-widest ' + labelClass + ' mb-1.5">' + label + '</div>' +
+                    content +
+                    '</div>' +
+                    '</div>';
+            }).join('');
+
+            refreshIcons();
+        } catch (e) {
+            contentEl.innerHTML = '<div class="flex items-center justify-center h-full"><p class="text-[10px] text-red-400 italic">Error loading transcript.</p></div>';
+            console.error('Session detail failed', e);
+        }
+    }
+
+    async function confirmDeleteSession(event, key) {
+        event.stopPropagation();
+        if (!confirm('Delete this conversation? This cannot be undone.')) return;
+        try {
+            const res = await fetch('/api/sessions/' + encodeURIComponent(key), { method: 'DELETE' });
+            if (!res.ok) throw new Error('Delete failed');
+            if (activeHistorySessionKey === key) {
+                activeHistorySessionKey = null;
+                document.getElementById('history-detail-title').textContent = 'Select a conversation';
+                document.getElementById('history-detail-meta').classList.add('hidden');
+                document.getElementById('history-resume-btn').classList.add('hidden');
+                document.getElementById('history-detail-content').innerHTML =
+                    '<div class="flex items-center justify-center h-full"><p class="text-[10px] text-zinc-700 italic uppercase tracking-widest">Select a conversation from the list</p></div>';
+            }
+            loadHistory();
+        } catch (e) {
+            alert('Failed to delete conversation.');
+            console.error('Delete session failed', e);
+        }
+    }
+
+    function resumeSession() {
+        if (!activeHistorySessionKey) return;
+        // Switch to Terminal tab and set the session key
+        const navChat = document.getElementById('nav-chat');
+        if (navChat) {
+            navChat.click();
+        }
+        // Signal chat to resume this session
+        if (typeof setActiveSessionKey === 'function') {
+            setActiveSessionKey(activeHistorySessionKey);
+        }
+    }
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // Load sessions when this view is injected
+    loadHistory();
+</script>

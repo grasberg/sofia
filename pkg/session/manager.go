@@ -4,12 +4,23 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/grasberg/sofia/pkg/providers"
 )
+
+// SessionMeta is a lightweight summary of a session used for listing history.
+type SessionMeta struct {
+	Key          string    `json:"key"`
+	Channel      string    `json:"channel"`
+	Preview      string    `json:"preview"`
+	MessageCount int       `json:"message_count"`
+	Created      time.Time `json:"created"`
+	Updated      time.Time `json:"updated"`
+}
 
 type Session struct {
 	Key      string              `json:"key"`
@@ -263,6 +274,86 @@ func (sm *SessionManager) loadSessions() error {
 	}
 
 	return nil
+}
+
+// inferChannel extracts a human-readable channel name from a session key.
+// Example keys: "web:ui:2026-03-04T10:00:00Z", "agent:main:telegram:direct:123", "web:ui".
+func inferChannel(key string) string {
+	switch {
+	case strings.HasPrefix(key, "web:"):
+		return "web"
+	case strings.Contains(key, ":telegram:"):
+		return "telegram"
+	case strings.Contains(key, ":discord:"):
+		return "discord"
+	case strings.Contains(key, ":slack:"):
+		return "slack"
+	case strings.HasPrefix(key, "subagent:"):
+		return "subagent"
+	case key == "heartbeat":
+		return "heartbeat"
+	default:
+		return "cli"
+	}
+}
+
+// ListSessions returns lightweight metadata for all loaded sessions, sorted
+// by Updated descending (most recent first).
+func (sm *SessionManager) ListSessions() []SessionMeta {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	metas := make([]SessionMeta, 0, len(sm.sessions))
+	for _, s := range sm.sessions {
+		// Build a short preview from the first user message.
+		preview := ""
+		for _, m := range s.Messages {
+			if m.Role == "user" && m.Content != "" {
+				preview = m.Content
+				if len(preview) > 80 {
+					preview = preview[:80] + "…"
+				}
+				break
+			}
+		}
+		metas = append(metas, SessionMeta{
+			Key:          s.Key,
+			Channel:      inferChannel(s.Key),
+			Preview:      preview,
+			MessageCount: len(s.Messages),
+			Created:      s.Created,
+			Updated:      s.Updated,
+		})
+	}
+
+	sort.Slice(metas, func(i, j int) bool {
+		return metas[i].Updated.After(metas[j].Updated)
+	})
+
+	return metas
+}
+
+// DeleteSession removes a session from memory and deletes its file on disk.
+func (sm *SessionManager) DeleteSession(key string) error {
+	sm.mu.Lock()
+	delete(sm.sessions, key)
+	sm.mu.Unlock()
+
+	if sm.storage == "" {
+		return nil
+	}
+
+	filename := sanitizeFilename(key)
+	if filename == "." || !filepath.IsLocal(filename) || strings.ContainsAny(filename, `/\`) {
+		return os.ErrInvalid
+	}
+
+	sessionPath := filepath.Join(sm.storage, filename+".json")
+	err := os.Remove(sessionPath)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
 }
 
 // SetHistory updates the messages of a session.
