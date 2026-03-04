@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/grasberg/sofia/pkg/config"
 	"os"
+
+	"github.com/grasberg/sofia/pkg/config"
 )
 
 func main() {

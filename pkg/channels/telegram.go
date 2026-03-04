@@ -171,10 +171,10 @@ func (c *TelegramChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 
 	if msg.Type == "thinking" {
 		// Thinking indicator
-		err := c.bot.SendChatAction(ctx, tu.ChatAction(tu.ID(chatID), telego.ChatActionTyping))
-		if err != nil {
+		botErr := c.bot.SendChatAction(ctx, tu.ChatAction(tu.ID(chatID), telego.ChatActionTyping))
+		if botErr != nil {
 			logger.ErrorCF("telegram", "Failed to send chat action", map[string]any{
-				"error": err.Error(),
+				"error": botErr.Error(),
 			})
 		}
 
@@ -189,8 +189,8 @@ func (c *TelegramChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 		_, thinkCancel := context.WithTimeout(ctx, 5*time.Minute)
 		c.stopThinking.Store(msg.ChatID, &thinkingCancel{fn: thinkCancel})
 
-		pMsg, err := c.bot.SendMessage(ctx, tu.Message(tu.ID(chatID), "Thinking... 💭"))
-		if err == nil {
+		pMsg, pErr := c.bot.SendMessage(ctx, tu.Message(tu.ID(chatID), "Thinking... 💭"))
+		if pErr == nil {
 			pID := pMsg.MessageID
 			c.placeholders.Store(msg.ChatID, pID)
 		}

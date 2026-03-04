@@ -321,7 +321,6 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"response": response, "session_key": sessionKey})
-
 }
 
 func (s *Server) sendJSONError(w http.ResponseWriter, message string, code int) {
@@ -347,7 +346,10 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 
 	// Send initial message if history is empty
 	if len(history) == 0 {
-		fmt.Fprintf(w, "data: {\"message\": \"Connected to log stream...\", \"level\": \"INFO\", \"component\": \"web\"}\n\n")
+		fmt.Fprintf(
+			w,
+			"data: {\"message\": \"Connected to log stream...\", \"level\": \"INFO\", \"component\": \"web\"}\n\n",
+		)
 	}
 
 	if f, ok := w.(http.Flusher); ok {

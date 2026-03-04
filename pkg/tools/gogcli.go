@@ -104,8 +104,8 @@ func (t *GoogleCLITool) Execute(ctx context.Context, args map[string]any) *ToolR
 		}
 	}
 
-	if batchIDs, ok, err := parseBatchIDs(args["batch_ids"]); err != nil {
-		return ErrorResult(err.Error())
+	if batchIDs, ok, batchErr := parseBatchIDs(args["batch_ids"]); batchErr != nil {
+		return ErrorResult(batchErr.Error())
 	} else if ok {
 		var injectErr error
 		commandArgs, injectErr = injectBatchIDs(commandArgs, batchIDs)
@@ -179,7 +179,9 @@ func (t *GoogleCLITool) Execute(ctx context.Context, args map[string]any) *ToolR
 
 	if err != nil {
 		if isBinaryNotFound(err) {
-			return ErrorResult(fmt.Sprintf("gog binary not found at %q. Install gogcli and ensure it is in PATH", t.binaryPath))
+			return ErrorResult(
+				fmt.Sprintf("gog binary not found at %q. Install gogcli and ensure it is in PATH", t.binaryPath),
+			)
 		}
 		if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
 			msg := fmt.Sprintf("gog command timed out after %v", timeout)

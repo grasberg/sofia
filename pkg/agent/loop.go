@@ -355,7 +355,11 @@ func (al *AgentLoop) ProcessDirect(ctx context.Context, content, sessionKey stri
 
 // ProcessDirectWithImages sends a message with optional image attachments directly
 // to the default agent, bypassing channel routing. Images must be base64 data URLs.
-func (al *AgentLoop) ProcessDirectWithImages(ctx context.Context, content, sessionKey string, images []string) (string, error) {
+func (al *AgentLoop) ProcessDirectWithImages(
+	ctx context.Context,
+	content, sessionKey string,
+	images []string,
+) (string, error) {
 	agent := al.registry.GetDefaultAgent()
 	return al.runAgentLoop(ctx, agent, processOptions{
 		SessionKey:      sessionKey,
@@ -459,7 +463,14 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 	// synchronously and fold the result back into Sofia's context.
 	if subagent := al.delegateTo(msg.Content); subagent != nil {
 		score := scoreCandidate(subagent, strings.ToLower(msg.Content))
-		logger.InfoCF(agentComp, fmt.Sprintf("SOFIA: delegating to %q (score=%.2f, threshold=%.2f)", subagent.Name, score, delegationThreshold),
+		logger.InfoCF(
+			agentComp,
+			fmt.Sprintf(
+				"SOFIA: delegating to %q (score=%.2f, threshold=%.2f)",
+				subagent.Name,
+				score,
+				delegationThreshold,
+			),
 			map[string]any{
 				"from_agent": agent.ID,
 				"to_agent":   subagent.ID,
@@ -468,26 +479,30 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 				"threshold":  fmt.Sprintf("%.2f", delegationThreshold),
 				"reason":     "skills+purpose+hint match",
 				"preview":    utils.Truncate(msg.Content, 120),
-			})
+			},
+		)
 		delegateStart := time.Now()
 		subResult, err := al.runSpawnedTaskAsAgent(ctx, subagent.ID, "", msg.Content, msg.Channel, msg.ChatID)
 		delegateDur := time.Since(delegateStart).Milliseconds()
 		if err != nil {
-			logger.WarnCF(agentComp, fmt.Sprintf("SOFIA: delegation to %q failed — falling back to Sofia", subagent.Name),
+			logger.WarnCF(
+				agentComp,
+				fmt.Sprintf("SOFIA: delegation to %q failed — falling back to Sofia", subagent.Name),
 				map[string]any{
 					"to_agent":    subagent.ID,
 					"duration_ms": delegateDur,
 					"error":       err.Error(),
-				})
+				},
+			)
 		} else {
-			logger.InfoCF(agentComp, fmt.Sprintf("SOFIA: sub-agent %q done, synthesising result", subagent.Name),
+			logger.InfoCF(agentComp, fmt.Sprintf("SOFIA: sub-agent %q done, synthesizing result", subagent.Name),
 				map[string]any{
 					"to_agent":       subagent.ID,
 					"duration_ms":    delegateDur,
 					"result_len":     len(subResult),
 					"result_preview": utils.Truncate(subResult, 160),
 				})
-			// Let Sofia synthesise and present the sub-agent's result to the user.
+			// Let Sofia synthesize and present the sub-agent's result to the user.
 			synthesisMsg := fmt.Sprintf("[Subagent result from %s]\n\n%s", subagent.Name, subResult)
 			return al.runAgentLoop(ctx, agent, processOptions{
 				SessionKey:      sessionKey,
@@ -641,12 +656,15 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 	// 4. Run LLM iteration loop
 	isSynthesis := strings.HasPrefix(opts.UserMessage, "[Subagent result from")
 	if isSynthesis {
-		logger.InfoCF(agentComp, fmt.Sprintf("SOFIA: synthesis start — presenting sub-agent result via model %s", agent.Model),
+		logger.InfoCF(
+			agentComp,
+			fmt.Sprintf("SOFIA: synthesis start — presenting sub-agent result via model %s", agent.Model),
 			map[string]any{
 				"model":       agent.Model,
 				"session_key": opts.SessionKey,
 				"input_len":   len(opts.UserMessage),
-			})
+			},
+		)
 	} else {
 		logger.InfoCF(agentComp, fmt.Sprintf("SOFIA: generating response — model %s", agent.Model),
 			map[string]any{
@@ -834,13 +852,16 @@ func (al *AgentLoop) runLLMIteration(
 		// Check if no tool calls - we're done
 		if len(response.ToolCalls) == 0 {
 			finalContent = response.Content
-			logger.InfoCF(agentComp, fmt.Sprintf("SOFIA: LLM returned direct answer — %s", utils.Truncate(finalContent, 120)),
+			logger.InfoCF(
+				agentComp,
+				fmt.Sprintf("SOFIA: LLM returned direct answer — %s", utils.Truncate(finalContent, 120)),
 				map[string]any{
 					"agent_id":         agent.ID,
 					"iteration":        iteration,
 					"content_len":      len(finalContent),
 					"response_preview": utils.Truncate(finalContent, 120),
-				})
+				},
+			)
 			break
 		}
 
@@ -854,13 +875,16 @@ func (al *AgentLoop) runLLMIteration(
 		for _, tc := range normalizedToolCalls {
 			toolNames = append(toolNames, tc.Name)
 		}
-		logger.InfoCF(agentComp, fmt.Sprintf("TOOL: LLM requested %d tool(s): %s", len(normalizedToolCalls), strings.Join(toolNames, ", ")),
+		logger.InfoCF(
+			agentComp,
+			fmt.Sprintf("TOOL: LLM requested %d tool(s): %s", len(normalizedToolCalls), strings.Join(toolNames, ", ")),
 			map[string]any{
 				"agent_id":  agent.ID,
 				"tools":     toolNames,
 				"count":     len(normalizedToolCalls),
 				"iteration": iteration,
-			})
+			},
+		)
 
 		// Build assistant message with tool calls
 		assistantMsg := providers.Message{
@@ -1399,7 +1423,10 @@ func (al *AgentLoop) handleCommand(ctx context.Context, msg bus.InboundMessage) 
 			// Validate the model name against model_list
 			mc, err := al.cfg.GetModelConfig(value)
 			if err != nil || mc == nil {
-				return fmt.Sprintf("Model %q not found in model_list. Use /list models to see available models.", value), true
+				return fmt.Sprintf(
+					"Model %q not found in model_list. Use /list models to see available models.",
+					value,
+				), true
 			}
 			oldModel := defaultAgent.Model
 			defaultAgent.Model = value

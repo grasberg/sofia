@@ -84,7 +84,9 @@ func (sm *SubagentManager) RegisterTool(tool Tool) {
 // SetAgentTaskRunner configures delegated execution for targeted agent spawns.
 // When set, Spawn/agent_id will execute using that agent's configured runtime
 // (model, prompt/template, tools) instead of the manager's default model.
-func (sm *SubagentManager) SetAgentTaskRunner(runner func(ctx context.Context, agentID, sessionKey, task, originChannel, originChatID string) (string, error)) {
+func (sm *SubagentManager) SetAgentTaskRunner(
+	runner func(ctx context.Context, agentID, sessionKey, task, originChannel, originChatID string) (string, error),
+) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	sm.agentTaskRunner = runner

@@ -62,22 +62,7 @@ func TestScoreCandidate_NoMatch(t *testing.T) {
 // --- delegateTo integration tests ---
 
 // stubRegistry implements the minimum registry surface needed by delegateTo.
-type stubRegistry struct {
-	agents map[string]*AgentInstance
-}
-
-func (s *stubRegistry) ListAgentIDs() []string {
-	ids := make([]string, 0, len(s.agents))
-	for id := range s.agents {
-		ids = append(ids, id)
-	}
-	return ids
-}
-
-func (s *stubRegistry) GetAgent(id string) (*AgentInstance, bool) {
-	a, ok := s.agents[id]
-	return a, ok
-}
+// remove stubRegistry entirely
 
 // agentLister is the interface delegateTo uses on al.registry.
 // We satisfy it with stubRegistry via an adapter AgentLoop.

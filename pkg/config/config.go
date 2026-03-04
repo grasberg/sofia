@@ -59,7 +59,7 @@ type Config struct {
 	Heartbeat HeartbeatConfig `json:"heartbeat"`
 	Devices   DevicesConfig   `json:"devices"`
 	WebUI     WebUIConfig     `json:"webui"`
-	UserName  string          `json:"user_name" env:"SOFIA_USER_NAME"`
+	UserName  string          `json:"user_name"           env:"SOFIA_USER_NAME"`
 }
 
 type WebUIConfig struct {
@@ -474,7 +474,7 @@ func LoadConfig(path string) (*Config, error) {
 
 	// Ensure the main/default agent is always present in agents.list.
 	// This handles existing configs written before the main agent was added to
-	// DefaultConfig, so existing users get the correct behaviour on upgrade.
+	// DefaultConfig, so existing users get the correct behavior on upgrade.
 	ensureMainAgent(cfg)
 
 	// Validate model_list for uniqueness and required fields

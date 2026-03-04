@@ -9,7 +9,12 @@ import (
 )
 
 // testCfgWithModelList builds a Config with a model_list for model alias tests.
-func testCfgWithModelList(tmpDir string, modelList []config.ModelConfig, defaultModelName string, agents []config.AgentConfig) *config.Config {
+func testCfgWithModelList(
+	tmpDir string,
+	modelList []config.ModelConfig,
+	defaultModelName string,
+	agents []config.AgentConfig,
+) *config.Config {
 	return &config.Config{
 		Agents: config.AgentsConfig{
 			Defaults: config.AgentDefaults{
@@ -189,7 +194,10 @@ func TestSwitchCommand_ValidModel(t *testing.T) {
 
 	// Execute the /switch command via handleCommand
 	inMsg := newTestInboundMessage("/switch model to ModelB")
-	resp, handled := al.handleCommand(nil, inMsg) //nolint:staticcheck // context is unused in handleCommand for commands
+	resp, handled := al.handleCommand(
+		nil,
+		inMsg,
+	) //nolint:staticcheck // context is unused in handleCommand for commands
 	if !handled {
 		t.Fatal("expected /switch to be handled")
 	}
