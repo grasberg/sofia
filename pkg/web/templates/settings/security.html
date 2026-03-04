@@ -1,0 +1,23 @@
+<div id="settings-subtab-security" class="h-full flex flex-col">
+                        <div class="flex-grow min-h-0 overflow-y-auto pr-2">
+                            <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+                                <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Workspace Security</h3>
+
+                                <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                                    <div class="flex items-start justify-between">
+                                        <div class="space-y-1 pr-6">
+                                            <h4 class="text-sm font-semibold text-[var(--text-main)]">Restrict to Workspace</h4>
+                                            <p class="text-[11px] leading-relaxed text-zinc-500">
+                                                When enabled, Sofia's file and command tools are strictly sandboxed to the configured workspace path.
+                                                This prevents accidental modification of system files or parent directories.
+                                            </p>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                                            <input type="checkbox" id="cfg-restrict-workspace" class="sr-only peer" onchange="saveConfig()">
+                                            <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>

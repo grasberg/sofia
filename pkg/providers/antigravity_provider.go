@@ -172,6 +172,12 @@ type antigravityPart struct {
 	ThoughtSignatureSnake string                       `json:"thought_signature,omitempty"`
 	FunctionCall          *antigravityFunctionCall     `json:"functionCall,omitempty"`
 	FunctionResponse      *antigravityFunctionResponse `json:"functionResponse,omitempty"`
+	InlineData            *antigravityInlineData       `json:"inlineData,omitempty"`
+}
+
+type antigravityInlineData struct {
+	MIMEType string `json:"mimeType"`
+	Data     string `json:"data"` // base64-encoded image bytes
 }
 
 type antigravityFunctionCall struct {
@@ -235,9 +241,28 @@ func (p *AntigravityProvider) buildRequest(
 					}},
 				})
 			} else {
+				// Build user message parts — text first, then any image inlineData
+				var parts []antigravityPart
+				if msg.Content != "" {
+					parts = append(parts, antigravityPart{Text: msg.Content})
+				}
+				for _, dataURL := range msg.Images {
+					mimeType, b64data, ok := parseDataURL(dataURL)
+					if ok {
+						parts = append(parts, antigravityPart{
+							InlineData: &antigravityInlineData{
+								MIMEType: mimeType,
+								Data:     b64data,
+							},
+						})
+					}
+				}
+				if len(parts) == 0 {
+					parts = []antigravityPart{{Text: ""}}
+				}
 				req.Contents = append(req.Contents, antigravityContent{
 					Role:  "user",
-					Parts: []antigravityPart{{Text: msg.Content}},
+					Parts: parts,
 				})
 			}
 		case "assistant":
@@ -747,6 +772,26 @@ type AntigravityModelInfo struct {
 }
 
 // --- Helpers ---
+
+// parseDataURL splits a data URL like "data:image/png;base64,<data>" into
+// mimeType and base64-encoded data. Returns ok=false if the format is invalid.
+func parseDataURL(dataURL string) (mimeType, b64data string, ok bool) {
+	if !strings.HasPrefix(dataURL, "data:") {
+		return "", "", false
+	}
+	rest := strings.TrimPrefix(dataURL, "data:")
+	semicolon := strings.Index(rest, ";")
+	if semicolon < 0 {
+		return "", "", false
+	}
+	mimeType = rest[:semicolon]
+	after := rest[semicolon+1:]
+	if !strings.HasPrefix(after, "base64,") {
+		return "", "", false
+	}
+	b64data = strings.TrimPrefix(after, "base64,")
+	return mimeType, b64data, true
+}
 
 func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {

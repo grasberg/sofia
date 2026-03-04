@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/grasberg/sofia/cmd/sofia/internal"
 	"github.com/grasberg/sofia/pkg/config"
@@ -64,72 +65,25 @@ func installAntigravityKit() error {
 		return nil
 	}
 
-	// Where is it located relative to us?
-	// It's checked into the repo at third_party/antigravity-kit
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	sourceDir := filepath.Join(wd, "third_party", "antigravity-kit")
-	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
-		// Maybe relative to the executable path
-		exePath, err := os.Executable()
-		if err == nil {
-			sourceDir = filepath.Join(filepath.Dir(exePath), "..", "third_party", "antigravity-kit")
-			if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
-				return fmt.Errorf("could not find third_party/antigravity-kit in %s or %s", wd, filepath.Dir(exePath))
-			}
-		} else {
-			return fmt.Errorf("could not find third_party/antigravity-kit in %s", wd)
-		}
-	}
-
-	fmt.Printf("Copying antigravity-kit templates to %s...\n", targetDir)
-	return copyDir(sourceDir, targetDir)
-}
-
-func copyDir(src string, dst string) error {
-	return filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		relPath, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-
-		targetPath := filepath.Join(dst, relPath)
-
-		if info.IsDir() {
-			return os.MkdirAll(targetPath, info.Mode())
-		}
-
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		return os.WriteFile(targetPath, data, info.Mode())
-	})
+	fmt.Printf("Installing bundled antigravity-kit to %s...\n", targetDir)
+	return copyEmbeddedTree("antigravity-kit", targetDir)
 }
 
 func createWorkspaceTemplates(workspace string) {
-	err := copyEmbeddedToTarget(workspace)
+	err := copyEmbeddedTree("workspace", workspace)
 	if err != nil {
 		fmt.Printf("Error copying workspace templates: %v\n", err)
 	}
 }
 
-func copyEmbeddedToTarget(targetDir string) error {
+func copyEmbeddedTree(embeddedRoot string, targetDir string) error {
 	// Ensure target directory exists
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return fmt.Errorf("Failed to create target directory: %w", err)
 	}
 
 	// Walk through all files in embed.FS
-	err := fs.WalkDir(embeddedFiles, "workspace", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(embeddedFiles, embeddedRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -139,13 +93,17 @@ func copyEmbeddedToTarget(targetDir string) error {
 			return nil
 		}
 
+		if strings.HasSuffix(path, ".DS_Store") {
+			return nil
+		}
+
 		// Read embedded file
 		data, err := embeddedFiles.ReadFile(path)
 		if err != nil {
 			return fmt.Errorf("Failed to read embedded file %s: %w", path, err)
 		}
 
-		new_path, err := filepath.Rel("workspace", path)
+		new_path, err := filepath.Rel(embeddedRoot, path)
 		if err != nil {
 			return fmt.Errorf("Failed to get relative path for %s: %v\n", path, err)
 		}

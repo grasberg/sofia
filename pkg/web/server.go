@@ -23,6 +23,36 @@ import (
 //go:embed templates/layout.html
 var layoutHTML []byte
 
+//go:embed templates/chat.html
+var chatHTML []byte
+
+//go:embed templates/agents.html
+var agentsHTML []byte
+
+//go:embed templates/settings/models.html
+var settingsModelsHTML []byte
+
+//go:embed templates/settings/channels.html
+var settingsChannelsHTML []byte
+
+//go:embed templates/settings/tools.html
+var settingsToolsHTML []byte
+
+//go:embed templates/settings/skills.html
+var settingsSkillsHTML []byte
+
+//go:embed templates/settings/heartbeat.html
+var settingsHeartbeatHTML []byte
+
+//go:embed templates/settings/security.html
+var settingsSecurityHTML []byte
+
+//go:embed templates/settings/prompts.html
+var settingsPromptsHTML []byte
+
+//go:embed templates/settings/logs.html
+var settingsLogsHTML []byte
+
 type Server struct {
 	cfg            *config.Config
 	agentLoop      *agent.AgentLoop
@@ -44,6 +74,61 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	assetsDir := resolveAssetsDir()
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir(assetsDir))))
 	mux.HandleFunc("/", s.handleIndex)
+
+	// HTMX Partials
+	mux.HandleFunc("/ui/chat", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(chatHTML)
+	})
+	mux.HandleFunc("/ui/agents", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(agentsHTML)
+	})
+	mux.HandleFunc("/ui/settings", func(w http.ResponseWriter, r *http.Request) {
+		// Default settings view is models
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(`
+<!-- SETTINGS TAB (HTMX Shell) -->
+<div id="tab-settings" class="h-full">
+	<div id="subtab-content" class="h-full flex flex-col" hx-get="/ui/settings/models" hx-trigger="load">
+		<!-- HTMX will inject models.html here by default -->
+	</div>
+</div>
+		`))
+	})
+	mux.HandleFunc("/ui/settings/models", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsModelsHTML)
+	})
+	mux.HandleFunc("/ui/settings/channels", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsChannelsHTML)
+	})
+	mux.HandleFunc("/ui/settings/tools", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsToolsHTML)
+	})
+	mux.HandleFunc("/ui/settings/skills", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsSkillsHTML)
+	})
+	mux.HandleFunc("/ui/settings/heartbeat", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsHeartbeatHTML)
+	})
+	mux.HandleFunc("/ui/settings/security", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsSecurityHTML)
+	})
+	mux.HandleFunc("/ui/settings/prompts", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsPromptsHTML)
+	})
+	mux.HandleFunc("/ui/settings/logs", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsLogsHTML)
+	})
+
 	mux.HandleFunc("/api/status", s.handleStatus)
 	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/chat", s.handleChat)
@@ -156,14 +241,62 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 
 	var req struct {
 		Message string `json:"message"`
+		Files   []struct {
+			Name    string `json:"name"`
+			Type    string `json:"type"`
+			IsText  bool   `json:"isText"`
+			Content string `json:"content"` // plain text if isText, base64 data URL if image/binary
+		} `json:"files"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.sendJSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	// Separate images (for native vision) from other files (inline text context)
+	fullMessage := req.Message
+	var imageDataURLs []string
+
+	if len(req.Files) > 0 {
+		var fileContext strings.Builder
+		hasTextFiles := false
+
+		for _, f := range req.Files {
+			// Image files → pass as native vision data URLs
+			if strings.HasPrefix(f.Type, "image/") {
+				imageDataURLs = append(imageDataURLs, "data:"+f.Type+";base64,"+f.Content)
+				continue
+			}
+			// Other files → embed as text context
+			hasTextFiles = true
+			fileContext.WriteString("=== FILE: " + f.Name + " ===\n")
+			if f.IsText {
+				fileContext.WriteString(f.Content)
+			} else {
+				fileContext.WriteString("[Binary file: " + f.Name + " (" + f.Type + ") — cannot display inline]\n")
+			}
+			fileContext.WriteString("\n=== END OF: " + f.Name + " ===\n\n")
+		}
+
+		if hasTextFiles {
+			prefix := "The user has attached the following file(s) for you to read:\n\n" + fileContext.String()
+			if fullMessage != "" {
+				prefix += "User message: " + fullMessage
+			}
+			fullMessage = prefix
+		}
+	}
+
 	ctx := context.Background()
-	response, err := s.agentLoop.ProcessDirect(ctx, req.Message, "web:ui")
+	var response string
+	var err error
+
+	if len(imageDataURLs) > 0 {
+		response, err = s.agentLoop.ProcessDirectWithImages(ctx, fullMessage, "web:ui", imageDataURLs)
+	} else {
+		response, err = s.agentLoop.ProcessDirect(ctx, fullMessage, "web:ui")
+	}
+
 	if err != nil {
 		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -171,6 +304,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"response": response})
+
 }
 
 func (s *Server) sendJSONError(w http.ResponseWriter, message string, code int) {
@@ -292,6 +426,9 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Hot-reload agents so agent model changes apply immediately.
+		s.agentLoop.ReloadAgents()
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
 		return
@@ -323,6 +460,9 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 			s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		// Hot-reload agents so deletions apply immediately.
+		s.agentLoop.ReloadAgents()
 
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))

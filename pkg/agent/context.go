@@ -21,6 +21,7 @@ type ContextBuilder struct {
 	userName     string
 	skillsLoader *skills.SkillsLoader
 	memory       *MemoryStore
+	skillsFilter []string
 
 	purposeTemplate     string
 	purposeInstructions string
@@ -45,6 +46,14 @@ func (cb *ContextBuilder) SetPurposeTemplate(template string) {
 
 func (cb *ContextBuilder) SetPurposeInstructions(instructions string) {
 	cb.purposeInstructions = strings.TrimSpace(instructions)
+}
+
+func (cb *ContextBuilder) SetSkillsFilter(skillNames []string) {
+	if len(skillNames) == 0 {
+		cb.skillsFilter = nil
+		return
+	}
+	cb.skillsFilter = append([]string(nil), skillNames...)
 }
 
 func getGlobalConfigDir() string {
@@ -114,7 +123,12 @@ func (cb *ContextBuilder) BuildSystemPrompt() string {
 	}
 
 	// Skills - show summary, AI can read full content with read_file tool
-	skillsSummary := cb.skillsLoader.BuildSkillsSummary()
+	var skillsSummary string
+	if len(cb.skillsFilter) > 0 {
+		skillsSummary = cb.skillsLoader.BuildSkillsSummaryFor(cb.skillsFilter)
+	} else {
+		skillsSummary = cb.skillsLoader.BuildSkillsSummary()
+	}
 	if skillsSummary != "" {
 		parts = append(parts, fmt.Sprintf(`# Skills
 

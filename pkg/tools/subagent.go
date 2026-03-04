@@ -23,19 +23,20 @@ type SubagentTask struct {
 }
 
 type SubagentManager struct {
-	tasks          map[string]*SubagentTask
-	mu             sync.RWMutex
-	provider       providers.LLMProvider
-	defaultModel   string
-	bus            *bus.MessageBus
-	workspace      string
-	tools          *ToolRegistry
-	maxIterations  int
-	maxTokens      int
-	temperature    float64
-	hasMaxTokens   bool
-	hasTemperature bool
-	nextID         int
+	tasks           map[string]*SubagentTask
+	mu              sync.RWMutex
+	provider        providers.LLMProvider
+	defaultModel    string
+	agentTaskRunner func(ctx context.Context, agentID, sessionKey, task, originChannel, originChatID string) (string, error)
+	bus             *bus.MessageBus
+	workspace       string
+	tools           *ToolRegistry
+	maxIterations   int
+	maxTokens       int
+	temperature     float64
+	hasMaxTokens    bool
+	hasTemperature  bool
+	nextID          int
 }
 
 func NewSubagentManager(
@@ -78,6 +79,15 @@ func (sm *SubagentManager) RegisterTool(tool Tool) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	sm.tools.Register(tool)
+}
+
+// SetAgentTaskRunner configures delegated execution for targeted agent spawns.
+// When set, Spawn/agent_id will execute using that agent's configured runtime
+// (model, prompt/template, tools) instead of the manager's default model.
+func (sm *SubagentManager) SetAgentTaskRunner(runner func(ctx context.Context, agentID, sessionKey, task, originChannel, originChatID string) (string, error)) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.agentTaskRunner = runner
 }
 
 func (sm *SubagentManager) Spawn(
@@ -151,7 +161,62 @@ After completing the task, provide a clear summary of what was done.`
 	temperature := sm.temperature
 	hasMaxTokens := sm.hasMaxTokens
 	hasTemperature := sm.hasTemperature
+	agentTaskRunner := sm.agentTaskRunner
 	sm.mu.RUnlock()
+
+	if task.AgentID != "" && agentTaskRunner != nil {
+		content, err := agentTaskRunner(
+			ctx,
+			task.AgentID,
+			"subagent:"+task.ID,
+			task.Task,
+			task.OriginChannel,
+			task.OriginChatID,
+		)
+
+		sm.mu.Lock()
+		var result *ToolResult
+		defer func() {
+			sm.mu.Unlock()
+			if callback != nil && result != nil {
+				callback(ctx, result)
+			}
+		}()
+
+		if err != nil {
+			task.Status = "failed"
+			task.Result = fmt.Sprintf("Error: %v", err)
+			result = &ToolResult{
+				ForLLM:  task.Result,
+				ForUser: "",
+				Silent:  false,
+				IsError: true,
+				Async:   false,
+				Err:     err,
+			}
+		} else {
+			task.Status = "completed"
+			task.Result = content
+			result = &ToolResult{
+				ForLLM:  fmt.Sprintf("Subagent '%s' completed via agent '%s': %s", task.Label, task.AgentID, content),
+				ForUser: content,
+				Silent:  false,
+				IsError: false,
+				Async:   false,
+			}
+		}
+
+		if sm.bus != nil {
+			announceContent := fmt.Sprintf("Task '%s' completed.\n\nResult:\n%s", task.Label, task.Result)
+			sm.bus.PublishInbound(bus.InboundMessage{
+				Channel:  "system",
+				SenderID: fmt.Sprintf("subagent:%s", task.ID),
+				ChatID:   fmt.Sprintf("%s:%s", task.OriginChannel, task.OriginChatID),
+				Content:  announceContent,
+			})
+		}
+		return
+	}
 
 	var llmOptions map[string]any
 	if hasMaxTokens || hasTemperature {

@@ -203,6 +203,51 @@ func (sl *SkillsLoader) BuildSkillsSummary() string {
 	return strings.Join(lines, "\n")
 }
 
+// BuildSkillsSummaryFor returns an XML-style summary limited to the provided
+// skill names. Names that don't exist are ignored.
+func (sl *SkillsLoader) BuildSkillsSummaryFor(skillNames []string) string {
+	if len(skillNames) == 0 {
+		return sl.BuildSkillsSummary()
+	}
+
+	allSkills := sl.ListSkills()
+	if len(allSkills) == 0 {
+		return ""
+	}
+
+	byName := make(map[string]SkillInfo, len(allSkills))
+	for _, s := range allSkills {
+		byName[s.Name] = s
+	}
+
+	var lines []string
+	lines = append(lines, "<skills>")
+	added := 0
+	for _, name := range skillNames {
+		s, ok := byName[name]
+		if !ok {
+			continue
+		}
+		escapedName := escapeXML(s.Name)
+		escapedDesc := escapeXML(s.Description)
+		escapedPath := escapeXML(s.Path)
+
+		lines = append(lines, fmt.Sprintf("  <skill>"))
+		lines = append(lines, fmt.Sprintf("    <name>%s</name>", escapedName))
+		lines = append(lines, fmt.Sprintf("    <description>%s</description>", escapedDesc))
+		lines = append(lines, fmt.Sprintf("    <location>%s</location>", escapedPath))
+		lines = append(lines, fmt.Sprintf("    <source>%s</source>", s.Source))
+		lines = append(lines, "  </skill>")
+		added++
+	}
+	lines = append(lines, "</skills>")
+
+	if added == 0 {
+		return ""
+	}
+	return strings.Join(lines, "\n")
+}
+
 func (sl *SkillsLoader) getSkillMetadata(skillPath string) *SkillMetadata {
 	content, err := os.ReadFile(skillPath)
 	if err != nil {

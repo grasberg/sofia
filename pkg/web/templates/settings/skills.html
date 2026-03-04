@@ -1,0 +1,32 @@
+<div id="settings-subtab-skills" class="h-full flex flex-col">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 h-full">
+                    <!-- Skills List -->
+                    <div class="flex flex-col h-full overflow-hidden">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-lg font-bold text-[var(--text-main)]">Installed Skills</h2>
+                            <div class="relative w-48">
+                                <input type="text" id="skill-search" onkeyup="filterSkills()" placeholder="Search skills..." 
+                                    class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]">
+                                <i data-lucide="search" class="absolute right-3 top-2 w-3.5 h-3.5 text-zinc-600"></i>
+                            </div>
+                        </div>
+                        <div id="skills-list" class="flex-grow overflow-y-auto pr-2 space-y-4">
+                            <p class="text-zinc-500 italic text-sm">Loading library...</p>
+                        </div>
+                    </div>
+
+                    <!-- Tools & Add Skill -->
+                    <div class="flex flex-col gap-6 overflow-hidden">
+                        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl shrink-0 transition-all duration-300">
+                            <h2 class="text-lg font-bold text-[var(--text-main)] mb-4">Install New Skill</h2>
+                            <div class="space-y-4">
+                                <input type="text" id="new-skill-name" placeholder="Skill name (e.g. web-search)" 
+                                    class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-sofia/50 text-[var(--text-main)]">
+                                <textarea id="new-skill-content" rows="4" placeholder="Markdown content (SKILL.md)..." 
+                                    class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:border-sofia/50 text-[var(--text-main)]"></textarea>
+                                <button onclick="addSkill()" class="w-full bg-[var(--bg-sidebar)] hover:bg-[var(--nav-hover)] text-[var(--text-main)] border border-[var(--border-color)] font-bold py-2.5 rounded-xl transition text-sm">Install Skill</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>

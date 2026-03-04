@@ -1,0 +1,19 @@
+<div id="settings-subtab-logs" class="h-full flex flex-col">
+                <div class="glass-panel rounded-xl border border-[var(--border-color)] p-6 flex flex-col flex-grow shadow-2xl transition-all duration-300" >
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 class="text-xl font-bold text-[var(--text-main)]">System Logs</h2>
+                            <p class="text-sm text-zinc-500">Real-time monitoring of system events and agent activity.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="clearLogs()" class="px-4 py-2 bg-[var(--bg-main)] hover:bg-[var(--nav-hover)] border border-[var(--border-color)] rounded-xl text-xs font-medium text-zinc-400 transition-all flex items-center gap-2">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+                    <div id="log-view" class="bg-black/5 dark:bg-black/40 rounded-xl p-6 font-mono text-xs overflow-y-auto text-zinc-500 dark:text-zinc-400 border border-[var(--border-color)] leading-relaxed transition-colors duration-300 flex-grow" >
+                        <div class="text-zinc-600 italic">Connecting to stream...</div>
+                    </div>
+                </div>
+            </div>

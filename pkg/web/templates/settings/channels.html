@@ -1,0 +1,48 @@
+<div id="settings-subtab-channels" class="h-full flex flex-col">
+	<div class="flex-grow min-h-0 overflow-y-auto pr-2">
+                        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Channel Setup</label>
+                            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3">
+                                    <label class="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" id="cfg-telegram" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
+                                        <span class="text-sm font-semibold text-[var(--text-main)]">Telegram</span>
+                                    </label>
+                                    <input type="password" id="cfg-telegram-token" placeholder="Bot token"
+                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                                    <input type="text" id="cfg-telegram-proxy" placeholder="Proxy URL (optional)"
+                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                                    <textarea id="cfg-telegram-allow-from" rows="3" placeholder="Allowed user IDs (comma or newline separated)"
+                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"></textarea>
+                                    <div id="cfg-telegram-warning" class="hidden text-[11px] text-yellow-500">Telegram is enabled but token is empty.</div>
+                                </div>
+
+                                <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3">
+                                    <label class="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" id="cfg-discord" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
+                                        <span class="text-sm font-semibold text-[var(--text-main)]">Discord</span>
+                                    </label>
+                                    <input type="password" id="cfg-discord-token" placeholder="Bot token"
+                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                                    <textarea id="cfg-discord-allow-from" rows="3" placeholder="Allowed user IDs (comma or newline separated)"
+                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"></textarea>
+                                    <label class="flex items-center gap-2 text-xs text-zinc-500">
+                                        <input type="checkbox" id="cfg-discord-mention-only" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
+                                        Respond only when bot is mentioned
+                                    </label>
+                                    <div id="cfg-discord-warning" class="hidden text-[11px] text-yellow-500">Discord is enabled but token is empty.</div>
+                                </div>
+                            </div>
+
+                            <div id="cfg-channels-warning" class="hidden mt-3 text-[11px] text-yellow-500">One or more enabled channels are missing tokens.</div>
+
+                            <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+                                <i data-lucide="save" class="w-4 h-4"></i>
+                                Save changes
+                            </button>
+                        </div>
+
+
+
+	</div>
+</div>

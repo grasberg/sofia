@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="sv">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,12 +10,6 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script>
-        // Check for saved theme or system preference
-        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
 
         tailwind.config = {
             darkMode: "class",
@@ -71,246 +66,39 @@
             }
         }
     </script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-        
-        :root {
-            --sofia-red: #ff4d4d;
-            --bg-main: #f9f9f9;
-            --bg-card: #ffffff;
-            --bg-sidebar: #f3f3f3;
-            --border-color: #e5e7eb;
-            --text-main: #18181b;
-            --text-muted: #71717a;
-            --glass-bg: rgba(255, 255, 255, 0.7);
-            --nav-hover: rgba(0, 0, 0, 0.05);
-        }
+    <link rel="stylesheet" href="/assets/style.css">
 
-        .dark {
-            --bg-main: #080808;
-            --bg-card: #111111;
-            --bg-sidebar: #050505;
-            --border-color: #222222;
-            --text-main: #e0e0e0;
-            --text-muted: #888888;
-            --glass-bg: rgba(17, 17, 17, 0.7);
-            --nav-hover: rgba(255, 255, 255, 0.05);
-        }
-
-        body { 
-            background-color: var(--bg-main); 
-            color: var(--text-main); 
-            font-family: 'JetBrains Mono', monospace; /* Johanna's choice: Technical feel */
-            overflow: hidden;
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-
-        /* Scanline CRT Effect */
-        body::after {
-            content: "";
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-            background-size: 100% 2px, 3px 100%;
-            pointer-events: none;
-            z-index: 100;
-            opacity: 0.1;
-        }
-
-        body::before {
-            content: "";
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-            opacity: 0.02; /* More subtle noise */
-            pointer-events: none;
-            z-index: 50;
-        }
-
-        .glass-panel {
-            background: var(--glass-bg);
-            backdrop-filter: blur(8px);
-            border: 1px solid var(--border-color);
-            border-radius: 2px; /* Sharp corners */
-            transition: all 0.3s ease;
-        }
-
-        .sofia-border { border: 1px solid var(--border-color); border-radius: 0; }
-        .sofia-border-active { border: 1px solid var(--sofia-red); border-radius: 0; }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            border-radius: 0; /* Sharp corners */
-            color: var(--text-muted);
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            font-size: 0.75rem;
-        }
-
-        .nav-item:hover {
-            color: var(--text-main);
-            background: var(--nav-hover);
-            box-shadow: inset 0 0 0 1px var(--border-color);
-        }
-
-        .nav-item.active {
-            color: var(--text-main);
-            background: rgba(255, 77, 77, 0.1);
-            border-right: 4px solid var(--sofia-red); /* Right border for asymmetry */
-            border-radius: 0;
-        }
-
-        .tab-content { display: none; height: 100%; min-height: 0; opacity: 0; transform: translateX(5px); }
-        .tab-content.active { display: flex; flex-direction: column; opacity: 1; transform: translateX(0); transition: all 0.2s ease-out; }
-        
-        /* Settings: each subtab fills the full tab-settings area */
-        .settings-subtab { display: none; }
-        .settings-subtab:not(.hidden) {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            min-height: 0;
-            overflow-y: auto;
-        }
-        
-        /* Fix for bottom cutoff in flex containers */
-        .flex-grow-fix {
-            flex: 1 1 0%;
-            min-height: 0;
-        }
-
-        /* Custom Scrollbar - Brutalist style */
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: #000; }
-        ::-webkit-scrollbar-thumb { background: var(--sofia-red); border-radius: 0; }
-        ::-webkit-scrollbar-thumb:hover { background: #ff7777; }
-
-        .chat-bubble-user {
-            background: #111;
-            border: 1px solid var(--sofia-red);
-            border-radius: 2px;
-            box-shadow: 4px 4px 0 rgba(255, 77, 77, 0.1);
-        }
-
-        .chat-bubble-sofia {
-            background: #000;
-            border: 1px solid var(--border-color);
-            border-radius: 2px;
-            box-shadow: 4px 4px 0 rgba(255, 255, 255, 0.05);
-        }
-
-        .mono { font-family: 'JetBrains Mono', monospace; }
-
-        /* Scanning effect for the logo */
-        .logo-container {
-            position: relative;
-            overflow: hidden;
-            border-radius: 0;
-        }
-        .logo-container::after {
-            content: "";
-            position: absolute;
-            top: -100%;
-            left: -100%;
-            width: 300%;
-            height: 300%;
-            background: linear-gradient(45deg, transparent 45%, rgba(255, 77, 77, 0.2) 50%, transparent 55%);
-            animation: scan 4s infinite linear;
-        }
-        @keyframes scan {
-            0% { transform: translate(-30%, -30%); }
-            100% { transform: translate(30%, 30%); }
-        }
-
-        @keyframes spin-slow {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-        .animate-spin-slow {
-            animation: spin-slow 3s linear infinite;
-        }
-
-        .glow-red {
-            box-shadow: 0 0 15px rgba(255, 77, 77, 0.2);
-        }
-
-        .agent-log-box {
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            animation: popIn 0.3s ease-out;
-            border-radius: 0;
-        }
-
-        @keyframes popIn {
-            0% { transform: scale(0.95); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-
-        .agent-log-line {
-            border-left: 2px solid rgba(255, 77, 77, 0.3);
-            padding-left: 8px;
-            margin-bottom: 2px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 10px;
-        }
-
-        /* Brutalist Buttons */
-        .btn-brutalist {
-            background: #000;
-            border: 1px solid var(--sofia-red);
-            color: var(--sofia-red);
-            text-transform: uppercase;
-            font-weight: bold;
-            letter-spacing: 0.1em;
-            transition: all 0.2s;
-            border-radius: 0;
-            position: relative;
-        }
-        .btn-brutalist:hover {
-            background: var(--sofia-red);
-            color: #000;
-            box-shadow: 4px 4px 0 rgba(255, 77, 77, 0.3);
-            transform: translate(-2px, -2px);
-        }
-        .btn-brutalist:active {
-            transform: translate(0, 0);
-            box-shadow: none;
-        }
-    </style>
 </head>
+
 <body class="h-screen flex overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] transition-colors duration-300">
     <!-- SIDEBAR -->
-    <aside class="w-20 lg:w-64 min-w-[5rem] lg:min-w-[16rem] shrink-0 border-r border-[var(--border-color)] flex flex-col bg-[var(--bg-sidebar)] z-20 transition-all duration-300">
+    <aside
+        class="w-20 lg:w-64 min-w-[5rem] lg:min-w-[16rem] shrink-0 border-r border-[var(--border-color)] flex flex-col bg-[var(--bg-sidebar)] z-20 transition-all duration-300">
         <div class="p-4 lg:p-6 flex flex-col lg:flex-row items-center gap-3">
-            <div class="logo-container w-10 h-10 bg-black flex items-center justify-center border border-sofia/50 glow-red transition-colors duration-300">
+            <div
+                class="logo-container w-10 h-10 bg-black flex items-center justify-center border border-sofia/50 glow-red transition-colors duration-300">
                 <img src="/assets/sofiamantis.png" alt="S" class="w-7 h-7 object-contain">
             </div>
             <div class="hidden lg:block">
-                <h1 class="text-xl font-bold tracking-tighter uppercase text-[var(--text-main)] transition-colors duration-300">Sofia</h1>
-                <div class="text-[8px] text-sofia font-bold tracking-[0.2em] -mt-1">COMMAND</div>
+                <h1
+                    class="text-xl font-bold tracking-tighter uppercase text-[var(--text-main)] transition-colors duration-300">
+                    Sofia</h1>
             </div>
         </div>
 
-        <nav class="flex-grow px-2 lg:px-4 mt-8 space-y-2">
-            <a href="#" onclick="showTab('chat')" id="nav-chat" class="nav-item active">
+        <nav class="flex-grow px-2 lg:px-4 mt-8 space-y-2" id="sidebar-nav">
+            <a href="#" hx-get="/ui/chat" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-chat"
+                class="nav-item active">
                 <i data-lucide="message-square" class="w-5 h-5"></i>
                 <span class="hidden lg:inline">Terminal</span>
             </a>
-            <a href="#" onclick="showTab('agents')" id="nav-agents" class="nav-item">
+            <a href="#" hx-get="/ui/agents" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-agents"
+                class="nav-item">
                 <i data-lucide="users" class="w-5 h-5"></i>
                 <span class="hidden lg:inline">Agents</span>
             </a>
-            <a href="#" onclick="showTab('settings')" id="nav-settings" class="nav-item">
+            <a href="#" hx-get="/ui/settings" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-settings"
+                class="nav-item">
                 <i data-lucide="settings" class="w-5 h-5"></i>
                 <span class="hidden lg:inline">System</span>
             </a>
@@ -319,11 +107,12 @@
         <div class="p-4 border-t border-[var(--border-color)] space-y-4 hidden lg:block">
             <div class="bg-black/40 p-4 border-l-2 border-sofia">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-[9px] font-bold uppercase tracking-widest text-zinc-500">Core Status</span>
-                    <span class="w-2 h-2 bg-sofia shadow-[0_0_8px_rgba(255,77,77,0.5)]"></span>
+                    <span class="text-[9px] font-bold uppercase tracking-widest text-zinc-500">Status</span>
+                    <span id="status-dot" class="w-2 h-2 bg-zinc-600"></span>
                 </div>
                 <div id="mini-status" class="text-[10px] text-zinc-400 space-y-1 font-mono">
-                    <div class="flex justify-between"><span>V-OS:</span> <span id="stat-version" class="text-sofia">-</span></div>
+                    <div class="flex justify-between"><span>Version:</span> <span id="stat-version"
+                            class="text-sofia">-</span></div>
                 </div>
             </div>
         </div>
@@ -332,612 +121,57 @@
     <!-- MAIN CONTENT -->
     <main class="flex-grow flex flex-col relative bg-[var(--bg-main)] min-w-0">
         <!-- Top Header -->
-        <header class="h-16 border-b border-[var(--border-color)] flex items-center justify-between px-6 lg:px-8 bg-black/20 backdrop-blur-md z-10 transition-colors duration-300">
+        <header
+            class="h-16 border-b border-[var(--border-color)] flex items-center justify-between px-6 lg:px-8 bg-black/20 backdrop-blur-md z-10 transition-colors duration-300">
             <div class="flex items-center gap-6">
                 <h2 id="view-title" class="text-xs font-bold text-sofia uppercase tracking-[0.3em]">Direct Chat</h2>
                 <div id="settings-header-tabs" class="hidden items-center gap-1">
-                    <button id="settings-tab-prompts" onclick="showSettingsSubTab('prompts')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Identity</button>
-                    <button id="settings-tab-heartbeat" onclick="showSettingsSubTab('heartbeat')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Pulse</button>
-                    <button id="settings-tab-models" onclick="showSettingsSubTab('models')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Models</button>
-                    <button id="settings-tab-channels" onclick="showSettingsSubTab('channels')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Comms</button>
-                    <button id="settings-tab-tools" onclick="showSettingsSubTab('tools')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Arsenal</button>
-                    <button id="settings-tab-skills" onclick="showSettingsSubTab('skills')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Skills</button>
-                    <button id="settings-tab-logs" onclick="showSettingsSubTab('logs')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Logs</button>
-                    <button id="settings-tab-security" onclick="showSettingsSubTab('security')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Security</button>
+                    <button hx-get="/ui/settings/prompts" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-prompts"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Identity</button>
+                    <button hx-get="/ui/settings/heartbeat" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-heartbeat"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Heartbeat</button>
+                    <button hx-get="/ui/settings/models" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-models"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all active">Models</button>
+                    <button hx-get="/ui/settings/channels" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-channels"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Comms</button>
+                    <button hx-get="/ui/settings/tools" hx-target="#subtab-content" onclick="setActiveSettingsTab(this)"
+                        id="settings-tab-tools"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Tools</button>
+                    <button hx-get="/ui/settings/skills" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-skills"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Skills</button>
+                    <button hx-get="/ui/settings/logs" hx-target="#subtab-content" onclick="setActiveSettingsTab(this)"
+                        id="settings-tab-logs"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Logs</button>
+                    <button hx-get="/ui/settings/security" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-security"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Security</button>
                 </div>
             </div>
             <div class="flex items-center gap-4">
-                <div class="hidden md:flex items-center gap-4 border-r border-[var(--border-color)] pr-4">
-                    <div class="flex flex-col items-end">
-                        <span class="text-[8px] text-zinc-500 font-bold uppercase">CPU Load</span>
-                        <span id="stat-cpu" class="text-[10px] text-sofia font-mono">-</span>
-                    </div>
-                    <div class="flex flex-col items-end">
-                        <span class="text-[8px] text-zinc-500 font-bold uppercase">Memory</span>
-                        <span id="stat-mem" class="text-[10px] text-sofia font-mono">-</span>
-                    </div>
-                </div>
-                
+
                 <div class="flex items-center gap-2">
-                    <button onclick="updateSofia()" title="Update" class="p-2 text-zinc-500 hover:text-sofia transition-colors">
+                    <button onclick="updateSofia()" title="Update"
+                        class="p-2 text-zinc-500 hover:text-sofia transition-colors">
                         <i data-lucide="download-cloud" class="w-4 h-4"></i>
                     </button>
-                    <button onclick="restartSofia()" title="Restart" class="p-2 text-zinc-500 hover:text-sofia transition-colors">
+                    <button onclick="restartSofia()" title="Restart"
+                        class="p-2 text-zinc-500 hover:text-sofia transition-colors">
                         <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-                    </button>
-                    <button id="theme-toggle" onclick="toggleTheme()" class="p-2 text-zinc-500 hover:text-sofia transition-colors">
-                        <i data-lucide="moon" class="w-4 h-4"></i>
                     </button>
                 </div>
             </div>
         </header>
 
         <!-- Content Area -->
-        <div class="flex-grow-fix p-4 lg:p-6">
-            
-            <!-- CHAT TAB -->
-            <div id="tab-chat" class="tab-content active">
-                <div class="flex-grow-fix flex flex-col lg:flex-row gap-6">
-                    <!-- Chat Area -->
-                        <div class="flex-grow-fix flex flex-col glass-panel border border-[var(--border-color)] shadow-2xl">
-                            <div id="chat-history" class="flex-grow-fix overflow-y-auto p-4 lg:p-6 space-y-6">
-                                <div class="flex gap-4 animate-fade-in">
-                                    <div class="w-8 h-8 bg-sofia/10 border border-sofia/20 flex items-center justify-center shrink-0">
-                                        <img src="/assets/sofiamantis.png" class="w-5 h-5 opacity-80">
-                                    </div>
-                                    <div class="chat-bubble-sofia px-4 py-3 text-xs leading-relaxed max-w-[85%] text-zinc-300">
-                                        SYSTEM INITIALIZED. AWAITING INSTRUCTIONS.
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Input Area -->
-                            <div class="p-4 bg-black/40 border-t border-[var(--border-color)]">
-                                <div class="relative flex items-center">
-                                    <input type="text" id="chat-input" placeholder="ENTER COMMAND..." 
-                                        class="w-full bg-black border border-[var(--border-color)] rounded-none pl-12 pr-24 py-4 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white placeholder:text-zinc-700">
-                                    <div class="absolute left-4 text-sofia/50">
-                                        <i data-lucide="terminal" class="w-5 h-5"></i>
-                                    </div>
-                                    <div class="absolute right-3">
-                                        <button onclick="sendChat()" class="btn-brutalist px-6 py-2 text-[10px]">
-                                            EXECUTE
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="mt-2 px-1 flex justify-between">
-                                    <span class="text-[9px] text-zinc-700 font-bold uppercase">Ready for input</span>
-                                    <span id="typing-indicator" class="text-[9px] text-sofia font-bold uppercase hidden animate-pulse">Sofia is thinking...</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Right Sidebar: Agent Monitor -->
-                        <div id="agent-monitor-sidebar" class="w-full lg:w-80 shrink-0 flex flex-col h-64 lg:h-auto">
-                            <div class="glass-panel border border-[var(--border-color)] flex flex-col h-full shadow-2xl">
-                                <div class="p-3 border-b border-[var(--border-color)] bg-black/40 flex items-center justify-between">
-                                    <h3 class="text-[9px] font-bold uppercase tracking-[0.2em] text-sofia">Agent Monitor</h3>
-                                    <div class="flex gap-1">
-                                        <span class="w-1.5 h-1.5 bg-sofia animate-pulse"></span>
-                                    </div>
-                                </div>
-                                <div id="agent-activity-monitor" class="flex-grow-fix p-4 overflow-y-auto space-y-4 bg-black/20">
-                                    <!-- Agent boxes will be injected here -->
-                                </div>
-                                <!-- Live Status Panel -->
-                                <div id="live-activity-panel" class="p-4 border-t border-[var(--border-color)] bg-sofia/5 hidden">
-                                    <div class="flex items-center justify-between mb-3">
-                                        <span class="text-[9px] font-bold uppercase text-sofia tracking-widest">Global Link</span>
-                                        <div class="w-2 h-2 bg-sofia animate-pulse"></div>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <div class="flex items-center gap-2 bg-black/40 p-2 border border-[var(--border-color)] overflow-hidden">
-                                            <div class="w-6 h-6 bg-sofia/10 flex items-center justify-center text-sofia shrink-0">
-                                                <i data-lucide="bot" class="w-3 h-3"></i>
-                                            </div>
-                                            <div class="overflow-hidden">
-                                                <div class="text-[8px] text-zinc-500 font-bold uppercase">Active</div>
-                                                <div id="active-agent-name" class="text-[9px] text-zinc-300 font-mono truncate">-</div>
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center gap-2 bg-black/40 p-2 border border-[var(--border-color)] overflow-hidden">
-                                            <div class="w-6 h-6 bg-zinc-900 flex items-center justify-center text-zinc-600 shrink-0">
-                                                <i data-lucide="activity" class="w-3 h-3 animate-spin-slow"></i>
-                                            </div>
-                                            <div class="overflow-hidden">
-                                                <div class="text-[8px] text-zinc-500 font-bold uppercase">State</div>
-                                                <div id="active-agent-status" class="text-[9px] text-zinc-500 font-mono truncate italic">IDLE</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                </div>
-            </div>
-
-            <!-- AGENTS TAB -->
-            <div id="tab-agents" class="tab-content">
-                <div class="flex-grow-fix flex flex-col lg:flex-row gap-6">
-                    <!-- Add/Edit Agent -->
-                    <div class="w-full lg:w-96 shrink-0 glass-panel p-6 border border-[var(--border-color)] shadow-xl overflow-y-auto">
-                        <div class="flex items-center gap-3 mb-8">
-                            <div class="w-10 h-10 bg-sofia/10 border border-sofia/30 flex items-center justify-center text-sofia">
-                                <i data-lucide="user-plus" class="w-5 h-5"></i>
-                            </div>
-                            <h2 id="agent-form-title" class="text-sm font-bold uppercase tracking-widest text-white">Initialize Agent</h2>
-                        </div>
-                        <div class="space-y-5">
-                            <div>
-                                <label class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Identifier (Slug)</label>
-                                <input type="text" id="agent-id" placeholder="e.g. coder" 
-                                    class="w-full bg-black border border-[var(--border-color)] rounded-none px-4 py-3 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white">
-                            </div>
-                            <div>
-                                <label class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Display Name</label>
-                                <input type="text" id="agent-name" placeholder="e.g. Coder"
-                                    class="w-full bg-black border border-[var(--border-color)] rounded-none px-4 py-3 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white">
-                            </div>
-                            <div>
-                                <label class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2">AI Neural Model</label>
-                                <select id="agent-model"
-                                    class="w-full bg-black border border-[var(--border-color)] rounded-none px-4 py-3 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white">
-                                    <option value="">Default (System Default)</option>
-                                </select>
-                            </div>
-							<div>
-								<label class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Purpose Template</label>
-								<select id="agent-template" onchange="onTemplateSelected()"
-									class="w-full bg-black border border-[var(--border-color)] rounded-none px-4 py-3 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white">
-									<option value="">No template</option>
-								</select>
-							</div>
-							<div>
-								<label class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Directives</label>
-								<div id="agent-template-missing-skills" class="mb-2 hidden text-[10px] text-yellow-500 font-bold uppercase">Missing dependencies detected</div>
-								<textarea id="agent-instructions" rows="8" placeholder="Enter behavioral directives..."
-									class="w-full bg-black border border-[var(--border-color)] rounded-none px-4 py-3 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white resize-none"></textarea>
-							</div>
-                            <div>
-                                <label class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Specialized Skills</label>
-                                <div id="agent-custom-skills-tags" class="flex flex-wrap gap-1.5 mb-3"></div>
-                                <select id="agent-custom-skills-picker" onchange="addCustomSkill()" class="w-full bg-black border border-[var(--border-color)] rounded-none px-3 py-2 text-[10px] font-mono focus:outline-none focus:border-sofia/50 transition-all text-white">
-                                    <option value="">+ INSTALL SKILL...</option>
-                                </select>
-                            </div>
-                            <div class="pt-4 flex flex-col gap-2">
-                                <button onclick="saveAgent()" class="btn-brutalist w-full py-4 text-xs">Commit Configuration</button>
-                                <button onclick="resetAgentForm()" class="text-zinc-600 hover:text-zinc-400 text-[9px] font-bold uppercase tracking-widest transition">Purge Form</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Agent List -->
-                    <div class="flex-grow-fix overflow-y-auto pr-2">
-                        <div class="flex items-center justify-between mb-6">
-                            <h2 class="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Active Agent Matrix</h2>
-                            <span class="text-[10px] font-mono text-sofia" id="agent-count">0 UNITS</span>
-                        </div>
-                        <div id="agents-list" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                            <!-- Filled by JS -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SKILLS TAB -->
-            <!-- TOOLS TAB -->
-			<!-- MODELS TAB -->
-			</div>
-
-			<!-- CHANNELS TAB -->
-<!-- SETTINGS TAB -->
-            <div id="tab-settings" class="tab-content h-full">
-                    
-                    <div id="settings-subtab-models" class="settings-subtab hidden">
-				<div class="flex-grow min-h-0 overflow-y-auto pr-2">
-                        <input type="hidden" id="cfg-model" value="">
-                        
-
-                            <!-- Add/Edit Model Form (Progressive) -->
-                            <div id="model-config-form" class="hidden mb-6 glass-panel p-6 rounded-xl border border-sofia/30 shadow-xl transition-all duration-300 bg-sofia/5">
-                                <div class="flex items-center justify-between mb-6">
-                                    <h3 id="model-form-title" class="text-sm font-bold text-sofia uppercase tracking-widest">Add New Model</h3>
-                                    <button onclick="closeModelForm()" class="text-zinc-500 hover:text-[var(--text-main)]">
-                                        <i data-lucide="x" class="w-4 h-4"></i>
-                                    </button>
-                                </div>
-                                <input type="hidden" id="edit-model-index" value="-1">
-
-                                <div class="space-y-5">
-                                    <!-- Step 1: Provider -->
-                                    <div>
-                                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">1. Select Provider</label>
-                                        <select id="form-provider" onchange="onProviderChange()" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 text-[var(--text-main)]">
-                                            <option value="">-- Choose a Provider --</option>
-                                            <option value="Google Gemini">Google Gemini</option>
-                                            <option value="OpenAI">OpenAI</option>
-                                            <option value="Anthropic">Anthropic</option>
-                                            <option value="DeepSeek">DeepSeek</option>
-                                            <option value="Groq">Groq</option>
-                                            <option value="Mistral">Mistral</option>
-                                            <option value="OpenRouter">OpenRouter</option>
-                                            <option value="Qwen">Qwen</option>
-                                            <option value="Moonshot">Moonshot</option>
-                                            <option value="xAI (Grok)">xAI (Grok)</option>
-                                            <option value="Z.ai">Z.ai</option>
-                                            <option value="MiniMax">MiniMax</option>
-                                            <option value="Custom">Custom / Other</option>
-                                        </select>
-                                    </div>
-
-                                    <!-- Step 2: Model (hidden until provider selected) -->
-                                    <div id="form-step-model" class="hidden animate-fade-in">
-                                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">2. Select Model</label>
-                                        <select id="form-model-select" onchange="onModelChange()" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 text-[var(--text-main)]">
-                                            <!-- Filled by JS -->
-                                        </select>
-                                        <div id="form-model-custom-wrapper" class="hidden mt-2">
-                                            <input type="text" id="form-model-custom" placeholder="e.g. custom/my-model-1" onchange="onModelChange()" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 text-[var(--text-main)]">
-                                            <p class="text-[10px] text-zinc-500 mt-1 ml-1 text-right">Enter protocol/model id (e.g. openai/my-model)</p>
-                                        </div>
-                                    </div>
-
-                                    <!-- Step 3: Config (hidden until model selected) -->
-                                    <div id="form-step-config" class="hidden space-y-4 pt-5 border-t border-[var(--border-color)] animate-fade-in">
-                                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">3. Configuration Details</label>
-                                        
-                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Alias / Display Name</label>
-                                                <input type="text" id="form-model-alias" placeholder="e.g. GPT-4o (Personal)" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm text-[var(--text-main)] focus:outline-none focus:border-sofia/50 transition-all w-full">
-                                            </div>
-                                            <div>
-                                                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">API Key</label>
-                                                <input type="password" id="form-model-key" placeholder="sk-..." class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm text-[var(--text-main)] focus:outline-none focus:border-sofia/50 transition-all">
-                                            </div>
-                                            <div>
-                                                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">API Base URL (Optional)</label>
-                                                <input type="text" id="form-model-base" placeholder="leave blank for default" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm text-[var(--text-main)] focus:outline-none focus:border-sofia/50 transition-all opacity-80 focus:opacity-100">
-                                            </div>
-                                            <div>
-                                                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Workspace ID (Optional)</label>
-                                                <input type="text" id="form-model-workspace" placeholder="Optional identifier" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm text-[var(--text-main)] focus:outline-none focus:border-sofia/50 transition-all opacity-80 focus:opacity-100">
-                                            </div>
-                                        </div>
-
-                                        <details class="text-sm bg-black/5 dark:bg-zinc-900/40 border border-[var(--border-color)] rounded-xl mt-4 group">
-                                            <summary class="text-[11px] font-bold uppercase tracking-widest text-zinc-500 cursor-pointer p-4 hover:text-[var(--text-main)] focus:outline-none flex justify-between items-center group-open:border-b group-open:border-[var(--border-color)]">
-                                                Advanced Model Settings 
-                                                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform group-open:rotate-180"></i>
-                                            </summary>
-                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-                                                <div>
-                                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">RPM Limit</label>
-                                                    <input type="number" id="form-model-rpm" placeholder="0 = infinite" min="0" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Timeout (seconds)</label>
-                                                    <input type="number" id="form-model-timeout" placeholder="Client default" min="0" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Proxy URL</label>
-                                                    <input type="text" id="form-model-proxy" placeholder="http://..." class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Auth Method</label>
-                                                    <input type="text" id="form-model-auth" placeholder="Bearer" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Max Tokens Field</label>
-                                                    <input type="text" id="form-model-tokens-field" placeholder="max_tokens" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-[100px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Connect Mode</label>
-                                                    <input type="text" id="form-model-connect" placeholder="default" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
-                                                </div>
-                                            </div>
-                                        </details>
-
-                                        <div class="pt-4 flex gap-3 justify-end items-center mt-2">
-                                            <button onclick="closeModelForm()" class="px-6 py-2.5 bg-transparent border border-[var(--border-color)] hover:bg-[var(--bg-main)] text-[var(--text-main)] rounded-xl text-sm font-medium transition">
-                                                Cancel
-                                            </button>
-                                            <button onclick="saveModelForm()" class="px-8 bg-sofia hover:bg-sofia-hover text-white font-bold py-2.5 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
-                                                <i data-lucide="check" class="w-4 h-4"></i> Save Model
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                        <!-- Configured Models List -->
-                        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
-                            <div class="flex items-center justify-between mb-4">
-                                <div>
-                                    <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500">Configured Models</h3>
-                                    <p class="text-[10px] text-zinc-500 mt-1">Select the standard model for system operations</p>
-                                </div>
-                                <button onclick="openModelForm()" class="px-4 py-2 bg-[var(--bg-main)] border border-[var(--border-color)] hover:bg-[var(--nav-hover)] text-[var(--text-main)] rounded-xl text-xs font-bold transition flex items-center gap-2">
-                                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Model
-                                </button>
-                            </div>
-
-                            <div id="provider-model-list" class="space-y-2 pr-2 pb-4">
-                                <!-- Filled by JS -->
-                                <div class="text-sm text-zinc-500 italic p-4 text-center border border-dashed border-[var(--border-color)] rounded-xl">No models configured.</div>
-                            </div>
-                        </div>
-                    </div>
-				</div>
-
-                    <div id="settings-subtab-channels" class="settings-subtab hidden">
-	<div class="flex-grow min-h-0 overflow-y-auto pr-2">
-                        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
-                            <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Channel Setup</label>
-                            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                                <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3">
-                                    <label class="flex items-center gap-3 cursor-pointer">
-                                        <input type="checkbox" id="cfg-telegram" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
-                                        <span class="text-sm font-semibold text-[var(--text-main)]">Telegram</span>
-                                    </label>
-                                    <input type="password" id="cfg-telegram-token" placeholder="Bot token"
-                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
-                                    <input type="text" id="cfg-telegram-proxy" placeholder="Proxy URL (optional)"
-                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
-                                    <textarea id="cfg-telegram-allow-from" rows="3" placeholder="Allowed user IDs (comma or newline separated)"
-                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"></textarea>
-                                    <div id="cfg-telegram-warning" class="hidden text-[11px] text-yellow-500">Telegram is enabled but token is empty.</div>
-                                </div>
-
-                                <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3">
-                                    <label class="flex items-center gap-3 cursor-pointer">
-                                        <input type="checkbox" id="cfg-discord" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
-                                        <span class="text-sm font-semibold text-[var(--text-main)]">Discord</span>
-                                    </label>
-                                    <input type="password" id="cfg-discord-token" placeholder="Bot token"
-                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
-                                    <textarea id="cfg-discord-allow-from" rows="3" placeholder="Allowed user IDs (comma or newline separated)"
-                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"></textarea>
-                                    <label class="flex items-center gap-2 text-xs text-zinc-500">
-                                        <input type="checkbox" id="cfg-discord-mention-only" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
-                                        Respond only when bot is mentioned
-                                    </label>
-                                    <div id="cfg-discord-warning" class="hidden text-[11px] text-yellow-500">Discord is enabled but token is empty.</div>
-                                </div>
-                            </div>
-
-                            <div id="cfg-channels-warning" class="hidden mt-3 text-[11px] text-yellow-500">One or more enabled channels are missing tokens.</div>
-
-                            <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
-                                <i data-lucide="save" class="w-4 h-4"></i>
-                                Save changes
-                            </button>
-                        </div>
-
-
-
-	</div>
-</div>
-
-                    <div id="settings-subtab-tools" class="settings-subtab hidden">
-				<div class="flex-grow min-h-0 overflow-y-auto pr-2">
-					<div class="flex items-center justify-between mb-4">
-						<h2 class="text-xl font-bold text-[var(--text-main)]">Native Tools</h2>
-						<p class="text-sm text-zinc-500">Built-in tools available to all agents.</p>
-					</div>
-			<div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
-						<div id="tools-list" class="space-y-3">
-							<!-- Filled by JS -->
-						</div>
-					</div>
-
-					<!-- Google CLI Tool (gog) -->
-					<div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
-						<div class="flex items-center justify-between mb-4">
-							<div class="flex items-center gap-3">
-								<div class="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center">
-									<i data-lucide="mail" class="w-5 h-5 text-blue-400"></i>
-								</div>
-								<div>
-									<h3 class="text-sm font-bold text-[var(--text-main)]">Google Tools (gog CLI)</h3>
-									<p class="text-[10px] text-zinc-500">Gmail, Google Drive, Google Calendar integration</p>
-								</div>
-							</div>
-							<label class="relative inline-flex items-center cursor-pointer">
-								<input type="checkbox" id="cfg-google-enabled" class="sr-only peer" onchange="saveToolsConfig()">
-								<div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
-							</label>
-						</div>
-
-						<div id="google-tool-config" class="space-y-3 mb-4">
-							<div class="grid grid-cols-2 gap-3">
-								<div>
-									<label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Binary Path</label>
-									<input type="text" id="cfg-google-binary" placeholder="gog"
-										class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
-								</div>
-								<div>
-									<label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Timeout (seconds)</label>
-									<input type="number" id="cfg-google-timeout" placeholder="90"
-										class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
-								</div>
-							</div>
-							<div>
-								<label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Allowed Commands</label>
-								<input type="text" id="cfg-google-commands" placeholder="gmail, drive, calendar"
-									class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
-							</div>
-							<button onclick="saveToolsConfig()" class="px-4 py-2 rounded-lg bg-sofia hover:bg-sofia-hover text-white text-xs font-bold transition shadow-lg shadow-sofia/20 flex items-center gap-2">
-								<i data-lucide="save" class="w-3 h-3"></i> Save Google Settings
-							</button>
-						</div>
-
-						<div class="mt-3 p-3 rounded-xl bg-[var(--bg-main)] border border-[var(--border-color)]">
-							<h4 class="text-[10px] uppercase tracking-widest text-zinc-500 mb-2 font-bold">Setup Instructions</h4>
-							<ol class="text-[11px] text-zinc-400 leading-relaxed space-y-1.5 list-decimal list-inside">
-								<li>Clone the repo: <code class="px-1 py-0.5 rounded bg-zinc-800 text-sofia text-[10px]">git clone https://github.com/steipete/gogcli.git</code> then <code class="px-1 py-0.5 rounded bg-zinc-800 text-sofia text-[10px]">cd gogcli &amp;&amp; go build -o gog . &amp;&amp; mv gog /usr/local/bin/</code></li>
-								<li>Run <code class="px-1 py-0.5 rounded bg-zinc-800 text-sofia text-[10px]">gog auth login</code> to authenticate with Google</li>
-								<li>Enable the toggle above and save. Restart Sofia after saving.</li>
-								<li>Sofia will now have access to Gmail, Drive and Calendar tools.</li>
-							</ol>
-						</div>
-					</div>
-
-					<!-- GitHub CLI Tool -->
-					<div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
-						<div class="flex items-center justify-between mb-4">
-							<div class="flex items-center gap-3">
-								<div class="w-9 h-9 rounded-lg bg-zinc-500/10 flex items-center justify-center">
-									<i data-lucide="github" class="w-5 h-5 text-zinc-400"></i>
-								</div>
-								<div>
-									<h3 class="text-sm font-bold text-[var(--text-main)]">GitHub Integration</h3>
-									<p class="text-[10px] text-zinc-500">Access GitHub repositories, issues, and pull requests</p>
-								</div>
-							</div>
-							<span class="px-2 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-500 border border-zinc-700/50">Coming Soon</span>
-						</div>
-
-						<div class="p-3 rounded-xl bg-[var(--bg-main)] border border-[var(--border-color)]">
-							<h4 class="text-[10px] uppercase tracking-widest text-zinc-500 mb-2 font-bold">Preparation</h4>
-							<ol class="text-[11px] text-zinc-400 leading-relaxed space-y-1.5 list-decimal list-inside">
-								<li>Install GitHub CLI: <code class="px-1 py-0.5 rounded bg-zinc-800 text-sofia text-[10px]">brew install gh</code> (macOS) or <a href="https://cli.github.com/" target="_blank" class="text-sofia hover:underline">cli.github.com</a></li>
-								<li>Authenticate: <code class="px-1 py-0.5 rounded bg-zinc-800 text-sofia text-[10px]">gh auth login</code></li>
-								<li>GitHub tool support is under development. Once available, you can enable it here.</li>
-							</ol>
-						</div>
-					</div>
-				</div>
-			</div>
-
-                    <div id="settings-subtab-skills" class="settings-subtab hidden">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 h-full">
-                    <!-- Skills List -->
-                    <div class="flex flex-col h-full overflow-hidden">
-                        <div class="flex items-center justify-between mb-4">
-                            <h2 class="text-lg font-bold text-[var(--text-main)]">Installed Skills</h2>
-                            <div class="relative w-48">
-                                <input type="text" id="skill-search" onkeyup="filterSkills()" placeholder="Search skills..." 
-                                    class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]">
-                                <i data-lucide="search" class="absolute right-3 top-2 w-3.5 h-3.5 text-zinc-600"></i>
-                            </div>
-                        </div>
-                        <div id="skills-list" class="flex-grow overflow-y-auto pr-2 space-y-4">
-                            <p class="text-zinc-500 italic text-sm">Loading library...</p>
-                        </div>
-                    </div>
-
-                    <!-- Tools & Add Skill -->
-                    <div class="flex flex-col gap-6 overflow-hidden">
-                        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl shrink-0 transition-all duration-300">
-                            <h2 class="text-lg font-bold text-[var(--text-main)] mb-4">Install New Skill</h2>
-                            <div class="space-y-4">
-                                <input type="text" id="new-skill-name" placeholder="Skill name (e.g. web-search)" 
-                                    class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-sofia/50 text-[var(--text-main)]">
-                                <textarea id="new-skill-content" rows="4" placeholder="Markdown content (SKILL.md)..." 
-                                    class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:border-sofia/50 text-[var(--text-main)]"></textarea>
-                                <button onclick="addSkill()" class="w-full bg-[var(--bg-sidebar)] hover:bg-[var(--nav-hover)] text-[var(--text-main)] border border-[var(--border-color)] font-bold py-2.5 rounded-xl transition text-sm">Install Skill</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-                    <div id="settings-subtab-logs" class="settings-subtab hidden">
-                <div class="glass-panel rounded-xl border border-[var(--border-color)] p-6 flex flex-col flex-grow shadow-2xl transition-all duration-300" >
-                    <div class="flex items-center justify-between mb-6">
-                        <div>
-                            <h2 class="text-xl font-bold text-[var(--text-main)]">System Logs</h2>
-                            <p class="text-sm text-zinc-500">Real-time monitoring of system events and agent activity.</p>
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="clearLogs()" class="px-4 py-2 bg-[var(--bg-main)] hover:bg-[var(--nav-hover)] border border-[var(--border-color)] rounded-xl text-xs font-medium text-zinc-400 transition-all flex items-center gap-2">
-                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                                Clear
-                            </button>
-                        </div>
-                    </div>
-                    <div id="log-view" class="bg-black/5 dark:bg-black/40 rounded-xl p-6 font-mono text-xs overflow-y-auto text-zinc-500 dark:text-zinc-400 border border-[var(--border-color)] leading-relaxed transition-colors duration-300 flex-grow" >
-                        <div class="text-zinc-600 italic">Connecting to stream...</div>
-                    </div>
-                </div>
-            </div>
-
-                    <div id="settings-subtab-security" class="settings-subtab hidden">
-                        <div class="flex-grow min-h-0 overflow-y-auto pr-2">
-                            <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
-                                <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Workspace Security</h3>
-
-                                <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
-                                    <div class="flex items-start justify-between">
-                                        <div class="space-y-1 pr-6">
-                                            <h4 class="text-sm font-semibold text-[var(--text-main)]">Restrict to Workspace</h4>
-                                            <p class="text-[11px] leading-relaxed text-zinc-500">
-                                                When enabled, Sofia's file and command tools are strictly sandboxed to the configured workspace path.
-                                                This prevents accidental modification of system files or parent directories.
-                                            </p>
-                                        </div>
-                                        <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-                                            <input type="checkbox" id="cfg-restrict-workspace" class="sr-only peer" onchange="saveConfig()">
-                                            <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="settings-subtab-heartbeat" class="settings-subtab hidden">
-                        <div class="flex-grow min-h-0 overflow-y-auto pr-2">
-                            <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
-                                <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Heartbeat Background Agent</h3>
-                                
-                                <div class="flex items-start justify-between mb-4 pb-4 border-b border-[var(--border-color)]">
-                                    <div>
-                                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable Heartbeat</h4>
-                                        <p class="text-[11px] leading-relaxed text-zinc-500 mt-1">Sofia will automatically spawn background agents on a schedule.</p>
-                                    </div>
-                                    <label class="relative inline-flex items-center cursor-pointer mt-1">
-                                        <input type="checkbox" id="cfg-heartbeat-enabled" class="sr-only peer" onchange="saveConfig()">
-                                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full relative"></div>
-                                    </label>
-                                </div>
-
-                                <div class="grid grid-cols-2 gap-4 mb-4">
-                                    <div>
-                                        <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Interval (minutes)</label>
-                                        <input type="number" id="cfg-heartbeat-interval" min="5" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)] transition-colors focus:border-sofia focus:ring-1 focus:ring-sofia/20" onchange="saveConfig()">
-                                    </div>
-                                    <div>
-                                        <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Active Hours</label>
-                                        <input type="text" id="cfg-heartbeat-hours" placeholder="09:00-17:00 (Leave empty for 24/7)" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)] transition-colors focus:border-sofia focus:ring-1 focus:ring-sofia/20" onchange="saveConfig()">
-                                    </div>
-                                </div>
-
-                                <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Active Days (Leave empty for every day)</label>
-                                <div class="flex flex-wrap gap-2 mb-6" id="cfg-heartbeat-days-container">
-                                    <!-- Days will be injected here via JS -->
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="settings-subtab-prompts" class="settings-subtab hidden">
-                        <div class="flex-grow min-h-0 overflow-y-auto pr-2">
-                            <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
-                                <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Prompt Files</h3>
-                                <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">IDENTITY.md</label>
-                                <textarea id="cfg-identity-md" rows="16" class="w-full min-h-[28rem] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs font-mono text-[var(--text-main)] mb-3"></textarea>
-                                <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">SOUL.md</label>
-                                <textarea id="cfg-soul-md" rows="16" class="w-full min-h-[28rem] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs font-mono text-[var(--text-main)]"></textarea>
-                                <button onclick="saveWorkspaceDocs()" class="mt-3 px-4 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-xs hover:bg-[var(--nav-hover)]">Save prompt files</button>
-                            </div>
-                        </div>
-                    </div>
-
-            </div>
+        <div id="main-content" class="flex-grow-fix p-4 lg:p-6" hx-get="/ui/chat" hx-trigger="load">
+            <!-- HTMX injects content here -->
         </div>
+
     </main>
 
     <script>
@@ -947,7 +181,7 @@
         let purposeTemplates = [];
         let purposeTemplateMap = {};
         let currentConfig = null;
-        let currentSettingsSubTab = 'models';
+        let currentSettingsSubTab = 'settings-tab-models';
 
         // Provider → list of {label, model_id, api_base} presets
         const PROVIDER_MODELS = {
@@ -1039,59 +273,63 @@
             const list = document.getElementById("provider-model-list");
             const agentModelSelect = document.getElementById("agent-model");
             const prevAgent = agentModelSelect ? agentModelSelect.value : "";
-            agentModelSelect.innerHTML = "<option value=''>Default (System Default)</option>";
-
-            if (configuredModels.length === 0) {
-                list.innerHTML = "<div class='text-sm text-zinc-500 italic p-4 text-center border border-dashed border-[var(--border-color)] rounded-xl'>No models configured. Click Add Model to get started.</div>";
-                return;
+            if (agentModelSelect) {
+                agentModelSelect.innerHTML = "<option value=''>Default (System Default)</option>";
             }
 
-            list.innerHTML = configuredModels.map(function(m, i) {
-                const isStandard = m.model_name === standardModel;
-                const borderClass = isStandard ? "border-sofia bg-sofia/5" : "border-[var(--border-color)] bg-[var(--bg-main)]";
-                const iconBgClass = isStandard ? "bg-sofia/15 text-sofia" : "bg-[var(--bg-sidebar)] text-zinc-400";
-                const iconName = isStandard ? "star" : "cpu";
-                const standardBadge = isStandard ? "<span class='px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-sofia text-white'>Standard</span>" : "";
-                const modelStr = m.model || "";
-                const keyBadge = m.api_key ? "\u00b7 \ud83d\udd11" : "\u00b7 no key";
-                const standardBtn = !isStandard ? "<button onclick=\"setStandardModel('" + m.model_name + "')\" title=\"Set as Standard\" class=\"px-2.5 py-1.5 rounded-lg text-[10px] font-bold border border-sofia/30 text-sofia hover:bg-sofia/10 transition whitespace-nowrap flex items-center gap-1\"><i data-lucide=\"star\" class=\"w-3 h-3\"></i> Standard</button>" : "";
-                return "<div class=\"flex items-center justify-between px-4 py-3 rounded-xl border " + borderClass + " transition-all\">" +
-                    "<div class=\"flex items-center gap-3 overflow-hidden\">" +
+            if (list && configuredModels.length === 0) {
+                list.innerHTML = "<div class='text-sm text-zinc-500 italic p-4 text-center border border-dashed border-[var(--border-color)] rounded-xl'>No models configured. Click Add Model to get started.</div>";
+            } else if (list) {
+                list.innerHTML = configuredModels.map(function (m, i) {
+                    const isStandard = m.model_name === standardModel;
+                    const borderClass = isStandard ? "border-sofia bg-sofia/5" : "border-[var(--border-color)] bg-[var(--bg-main)]";
+                    const iconBgClass = isStandard ? "bg-sofia/15 text-sofia" : "bg-[var(--bg-sidebar)] text-zinc-400";
+                    const iconName = isStandard ? "star" : "cpu";
+                    const standardBadge = isStandard ? "<span class='px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-sofia text-white'>Standard</span>" : "";
+                    const modelStr = m.model || "";
+                    const keyBadge = m.api_key ? "\u00b7 \ud83d\udd11" : "\u00b7 no key";
+                    const standardBtn = !isStandard ? "<button onclick=\"setStandardModel('" + m.model_name + "')\" title=\"Set as Standard\" class=\"px-2.5 py-1.5 rounded-lg text-[10px] font-bold border border-sofia/30 text-sofia hover:bg-sofia/10 transition whitespace-nowrap flex items-center gap-1\"><i data-lucide=\"star\" class=\"w-3 h-3\"></i> Standard</button>" : "";
+                    return "<div class=\"flex items-center justify-between px-4 py-3 rounded-xl border " + borderClass + " transition-all\">" +
+                        "<div class=\"flex items-center gap-3 overflow-hidden\">" +
                         "<div class=\"w-8 h-8 rounded-lg " + iconBgClass + " flex items-center justify-center shrink-0\">" +
-                            "<i data-lucide=\"" + iconName + "\" class=\"w-4 h-4\"></i>" +
+                        "<i data-lucide=\"" + iconName + "\" class=\"w-4 h-4\"></i>" +
                         "</div>" +
                         "<div class=\"overflow-hidden\">" +
-                            "<div class=\"text-sm font-semibold text-[var(--text-main)] flex items-center gap-2\">" +
-                                m.model_name + " " + standardBadge +
-                            "</div>" +
-                            "<div class=\"text-[10px] text-zinc-500 font-mono truncate\">" + modelStr + " " + keyBadge + "</div>" +
+                        "<div class=\"text-sm font-semibold text-[var(--text-main)] flex items-center gap-2\">" +
+                        m.model_name + " " + standardBadge +
                         "</div>" +
-                    "</div>" +
-                    "<div class=\"flex gap-1 shrink-0 ml-3\">" +
+                        "<div class=\"text-[10px] text-zinc-500 font-mono truncate\">" + modelStr + " " + keyBadge + "</div>" +
+                        "</div>" +
+                        "</div>" +
+                        "<div class=\"flex gap-1 shrink-0 ml-3\">" +
                         standardBtn +
                         "<button onclick=\"openModelForm(" + i + ")\" class=\"p-1.5 rounded-lg hover:bg-[var(--nav-hover)] text-zinc-500 hover:text-[var(--text-main)] transition\"><i data-lucide=\"edit-3\" class=\"w-3.5 h-3.5\"></i></button>" +
                         "<button onclick=\"removeConfiguredModel(" + i + ")\" class=\"p-1.5 rounded-lg hover:bg-red-500/10 text-zinc-500 hover:text-red-400 transition\"><i data-lucide=\"trash-2\" class=\"w-3.5 h-3.5\"></i></button>" +
-                    "</div>" +
-                "</div>";
-            }).join("");
+                        "</div>" +
+                        "</div>";
+                }).join("");
+            }
 
 
 
 
-            configuredModels.forEach(m => {
-                if (m.api_key) {
-                    const opt = document.createElement("option");
-                    opt.value = m.model_name;
-                    opt.textContent = m.model_name;
-                    agentModelSelect.appendChild(opt);
+            if (agentModelSelect) {
+                configuredModels.forEach(m => {
+                    if (m.api_key) {
+                        const opt = document.createElement("option");
+                        opt.value = m.model_name;
+                        opt.textContent = m.model_name;
+                        agentModelSelect.appendChild(opt);
+                    }
+                });
+                if (prevAgent === "" || Array.from(agentModelSelect.options).some(o => o.value === prevAgent)) {
+                    agentModelSelect.value = prevAgent;
                 }
-            });
-            if (prevAgent === "" || Array.from(agentModelSelect.options).some(o => o.value === prevAgent)) {
-                agentModelSelect.value = prevAgent;
             }
 
             // Sync hidden cfg-model input
-            document.getElementById("cfg-model").value = standardModel;
+            const cfgModel = document.getElementById("cfg-model");
+            if (cfgModel) cfgModel.value = standardModel;
             refreshIcons();
         }
 
@@ -1208,7 +446,7 @@
                 customWrapper.classList.add("hidden");
                 const models = PROVIDER_MODELS[provider] || [];
                 sel.innerHTML = "<option value=''>-- Select Model --</option>" +
-                    models.map(function(m) { return "<option value=\"" + m.model_id + "\" data-base=\"" + m.api_base + "\">" + m.label + "</option>"; }).join("");
+                    models.map(function (m) { return "<option value=\"" + m.model_id + "\" data-base=\"" + m.api_base + "\">" + m.label + "</option>"; }).join("");
 
             }
             refreshIcons();
@@ -1304,6 +542,7 @@
 
         function refreshDefaultModelOptions() {
             const agentModelSelect = document.getElementById("agent-model");
+            if (!agentModelSelect) return;
             const prevAgent = agentModelSelect ? agentModelSelect.value : "";
             agentModelSelect.innerHTML = "<option value=''>Default (System Default)</option>";
             configuredModels.forEach(m => {
@@ -1317,7 +556,8 @@
             if (prevAgent === "" || Array.from(agentModelSelect.options).some(o => o.value === prevAgent)) {
                 agentModelSelect.value = prevAgent;
             }
-            document.getElementById("cfg-model").value = standardModel;
+            const cfgModel = document.getElementById("cfg-model");
+            if (cfgModel) cfgModel.value = standardModel;
         }
 
 
@@ -1359,31 +599,10 @@
             }
         }
 
-        function toggleTheme() {
-            const html = document.documentElement;
-            if (html.classList.contains('dark')) {
-                html.classList.remove('dark');
-                localStorage.setItem('theme', 'light');
-            } else {
-                html.classList.add('dark');
-                localStorage.setItem('theme', 'dark');
-            }
-            updateThemeIcons();
-        }
-
-        function updateThemeIcons() {
-            const isDark = document.documentElement.classList.contains('dark');
-            const btn = document.getElementById('theme-toggle');
-            if (btn) {
-                btn.innerHTML = isDark ? '<i data-lucide="sun" class="w-4 h-4"></i>' : '<i data-lucide="moon" class="w-4 h-4"></i>';
-                refreshIcons();
-            }
-        }
-
         async function addSkill() {
             const name = document.getElementById("new-skill-name").value;
             const content = document.getElementById("new-skill-content").value;
-            
+
             if (!name || !content) {
                 alert("Name and content are required!");
                 return;
@@ -1392,8 +611,8 @@
             try {
                 const res = await fetch("/api/skills/add", {
                     method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({name, content})
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name, content })
                 });
 
                 if (res.ok) {
@@ -1410,73 +629,77 @@
             }
         }
 
-        function showTab(tabId) {
-            currentTab = tabId;
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(l => l.classList.remove('active'));
-            const settingsHeaderTabs = document.getElementById('settings-header-tabs');
-            
-            document.getElementById('tab-' + tabId).classList.add('active');
-            document.getElementById('nav-' + tabId).classList.add('active');
-            
-            // Update Title
-            const titles = {
-                'chat': 'Direct Chat',
-                'agents': 'Agent Management',
-                'settings': 'System Settings'
+        function setActiveNav(clickedEl, event) {
+            if (event) event.preventDefault();
+            document.querySelectorAll('#sidebar-nav .nav-item').forEach(el => el.classList.remove('active'));
+            clickedEl.classList.add('active');
+            const tabById = {
+                'nav-chat': 'chat',
+                'nav-agents': 'agents',
+                'nav-settings': 'settings',
             };
-            document.getElementById('view-title').innerText = titles[tabId];
+            currentTab = tabById[clickedEl.id] || 'chat';
 
-            if (tabId === 'agents') {
-                fetchAgents();
-                fetchConfig(); // Ensure model dropdown is populated
-            }
-
-            if (tabId === 'settings') {
-                settingsHeaderTabs.classList.remove('hidden');
-                settingsHeaderTabs.classList.add('flex');
-                fetchConfig();
-                fetchStatus();
-                showSettingsSubTab(currentSettingsSubTab);
+            // Show/hide sub-tabs header based on which main tab is active
+            const isSettings = clickedEl.id === 'nav-settings';
+            const navHeader = document.getElementById('settings-header-tabs');
+            if (isSettings) {
+                navHeader.classList.remove('hidden');
+                navHeader.classList.add('flex');
             } else {
-                settingsHeaderTabs.classList.add('hidden');
-                settingsHeaderTabs.classList.remove('flex');
+                navHeader.classList.add('hidden');
+                navHeader.classList.remove('flex');
             }
-            
-            refreshIcons();
+            // Title updates (could be done via hx-swap-oob but keeping simple for now)
+            const titles = {
+                'nav-chat': 'Direct Chat',
+                'nav-agents': 'Agent Management',
+                'nav-settings': 'System Settings'
+            };
+            document.getElementById('view-title').innerText = titles[clickedEl.id] || 'Sofia';
+
+            if (currentTab === 'settings') {
+                fetchConfig();
+            }
         }
 
-        function showSettingsSubTab(tabId) {
-            currentSettingsSubTab = tabId;
-            const tabs = ['prompts', 'heartbeat', 'security', 'models', 'channels', 'tools', 'skills', 'logs'];
-            tabs.forEach(t => {
-                const panel = document.getElementById('settings-subtab-' + t);
-                const button = document.getElementById('settings-tab-' + t);
-                if (!panel || !button) return;
-                if (t === tabId) {
-                    panel.classList.remove('hidden');
-                    button.classList.add('bg-[var(--bg-main)]', 'text-[var(--text-main)]');
-                } else {
-                    panel.classList.add('hidden');
-                    button.classList.remove('bg-[var(--bg-main)]', 'text-[var(--text-main)]');
-                }
-            });
+        function setActiveSettingsTab(clickedEl) {
+            document.querySelectorAll('#settings-header-tabs button').forEach(el => el.classList.remove('active'));
+            clickedEl.classList.add('active');
+            currentSettingsSubTab = clickedEl.id || currentSettingsSubTab;
+            if (clickedEl.id === 'settings-tab-logs') {
+                setupLogStream(true);
+            } else {
+                stopLogStream();
+            }
         }
 
         async function fetchStatus() {
             try {
                 const res = await fetch("/api/status");
-                if (!res.ok) return;
+                const dot = document.getElementById("status-dot");
+                if (res.ok) {
+                    if (dot) {
+                        dot.classList.remove("bg-sofia");
+                        dot.classList.add("bg-green-500");
+                        dot.classList.remove("shadow-[0_0_8px_rgba(255,77,77,0.5)]");
+                        dot.classList.add("shadow-[0_0_8px_rgba(34,197,94,0.5)]");
+                    }
+                } else {
+                    if (dot) {
+                        dot.classList.add("bg-sofia");
+                        dot.classList.remove("bg-green-500");
+                        dot.classList.add("shadow-[0_0_8px_rgba(255,77,77,0.5)]");
+                        dot.classList.remove("shadow-[0_0_8px_rgba(34,197,94,0.5)]");
+                    }
+                    return;
+                }
                 const data = await res.json();
-                
+
                 // Update Mini Status in Sidebar
                 document.getElementById("stat-version").innerText = data.version || "dev";
-                
-                // Update CPU & Memory pills in header
-                const cpuEl = document.getElementById("stat-cpu");
-                const memEl = document.getElementById("stat-mem");
-                if (cpuEl) cpuEl.innerText = data.system && data.system.cpu_percent != null ? data.system.cpu_percent.toFixed(1) + "%" : "-";
-                if (memEl) memEl.innerText = data.system && data.system.mem_used_mb != null ? data.system.mem_used_mb.toFixed(0) + " MB" : "-";
+
+
 
                 // Update Live Activity
                 const livePanel = document.getElementById("live-activity-panel");
@@ -1485,13 +708,15 @@
 
                 if (data.agents.active && data.agents.active.id) {
                     activeAgentID = data.agents.active.id;
-                    livePanel.classList.remove("hidden");
-                    sidebar.classList.remove("hidden");
-                    document.getElementById("active-agent-name").innerText = data.agents.active.id;
-                    document.getElementById("active-agent-status").innerText = data.agents.active.status;
+                    if (livePanel) livePanel.classList.remove("hidden");
+                    if (sidebar) sidebar.classList.remove("hidden");
+                    const activeAgentName = document.getElementById("active-agent-name");
+                    const activeAgentStatus = document.getElementById("active-agent-status");
+                    if (activeAgentName) activeAgentName.innerText = data.agents.active.id;
+                    if (activeAgentStatus) activeAgentStatus.innerText = data.agents.active.status;
                 } else {
                     activeAgentID = null;
-                    livePanel.classList.add("hidden");
+                    if (livePanel) livePanel.classList.add("hidden");
                     // User requested sidebar to always be visible
                     // if (monitor.children.length === 0) {
                     //     sidebar.classList.add("hidden");
@@ -1516,7 +741,7 @@
                 // Update System Details in Settings
                 const details = document.getElementById("system-details");
                 if (details) {
-                    details.innerHTML = 
+                    details.innerHTML =
                         "<div class='flex justify-between items-center'><span class='text-zinc-500'>Active Agents:</span> <span class='text-zinc-200 font-medium'>" + data.agents.ids.length + "</span></div>" +
                         "<div class='flex flex-wrap gap-1 mt-1'>" + data.agents.ids.map(id => "<span class='px-2 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-400 border border-zinc-700/50'>" + id + "</span>").join("") + "</div>" +
                         "<div class='flex justify-between items-center mt-4'><span class='text-zinc-500'>Loaded Tools:</span> <span class='text-zinc-200 font-medium'>" + data.tools.count + "</span></div>" +
@@ -1529,8 +754,8 @@
 
                 // Update Tools List
                 const toolsList = document.getElementById("tools-list");
-                if (data.tools.list) {
-                    toolsList.innerHTML = data.tools.list.map(t => 
+                if (toolsList && data.tools.list) {
+                    toolsList.innerHTML = data.tools.list.map(t =>
                         "<div class='p-3 bg-zinc-900/30 rounded-xl border border-zinc-800/50 hover:border-zinc-700 transition-colors'>" +
                         "<div class='font-bold text-xs text-sofia flex items-center gap-2'><i data-lucide='box' class='w-3 h-3'></i>" + t.name + "</div>" +
                         "<div class='text-[10px] text-zinc-500 mt-1 leading-relaxed'>" + (t.description || "No description.") + "</div>" +
@@ -1539,12 +764,20 @@
                     refreshIcons();
                 }
             } catch (e) {
+                const dot = document.getElementById("status-dot");
+                if (dot) {
+                    dot.classList.add("bg-sofia");
+                    dot.classList.remove("bg-green-500");
+                    dot.classList.add("shadow-[0_0_8px_rgba(255,77,77,0.5)]");
+                    dot.classList.remove("shadow-[0_0_8px_rgba(34,197,94,0.5)]");
+                }
                 console.error("Status fetch failed", e);
             }
         }
 
         function renderSkills(list) {
             const skillsList = document.getElementById("skills-list");
+            if (!skillsList) return;
             if (!list || list.length === 0) {
                 skillsList.innerHTML = "<p class='text-zinc-500 italic text-sm'>No skills found.</p>";
                 return;
@@ -1561,13 +794,13 @@
                 html += "<div class='mb-6'><h3 class='text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3 ml-1'>" + source + "</h3>";
                 grouped[source].forEach(s => {
                     html += "<div class='group p-4 bg-zinc-900/40 rounded-xl border border-zinc-800/50 hover:border-sofia/30 transition-all cursor-default'>" +
-                            "<div class='flex justify-between items-start'>" +
-                            "<div class='font-bold text-sm text-zinc-200 group-hover:text-sofia transition-colors'>" + s.name + "</div>" +
-                            "<span class='px-1.5 py-0.5 rounded bg-zinc-800 text-[9px] text-zinc-500 border border-zinc-700'>SKILL</span>" +
-                            "</div>" +
-                            "<div class='text-xs text-zinc-500 mt-1 line-clamp-2 leading-relaxed'>" + (s.description || "No description available.") + "</div>" +
-                            "<div class='text-[9px] font-mono text-zinc-700 mt-3 truncate opacity-50'>" + s.path + "</div>" +
-                            "</div>";
+                        "<div class='flex justify-between items-start'>" +
+                        "<div class='font-bold text-sm text-zinc-200 group-hover:text-sofia transition-colors'>" + s.name + "</div>" +
+                        "<span class='px-1.5 py-0.5 rounded bg-zinc-800 text-[9px] text-zinc-500 border border-zinc-700'>SKILL</span>" +
+                        "</div>" +
+                        "<div class='text-xs text-zinc-500 mt-1 line-clamp-2 leading-relaxed'>" + (s.description || "No description available.") + "</div>" +
+                        "<div class='text-[9px] font-mono text-zinc-700 mt-3 truncate opacity-50'>" + s.path + "</div>" +
+                        "</div>";
                 });
                 html += "</div>";
             }
@@ -1577,8 +810,8 @@
 
         function filterSkills() {
             const query = document.getElementById("skill-search").value.toLowerCase();
-            const filtered = skillsData.filter(s => 
-                s.name.toLowerCase().includes(query) || 
+            const filtered = skillsData.filter(s =>
+                s.name.toLowerCase().includes(query) ||
                 (s.description && s.description.toLowerCase().includes(query))
             );
             renderSkills(filtered);
@@ -1592,6 +825,8 @@
                 purposeTemplateMap = {};
 
                 const select = document.getElementById("agent-template");
+                if (!select) return;
+                const previousValue = select.value || "";
                 select.innerHTML = "<option value=''>No template</option>";
 
                 purposeTemplates.forEach(t => {
@@ -1601,16 +836,22 @@
                     opt.textContent = t.name;
                     select.appendChild(opt);
                 });
+
+                if (previousValue && Array.from(select.options).some(o => o.value === previousValue)) {
+                    select.value = previousValue;
+                }
             } catch (e) {
                 console.error("Purpose templates fetch failed", e);
             }
         }
 
         async function onTemplateSelected() {
-            const selected = document.getElementById("agent-template").value;
+            const templateSelect = document.getElementById("agent-template");
             const warning = document.getElementById("agent-template-missing-skills");
             const hint = document.getElementById("agent-template-hint");
             const textarea = document.getElementById("agent-instructions");
+            if (!templateSelect || !warning || !hint || !textarea) return;
+            const selected = templateSelect.value;
 
             warning.classList.add("hidden");
             warning.innerText = "";
@@ -1649,54 +890,56 @@
                 if (!res.ok) return;
                 const agents = await res.json();
                 const list = document.getElementById("agents-list");
-                document.getElementById("agent-count").innerText = (agents ? agents.length : 0) + " agents";
-                
+                const count = document.getElementById("agent-count");
+                if (!list || !count) return;
+                count.innerText = (agents ? agents.length : 0) + " agents";
+
                 if (!agents || agents.length === 0) {
                     list.innerHTML = "<div class='col-span-full py-12 text-center border-2 border-dashed border-zinc-900 rounded-3xl text-zinc-600 italic'>No sub-agents configured.</div>";
                     return;
                 }
 
-				list.innerHTML = agents.map(function(a) {
-					const isActive = a.id === activeAgentID;
-					const modelName = a.model && a.model.primary ? a.model.primary : (a.model || "");
-					const templateName = a.template || "";
-					const templateSkillsMode = a.template_skills_mode || "fallback";
-					const agentSkillsJson = JSON.stringify(a.skills || []).replace(/"/g, "&quot;");
-					const skillCount = a.skills && a.skills.length ? a.skills.length : 0;
-					return '<div data-agent-id="' + a.id + '" data-agent-name="' + (a.name || '').replace(/'/g, "&#39;") + '" data-agent-model="' + modelName.replace(/'/g, "&#39;") + '" data-agent-template="' + templateName.replace(/'/g, "&#39;") + '" data-agent-tsm="' + templateSkillsMode + '" data-agent-skills="' + agentSkillsJson + '" class="group p-5 bg-zinc-900/40 border ' + (isActive ? 'border-sofia bg-sofia/5' : 'border-zinc-800') + ' rounded-xl hover:border-sofia/30 transition-all shadow-lg">' +
+                list.innerHTML = agents.map(function (a) {
+                    const isActive = a.id === activeAgentID;
+                    const modelName = a.model && a.model.primary ? a.model.primary : (a.model || "");
+                    const templateName = a.template || "";
+                    const templateSkillsMode = a.template_skills_mode || "fallback";
+                    const agentSkillsJson = JSON.stringify(a.skills || []).replace(/"/g, "&quot;");
+                    const skillCount = a.skills && a.skills.length ? a.skills.length : 0;
+                    return '<div data-agent-id="' + a.id + '" data-agent-name="' + (a.name || '').replace(/'/g, "&#39;") + '" data-agent-model="' + modelName.replace(/'/g, "&#39;") + '" data-agent-template="' + templateName.replace(/'/g, "&#39;") + '" data-agent-tsm="' + templateSkillsMode + '" data-agent-skills="' + agentSkillsJson + '" class="group p-5 bg-zinc-900/40 border ' + (isActive ? 'border-sofia bg-sofia/5' : 'border-zinc-800') + ' rounded-xl hover:border-sofia/30 transition-all shadow-lg">' +
                         '<div class="flex justify-between items-start mb-4">' +
-                            '<div class="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-sofia group-hover:bg-sofia/10 transition-colors">' +
-                                '<i data-lucide="bot" class="w-5 h-5"></i>' +
-                            '</div>' +
-                            '<div class="flex gap-1">' +
-							'<button onclick="editAgentFromCard(this)" data-card-id="' + a.id + '" class="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>' +
-                                '<button onclick="deleteAgent(\'' + a.id + '\')" class="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>' +
-                            '</div>' +
+                        '<div class="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-sofia group-hover:bg-sofia/10 transition-colors">' +
+                        '<i data-lucide="bot" class="w-5 h-5"></i>' +
+                        '</div>' +
+                        '<div class="flex gap-1">' +
+                        '<button onclick="editAgentFromCard(this)" data-card-id="' + a.id + '" class="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>' +
+                        '<button onclick="deleteAgent(\'' + a.id + '\')" class="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>' +
+                        '</div>' +
                         '</div>' +
                         '<div>' +
-                            '<div class="font-bold text-zinc-200">' + (a.name || a.id) + '</div>' +
-                            '<div class="text-[10px] font-mono text-zinc-600 uppercase tracking-tighter mt-0.5">' + a.id + '</div>' +
-                            (templateName ? '<div class="mt-2 text-[10px] text-sofia/80 font-medium">Purpose: ' + templateName + '</div>' : '') +
-                            (skillCount > 0 ? '<div class="mt-1 text-[10px] text-zinc-500 flex items-center gap-1"><i data-lucide=\"zap\" class=\"w-2.5 h-2.5\"></i> ' + skillCount + ' custom skill' + (skillCount !== 1 ? 's' : '') + '</div>' : '') +
-                            '<div class="mt-4 pt-4 border-t border-zinc-800/50 flex items-center justify-between">' +
-                                '<div class="text-[10px] text-zinc-500 font-medium flex items-center gap-1.5"><i data-lucide="cpu" class="w-3 h-3"></i> ' + (modelName || 'Default') + '</div>' +
-                                '<span class="w-1.5 h-1.5 rounded-full ' + (isActive ? 'bg-sofia animate-pulse' : 'bg-green-500/50') + '"></span>' +
-                            '</div>' +
+                        '<div class="font-bold text-zinc-200">' + (a.name || a.id) + '</div>' +
+                        '<div class="text-[10px] font-mono text-zinc-600 uppercase tracking-tighter mt-0.5">' + a.id + '</div>' +
+                        (templateName ? '<div class="mt-2 text-[10px] text-sofia/80 font-medium">Purpose: ' + templateName + '</div>' : '') +
+                        (skillCount > 0 ? '<div class="mt-1 text-[10px] text-zinc-500 flex items-center gap-1"><i data-lucide=\"zap\" class=\"w-2.5 h-2.5\"></i> ' + skillCount + ' custom skill' + (skillCount !== 1 ? 's' : '') + '</div>' : '') +
+                        '<div class="mt-4 pt-4 border-t border-zinc-800/50 flex items-center justify-between">' +
+                        '<div class="text-[10px] text-zinc-500 font-medium flex items-center gap-1.5"><i data-lucide="cpu" class="w-3 h-3"></i> ' + (modelName || 'Default') + '</div>' +
+                        '<span class="w-1.5 h-1.5 rounded-full ' + (isActive ? 'bg-sofia animate-pulse' : 'bg-green-500/50') + '"></span>' +
                         '</div>' +
-                    '</div>';
-				}).join("");
+                        '</div>' +
+                        '</div>';
+                }).join("");
                 refreshIcons();
             } catch (e) {
                 console.error("Agents fetch failed", e);
             }
         }
 
-		async function saveAgent() {
-			const id = document.getElementById("agent-id").value;
-			const name = document.getElementById("agent-name").value;
-			const modelStr = document.getElementById("agent-model").value;
-			const template = document.getElementById("agent-template").value;
-            
+        async function saveAgent() {
+            const id = document.getElementById("agent-id").value;
+            const name = document.getElementById("agent-name").value;
+            const modelStr = document.getElementById("agent-model").value;
+            const template = document.getElementById("agent-template").value;
+
             if (!id) {
                 alert("ID is required!");
                 return;
@@ -1707,14 +950,14 @@
             if (agentCustomSkills.length > 0) agent.skills = agentCustomSkills.slice();
             const instructions = document.getElementById("agent-instructions").value.trim();
             if (instructions) agent.instructions = instructions;
-			if (template) {
-				agent.template = template;
-			}
+            if (template) {
+                agent.template = template;
+            }
 
             try {
                 const res = await fetch("/api/agents", {
                     method: "POST",
-                    headers: {"Content-Type": "application/json"},
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(agent)
                 });
 
@@ -1731,7 +974,7 @@
 
         async function deleteAgent(id) {
             if (!confirm("Are you sure you want to delete agent " + id + "?")) return;
-            
+
             try {
                 const res = await fetch("/api/agents?id=" + id, { method: "DELETE" });
                 if (res.ok) fetchAgents();
@@ -1741,31 +984,31 @@
             }
         }
 
-		function editAgentFromCard(btn) {
-			const cardId = btn.getAttribute("data-card-id");
-			const el = document.querySelector('[data-agent-id="' + cardId + '"]');
-			editAgentFromEl(el);
-		}
+        function editAgentFromCard(btn) {
+            const cardId = btn.getAttribute("data-card-id");
+            const el = document.querySelector('[data-agent-id="' + cardId + '"]');
+            editAgentFromEl(el);
+        }
 
-		function editAgentFromEl(el) {
-			if (!el) return;
-			const id = el.getAttribute("data-agent-id") || "";
-			const name = el.getAttribute("data-agent-name") || "";
-			const model = el.getAttribute("data-agent-model") || "";
-			const template = el.getAttribute("data-agent-template") || "";
-			const tsm = el.getAttribute("data-agent-tsm") || "fallback";
-			const instr = el.getAttribute("data-agent-instructions") || "";
-			let skills = [];
-			try { skills = JSON.parse(el.getAttribute("data-agent-skills") || "[]"); } catch(e) {}
-			editAgent(id, name, model, template, tsm, skills, instr);
-		}
+        function editAgentFromEl(el) {
+            if (!el) return;
+            const id = el.getAttribute("data-agent-id") || "";
+            const name = el.getAttribute("data-agent-name") || "";
+            const model = el.getAttribute("data-agent-model") || "";
+            const template = el.getAttribute("data-agent-template") || "";
+            const tsm = el.getAttribute("data-agent-tsm") || "fallback";
+            const instr = el.getAttribute("data-agent-instructions") || "";
+            let skills = [];
+            try { skills = JSON.parse(el.getAttribute("data-agent-skills") || "[]"); } catch (e) { }
+            editAgent(id, name, model, template, tsm, skills, instr);
+        }
 
-		function editAgent(id, name, model, template, templateSkillsMode, skills, instructions) {
-			document.getElementById("agent-id").value = id;
-			document.getElementById("agent-id").disabled = true;
-			document.getElementById("agent-id").classList.add("opacity-50");
-			document.getElementById("agent-name").value = name;
-			
+        function editAgent(id, name, model, template, templateSkillsMode, skills, instructions) {
+            document.getElementById("agent-id").value = id;
+            document.getElementById("agent-id").disabled = true;
+            document.getElementById("agent-id").classList.add("opacity-50");
+            document.getElementById("agent-name").value = name;
+
             const modelSelect = document.getElementById("agent-model");
             // Check if model exists in options
             let exists = false;
@@ -1783,14 +1026,14 @@
             }
             modelSelect.value = model || "";
 
-			document.getElementById("agent-template").value = template || "";
+            document.getElementById("agent-template").value = template || "";
             agentCustomSkills = (Array.isArray(skills) ? skills : []);
             renderSkillTags();
             document.getElementById("agent-instructions").value = instructions || "";
-			onTemplateSelected();
-			document.getElementById("agent-form-title").innerText = "Edit Agent";
-			refreshIcons();
-		}
+            onTemplateSelected();
+            document.getElementById("agent-form-title").innerText = "Edit Agent";
+            refreshIcons();
+        }
 
         // ── Custom Skills Tag UI ──────────────────────────────────────────
         let agentCustomSkills = [];
@@ -1802,7 +1045,7 @@
                 container.innerHTML = "<span class='text-[10px] text-zinc-600 italic'>No custom skills added</span>";
                 return;
             }
-            container.innerHTML = agentCustomSkills.map(function(s) {
+            container.innerHTML = agentCustomSkills.map(function (s) {
                 return "<span class='inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-sofia/10 border border-sofia/20 text-[10px] font-medium text-sofia'>" + s +
                     "<button type='button' onclick='removeCustomSkill(\"" + s + "\")' class='ml-0.5 text-sofia/60 hover:text-red-400 transition leading-none'>&times;</button></span>";
             }).join("");
@@ -1820,7 +1063,7 @@
         }
 
         function removeCustomSkill(skill) {
-            agentCustomSkills = agentCustomSkills.filter(function(s) { return s !== skill; });
+            agentCustomSkills = agentCustomSkills.filter(function (s) { return s !== skill; });
             renderSkillTags();
         }
 
@@ -1829,7 +1072,7 @@
             if (!picker) return;
             const current = picker.value;
             picker.innerHTML = "<option value=''>+ Add a skill...</option>";
-            (skillsData || []).forEach(function(s) {
+            (skillsData || []).forEach(function (s) {
                 const opt = document.createElement("option");
                 opt.value = s.name;
                 opt.textContent = s.name;
@@ -1843,17 +1086,17 @@
             document.getElementById("agent-id").value = "";
             document.getElementById("agent-id").disabled = false;
             document.getElementById("agent-id").classList.remove("opacity-50");
-			document.getElementById("agent-name").value = "";
-			document.getElementById("agent-model").value = "";
-			document.getElementById("agent-template").value = "";
+            document.getElementById("agent-name").value = "";
+            document.getElementById("agent-model").value = "";
+            document.getElementById("agent-template").value = "";
 
             agentCustomSkills = [];
             renderSkillTags();
             document.getElementById("agent-instructions").value = "";
-			onTemplateSelected();
-			document.getElementById("agent-form-title").innerText = "New Agent";
-			refreshIcons();
-		}
+            onTemplateSelected();
+            document.getElementById("agent-form-title").innerText = "New Agent";
+            refreshIcons();
+        }
 
 
 
@@ -1871,10 +1114,18 @@
         }
 
         function validateChannelSettings() {
-            const telegramEnabled = document.getElementById("cfg-telegram").checked;
-            const telegramToken = document.getElementById("cfg-telegram-token").value.trim();
-            const discordEnabled = document.getElementById("cfg-discord").checked;
-            const discordToken = document.getElementById("cfg-discord-token").value.trim();
+            const telegramToggle = document.getElementById("cfg-telegram");
+            const telegramTokenInput = document.getElementById("cfg-telegram-token");
+            const discordToggle = document.getElementById("cfg-discord");
+            const discordTokenInput = document.getElementById("cfg-discord-token");
+            if (!telegramToggle || !telegramTokenInput || !discordToggle || !discordTokenInput) {
+                return true;
+            }
+
+            const telegramEnabled = telegramToggle.checked;
+            const telegramToken = telegramTokenInput.value.trim();
+            const discordEnabled = discordToggle.checked;
+            const discordToken = discordTokenInput.value.trim();
 
             const telegramWarn = document.getElementById("cfg-telegram-warning");
             const discordWarn = document.getElementById("cfg-discord-warning");
@@ -1883,20 +1134,24 @@
             const telegramInvalid = telegramEnabled && !telegramToken;
             const discordInvalid = discordEnabled && !discordToken;
 
-            telegramWarn.classList.toggle("hidden", !telegramInvalid);
-            discordWarn.classList.toggle("hidden", !discordInvalid);
-            globalWarn.classList.toggle("hidden", !(telegramInvalid || discordInvalid));
+            if (telegramWarn) telegramWarn.classList.toggle("hidden", !telegramInvalid);
+            if (discordWarn) discordWarn.classList.toggle("hidden", !discordInvalid);
+            if (globalWarn) globalWarn.classList.toggle("hidden", !(telegramInvalid || discordInvalid));
 
             return !(telegramInvalid || discordInvalid);
         }
 
         async function fetchWorkspaceDocs() {
             try {
+                const identityEl = document.getElementById("cfg-identity-md");
+                const soulEl = document.getElementById("cfg-soul-md");
+                if (!identityEl || !soulEl) return;
+
                 const res = await fetch("/api/workspace-docs");
                 if (!res.ok) return;
                 const docs = await res.json();
-                document.getElementById("cfg-identity-md").value = docs.identity || "";
-                document.getElementById("cfg-soul-md").value = docs.soul || "";
+                identityEl.value = docs.identity || "";
+                soulEl.value = docs.soul || "";
             } catch (e) {
                 console.error("Workspace docs fetch failed", e);
             }
@@ -1910,7 +1165,7 @@
                 };
                 const res = await fetch("/api/workspace-docs", {
                     method: "POST",
-                    headers: {"Content-Type": "application/json"},
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload),
                 });
                 if (res.ok) {
@@ -1943,7 +1198,7 @@
 
                 const saveRes = await fetch("/api/config", {
                     method: "POST",
-                    headers: {"Content-Type": "application/json"},
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(cfg)
                 });
 
@@ -1965,29 +1220,6 @@
                 const cfg = await res.json();
                 currentConfig = cfg;
 
-                document.getElementById("cfg-telegram").checked = cfg.channels.telegram.enabled;
-                document.getElementById("cfg-discord").checked = cfg.channels.discord.enabled;
-                document.getElementById("cfg-telegram-token").value = cfg.channels.telegram.token || "";
-                document.getElementById("cfg-telegram-proxy").value = cfg.channels.telegram.proxy || "";
-                document.getElementById("cfg-telegram-allow-from").value = formatAllowFrom(cfg.channels.telegram.allow_from);
-                document.getElementById("cfg-discord-token").value = cfg.channels.discord.token || "";
-                document.getElementById("cfg-discord-allow-from").value = formatAllowFrom(cfg.channels.discord.allow_from);
-                document.getElementById("cfg-discord-mention-only").checked = !!cfg.channels.discord.mention_only;
-                document.getElementById("cfg-restrict-workspace").checked = !!cfg.agents.defaults.restrict_to_workspace;
-                
-                // Heartbeat mapping
-                if (cfg.heartbeat) {
-                    document.getElementById("cfg-heartbeat-enabled").checked = !!cfg.heartbeat.enabled;
-                    document.getElementById("cfg-heartbeat-interval").value = cfg.heartbeat.interval || 30;
-                    document.getElementById("cfg-heartbeat-hours").value = cfg.heartbeat.active_hours || "";
-                    renderHeartbeatDays(cfg.heartbeat.active_days || []);
-                } else {
-                    renderHeartbeatDays([]);
-                }
-                
-                validateChannelSettings();
-
-
                 configuredModels = cfg.model_list ? cfg.model_list.slice() : [];
                 standardModel = cfg.agents.defaults.model_name || cfg.agents.defaults.model || "";
                 if (!standardModel && configuredModels.length > 0) {
@@ -1995,12 +1227,59 @@
                 }
                 renderConfiguredModels();
 
+                const telegramToggle = document.getElementById("cfg-telegram");
+                if (telegramToggle) telegramToggle.checked = cfg.channels.telegram.enabled;
+
+                const discordToggle = document.getElementById("cfg-discord");
+                if (discordToggle) discordToggle.checked = cfg.channels.discord.enabled;
+
+                const telegramToken = document.getElementById("cfg-telegram-token");
+                if (telegramToken) telegramToken.value = cfg.channels.telegram.token || "";
+
+                const telegramProxy = document.getElementById("cfg-telegram-proxy");
+                if (telegramProxy) telegramProxy.value = cfg.channels.telegram.proxy || "";
+
+                const telegramAllowFrom = document.getElementById("cfg-telegram-allow-from");
+                if (telegramAllowFrom) telegramAllowFrom.value = formatAllowFrom(cfg.channels.telegram.allow_from);
+
+                const discordToken = document.getElementById("cfg-discord-token");
+                if (discordToken) discordToken.value = cfg.channels.discord.token || "";
+
+                const discordAllowFrom = document.getElementById("cfg-discord-allow-from");
+                if (discordAllowFrom) discordAllowFrom.value = formatAllowFrom(cfg.channels.discord.allow_from);
+
+                const discordMentionOnly = document.getElementById("cfg-discord-mention-only");
+                if (discordMentionOnly) discordMentionOnly.checked = !!cfg.channels.discord.mention_only;
+
+                const restrictWorkspace = document.getElementById("cfg-restrict-workspace");
+                if (restrictWorkspace) restrictWorkspace.checked = !!cfg.agents.defaults.restrict_to_workspace;
+
+                // Heartbeat mapping
+                const heartbeatEnabled = document.getElementById("cfg-heartbeat-enabled");
+                if (heartbeatEnabled) {
+                    if (cfg.heartbeat) {
+                        heartbeatEnabled.checked = !!cfg.heartbeat.enabled;
+                        document.getElementById("cfg-heartbeat-interval").value = cfg.heartbeat.interval || 30;
+                        document.getElementById("cfg-heartbeat-hours").value = cfg.heartbeat.active_hours || "";
+                        renderHeartbeatDays(cfg.heartbeat.active_days || []);
+                    } else {
+                        renderHeartbeatDays([]);
+                    }
+                }
+
+                validateChannelSettings();
+
+
                 // Populate Google tool settings
                 if (cfg.tools && cfg.tools.google) {
-                    document.getElementById("cfg-google-enabled").checked = !!cfg.tools.google.enabled;
-                    document.getElementById("cfg-google-binary").value = cfg.tools.google.binary_path || "gog";
-                    document.getElementById("cfg-google-timeout").value = cfg.tools.google.timeout_seconds || 90;
-                    document.getElementById("cfg-google-commands").value = (cfg.tools.google.allowed_commands || []).join(", ");
+                    const googleEnabled = document.getElementById("cfg-google-enabled");
+                    const googleBinary = document.getElementById("cfg-google-binary");
+                    const googleTimeout = document.getElementById("cfg-google-timeout");
+                    const googleCommands = document.getElementById("cfg-google-commands");
+                    if (googleEnabled) googleEnabled.checked = !!cfg.tools.google.enabled;
+                    if (googleBinary) googleBinary.value = cfg.tools.google.binary_path || "gog";
+                    if (googleTimeout) googleTimeout.value = cfg.tools.google.timeout_seconds || 90;
+                    if (googleCommands) googleCommands.value = (cfg.tools.google.allowed_commands || []).join(", ");
                 }
 
                 fetchWorkspaceDocs();
@@ -2010,40 +1289,76 @@
         }
 
         let agentActivity = {};
+        let logEventSource = null;
+        let logReconnectTimer = null;
+        let logStreamEnabled = false;
 
         function clearLogs() {
             const logView = document.getElementById("log-view");
+            if (!logView) return;
             logView.innerHTML = "<div class='text-zinc-600 italic'>Logs cleared.</div>";
         }
 
-        function setupLogStream() {
-            const logView = document.getElementById("log-view");
-            const eventSource = new EventSource("/api/logs");
+        function stopLogStream() {
+            logStreamEnabled = false;
+            if (logReconnectTimer) {
+                clearTimeout(logReconnectTimer);
+                logReconnectTimer = null;
+            }
+            if (logEventSource) {
+                logEventSource.close();
+                logEventSource = null;
+            }
+        }
 
-            eventSource.onmessage = function(event) {
+        function setupLogStream(forceReconnect) {
+            const logView = document.getElementById("log-view");
+            if (!logView) return;
+
+            logStreamEnabled = true;
+            if (logReconnectTimer) {
+                clearTimeout(logReconnectTimer);
+                logReconnectTimer = null;
+            }
+
+            if (forceReconnect && logEventSource) {
+                logEventSource.close();
+                logEventSource = null;
+            }
+            if (logEventSource) return;
+
+            logView.innerHTML = "<div class='text-zinc-600 italic'>Connecting to stream...</div>";
+            logEventSource = new EventSource("/api/logs");
+
+            logEventSource.onmessage = function (event) {
                 try {
+                    const logView = document.getElementById("log-view");
                     const entry = JSON.parse(event.data);
-                    
+
                     // 1. Update Global Log View
                     const div = document.createElement("div");
                     div.className = "mb-1 border-l-2 border-zinc-800 pl-2 py-0.5 animate-fade-in";
-                    
+
                     const timeStr = entry.timestamp ? entry.timestamp.split('T')[1].split('Z')[0] : "";
                     const compStr = entry.component ? "[" + entry.component + "] " : "";
                     div.textContent = timeStr + " " + compStr + entry.message;
-                    
+
                     if (entry.level === "ERROR" || entry.level === "FATAL") div.classList.add("text-red-500");
                     if (entry.level === "WARN") div.classList.add("text-yellow-500");
 
-                    logView.appendChild(div);
-                    while (logView.childNodes.length > 200) logView.removeChild(logView.firstChild);
-                    logView.scrollTop = logView.scrollHeight;
+                    if (logView) {
+                        logView.appendChild(div);
+                        while (logView.childNodes.length > 200) logView.removeChild(logView.firstChild);
+                        logView.scrollTop = logView.scrollHeight;
+                    }
 
                     // 2. Handle Agent Specific Logs
                     if (entry.component && entry.component.startsWith("agent:")) {
                         handleAgentLog(entry);
                     }
                 } catch (e) {
+                    const logView = document.getElementById("log-view");
+                    if (!logView) return;
                     // Fallback for non-json logs if any
                     const div = document.createElement("div");
                     div.className = "mb-1 border-l-2 border-zinc-800 pl-2 py-0.5 text-zinc-600 italic";
@@ -2052,9 +1367,14 @@
                 }
             };
 
-            eventSource.onerror = function() {
-                eventSource.close();
-                setTimeout(setupLogStream, 5000);
+            logEventSource.onerror = function () {
+                if (!logEventSource) return;
+                logEventSource.close();
+                logEventSource = null;
+                if (!logStreamEnabled) return;
+                logReconnectTimer = setTimeout(function () {
+                    setupLogStream(false);
+                }, 5000);
             };
         }
 
@@ -2062,11 +1382,12 @@
             const agentId = entry.component.replace("agent:", "");
             const monitor = document.getElementById("agent-activity-monitor");
             const sidebar = document.getElementById("agent-monitor-sidebar");
-            
+            if (!monitor || !sidebar) return;
+
             if (!agentActivity[agentId]) {
                 agentActivity[agentId] = { lastSeen: Date.now(), timer: null };
                 sidebar.classList.remove("hidden");
-                
+
                 const box = document.createElement("div");
                 box.id = "agent-box-" + agentId;
                 box.className = "agent-log-box w-full bg-zinc-900/80 border border-sofia/20 rounded-xl overflow-hidden flex flex-col shadow-lg transition-all duration-300";
@@ -2092,7 +1413,7 @@
             // Append log line with timestamp + color coding
             const logsDiv = document.getElementById("logs-" + agentId);
             const line = document.createElement("div");
-            const timeStr = entry.timestamp ? entry.timestamp.split("T")[1].replace("Z","").substring(0,8) : "";
+            const timeStr = entry.timestamp ? entry.timestamp.split("T")[1].replace("Z", "").substring(0, 8) : "";
             const msg = entry.message || "";
 
             // Color-code by log type
@@ -2139,7 +1460,7 @@
             const box = document.getElementById("agent-box-" + agentId);
             const dot = document.getElementById("dot-" + agentId);
             const typing = document.getElementById("typing-" + agentId);
-            
+
             if (statusLabel) {
                 statusLabel.innerText = "DONE";
                 statusLabel.className = "text-[8px] text-green-400 font-mono";
@@ -2186,7 +1507,7 @@
                 return "<div class='mt-3 mb-2 p-3 rounded-xl bg-black/20 border border-[var(--border-color)] overflow-x-auto'>" +
                     language +
                     "<pre class='text-xs text-zinc-200 whitespace-pre'><code>" + code + "</code></pre>" +
-                "</div>";
+                    "</div>";
             });
 
             // Basic emphasis
@@ -2198,35 +1519,115 @@
             return safe;
         }
 
+        // ── File Attachment ────────────────────────────────────────────────
+        let attachedFiles = []; // [{name, type, content (base64 or text)}]
+
+        function handleFileAttach(input) {
+            const files = Array.from(input.files);
+            if (!files.length) return;
+
+            const reads = files.map(file => new Promise(resolve => {
+                const isImage = file.type.startsWith("image/");
+                const isText = !isImage && (file.type.startsWith("text/") ||
+                    /\.(md|txt|csv|json|yaml|yml|toml|go|py|js|ts|html|css|sh|log|xml|sql)$/i.test(file.name));
+                const reader = new FileReader();
+                reader.onload = e => resolve({
+                    name: file.name,
+                    type: file.type || "application/octet-stream",
+                    isText,
+                    isImage,
+                    // For images: raw base64 (backend builds the data URL)
+                    // For text: plain text string
+                    // For binary: base64
+                    content: isText ? e.target.result : btoa(e.target.result),
+                    // For preview thumbnail only (data URL)
+                    previewURL: isImage ? URL.createObjectURL(file) : null,
+                });
+                if (isText) reader.readAsText(file);
+                else reader.readAsBinaryString(file);
+            }));
+
+            Promise.all(reads).then(results => {
+                attachedFiles.push(...results);
+                renderFilePreview();
+                input.value = "";
+                refreshIcons();
+            });
+        }
+
+        function renderFilePreview() {
+            const strip = document.getElementById("chat-file-preview");
+            if (attachedFiles.length === 0) {
+                strip.classList.add("hidden");
+                strip.innerHTML = "";
+                return;
+            }
+            strip.classList.remove("hidden");
+            strip.innerHTML = attachedFiles.map((f, i) => {
+                if (f.isImage && f.previewURL) {
+                    return "<div class='relative group'>" +
+                        "<img src='" + f.previewURL + "' class='h-16 w-16 object-cover border border-sofia/20' title='" + f.name + "'>" +
+                        "<button onclick='removeAttachment(" + i + ")' class='absolute top-0 right-0 bg-black/70 text-red-400 text-xs w-4 h-4 flex items-center justify-center hover:bg-red-500 hover:text-white transition'>&times;</button>" +
+                        "</div>";
+                }
+                return "<div class='flex items-center gap-1.5 px-2 py-1 bg-sofia/10 border border-sofia/20 text-[10px] text-sofia font-mono'>" +
+                    "<i data-lucide='file-text' class='w-3 h-3 shrink-0'></i>" +
+                    "<span class='truncate max-w-[160px]'>" + f.name + "</span>" +
+                    "<button onclick='removeAttachment(" + i + ")' class='ml-1 text-sofia/50 hover:text-red-400 transition leading-none text-xs'>&times;</button>" +
+                    "</div>";
+            }).join("");
+            refreshIcons();
+        }
+
+        function removeAttachment(index) {
+            attachedFiles.splice(index, 1);
+            renderFilePreview();
+        }
+        // ─────────────────────────────────────────────────────────────────
+
         async function sendChat() {
             const input = document.getElementById("chat-input");
             const msg = input.value;
-            if (!msg) return;
+            if (!msg && attachedFiles.length === 0) return;
 
             const history = document.getElementById("chat-history");
             const indicator = document.getElementById("typing-indicator");
-            
+
+            // Build display message
+            let displayMsg = msg || (attachedFiles.length > 0 ? "" : "(files attached)");
+            let filesBadge = attachedFiles.length > 0
+                ? "<div class='mt-2 flex flex-wrap gap-2'>" +
+                attachedFiles.map(f => f.isImage && f.previewURL
+                    ? "<img src='" + f.previewURL + "' class='h-20 w-20 object-cover border border-sofia/30'>"
+                    : "<span class='px-1.5 py-0.5 bg-zinc-800 text-[9px] text-zinc-400 border border-zinc-700 font-mono'>" + f.name + "</span>"
+                ).join("") +
+                "</div>"
+                : "";
+
             // User message
-            history.innerHTML += 
+            history.innerHTML +=
                 "<div class='flex flex-col items-end gap-1 animate-slide-up'>" +
-                    "<div class='chat-bubble-user px-4 py-3 rounded-xl text-sm max-w-[85%] text-white'>" + msg + "</div>" +
-                    "<div class='text-[9px] text-zinc-600 mr-1 font-medium'>MAGNUS</div>" +
+                "<div class='chat-bubble-user px-4 py-3 rounded-xl text-sm max-w-[85%] text-white'>" + escapeHtml(displayMsg) + filesBadge + "</div>" +
+                "<div class='text-[9px] text-zinc-600 mr-1 font-medium'>MAGNUS</div>" +
                 "</div>";
-            
+
+            const filesToSend = attachedFiles.slice();
             input.value = "";
+            attachedFiles = [];
+            renderFilePreview();
             indicator.classList.remove("hidden");
             history.scrollTop = history.scrollHeight;
 
             try {
                 const res = await fetch("/api/chat", {
                     method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({message: msg})
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: msg, files: filesToSend })
                 });
-                
+
                 const contentType = res.headers.get("content-type");
                 let responseData;
-                
+
                 if (contentType && contentType.includes("application/json")) {
                     responseData = await res.json();
                 } else {
@@ -2237,28 +1638,28 @@
                 if (!res.ok) {
                     throw new Error(responseData.error || "Unknown error");
                 }
-                
+
                 indicator.classList.add("hidden");
-                
+
                 // Sofia message
-                history.innerHTML += 
+                history.innerHTML +=
                     "<div class='flex gap-4 animate-slide-up'>" +
-                        "<div class='w-8 h-8 rounded-lg bg-sofia/10 border border-sofia/20 flex items-center justify-center shrink-0'>" +
-                            "<img src='/assets/sofiamantis.png' class='w-5 h-5 opacity-80'>" +
-                        "</div>" +
-                        "<div>" +
-                            "<div class='chat-bubble-sofia px-4 py-3 rounded-xl text-sm leading-relaxed max-w-[85%] text-zinc-300 whitespace-pre-wrap break-words'>" + formatAssistantMessage(responseData.response) + "</div>" +
-                            "<div class='text-[9px] text-zinc-600 ml-1 mt-1 font-bold uppercase tracking-widest'>Sofia System</div>" +
-                        "</div>" +
+                    "<div class='w-8 h-8 rounded-lg bg-sofia/10 border border-sofia/20 flex items-center justify-center shrink-0'>" +
+                    "<img src='/assets/sofiamantis.png' class='w-5 h-5 opacity-80'>" +
+                    "</div>" +
+                    "<div>" +
+                    "<div class='chat-bubble-sofia px-4 py-3 rounded-xl text-sm leading-relaxed max-w-[85%] text-zinc-300 whitespace-pre-wrap break-words'>" + formatAssistantMessage(responseData.response) + "</div>" +
+                    "<div class='text-[9px] text-zinc-600 ml-1 mt-1 font-bold uppercase tracking-widest'>Sofia System</div>" +
+                    "</div>" +
                     "</div>";
             } catch (err) {
                 indicator.classList.add("hidden");
-                history.innerHTML += 
+                history.innerHTML +=
                     "<div class='flex flex-col items-center py-4'>" +
-                        "<div class='px-4 py-2 rounded-xl bg-red-900/10 border border-red-900/30 text-[11px] text-red-400 flex items-center gap-2'>" +
-                            "<i data-lucide='alert-circle' class='w-3.5 h-3.5'></i>" +
-                            "Critical error: " + err.message +
-                        "</div>" +
+                    "<div class='px-4 py-2 rounded-xl bg-red-900/10 border border-red-900/30 text-[11px] text-red-400 flex items-center gap-2'>" +
+                    "<i data-lucide='alert-circle' class='w-3.5 h-3.5'></i>" +
+                    "Critical error: " + err.message +
+                    "</div>" +
                     "</div>";
                 refreshIcons();
             }
@@ -2273,27 +1674,48 @@
                     cfg = await res.json();
                 }
 
-                cfg.model_list = getProviderModelsFromForm();
-                cfg.agents.defaults.model_name = document.getElementById("cfg-model").value;
-                cfg.agents.defaults.model = "";
-                cfg.agents.defaults.provider = ""; // Clear legacy provider field
-                
-                cfg.channels.telegram.enabled = document.getElementById("cfg-telegram").checked;
-                cfg.channels.discord.enabled = document.getElementById("cfg-discord").checked;
-                cfg.channels.telegram.token = document.getElementById("cfg-telegram-token").value.trim();
-                cfg.channels.telegram.proxy = document.getElementById("cfg-telegram-proxy").value.trim();
-                cfg.channels.telegram.allow_from = parseAllowFromInput(document.getElementById("cfg-telegram-allow-from").value);
-                cfg.channels.discord.token = document.getElementById("cfg-discord-token").value.trim();
-                cfg.channels.discord.allow_from = parseAllowFromInput(document.getElementById("cfg-discord-allow-from").value);
-                cfg.channels.discord.mention_only = document.getElementById("cfg-discord-mention-only").checked;
-                cfg.agents.defaults.restrict_to_workspace = document.getElementById("cfg-restrict-workspace").checked;
-                
+                const cfgModel = document.getElementById("cfg-model");
+                if (cfgModel) {
+                    cfg.model_list = getProviderModelsFromForm();
+                    cfg.agents.defaults.model_name = cfgModel.value;
+                    cfg.agents.defaults.model = "";
+                    cfg.agents.defaults.provider = ""; // Clear legacy provider field
+                }
+
+                const telegramEnabledEl = document.getElementById("cfg-telegram");
+                const discordEnabledEl = document.getElementById("cfg-discord");
+                const telegramTokenEl = document.getElementById("cfg-telegram-token");
+                const telegramProxyEl = document.getElementById("cfg-telegram-proxy");
+                const telegramAllowFromEl = document.getElementById("cfg-telegram-allow-from");
+                const discordTokenEl = document.getElementById("cfg-discord-token");
+                const discordAllowFromEl = document.getElementById("cfg-discord-allow-from");
+                const discordMentionOnlyEl = document.getElementById("cfg-discord-mention-only");
+
+                if (telegramEnabledEl && discordEnabledEl && telegramTokenEl && telegramProxyEl && telegramAllowFromEl && discordTokenEl && discordAllowFromEl && discordMentionOnlyEl) {
+                    cfg.channels.telegram.enabled = telegramEnabledEl.checked;
+                    cfg.channels.discord.enabled = discordEnabledEl.checked;
+                    cfg.channels.telegram.token = telegramTokenEl.value.trim();
+                    cfg.channels.telegram.proxy = telegramProxyEl.value.trim();
+                    cfg.channels.telegram.allow_from = parseAllowFromInput(telegramAllowFromEl.value);
+                    cfg.channels.discord.token = discordTokenEl.value.trim();
+                    cfg.channels.discord.allow_from = parseAllowFromInput(discordAllowFromEl.value);
+                    cfg.channels.discord.mention_only = discordMentionOnlyEl.checked;
+                }
+
+                const restrictWorkspaceEl = document.getElementById("cfg-restrict-workspace");
+                if (restrictWorkspaceEl) {
+                    cfg.agents.defaults.restrict_to_workspace = restrictWorkspaceEl.checked;
+                }
+
                 // Save Heartbeat settings if block exists
-                if (document.getElementById("cfg-heartbeat-enabled")) {
+                const heartbeatEnabledEl = document.getElementById("cfg-heartbeat-enabled");
+                const heartbeatIntervalEl = document.getElementById("cfg-heartbeat-interval");
+                const heartbeatHoursEl = document.getElementById("cfg-heartbeat-hours");
+                if (heartbeatEnabledEl && heartbeatIntervalEl && heartbeatHoursEl) {
                     if (!cfg.heartbeat) cfg.heartbeat = {};
-                    cfg.heartbeat.enabled = document.getElementById("cfg-heartbeat-enabled").checked;
-                    cfg.heartbeat.interval = parseInt(document.getElementById("cfg-heartbeat-interval").value) || 30;
-                    cfg.heartbeat.active_hours = document.getElementById("cfg-heartbeat-hours").value.trim();
+                    cfg.heartbeat.enabled = heartbeatEnabledEl.checked;
+                    cfg.heartbeat.interval = parseInt(heartbeatIntervalEl.value, 10) || 30;
+                    cfg.heartbeat.active_hours = heartbeatHoursEl.value.trim();
                     cfg.heartbeat.active_days = getCheckedHeartbeatDays();
                 }
 
@@ -2301,10 +1723,10 @@
 
                 const saveRes = await fetch("/api/config", {
                     method: "POST",
-                    headers: {"Content-Type": "application/json"},
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(cfg)
                 });
-                
+
                 if (saveRes.ok) {
                     currentConfig = cfg;
                     alert("Settings saved!");
@@ -2320,11 +1742,48 @@
         fetchStatus();
         fetchConfig();
         fetchPurposeTemplates();
-        onTemplateSelected();
-        showSettingsSubTab('prompts');
-        setupLogStream();
-        updateThemeIcons();
         refreshIcons();
+
+        function attachChatInputHandler() {
+            const chatInput = document.getElementById("chat-input");
+            if (!chatInput || chatInput.dataset.bound === "1") return;
+            chatInput.dataset.bound = "1";
+            chatInput.addEventListener("keypress", (e) => {
+                if (e.key === "Enter") sendChat();
+            });
+        }
+        attachChatInputHandler();
+
+        document.body.addEventListener("htmx:afterSwap", (event) => {
+            const target = event.detail && event.detail.target;
+            if (!target) return;
+
+            if (target.id === "main-content") {
+                if (currentTab === "agents") {
+                    fetchConfig();
+                    fetchPurposeTemplates();
+                    fetchAgents();
+                }
+                if (currentTab === "settings") {
+                    fetchConfig();
+                } else {
+                    stopLogStream();
+                }
+                attachChatInputHandler();
+                refreshIcons();
+                return;
+            }
+
+            if (target.id === "subtab-content") {
+                fetchConfig();
+                if (currentSettingsSubTab === "settings-tab-logs") {
+                    setupLogStream(true);
+                } else {
+                    stopLogStream();
+                }
+                refreshIcons();
+            }
+        });
 
         [
             "cfg-telegram",
@@ -2347,10 +1806,10 @@
             container.innerHTML = "";
             days.forEach(day => {
                 const isChecked = activeDays.includes(day);
-                container.innerHTML += 
+                container.innerHTML +=
                     "<label class=\"flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)] cursor-pointer hover:border-sofia/50 transition-colors\">" +
-                        "<input type=\"checkbox\" value=\"" + day + "\" class=\"hb-day-checkbox w-3.5 h-3.5 text-sofia bg-zinc-800 border-zinc-600 rounded focus:ring-sofia\" " + (isChecked ? "checked" : "") + " onchange=\"saveConfig()\">" +
-                        "<span class=\"text-[11px] text-[var(--text-main)]\">" + day + "</span>" +
+                    "<input type=\"checkbox\" value=\"" + day + "\" class=\"hb-day-checkbox w-3.5 h-3.5 text-sofia bg-zinc-800 border-zinc-600 rounded focus:ring-sofia\" " + (isChecked ? "checked" : "") + " onchange=\"saveConfig()\">" +
+                    "<span class=\"text-[11px] text-[var(--text-main)]\">" + day + "</span>" +
                     "</label>";
             });
         }
@@ -2371,13 +1830,11 @@
             el.addEventListener("change", validateChannelSettings);
             el.addEventListener("input", validateChannelSettings);
         });
-        
+
         // Auto-refresh status
         setInterval(fetchStatus, 2000);
 
-        document.getElementById("chat-input").addEventListener("keypress", (e) => {
-            if (e.key === "Enter") sendChat();
-        });
     </script>
 </body>
+
 </html>

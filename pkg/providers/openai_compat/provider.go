@@ -286,26 +286,57 @@ func parseResponse(body []byte) (*LLMResponse, error) {
 }
 
 // openaiMessage is the wire-format message for OpenAI-compatible APIs.
-// It mirrors protocoltypes.Message but omits SystemParts, which is an
-// internal field that would be unknown to third-party endpoints.
+// Content can be a plain string OR an array of content parts for vision (image_url).
+// We use json.RawMessage so we can emit either format depending on context.
 type openaiMessage struct {
 	Role       string     `json:"role"`
-	Content    string     `json:"content"`
+	Content    any        `json:"content"` // string OR []openaiContentPart for vision
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
 }
 
-// stripSystemParts converts []Message to []openaiMessage, dropping the
-// SystemParts field so it doesn't leak into the JSON payload sent to
-// OpenAI-compatible APIs (some strict endpoints reject unknown fields).
+type openaiContentPart struct {
+	Type     string          `json:"type"`
+	Text     string          `json:"text,omitempty"`
+	ImageURL *openaiImageURL `json:"image_url,omitempty"`
+}
+
+type openaiImageURL struct {
+	URL    string `json:"url"`
+	Detail string `json:"detail,omitempty"` // "auto" | "low" | "high"
+}
+
+// stripSystemParts converts []Message to []openaiMessage.
+// For user messages with images, it builds the vision content array format.
+// SystemParts is dropped so it doesn't leak into third-party endpoints.
 func stripSystemParts(messages []Message) []openaiMessage {
 	out := make([]openaiMessage, len(messages))
 	for i, m := range messages {
-		out[i] = openaiMessage{
-			Role:       m.Role,
-			Content:    m.Content,
-			ToolCalls:  m.ToolCalls,
-			ToolCallID: m.ToolCallID,
+		if m.Role == "user" && len(m.Images) > 0 {
+			// Build vision content array
+			var parts []openaiContentPart
+			if m.Content != "" {
+				parts = append(parts, openaiContentPart{Type: "text", Text: m.Content})
+			}
+			for _, dataURL := range m.Images {
+				parts = append(parts, openaiContentPart{
+					Type:     "image_url",
+					ImageURL: &openaiImageURL{URL: dataURL, Detail: "auto"},
+				})
+			}
+			out[i] = openaiMessage{
+				Role:       m.Role,
+				Content:    parts,
+				ToolCalls:  m.ToolCalls,
+				ToolCallID: m.ToolCallID,
+			}
+		} else {
+			out[i] = openaiMessage{
+				Role:       m.Role,
+				Content:    m.Content,
+				ToolCalls:  m.ToolCalls,
+				ToolCallID: m.ToolCallID,
+			}
 		}
 	}
 	return out

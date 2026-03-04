@@ -1,6 +1,6 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.40-blue)
+![Version](https://img.shields.io/badge/version-v0.0.41-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
@@ -55,6 +55,8 @@ Den kompilerade binären hamnar direkt i projektets rotmapp som `./sofia`.
 ```bash
 sofia onboard
 ```
+
+`sofia onboard` installerar nu även ett bundlat Antigravity Kit till `~/.sofia/antigravity-kit` automatiskt.
 
 2. **Starta Gateway (för chatt/webb-gränssnitt):**
 ```bash

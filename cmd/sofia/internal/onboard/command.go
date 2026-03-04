@@ -7,7 +7,8 @@ import (
 )
 
 //go:generate cp -r ../../../../workspace .
-//go:embed workspace
+//go:generate cp -r ../../../../third_party/antigravity-kit .
+//go:embed workspace all:antigravity-kit
 var embeddedFiles embed.FS
 
 func NewOnboardCommand() *cobra.Command {

@@ -44,23 +44,21 @@ type AgentLoop struct {
 
 // processOptions configures how a message is processed
 type processOptions struct {
-	SessionKey      string // Session identifier for history/context
-	Channel         string // Target channel for tool execution
-	ChatID          string // Target chat ID for tool execution
-	UserMessage     string // User message content (may include prefix)
-	DefaultResponse string // Response when LLM returns empty
-	EnableSummary   bool   // Whether to trigger summarization
-	SendResponse    bool   // Whether to send response via bus
-	NoHistory       bool   // If true, don't load session history (for heartbeat)
+	SessionKey      string   // Session identifier for history/context
+	Channel         string   // Target channel for tool execution
+	ChatID          string   // Target chat ID for tool execution
+	UserMessage     string   // User message content (may include prefix)
+	UserImages      []string // Optional base64 data URLs for vision (e.g. "data:image/png;base64,...")
+	DefaultResponse string   // Response when LLM returns empty
+	EnableSummary   bool     // Whether to trigger summarization
+	SendResponse    bool     // Whether to send response via bus
+	NoHistory       bool     // If true, don't load session history (for heartbeat)
 }
 
 const defaultResponse = "I've completed processing but have no response to give. Increase `max_tool_iterations` in config.json."
 
 func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers.LLMProvider) *AgentLoop {
 	registry := NewAgentRegistry(cfg, provider)
-
-	// Register shared tools to all agents
-	registerSharedTools(cfg, msgBus, registry, provider)
 
 	// Set up shared fallback chain
 	cooldown := providers.NewCooldownTracker()
@@ -81,6 +79,10 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		summarizing: sync.Map{},
 		fallback:    fallbackChain,
 	}
+
+	// Register shared tools to all agents.
+	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent)
+
 	al.activeAgentID.Store("")
 	al.activeStatus.Store("Idle")
 	return al
@@ -92,6 +94,7 @@ func registerSharedTools(
 	msgBus *bus.MessageBus,
 	registry *AgentRegistry,
 	provider providers.LLMProvider,
+	agentTaskRunner func(ctx context.Context, agentID, sessionKey, task, originChannel, originChatID string) (string, error),
 ) {
 	for _, agentID := range registry.ListAgentIDs() {
 		agent, ok := registry.GetAgent(agentID)
@@ -158,6 +161,7 @@ func registerSharedTools(
 		// Spawn tool with allowlist checker
 		subagentManager := tools.NewSubagentManager(provider, agent.Model, agent.Workspace, msgBus)
 		subagentManager.SetLLMOptions(agent.MaxTokens, agent.Temperature)
+		subagentManager.SetAgentTaskRunner(agentTaskRunner)
 		spawnTool := tools.NewSpawnTool(subagentManager)
 		currentAgentID := agentID
 		spawnTool.SetAllowlistChecker(func(targetAgentID string) bool {
@@ -257,10 +261,35 @@ func (al *AgentLoop) ReloadAgents() {
 	}
 
 	newRegistry := NewAgentRegistry(al.cfg, provider)
-	registerSharedTools(al.cfg, al.bus, newRegistry, provider)
+	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent)
 
 	al.registry = newRegistry
 	logger.InfoCF("agent", "Agents reloaded successfully", nil)
+}
+
+func (al *AgentLoop) runSpawnedTaskAsAgent(
+	ctx context.Context,
+	agentID, sessionKey, task, originChannel, originChatID string,
+) (string, error) {
+	target, ok := al.registry.GetAgent(agentID)
+	if !ok || target == nil {
+		return "", fmt.Errorf("target agent %q not found", agentID)
+	}
+
+	if sessionKey == "" {
+		sessionKey = "subagent:" + agentID
+	}
+
+	return al.runAgentLoop(ctx, target, processOptions{
+		SessionKey:      sessionKey,
+		Channel:         originChannel,
+		ChatID:          originChatID,
+		UserMessage:     task,
+		DefaultResponse: defaultResponse,
+		EnableSummary:   false,
+		SendResponse:    false,
+		NoHistory:       true,
+	})
 }
 
 // RecordLastChannel records the last active channel for this workspace.
@@ -283,6 +312,22 @@ func (al *AgentLoop) RecordLastChatID(chatID string) error {
 
 func (al *AgentLoop) ProcessDirect(ctx context.Context, content, sessionKey string) (string, error) {
 	return al.ProcessDirectWithChannel(ctx, content, sessionKey, "cli", "direct")
+}
+
+// ProcessDirectWithImages sends a message with optional image attachments directly
+// to the default agent, bypassing channel routing. Images must be base64 data URLs.
+func (al *AgentLoop) ProcessDirectWithImages(ctx context.Context, content, sessionKey string, images []string) (string, error) {
+	agent := al.registry.GetDefaultAgent()
+	return al.runAgentLoop(ctx, agent, processOptions{
+		SessionKey:      sessionKey,
+		Channel:         "cli",
+		ChatID:          "direct",
+		UserMessage:     content,
+		UserImages:      images,
+		DefaultResponse: defaultResponse,
+		EnableSummary:   true,
+		SendResponse:    false,
+	})
 }
 
 func (al *AgentLoop) ProcessDirectWithChannel(
@@ -496,6 +541,16 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 		opts.Channel,
 		opts.ChatID,
 	)
+
+	// Inject images into the last user message for vision-capable providers
+	if len(opts.UserImages) > 0 {
+		for i := len(messages) - 1; i >= 0; i-- {
+			if messages[i].Role == "user" {
+				messages[i].Images = opts.UserImages
+				break
+			}
+		}
+	}
 
 	// 3. Save user message to session
 	agent.Sessions.AddMessage(opts.SessionKey, "user", opts.UserMessage)
