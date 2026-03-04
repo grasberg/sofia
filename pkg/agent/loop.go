@@ -158,8 +158,10 @@ func registerSharedTools(
 		agent.Tools.Register(tools.NewFindSkillsTool(registryMgr, searchCache))
 		agent.Tools.Register(tools.NewInstallSkillTool(registryMgr, agent.Workspace))
 
-		// Spawn tool with allowlist checker
-		subagentManager := tools.NewSubagentManager(provider, agent.ModelID, agent.Workspace, msgBus)
+		// Spawn tool with allowlist checker.
+		// Use agent.Provider (not the global provider) so that ad-hoc subagents spawned by
+		// this agent inherit the agent's own model/API key rather than Sofia's global one.
+		subagentManager := tools.NewSubagentManager(agent.Provider, agent.ModelID, agent.Workspace, msgBus)
 		subagentManager.SetLLMOptions(agent.MaxTokens, agent.Temperature)
 		subagentManager.SetAgentTaskRunner(agentTaskRunner)
 		spawnTool := tools.NewSpawnTool(subagentManager)
@@ -278,7 +280,23 @@ func (al *AgentLoop) runSpawnedTaskAsAgent(
 		sessionKey = "subagent:" + agentID
 	}
 
-	return al.runAgentLoop(ctx, target, processOptions{
+	agentComp := fmt.Sprintf("agent:%s", agentID)
+	agentName := target.Name
+	if agentName == "" {
+		agentName = agentID
+	}
+	taskPreview := utils.Truncate(task, 120)
+	logger.InfoCF(agentComp, fmt.Sprintf("SUBAGENT: task started — %s", taskPreview),
+		map[string]any{
+			"agent_id":     agentID,
+			"agent_name":   agentName,
+			"model":        target.Model,
+			"session_key":  sessionKey,
+			"task_preview": taskPreview,
+		})
+
+	start := time.Now()
+	result, err := al.runAgentLoop(ctx, target, processOptions{
 		SessionKey:      sessionKey,
 		Channel:         originChannel,
 		ChatID:          originChatID,
@@ -288,6 +306,28 @@ func (al *AgentLoop) runSpawnedTaskAsAgent(
 		SendResponse:    false,
 		NoHistory:       true,
 	})
+	dur := time.Since(start).Milliseconds()
+
+	if err != nil {
+		logger.WarnCF(agentComp, fmt.Sprintf("SUBAGENT: task failed after %dms", dur),
+			map[string]any{
+				"agent_id":    agentID,
+				"agent_name":  agentName,
+				"duration_ms": dur,
+				"error":       err.Error(),
+			})
+		return result, err
+	}
+
+	logger.InfoCF(agentComp, fmt.Sprintf("SUBAGENT: task completed in %dms", dur),
+		map[string]any{
+			"agent_id":       agentID,
+			"agent_name":     agentName,
+			"duration_ms":    dur,
+			"result_len":     len(result),
+			"result_preview": utils.Truncate(result, 160),
+		})
+	return result, nil
 }
 
 // RecordLastChannel records the last active channel for this workspace.
@@ -360,19 +400,14 @@ func (al *AgentLoop) ProcessHeartbeat(ctx context.Context, content, channel, cha
 }
 
 func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage) (string, error) {
-	// Add message preview to log (show full content for error messages)
-	var logContent string
-	if strings.Contains(msg.Content, "Error:") || strings.Contains(msg.Content, "error") {
-		logContent = msg.Content // Full content for errors
-	} else {
-		logContent = utils.Truncate(msg.Content, 80)
-	}
-	logger.InfoCF("agent", fmt.Sprintf("Processing message from %s:%s: %s", msg.Channel, msg.SenderID, logContent),
+	preview := utils.Truncate(msg.Content, 120)
+	logger.InfoCF("agent", fmt.Sprintf("SOFIA: message received — %s", preview),
 		map[string]any{
 			"channel":     msg.Channel,
 			"chat_id":     msg.ChatID,
 			"sender_id":   msg.SenderID,
 			"session_key": msg.SessionKey,
+			"preview":     preview,
 		})
 
 	// Route system messages to processSystemMessage
@@ -409,26 +444,47 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 		sessionKey = msg.SessionKey
 	}
 
-	logger.InfoCF("agent", "Routed message",
+	logger.InfoCF("agent", fmt.Sprintf("ROUTER: routed to agent %q via %s", agent.ID, route.MatchedBy),
 		map[string]any{
 			"agent_id":    agent.ID,
 			"session_key": sessionKey,
 			"matched_by":  route.MatchedBy,
+			"channel":     msg.Channel,
+			"chat_id":     msg.ChatID,
 		})
 
 	// Deterministic delegation: if a sub-agent scores >= threshold, run it
 	// synchronously and fold the result back into Sofia's context.
 	if subagent := al.delegateTo(msg.Content); subagent != nil {
-		logger.InfoCF("agent", "Delegating to sub-agent",
+		score := scoreCandidate(subagent, strings.ToLower(msg.Content))
+		logger.InfoCF("agent", fmt.Sprintf("SOFIA: delegating to %q (score=%.2f, threshold=%.2f)", subagent.Name, score, delegationThreshold),
 			map[string]any{
-				"subagent_id":   subagent.ID,
-				"subagent_name": subagent.Name,
+				"from_agent": "main",
+				"to_agent":   subagent.ID,
+				"agent_name": subagent.Name,
+				"score":      fmt.Sprintf("%.2f", score),
+				"threshold":  fmt.Sprintf("%.2f", delegationThreshold),
+				"reason":     "skills+purpose+hint match",
+				"preview":    utils.Truncate(msg.Content, 120),
 			})
+		delegateStart := time.Now()
 		subResult, err := al.runSpawnedTaskAsAgent(ctx, subagent.ID, "", msg.Content, msg.Channel, msg.ChatID)
+		delegateDur := time.Since(delegateStart).Milliseconds()
 		if err != nil {
-			logger.InfoCF("agent", "Sub-agent delegation failed, falling back to Sofia",
-				map[string]any{"error": err.Error()})
+			logger.WarnCF("agent", fmt.Sprintf("SOFIA: delegation to %q failed — falling back to Sofia", subagent.Name),
+				map[string]any{
+					"to_agent":    subagent.ID,
+					"duration_ms": delegateDur,
+					"error":       err.Error(),
+				})
 		} else {
+			logger.InfoCF("agent", fmt.Sprintf("SOFIA: sub-agent %q done, synthesising result", subagent.Name),
+				map[string]any{
+					"to_agent":       subagent.ID,
+					"duration_ms":    delegateDur,
+					"result_len":     len(subResult),
+					"result_preview": utils.Truncate(subResult, 160),
+				})
 			// Let Sofia synthesise and present the sub-agent's result to the user.
 			synthesisMsg := fmt.Sprintf("[Subagent result from %s]\n\n%s", subagent.Name, subResult)
 			return al.runAgentLoop(ctx, agent, processOptions{
@@ -581,8 +637,24 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 	agent.Sessions.AddMessage(opts.SessionKey, "user", opts.UserMessage)
 
 	// 4. Run LLM iteration loop
-	logger.InfoCF(agentComp, fmt.Sprintf("Generating response using model: %s", agent.Model), nil)
+	isSynthesis := strings.HasPrefix(opts.UserMessage, "[Subagent result from")
+	if isSynthesis {
+		logger.InfoCF(agentComp, fmt.Sprintf("SOFIA: synthesis start — presenting sub-agent result via model %s", agent.Model),
+			map[string]any{
+				"model":       agent.Model,
+				"session_key": opts.SessionKey,
+				"input_len":   len(opts.UserMessage),
+			})
+	} else {
+		logger.InfoCF(agentComp, fmt.Sprintf("SOFIA: generating response — model %s", agent.Model),
+			map[string]any{
+				"model":       agent.Model,
+				"session_key": opts.SessionKey,
+			})
+	}
+	llmStart := time.Now()
 	finalContent, iteration, err := al.runLLMIteration(ctx, agent, messages, opts)
+	llmDur := time.Since(llmStart).Milliseconds()
 	if err != nil {
 		return "", err
 	}
@@ -613,14 +685,15 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 		})
 	}
 
-	// 9. Log response
 	responsePreview := utils.Truncate(finalContent, 120)
-	logger.InfoCF(agentComp, fmt.Sprintf("Response: %s", responsePreview),
+	logger.InfoCF(agentComp, fmt.Sprintf("SOFIA: response ready — %s", responsePreview),
 		map[string]any{
-			"agent_id":     agent.ID,
-			"session_key":  opts.SessionKey,
-			"iterations":   iteration,
-			"final_length": len(finalContent),
+			"agent_id":         agent.ID,
+			"session_key":      opts.SessionKey,
+			"iterations":       iteration,
+			"duration_ms":      llmDur,
+			"response_len":     len(finalContent),
+			"response_preview": responsePreview,
 		})
 
 	al.activeAgentID.Store("")
@@ -759,11 +832,12 @@ func (al *AgentLoop) runLLMIteration(
 		// Check if no tool calls - we're done
 		if len(response.ToolCalls) == 0 {
 			finalContent = response.Content
-			logger.InfoCF(agentComp, "LLM response without tool calls (direct answer)",
+			logger.InfoCF(agentComp, fmt.Sprintf("SOFIA: LLM returned direct answer — %s", utils.Truncate(finalContent, 120)),
 				map[string]any{
-					"agent_id":      agent.ID,
-					"iteration":     iteration,
-					"content_chars": len(finalContent),
+					"agent_id":         agent.ID,
+					"iteration":        iteration,
+					"content_len":      len(finalContent),
+					"response_preview": utils.Truncate(finalContent, 120),
 				})
 			break
 		}
@@ -773,12 +847,12 @@ func (al *AgentLoop) runLLMIteration(
 			normalizedToolCalls = append(normalizedToolCalls, providers.NormalizeToolCall(tc))
 		}
 
-		// Log tool calls
+		// Log tool calls summary
 		toolNames := make([]string, 0, len(normalizedToolCalls))
 		for _, tc := range normalizedToolCalls {
 			toolNames = append(toolNames, tc.Name)
 		}
-		logger.InfoCF(agentComp, "LLM requested tool calls",
+		logger.InfoCF(agentComp, fmt.Sprintf("TOOL: LLM requested %d tool(s): %s", len(normalizedToolCalls), strings.Join(toolNames, ", ")),
 			map[string]any{
 				"agent_id":  agent.ID,
 				"tools":     toolNames,
@@ -824,11 +898,12 @@ func (al *AgentLoop) runLLMIteration(
 			al.activeStatus.Store(fmt.Sprintf("Executing tool: %s", tc.Name))
 			argsJSON, _ := json.Marshal(tc.Arguments)
 			argsPreview := utils.Truncate(string(argsJSON), 200)
-			logger.InfoCF(agentComp, fmt.Sprintf("Tool call: %s(%s)", tc.Name, argsPreview),
+			logger.InfoCF(agentComp, fmt.Sprintf("TOOL: started %s", tc.Name),
 				map[string]any{
-					"agent_id":  agent.ID,
-					"tool":      tc.Name,
-					"iteration": iteration,
+					"agent_id":     agent.ID,
+					"tool":         tc.Name,
+					"iteration":    iteration,
+					"args_preview": argsPreview,
 				})
 
 			// Create async callback for tools that implement AsyncTool
@@ -836,17 +911,17 @@ func (al *AgentLoop) runLLMIteration(
 			// Instead, they notify the agent via PublishInbound, and the agent decides
 			// whether to forward the result to the user (in processSystemMessage).
 			asyncCallback := func(callbackCtx context.Context, result *tools.ToolResult) {
-				// Log the async completion but don't send directly to user
-				// The agent will handle user notification via processSystemMessage
 				if !result.Silent && result.ForUser != "" {
-					logger.InfoCF(agentComp, "Async tool completed, agent will handle notification",
+					logger.InfoCF(agentComp, fmt.Sprintf("TOOL: async completed %s", tc.Name),
 						map[string]any{
-							"tool":        tc.Name,
-							"content_len": len(result.ForUser),
+							"tool":           tc.Name,
+							"for_user_len":   len(result.ForUser),
+							"result_preview": utils.Truncate(result.ForUser, 160),
 						})
 				}
 			}
 
+			toolStart := time.Now()
 			toolResult := agent.Tools.ExecuteWithContext(
 				ctx,
 				tc.Name,
@@ -855,6 +930,26 @@ func (al *AgentLoop) runLLMIteration(
 				opts.ChatID,
 				asyncCallback,
 			)
+			toolDur := time.Since(toolStart).Milliseconds()
+
+			// Log tool result
+			toolStatus := "ok"
+			toolErrStr := ""
+			if toolResult.Err != nil {
+				toolStatus = "error"
+				toolErrStr = toolResult.Err.Error()
+			}
+			logger.InfoCF(agentComp, fmt.Sprintf("TOOL: finished %s in %dms — %s", tc.Name, toolDur, toolStatus),
+				map[string]any{
+					"agent_id":       agent.ID,
+					"tool":           tc.Name,
+					"duration_ms":    toolDur,
+					"status":         toolStatus,
+					"for_user_len":   len(toolResult.ForUser),
+					"for_llm_len":    len(toolResult.ForLLM),
+					"result_preview": utils.Truncate(toolResult.ForLLM, 160),
+					"error":          toolErrStr,
+				})
 
 			// Send ForUser content to user immediately if not Silent
 			if !toolResult.Silent && toolResult.ForUser != "" && opts.SendResponse {
@@ -863,11 +958,6 @@ func (al *AgentLoop) runLLMIteration(
 					ChatID:  opts.ChatID,
 					Content: toolResult.ForUser,
 				})
-				logger.DebugCF(agentComp, "Sent tool result to user",
-					map[string]any{
-						"tool":        tc.Name,
-						"content_len": len(toolResult.ForUser),
-					})
 			}
 
 			// Determine content for LLM based on tool result

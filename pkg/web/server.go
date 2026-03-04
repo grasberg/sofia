@@ -90,8 +90,8 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write([]byte(`
 <!-- SETTINGS TAB (HTMX Shell) -->
-<div id="tab-settings" class="h-full">
-	<div id="subtab-content" class="h-full flex flex-col" hx-get="/ui/settings/models" hx-trigger="load">
+<div id="tab-settings" class="flex flex-col flex-grow min-h-0">
+	<div id="subtab-content" class="flex flex-col flex-grow min-h-0" hx-get="/ui/settings/models" hx-trigger="load">
 		<!-- HTMX will inject models.html here by default -->
 	</div>
 </div>

@@ -100,6 +100,11 @@ func NewAgentInstance(
 		maxTokens = 8192
 	}
 
+	// Per-model max_tokens overrides the agent default when set.
+	if mc, err := cfg.GetModelConfig(model); err == nil && mc != nil && mc.MaxTokens > 0 {
+		maxTokens = mc.MaxTokens
+	}
+
 	temperature := 0.7
 	if defaults.Temperature != nil {
 		temperature = *defaults.Temperature

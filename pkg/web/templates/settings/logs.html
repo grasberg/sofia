@@ -1,6 +1,6 @@
-<div id="settings-subtab-logs" class="h-full flex flex-col">
-                <div class="glass-panel rounded-xl border border-[var(--border-color)] p-6 flex flex-col flex-grow shadow-2xl transition-all duration-300" >
-                    <div class="flex items-center justify-between mb-6">
+<div id="settings-subtab-logs" class="flex flex-col flex-grow min-h-0">
+                <div class="glass-panel rounded-xl border border-[var(--border-color)] p-6 flex flex-col flex-grow min-h-0 shadow-2xl transition-all duration-300" >
+                    <div class="flex items-center justify-between mb-4">
                         <div>
                             <h2 class="text-xl font-bold text-[var(--text-main)]">System Logs</h2>
                             <p class="text-sm text-zinc-500">Real-time monitoring of system events and agent activity.</p>
@@ -12,8 +12,38 @@
                             </button>
                         </div>
                     </div>
-                    <div id="log-view" class="bg-black/5 dark:bg-black/40 rounded-xl p-6 font-mono text-xs overflow-y-auto text-zinc-500 dark:text-zinc-400 border border-[var(--border-color)] leading-relaxed transition-colors duration-300 flex-grow" >
-                        <div class="text-zinc-600 italic">Connecting to stream...</div>
+
+                    <!-- Filters + search -->
+                    <div class="flex flex-wrap items-center gap-2 mb-3">
+                        <span class="text-[10px] text-zinc-600 uppercase tracking-widest font-bold shrink-0">Filter:</span>
+                        <button onclick="setLogFilter('all')" id="logfilter-all"
+                            class="log-filter-btn active px-2.5 py-1 rounded-lg text-[10px] font-bold border border-zinc-700 text-zinc-300 bg-zinc-800 transition-colors">
+                            All
+                        </button>
+                        <button onclick="setLogFilter('sofia')" id="logfilter-sofia"
+                            class="log-filter-btn px-2.5 py-1 rounded-lg text-[10px] font-bold border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors">
+                            Sofia
+                        </button>
+                        <button onclick="setLogFilter('subagent')" id="logfilter-subagent"
+                            class="log-filter-btn px-2.5 py-1 rounded-lg text-[10px] font-bold border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors">
+                            Subagents
+                        </button>
+                        <button onclick="setLogFilter('tool')" id="logfilter-tool"
+                            class="log-filter-btn px-2.5 py-1 rounded-lg text-[10px] font-bold border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors">
+                            Tools
+                        </button>
+                        <button onclick="setLogFilter('error')" id="logfilter-error"
+                            class="log-filter-btn px-2.5 py-1 rounded-lg text-[10px] font-bold border border-red-900/50 text-red-500/70 hover:text-red-400 hover:bg-red-950/30 transition-colors">
+                            Errors
+                        </button>
+                        <div class="flex-grow"></div>
+                        <input id="log-search" type="text" placeholder="search logs..."
+                            oninput="applyLogFilter()"
+                            class="bg-black/40 border border-zinc-800 rounded-lg px-3 py-1 text-[11px] font-mono text-zinc-400 placeholder:text-zinc-700 focus:outline-none focus:border-zinc-600 w-48">
+                    </div>
+
+                    <div id="log-view" class="bg-black/5 dark:bg-black/40 rounded-xl p-3 font-mono text-xs overflow-y-auto text-zinc-500 dark:text-zinc-400 border border-[var(--border-color)] leading-relaxed transition-colors duration-300 flex-grow space-y-0.5" >
+                        <div class="text-zinc-600 italic px-2 py-1">Connecting to stream...</div>
                     </div>
                 </div>
             </div>

@@ -324,6 +324,7 @@ type ModelConfig struct {
 
 	// Optional optimizations
 	RPM            int    `json:"rpm,omitempty"`              // Requests per minute limit
+	MaxTokens      int    `json:"max_tokens,omitempty"`       // Max tokens per request (overrides agent default)
 	MaxTokensField string `json:"max_tokens_field,omitempty"` // Field name for max tokens (e.g., "max_completion_tokens")
 	RequestTimeout int    `json:"request_timeout,omitempty"`
 }

@@ -168,7 +168,7 @@
         </header>
 
         <!-- Content Area -->
-        <div id="main-content" class="flex-grow-fix p-4 lg:p-6" hx-get="/ui/chat" hx-trigger="load">
+        <div id="main-content" class="flex-grow-fix flex flex-col p-4 lg:p-6" hx-get="/ui/chat" hx-trigger="load">
             <!-- HTMX injects content here -->
         </div>
 
@@ -183,6 +183,12 @@
         let purposeTemplateMap = {};
         let currentConfig = null;
         let currentSettingsSubTab = 'settings-tab-models';
+
+        // Persistent chat history: array of {role: "user"|"sofia"|"error", html: string}
+        let chatHistory = [];
+
+        // Persistent monitor SSE (always running — powers Agent Monitor)
+        let monitorEventSource = null;
 
         // Provider → list of {label, model_id, api_base} presets
         const PROVIDER_MODELS = {
@@ -366,10 +372,11 @@
             document.getElementById("form-model-workspace").value = "";
             document.getElementById("form-model-rpm").value = "";
             document.getElementById("form-model-timeout").value = "";
-            document.getElementById("form-model-proxy").value = "";
-            document.getElementById("form-model-auth").value = "";
+            document.getElementById("form-model-max-tokens").value = "";
             document.getElementById("form-model-tokens-field").value = "";
             document.getElementById("form-model-connect").value = "";
+            document.getElementById("form-model-proxy").value = "";
+            document.getElementById("form-model-auth").value = "";
 
             if (editIndex !== undefined && editIndex >= 0) {
                 const m = configuredModels[editIndex];
@@ -400,10 +407,11 @@
                 document.getElementById("form-model-workspace").value = m.workspace || "";
                 document.getElementById("form-model-rpm").value = m.rpm || "";
                 document.getElementById("form-model-timeout").value = m.request_timeout || "";
-                document.getElementById("form-model-proxy").value = m.proxy || "";
-                document.getElementById("form-model-auth").value = m.auth_method || "";
+                document.getElementById("form-model-max-tokens").value = m.max_tokens || "";
                 document.getElementById("form-model-tokens-field").value = m.max_tokens_field || "";
                 document.getElementById("form-model-connect").value = m.connect_mode || "";
+                document.getElementById("form-model-proxy").value = m.proxy || "";
+                document.getElementById("form-model-auth").value = m.auth_method || "";
             } else {
                 title.textContent = "Add New Model";
             }
@@ -508,16 +516,18 @@
             const workspace = document.getElementById("form-model-workspace").value.trim();
             const rpm = parseInt(document.getElementById("form-model-rpm").value, 10);
             const timeout = parseInt(document.getElementById("form-model-timeout").value, 10);
-            const proxy = document.getElementById("form-model-proxy").value.trim();
-            const auth = document.getElementById("form-model-auth").value.trim();
+            const maxTokens = parseInt(document.getElementById("form-model-max-tokens").value, 10);
             const tokensField = document.getElementById("form-model-tokens-field").value.trim();
             const connectMode = document.getElementById("form-model-connect").value.trim();
+            const proxy = document.getElementById("form-model-proxy").value.trim();
+            const auth = document.getElementById("form-model-auth").value.trim();
 
             if (apiBase) entry.api_base = apiBase;
             if (apiKey) entry.api_key = apiKey;
             if (workspace) entry.workspace = workspace;
             if (!isNaN(rpm) && rpm > 0) entry.rpm = rpm;
             if (!isNaN(timeout) && timeout > 0) entry.request_timeout = timeout;
+            if (!isNaN(maxTokens) && maxTokens > 0) entry.max_tokens = maxTokens;
             if (proxy) entry.proxy = proxy;
             if (auth) entry.auth_method = auth;
             if (tokensField) entry.max_tokens_field = tokensField;
@@ -1299,6 +1309,186 @@
         let logEventSource = null;
         let logReconnectTimer = null;
         let logStreamEnabled = false;
+        let currentLogFilter = 'all';
+        const MAX_LOG_ROWS = 500;
+
+        // ── Log rendering ────────────────────────────────────────────────
+
+        function appendLogRow(logView, entry) {
+            if (!logView) return;
+
+            // Remove placeholder "Connecting..." line on first real entry
+            const placeholder = logView.querySelector('.italic');
+            if (placeholder) placeholder.remove();
+
+            // Timestamp  HH:MM:SS.mmm
+            let timeStr = "";
+            if (entry.timestamp) {
+                const t = entry.timestamp.split("T")[1] || "";
+                timeStr = t.replace("Z", "").substring(0, 12); // HH:MM:SS.mmm
+            }
+
+            // Level badge color
+            const levelColors = {
+                DEBUG: "bg-zinc-700 text-zinc-400",
+                INFO:  "bg-sky-900/60 text-sky-400",
+                WARN:  "bg-yellow-900/60 text-yellow-400",
+                ERROR: "bg-red-900/60 text-red-400",
+                FATAL: "bg-red-900/80 text-red-300 font-bold",
+            };
+            const level = (entry.level || "INFO").toUpperCase();
+            const levelBadge = "<span class='shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide " +
+                (levelColors[level] || levelColors.INFO) + "'>" + level + "</span>";
+
+            // Component badge
+            const comp = entry.component || "";
+            let compBadge = "";
+            if (comp === "agent:main") {
+                compBadge = "<span class='shrink-0 px-1.5 py-0.5 rounded text-[9px] font-mono bg-violet-900/50 text-violet-400'>" + escapeHtml(comp) + "</span>";
+            } else if (comp.startsWith("agent:")) {
+                compBadge = "<span class='shrink-0 px-1.5 py-0.5 rounded text-[9px] font-mono bg-amber-900/40 text-amber-400'>" + escapeHtml(comp) + "</span>";
+            } else if (comp === "tool" || comp.startsWith("tool:")) {
+                compBadge = "<span class='shrink-0 px-1.5 py-0.5 rounded text-[9px] font-mono bg-yellow-900/40 text-yellow-500'>" + escapeHtml(comp) + "</span>";
+            } else if (comp) {
+                compBadge = "<span class='shrink-0 px-1.5 py-0.5 rounded text-[9px] font-mono bg-zinc-800 text-zinc-500'>" + escapeHtml(comp) + "</span>";
+            }
+
+            // Message color by prefix
+            const msg = entry.message || "";
+            let msgColor = "text-zinc-400";
+            if (level === "ERROR" || level === "FATAL") {
+                msgColor = "text-red-400";
+            } else if (level === "WARN") {
+                msgColor = "text-yellow-400";
+            } else if (msg.startsWith("SOFIA:")) {
+                msgColor = "text-sky-400";
+            } else if (msg.startsWith("SUBAGENT:")) {
+                msgColor = "text-amber-400";
+            } else if (msg.startsWith("TOOL:")) {
+                msgColor = "text-yellow-300";
+            } else if (msg.startsWith("ROUTER:")) {
+                msgColor = "text-violet-400";
+            }
+
+            // Determine filter category for this row
+            let filterCat = "other";
+            if (level === "ERROR" || level === "FATAL") {
+                filterCat = "error";
+            } else if (msg.startsWith("SOFIA:") || comp === "agent:main") {
+                filterCat = "sofia";
+            } else if (msg.startsWith("SUBAGENT:") || (comp.startsWith("agent:") && comp !== "agent:main")) {
+                filterCat = "subagent";
+            } else if (msg.startsWith("TOOL:") || comp === "tool" || comp.startsWith("tool:")) {
+                filterCat = "tool";
+            }
+
+            // Fields section (collapsible)
+            let fieldsHtml = "";
+            if (entry.fields && Object.keys(entry.fields).length > 0) {
+                const pairs = Object.entries(entry.fields)
+                    .map(([k, v]) => "<span class='mr-3'><span class='text-zinc-600'>" + escapeHtml(k) + "=</span><span class='text-zinc-400'>" + escapeHtml(String(v)) + "</span></span>")
+                    .join("");
+                fieldsHtml = "<div class='log-fields hidden pl-24 pb-1 text-[10px] font-mono leading-relaxed flex-wrap'>" + pairs + "</div>";
+            }
+
+            const row = document.createElement("div");
+            row.className = "log-row border-b border-zinc-900/60 hover:bg-white/[0.02] transition-colors cursor-default" +
+                (fieldsHtml ? " has-fields" : "");
+            row.setAttribute("data-filter", filterCat);
+            row.setAttribute("data-msg", msg.toLowerCase());
+
+            row.innerHTML =
+                "<div class='flex items-baseline gap-1.5 px-2 py-0.5 min-w-0'>" +
+                "<span class='shrink-0 text-zinc-700 font-mono text-[10px] w-28 tabular-nums'>" + timeStr + "</span>" +
+                levelBadge +
+                (compBadge ? " " + compBadge : "") +
+                "<span class='flex-1 min-w-0 text-[11px] font-mono " + msgColor + " truncate ml-1'>" + escapeHtml(msg) + "</span>" +
+                (fieldsHtml ? "<span class='shrink-0 text-zinc-700 text-[9px] ml-1 select-none'>▶</span>" : "") +
+                "</div>" +
+                fieldsHtml;
+
+            if (fieldsHtml) {
+                row.addEventListener("click", function () {
+                    const fd = row.querySelector(".log-fields");
+                    const arrow = row.querySelector(".select-none");
+                    if (fd) {
+                        const hidden = fd.classList.toggle("hidden");
+                        if (arrow) arrow.textContent = hidden ? "▶" : "▼";
+                    }
+                });
+            }
+
+            logView.appendChild(row);
+
+            // Apply current filter to the new row immediately
+            applyFilterToRow(row);
+
+            // Trim to MAX_LOG_ROWS (remove oldest rows)
+            const rows = logView.querySelectorAll(".log-row");
+            if (rows.length > MAX_LOG_ROWS) {
+                for (let i = 0; i < rows.length - MAX_LOG_ROWS; i++) {
+                    rows[i].remove();
+                }
+            }
+
+            // Auto-scroll if near bottom
+            if (logView.scrollHeight - logView.scrollTop < logView.clientHeight + 80) {
+                logView.scrollTop = logView.scrollHeight;
+            }
+        }
+
+        function setLogFilter(filter) {
+            currentLogFilter = filter;
+
+            // Update chip active states
+            document.querySelectorAll(".log-filter-btn").forEach(function (btn) {
+                const isActive = btn.id === "logfilter-" + filter;
+                if (isActive) {
+                    btn.classList.add("active", "bg-zinc-800", "text-zinc-300");
+                    btn.classList.remove("text-zinc-500");
+                } else {
+                    btn.classList.remove("active", "bg-zinc-800", "text-zinc-300");
+                    btn.classList.add("text-zinc-500");
+                }
+            });
+
+            applyLogFilter();
+        }
+
+        function applyLogFilter() {
+            const logView = document.getElementById("log-view");
+            if (!logView) return;
+            const searchEl = document.getElementById("log-search");
+            const searchTerm = searchEl ? searchEl.value.toLowerCase() : "";
+            logView.querySelectorAll(".log-row").forEach(function (row) {
+                applyFilterToRow(row, searchTerm);
+            });
+        }
+
+        function applyFilterToRow(row, searchTerm) {
+            const filterCat = row.getAttribute("data-filter") || "other";
+            const msg = row.getAttribute("data-msg") || "";
+            if (!searchTerm && searchTerm !== "") {
+                const searchEl = document.getElementById("log-search");
+                searchTerm = searchEl ? searchEl.value.toLowerCase() : "";
+            }
+            let visible = true;
+            if (currentLogFilter !== "all") {
+                if (currentLogFilter === "error") {
+                    visible = filterCat === "error";
+                } else if (currentLogFilter === "sofia") {
+                    visible = filterCat === "sofia";
+                } else if (currentLogFilter === "subagent") {
+                    visible = filterCat === "subagent";
+                } else if (currentLogFilter === "tool") {
+                    visible = filterCat === "tool";
+                }
+            }
+            if (visible && searchTerm) {
+                visible = msg.includes(searchTerm);
+            }
+            row.style.display = visible ? "" : "none";
+        }
 
         function clearLogs() {
             const logView = document.getElementById("log-view");
@@ -1318,6 +1508,27 @@
             }
         }
 
+        // Always-on SSE connection that powers the Agent Monitor regardless of which tab is open.
+        function startMonitorStream() {
+            if (monitorEventSource) return;
+            monitorEventSource = new EventSource("/api/logs");
+            monitorEventSource.onmessage = function (event) {
+                try {
+                    const entry = JSON.parse(event.data);
+                    if (entry.component && entry.component.startsWith("agent:")) {
+                        handleAgentLog(entry);
+                    }
+                } catch (e) { /* ignore parse errors */ }
+            };
+            monitorEventSource.onerror = function () {
+                if (!monitorEventSource) return;
+                monitorEventSource.close();
+                monitorEventSource = null;
+                // Reconnect after 5s
+                setTimeout(startMonitorStream, 5000);
+            };
+        }
+
         function setupLogStream(forceReconnect) {
             const logView = document.getElementById("log-view");
             if (!logView) return;
@@ -1334,7 +1545,7 @@
             }
             if (logEventSource) return;
 
-            logView.innerHTML = "<div class='text-zinc-600 italic'>Connecting to stream...</div>";
+            logView.innerHTML = "<div class='text-zinc-600 italic px-2 py-1'>Connecting to stream...</div>";
             logEventSource = new EventSource("/api/logs");
 
             logEventSource.onmessage = function (event) {
@@ -1342,33 +1553,18 @@
                     const logView = document.getElementById("log-view");
                     const entry = JSON.parse(event.data);
 
-                    // 1. Update Global Log View
-                    const div = document.createElement("div");
-                    div.className = "mb-1 border-l-2 border-zinc-800 pl-2 py-0.5 animate-fade-in";
+                    // 1. Render rich log row
+                    appendLogRow(logView, entry);
 
-                    const timeStr = entry.timestamp ? entry.timestamp.split('T')[1].split('Z')[0] : "";
-                    const compStr = entry.component ? "[" + entry.component + "] " : "";
-                    div.textContent = timeStr + " " + compStr + entry.message;
-
-                    if (entry.level === "ERROR" || entry.level === "FATAL") div.classList.add("text-red-500");
-                    if (entry.level === "WARN") div.classList.add("text-yellow-500");
-
-                    if (logView) {
-                        logView.appendChild(div);
-                        while (logView.childNodes.length > 200) logView.removeChild(logView.firstChild);
-                        logView.scrollTop = logView.scrollHeight;
-                    }
-
-                    // 2. Handle Agent Specific Logs
+                    // 2. Handle Agent Monitor
                     if (entry.component && entry.component.startsWith("agent:")) {
                         handleAgentLog(entry);
                     }
                 } catch (e) {
                     const logView = document.getElementById("log-view");
                     if (!logView) return;
-                    // Fallback for non-json logs if any
                     const div = document.createElement("div");
-                    div.className = "mb-1 border-l-2 border-zinc-800 pl-2 py-0.5 text-zinc-600 italic";
+                    div.className = "px-2 py-0.5 text-zinc-600 italic";
                     div.textContent = event.data;
                     logView.appendChild(div);
                 }
@@ -1427,13 +1623,16 @@
             // Color-code by log type
             let textColor = "text-zinc-400";
             let prefix = "";
-            if (msg.startsWith("Tool call:")) {
-                textColor = "text-amber-400";
+            if (msg.startsWith("TOOL:")) {
+                textColor = "text-yellow-300";
                 prefix = "⚡ ";
-            } else if (msg.startsWith("Response:") || msg.startsWith("LLM response")) {
+            } else if (msg.startsWith("SUBAGENT:")) {
+                textColor = "text-amber-400";
+                prefix = "◈ ";
+            } else if (msg.startsWith("SOFIA:") && (msg.includes("response ready") || msg.includes("direct answer") || msg.includes("synthesis"))) {
                 textColor = "text-green-400";
                 prefix = "✓ ";
-            } else if (msg.startsWith("LLM requested")) {
+            } else if (msg.startsWith("SOFIA:") || msg.startsWith("ROUTER:")) {
                 textColor = "text-sky-400";
                 prefix = "→ ";
             } else if (entry.level === "ERROR" || entry.level === "FATAL") {
@@ -1613,11 +1812,13 @@
                 : "";
 
             // User message
-            history.innerHTML +=
+            const userHtml =
                 "<div class='flex flex-col items-end gap-1 animate-slide-up'>" +
                 "<div class='chat-bubble-user px-4 py-3 rounded-xl text-sm max-w-[85%] text-white'>" + escapeHtml(displayMsg) + filesBadge + "</div>" +
                 "<div class='text-[9px] text-zinc-600 mr-1 font-medium'>MAGNUS</div>" +
                 "</div>";
+            chatHistory.push(userHtml);
+            history.innerHTML += userHtml;
 
             const filesToSend = attachedFiles.slice();
             input.value = "";
@@ -1650,7 +1851,7 @@
                 indicator.classList.add("hidden");
 
                 // Sofia message
-                history.innerHTML +=
+                const sofiaHtml =
                     "<div class='flex gap-4 animate-slide-up'>" +
                     "<div class='w-8 h-8 rounded-lg bg-sofia/10 border border-sofia/20 flex items-center justify-center shrink-0'>" +
                     "<img src='/assets/sofiamantis.png' class='w-5 h-5 opacity-80'>" +
@@ -1660,17 +1861,33 @@
                     "<div class='text-[9px] text-zinc-600 ml-1 mt-1 font-bold uppercase tracking-widest'>Sofia System</div>" +
                     "</div>" +
                     "</div>";
+                chatHistory.push(sofiaHtml);
+                history.innerHTML += sofiaHtml;
             } catch (err) {
                 indicator.classList.add("hidden");
-                history.innerHTML +=
+                const errHtml =
                     "<div class='flex flex-col items-center py-4'>" +
                     "<div class='px-4 py-2 rounded-xl bg-red-900/10 border border-red-900/30 text-[11px] text-red-400 flex items-center gap-2'>" +
                     "<i data-lucide='alert-circle' class='w-3.5 h-3.5'></i>" +
                     "Critical error: " + err.message +
                     "</div>" +
                     "</div>";
+                chatHistory.push(errHtml);
+                history.innerHTML += errHtml;
                 refreshIcons();
             }
+            history.scrollTop = history.scrollHeight;
+        }
+
+        // Restore saved chat messages into #chat-history after HTMX reloads the chat tab.
+        function restoreChatHistory() {
+            if (chatHistory.length === 0) return;
+            const history = document.getElementById("chat-history");
+            if (!history) return;
+            // Append saved messages after the initial greeting (keep it)
+            chatHistory.forEach(function (html) {
+                history.innerHTML += html;
+            });
             history.scrollTop = history.scrollHeight;
         }
 
@@ -1767,6 +1984,9 @@
             if (!target) return;
 
             if (target.id === "main-content") {
+                if (currentTab === "chat") {
+                    restoreChatHistory();
+                }
                 if (currentTab === "agents") {
                     fetchConfig();
                     fetchPurposeTemplates();
@@ -1841,6 +2061,9 @@
 
         // Auto-refresh status
         setInterval(fetchStatus, 2000);
+
+        // Always-on monitor stream for Agent Monitor cards
+        startMonitorStream();
 
     </script>
 </body>
