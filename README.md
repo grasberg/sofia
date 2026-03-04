@@ -1,6 +1,6 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.47-blue)
+![Version](https://img.shields.io/badge/version-v0.0.48-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
@@ -27,7 +27,6 @@ Sofias konfiguration och arbetsyta finns under `~/.sofia/`:
     ├── AGENT.md           # Agent-specifik systemprompt
     ├── USER.md            # Användarkontext och preferenser
     ├── HEARTBEAT.md       # Instruktioner för bakgrundsagenten
-    ├── memory/            # Lokal minnesmapp (legacy, ersatt av memory.db)
     ├── skills/            # Lokala skills/expert-personas
     │   ├── github/
     │   ├── hardware/
