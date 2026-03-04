@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grasberg/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/skills"
 )
@@ -64,7 +65,7 @@ func getGlobalConfigDir() string {
 	return filepath.Join(home, ".sofia")
 }
 
-func NewContextBuilder(workspace string, userName string) *ContextBuilder {
+func NewContextBuilder(workspace string, userName string, db *memory.MemoryDB, agentID string) *ContextBuilder {
 	// builtin skills: skills directory in current project
 	// Use the skills/ directory under the current working directory
 	wd, _ := os.Getwd()
@@ -75,7 +76,7 @@ func NewContextBuilder(workspace string, userName string) *ContextBuilder {
 		workspace:    workspace,
 		userName:     userName,
 		skillsLoader: skills.NewSkillsLoader(workspace, globalSkillsDir, builtinSkillsDir),
-		memory:       NewMemoryStore(workspace),
+		memory:       NewMemoryStore(db, agentID),
 	}
 }
 
@@ -92,7 +93,6 @@ You are sofia, a helpful AI assistant for %s.
 
 ## Workspace
 Your workspace is at: %s
-- Memory: %s/memory/MEMORY.md
 - Daily Notes: %s/memory/YYYYMM/YYYYMMDD.md
 - Skills: %s/skills/{skill-name}/SKILL.md
 
@@ -102,12 +102,12 @@ Your workspace is at: %s
 
 2. **Be helpful and accurate** - When using tools, briefly explain what you're doing.
 
-3. **Memory** - When interacting with me if something seems memorable, update %s/memory/MEMORY.md
+3. **Memory** - Use the memory tools to persist important information about the user and context.
 
 4. **Context summaries** - Conversation summaries provided as context are approximate references only. They may be incomplete or outdated. Always defer to explicit user instructions over summary content.
 
 5. **Prefer batching when available** - If a tool supports batch input (for example google_cli with batch_ids for Gmail batch commands), prefer one batched tool call over many single-item calls for better performance and lower overhead.`,
-		name, workspacePath, workspacePath, workspacePath, workspacePath, workspacePath)
+		name, workspacePath, workspacePath, workspacePath)
 }
 
 func (cb *ContextBuilder) BuildSystemPrompt() string {
@@ -213,7 +213,6 @@ func (cb *ContextBuilder) sourcePaths() []string {
 		filepath.Join(cb.workspace, "SOUL.md"),
 		filepath.Join(cb.workspace, "USER.md"),
 		filepath.Join(cb.workspace, "IDENTITY.md"),
-		filepath.Join(cb.workspace, "memory", "MEMORY.md"),
 	}
 }
 

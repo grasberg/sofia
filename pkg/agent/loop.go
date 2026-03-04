@@ -10,6 +10,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,6 +23,7 @@ import (
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/constants"
 	"github.com/grasberg/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/routing"
 	"github.com/grasberg/sofia/pkg/session"
@@ -35,6 +38,7 @@ type AgentLoop struct {
 	cfg            *config.Config
 	registry       *AgentRegistry
 	state          *state.Manager
+	memDB          *memory.MemoryDB
 	running        atomic.Bool
 	summarizing    sync.Map
 	fallback       *providers.FallbackChain
@@ -59,7 +63,21 @@ type processOptions struct {
 const defaultResponse = "I've completed processing but have no response to give. Increase `max_tool_iterations` in config.json."
 
 func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers.LLMProvider) *AgentLoop {
-	registry := NewAgentRegistry(cfg, provider)
+	// Open the shared SQLite memory database.
+	// Default path: ~/.sofia/memory.db (configurable via cfg.MemoryDB).
+	memDBPath := cfg.MemoryDB
+	if memDBPath == "" {
+		home, _ := os.UserHomeDir()
+		memDBPath = filepath.Join(home, ".sofia", "memory.db")
+	}
+	memDB, err := memory.Open(memDBPath)
+	if err != nil {
+		// Non-fatal: log and continue without persistence.
+		logger.ErrorCF("agent", "Failed to open memory database",
+			map[string]any{"path": memDBPath, "error": err.Error()})
+	}
+
+	registry := NewAgentRegistry(cfg, provider, memDB)
 
 	// Set up shared fallback chain
 	cooldown := providers.NewCooldownTracker()
@@ -77,6 +95,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		cfg:         cfg,
 		registry:    registry,
 		state:       stateManager,
+		memDB:       memDB,
 		summarizing: sync.Map{},
 		fallback:    fallbackChain,
 	}
@@ -261,7 +280,7 @@ func (al *AgentLoop) ReloadAgents() {
 			map[string]any{"model": al.cfg.Agents.Defaults.GetModelName()})
 	}
 
-	newRegistry := NewAgentRegistry(al.cfg, provider)
+	newRegistry := NewAgentRegistry(al.cfg, provider, al.memDB)
 	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent)
 
 	al.registry = newRegistry

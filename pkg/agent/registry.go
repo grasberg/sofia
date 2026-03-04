@@ -5,6 +5,7 @@ import (
 
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/routing"
 )
@@ -20,6 +21,7 @@ type AgentRegistry struct {
 func NewAgentRegistry(
 	cfg *config.Config,
 	provider providers.LLMProvider,
+	memDB *memory.MemoryDB,
 ) *AgentRegistry {
 	registry := &AgentRegistry{
 		agents:   make(map[string]*AgentInstance),
@@ -32,7 +34,7 @@ func NewAgentRegistry(
 			ID:      "main",
 			Default: true,
 		}
-		instance := NewAgentInstance(implicitAgent, &cfg.Agents.Defaults, cfg, provider)
+		instance := NewAgentInstance(implicitAgent, &cfg.Agents.Defaults, cfg, provider, memDB)
 		registry.agents["main"] = instance
 		logger.InfoCF("agent", "Created implicit main agent (no agents.list configured)", nil)
 	} else {
@@ -43,7 +45,7 @@ func NewAgentRegistry(
 			if id == "main" || ac.Default {
 				hasMainOrDefault = true
 			}
-			instance := NewAgentInstance(ac, &cfg.Agents.Defaults, cfg, provider)
+			instance := NewAgentInstance(ac, &cfg.Agents.Defaults, cfg, provider, memDB)
 			registry.agents[id] = instance
 			logger.InfoCF("agent", "Registered agent",
 				map[string]any{
@@ -59,7 +61,7 @@ func NewAgentRegistry(
 				ID:      "main",
 				Default: true,
 			}
-			instance := NewAgentInstance(implicitAgent, &cfg.Agents.Defaults, cfg, provider)
+			instance := NewAgentInstance(implicitAgent, &cfg.Agents.Defaults, cfg, provider, memDB)
 			registry.agents["main"] = instance
 			logger.InfoCF("agent", "Created implicit main agent (no default in agents.list)", nil)
 		}

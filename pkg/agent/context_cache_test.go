@@ -41,7 +41,7 @@ func TestSingleSystemMessage(t *testing.T) {
 	})
 	defer os.RemoveAll(tmpDir)
 
-	cb := NewContextBuilder(tmpDir, "TestUser")
+	cb := NewContextBuilder(tmpDir, "TestUser", nil, "")
 
 	tests := []struct {
 		name    string
@@ -128,8 +128,8 @@ func TestSingleSystemMessage(t *testing.T) {
 
 // TestMtimeAutoInvalidation verifies that the cache detects source file changes
 // via mtime without requiring explicit InvalidateCache().
-// Fix: original implementation had no auto-invalidation — edits to bootstrap files,
-// memory, or skills were invisible until process restart.
+// Fix: original implementation had no auto-invalidation — edits to bootstrap files
+// or skills were invisible until process restart.
 func TestMtimeAutoInvalidation(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -145,13 +145,6 @@ func TestMtimeAutoInvalidation(t *testing.T) {
 			contentV2:  "# Updated Identity",
 			checkField: "Updated Identity",
 		},
-		{
-			name:       "memory file change",
-			file:       "memory/MEMORY.md",
-			contentV1:  "# Memory\nUser likes Go.",
-			contentV2:  "# Memory\nUser likes Rust.",
-			checkField: "User likes Rust",
-		},
 	}
 
 	for _, tt := range tests {
@@ -159,7 +152,7 @@ func TestMtimeAutoInvalidation(t *testing.T) {
 			tmpDir := setupWorkspace(t, map[string]string{tt.file: tt.contentV1})
 			defer os.RemoveAll(tmpDir)
 
-			cb := NewContextBuilder(tmpDir, "TestUser")
+			cb := NewContextBuilder(tmpDir, "TestUser", nil, "")
 
 			sp1 := cb.BuildSystemPromptWithCache()
 
@@ -195,7 +188,7 @@ func TestMtimeAutoInvalidation(t *testing.T) {
 		tmpDir := setupWorkspace(t, nil)
 		defer os.RemoveAll(tmpDir)
 
-		cb := NewContextBuilder(tmpDir, "TestUser")
+		cb := NewContextBuilder(tmpDir, "TestUser", nil, "")
 		_ = cb.BuildSystemPromptWithCache() // populate cache
 
 		// Touch skills directory (simulate new skill installed)
@@ -222,7 +215,7 @@ func TestExplicitInvalidateCache(t *testing.T) {
 	})
 	defer os.RemoveAll(tmpDir)
 
-	cb := NewContextBuilder(tmpDir, "TestUser")
+	cb := NewContextBuilder(tmpDir, "TestUser", nil, "")
 
 	sp1 := cb.BuildSystemPromptWithCache()
 	cb.InvalidateCache()
@@ -250,7 +243,7 @@ func TestCacheStability(t *testing.T) {
 	})
 	defer os.RemoveAll(tmpDir)
 
-	cb := NewContextBuilder(tmpDir, "TestUser")
+	cb := NewContextBuilder(tmpDir, "TestUser", nil, "")
 
 	results := make([]string, 5)
 	for i := range results {
@@ -285,12 +278,6 @@ func TestNewFileCreationInvalidatesCache(t *testing.T) {
 			content:    "# Soul\nBe kind and helpful.",
 			checkField: "Be kind and helpful",
 		},
-		{
-			name:       "new memory file",
-			file:       "memory/MEMORY.md",
-			content:    "# Memory\nUser prefers dark mode.",
-			checkField: "User prefers dark mode",
-		},
 	}
 
 	for _, tt := range tests {
@@ -299,7 +286,7 @@ func TestNewFileCreationInvalidatesCache(t *testing.T) {
 			tmpDir := setupWorkspace(t, nil)
 			defer os.RemoveAll(tmpDir)
 
-			cb := NewContextBuilder(tmpDir, "TestUser")
+			cb := NewContextBuilder(tmpDir, "TestUser", nil, "")
 
 			// Populate cache — file does not exist yet
 			sp1 := cb.BuildSystemPromptWithCache()
@@ -344,7 +331,7 @@ Original content.`
 	})
 	defer os.RemoveAll(tmpDir)
 
-	cb := NewContextBuilder(tmpDir, "TestUser")
+	cb := NewContextBuilder(tmpDir, "TestUser", nil, "")
 
 	// Populate cache
 	sp1 := cb.BuildSystemPromptWithCache()
@@ -391,12 +378,11 @@ func TestConcurrentBuildSystemPromptWithCache(t *testing.T) {
 	tmpDir := setupWorkspace(t, map[string]string{
 		"IDENTITY.md":          "# Identity\nConcurrency test agent.",
 		"SOUL.md":              "# Soul\nBe helpful.",
-		"memory/MEMORY.md":     "# Memory\nUser prefers Go.",
 		"skills/demo/SKILL.md": "---\nname: demo\ndescription: \"demo skill\"\n---\n# Demo",
 	})
 	defer os.RemoveAll(tmpDir)
 
-	cb := NewContextBuilder(tmpDir, "TestUser")
+	cb := NewContextBuilder(tmpDir, "TestUser", nil, "")
 
 	const goroutines = 20
 	const iterations = 50
@@ -446,8 +432,6 @@ func TestConcurrentBuildSystemPromptWithCache(t *testing.T) {
 	}
 }
 
-// BenchmarkBuildMessagesWithCache measures caching performance.
-
 // TestEmptyWorkspaceBaselineDetectsNewFiles verifies that when the cache is
 // built on an empty workspace (no tracked files exist), creating a file
 // afterwards still triggers cache invalidation. This validates the
@@ -459,7 +443,7 @@ func TestEmptyWorkspaceBaselineDetectsNewFiles(t *testing.T) {
 	tmpDir := setupWorkspace(t, nil)
 	defer os.RemoveAll(tmpDir)
 
-	cb := NewContextBuilder(tmpDir, "TestUser")
+	cb := NewContextBuilder(tmpDir, "TestUser", nil, "")
 
 	// Build cache — all tracked files are absent, maxMtime falls back to epoch.
 	sp1 := cb.BuildSystemPromptWithCache()
@@ -500,7 +484,7 @@ func BenchmarkBuildMessagesWithCache(b *testing.B) {
 		os.WriteFile(filepath.Join(tmpDir, name), []byte(strings.Repeat("Content.\n", 10)), 0o644)
 	}
 
-	cb := NewContextBuilder(tmpDir, "TestUser")
+	cb := NewContextBuilder(tmpDir, "TestUser", nil, "")
 	history := []providers.Message{
 		{Role: "user", Content: "previous message"},
 		{Role: "assistant", Content: "previous response"},

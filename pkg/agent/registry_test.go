@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
 )
 
@@ -38,9 +39,19 @@ func testCfg(agents []config.AgentConfig) *config.Config {
 	}
 }
 
+func testMemDB(t *testing.T) *memory.MemoryDB {
+	t.Helper()
+	db, err := memory.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open test memdb: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return db
+}
+
 func TestNewAgentRegistry_ImplicitMain(t *testing.T) {
 	cfg := testCfg(nil)
-	registry := NewAgentRegistry(cfg, &mockRegistryProvider{})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
 
 	ids := registry.ListAgentIDs()
 	if len(ids) != 1 || ids[0] != "main" {
@@ -61,7 +72,7 @@ func TestNewAgentRegistry_ExplicitAgents(t *testing.T) {
 		{ID: "sales", Default: true, Name: "Sales Bot"},
 		{ID: "support", Name: "Support Bot"},
 	})
-	registry := NewAgentRegistry(cfg, &mockRegistryProvider{})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
 
 	ids := registry.ListAgentIDs()
 	if len(ids) != 2 {
@@ -86,7 +97,7 @@ func TestAgentRegistry_GetAgent_Normalize(t *testing.T) {
 	cfg := testCfg([]config.AgentConfig{
 		{ID: "my-agent", Default: true},
 	})
-	registry := NewAgentRegistry(cfg, &mockRegistryProvider{})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
 
 	agent, ok := registry.GetAgent("My-Agent")
 	if !ok || agent == nil {
@@ -102,7 +113,7 @@ func TestAgentRegistry_GetDefaultAgent(t *testing.T) {
 		{ID: "alpha"},
 		{ID: "beta", Default: true},
 	})
-	registry := NewAgentRegistry(cfg, &mockRegistryProvider{})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
 
 	// GetDefaultAgent first checks for "main", then returns any
 	agent := registry.GetDefaultAgent()
@@ -124,7 +135,7 @@ func TestAgentRegistry_CanSpawnSubagent(t *testing.T) {
 		{ID: "child2"},
 		{ID: "restricted"},
 	})
-	registry := NewAgentRegistry(cfg, &mockRegistryProvider{})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
 
 	if !registry.CanSpawnSubagent("parent", "child1") {
 		t.Error("expected parent to be allowed to spawn child1")
@@ -151,7 +162,7 @@ func TestAgentRegistry_CanSpawnSubagent_Wildcard(t *testing.T) {
 		},
 		{ID: "any-agent"},
 	})
-	registry := NewAgentRegistry(cfg, &mockRegistryProvider{})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
 
 	if !registry.CanSpawnSubagent("admin", "any-agent") {
 		t.Error("expected wildcard to allow spawning any agent")
@@ -166,7 +177,7 @@ func TestAgentInstance_Model(t *testing.T) {
 	cfg := testCfg([]config.AgentConfig{
 		{ID: "custom", Default: true, Model: model},
 	})
-	registry := NewAgentRegistry(cfg, &mockRegistryProvider{})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
 
 	agent, _ := registry.GetAgent("custom")
 	if agent.Model != "claude-opus" {
@@ -179,7 +190,7 @@ func TestAgentInstance_FallbackInheritance(t *testing.T) {
 		{ID: "inherit", Default: true},
 	})
 	cfg.Agents.Defaults.ModelFallbacks = []string{"openai/gpt-4o-mini", "anthropic/haiku"}
-	registry := NewAgentRegistry(cfg, &mockRegistryProvider{})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
 
 	agent, _ := registry.GetAgent("inherit")
 	if len(agent.Fallbacks) != 2 {
@@ -196,7 +207,7 @@ func TestAgentInstance_FallbackExplicitEmpty(t *testing.T) {
 		{ID: "no-fallback", Default: true, Model: model},
 	})
 	cfg.Agents.Defaults.ModelFallbacks = []string{"should-not-inherit"}
-	registry := NewAgentRegistry(cfg, &mockRegistryProvider{})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
 
 	agent, _ := registry.GetAgent("no-fallback")
 	if len(agent.Fallbacks) != 0 {

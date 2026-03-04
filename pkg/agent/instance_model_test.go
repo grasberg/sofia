@@ -43,7 +43,7 @@ func TestAgentInstance_ModelIDResolvedFromAlias(t *testing.T) {
 		{ModelName: "MyGPT", Model: "openai/gpt-4o", APIKey: "sk-test"},
 	}, "MyGPT", nil)
 
-	registry := NewAgentRegistry(cfg, &mockRegistryProvider{})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
 	agent, ok := registry.GetAgent("main")
 	if !ok || agent == nil {
 		t.Fatal("expected main agent")
@@ -102,7 +102,7 @@ func TestAgentInstance_PerAgentModelIDResolution(t *testing.T) {
 		},
 	})
 
-	registry := NewAgentRegistry(cfg, &mockRegistryProvider{})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
 
 	main, ok := registry.GetAgent("main")
 	if !ok {
@@ -151,7 +151,7 @@ func TestAgentInstance_PerAgentProviderIsolation(t *testing.T) {
 		},
 	})
 
-	registry := NewAgentRegistry(cfg, defaultProvider)
+	registry := NewAgentRegistry(cfg, defaultProvider, testMemDB(t))
 
 	main, ok := registry.GetAgent("main")
 	if !ok {
@@ -263,7 +263,7 @@ func TestTwoAgentsDifferentProviders(t *testing.T) {
 		},
 	})
 
-	registry := NewAgentRegistry(cfg, &mockRegistryProvider{})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
 
 	main, ok := registry.GetAgent("main")
 	if !ok {

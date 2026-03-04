@@ -1,12 +1,12 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.45-blue)
+![Version](https://img.shields.io/badge/version-v0.0.46-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
 
 *   🛠️ **Autonom Verktygsanvändning:** Kan läsa/redigera filer, köra bash-kommandon, interagera med Google CLI (Gmail/Calendar) och hämta data från webben.
-*   🧠 **Persistens & Minne:** Upprätthåller ett långtidsminne (`MEMORY.md`) och för dagliga anteckningar för att aldrig tappa kontexten över tid.
+*   🧠 **Persistens & Minne:** Upprätthåller ett långtidsminne och för dagliga anteckningar i en delad SQLite-databas (`~/.sofia/memory.db`) för att aldrig tappa kontexten över tid.
 *   🤖 **Multi-Agent Orkestrering:** Kan starta bakgrundsprocesser (`spawn`) och delegera komplexa uppgifter till parallella agenter.
 *   🌐 **Brett AI-stöd:** Inbyggt stöd för 16 olika AI-leverantörer inkl. OpenAI, Anthropic, Gemini, DeepSeek, Grok, MiniMax och fler via ett enkelt webbgränssnitt.
 *   📚 **Antigravity Kit (Skill System):** Bestyckad med unika "skills" (expert-personas och kunskapsmoduler) för domänspecifik expertis inom allt från frontend-arkitektur till penetrationstestning.

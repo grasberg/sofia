@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/routing"
 	"github.com/grasberg/sofia/pkg/session"
@@ -42,6 +43,7 @@ func NewAgentInstance(
 	defaults *config.AgentDefaults,
 	cfg *config.Config,
 	provider providers.LLMProvider,
+	memDB *memory.MemoryDB,
 ) *AgentInstance {
 	workspace := resolveAgentWorkspace(agentCfg, defaults)
 	os.MkdirAll(workspace, 0o755)
@@ -59,11 +61,6 @@ func NewAgentInstance(
 	toolsRegistry.Register(tools.NewEditFileTool(workspace, restrict))
 	toolsRegistry.Register(tools.NewAppendFileTool(workspace, restrict))
 
-	sessionsDir := filepath.Join(workspace, "sessions")
-	sessionsManager := session.NewSessionManager(sessionsDir)
-
-	contextBuilder := NewContextBuilder(workspace, cfg.UserName)
-
 	agentID := routing.DefaultAgentID
 	agentName := ""
 	var subagents *config.SubagentsConfig
@@ -74,6 +71,11 @@ func NewAgentInstance(
 		agentName = agentCfg.Name
 		subagents = agentCfg.Subagents
 		skillsFilter = agentCfg.Skills
+	}
+
+	contextBuilder := NewContextBuilder(workspace, cfg.UserName, memDB, agentID)
+
+	if agentCfg != nil {
 		contextBuilder.SetPurposeTemplate(agentCfg.Template)
 		if agentCfg.Template != "" {
 			if t, err := LoadPurposeTemplate(agentCfg.Template); err == nil {
@@ -89,6 +91,8 @@ func NewAgentInstance(
 	}
 
 	contextBuilder.SetSkillsFilter(skillsFilter)
+
+	sessionsManager := session.NewSessionManager(memDB, agentID)
 
 	maxIter := defaults.MaxToolIterations
 	if maxIter == 0 {
