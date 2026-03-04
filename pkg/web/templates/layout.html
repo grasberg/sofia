@@ -26,16 +26,28 @@
                             hover: "#e63e3e",
                             light: "#ff6666",
                             dark: "#cc3d3d",
-                            bg: "#1a0a0a"
+                            bg: "#050505"
                         },
                         zinc: {
-                            950: "#050505",
+                            950: "#020202",
                         }
+                    },
+                    borderRadius: {
+                        'none': '0',
+                        'sm': '2px',
+                        'md': '4px',
+                        'lg': '8px',
+                        'xl': '12px',
+                        '2xl': '16px',
+                        '3xl': '24px',
+                        'full': '9999px',
+                        'sofia': '2px', // Johanna's choice: Sharp edges
                     },
                     animation: {
                         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                         'slide-up': 'slideUp 0.3s ease-out',
                         'fade-in': 'fadeIn 0.5s ease-out',
+                        'glitch': 'glitch 0.2s ease-in-out infinite',
                     },
                     keyframes: {
                         slideUp: {
@@ -45,6 +57,14 @@
                         fadeIn: {
                             '0%': { opacity: '0' },
                             '100%': { opacity: '1' },
+                        },
+                        glitch: {
+                            '0%': { transform: 'translate(0)' },
+                            '20%': { transform: 'translate(-2px, 2px)' },
+                            '40%': { transform: 'translate(-2px, -2px)' },
+                            '60%': { transform: 'translate(2px, 2px)' },
+                            '80%': { transform: 'translate(2px, -2px)' },
+                            '100%': { transform: 'translate(0)' },
                         }
                     }
                 }
@@ -80,72 +100,114 @@
         body { 
             background-color: var(--bg-main); 
             color: var(--text-main); 
-            font-family: 'Inter', sans-serif;
+            font-family: 'JetBrains Mono', monospace; /* Johanna's choice: Technical feel */
             overflow: hidden;
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
+        /* Scanline CRT Effect */
+        body::after {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 100;
+            opacity: 0.1;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.02; /* More subtle noise */
+            pointer-events: none;
+            z-index: 50;
+        }
+
         .glass-panel {
             background: var(--glass-bg);
-            backdrop-filter: blur(12px);
+            backdrop-filter: blur(8px);
             border: 1px solid var(--border-color);
+            border-radius: 2px; /* Sharp corners */
             transition: all 0.3s ease;
         }
 
-        .sofia-border { border: 1px solid var(--border-color); }
-        .sofia-border-active { border: 1px solid var(--sofia-red); }
+        .sofia-border { border: 1px solid var(--border-color); border-radius: 0; }
+        .sofia-border-active { border: 1px solid var(--sofia-red); border-radius: 0; }
 
         .nav-item {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 10px 16px;
-            border-radius: 8px;
+            padding: 12px 16px;
+            border-radius: 0; /* Sharp corners */
             color: var(--text-muted);
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 0.75rem;
         }
 
         .nav-item:hover {
             color: var(--text-main);
             background: var(--nav-hover);
+            box-shadow: inset 0 0 0 1px var(--border-color);
         }
 
         .nav-item.active {
             color: var(--text-main);
             background: rgba(255, 77, 77, 0.1);
-            border-left: 3px solid var(--sofia-red);
-            border-radius: 0 8px 8px 0;
+            border-right: 4px solid var(--sofia-red); /* Right border for asymmetry */
+            border-radius: 0;
         }
 
-        .tab-content { display: none; height: 100%; opacity: 0; transform: translateY(10px); }
-        .tab-content.active { display: flex; flex-direction: column; opacity: 1; transform: translateY(0); transition: all 0.3s ease-out; }
+        .tab-content { display: none; height: 100%; min-height: 0; opacity: 0; transform: translateX(5px); }
+        .tab-content.active { display: flex; flex-direction: column; opacity: 1; transform: translateX(0); transition: all 0.2s ease-out; }
+        
         /* Settings: each subtab fills the full tab-settings area */
         .settings-subtab { display: none; }
         .settings-subtab:not(.hidden) {
             display: flex;
             flex-direction: column;
             height: 100%;
+            min-height: 0;
             overflow-y: auto;
         }
         
+        /* Fix for bottom cutoff in flex containers */
+        .flex-grow-fix {
+            flex: 1 1 0%;
+            min-height: 0;
+        }
 
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+        /* Custom Scrollbar - Brutalist style */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: var(--sofia-red); border-radius: 0; }
+        ::-webkit-scrollbar-thumb:hover { background: #ff7777; }
 
         .chat-bubble-user {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-bottom-right-radius: 2px;
+            background: #111;
+            border: 1px solid var(--sofia-red);
+            border-radius: 2px;
+            box-shadow: 4px 4px 0 rgba(255, 77, 77, 0.1);
         }
 
         .chat-bubble-sofia {
-            background: rgba(255, 77, 77, 0.05);
-            border: 1px solid rgba(255, 77, 77, 0.2);
-            border-bottom-left-radius: 2px;
+            background: #000;
+            border: 1px solid var(--border-color);
+            border-radius: 2px;
+            box-shadow: 4px 4px 0 rgba(255, 255, 255, 0.05);
         }
 
         .mono { font-family: 'JetBrains Mono', monospace; }
@@ -154,6 +216,7 @@
         .logo-container {
             position: relative;
             overflow: hidden;
+            border-radius: 0;
         }
         .logo-container::after {
             content: "";
@@ -162,7 +225,7 @@
             left: -100%;
             width: 300%;
             height: 300%;
-            background: linear-gradient(45deg, transparent 45%, rgba(255, 77, 77, 0.1) 50%, transparent 55%);
+            background: linear-gradient(45deg, transparent 45%, rgba(255, 77, 77, 0.2) 50%, transparent 55%);
             animation: scan 4s infinite linear;
         }
         @keyframes scan {
@@ -179,279 +242,283 @@
         }
 
         .glow-red {
-            box-shadow: 0 0 20px rgba(255, 77, 77, 0.15);
+            box-shadow: 0 0 15px rgba(255, 77, 77, 0.2);
         }
 
         .agent-log-box {
             transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            animation: popIn 0.4s ease-out;
+            animation: popIn 0.3s ease-out;
+            border-radius: 0;
         }
 
         @keyframes popIn {
-            0% { transform: scale(0.9); opacity: 0; }
+            0% { transform: scale(0.95); opacity: 0; }
             100% { transform: scale(1); opacity: 1; }
         }
 
         .agent-log-line {
-            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            border-left: 2px solid rgba(255, 77, 77, 0.3);
             padding-left: 8px;
             margin-bottom: 2px;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 9px;
+            font-size: 10px;
+        }
+
+        /* Brutalist Buttons */
+        .btn-brutalist {
+            background: #000;
+            border: 1px solid var(--sofia-red);
+            color: var(--sofia-red);
+            text-transform: uppercase;
+            font-weight: bold;
+            letter-spacing: 0.1em;
+            transition: all 0.2s;
+            border-radius: 0;
+            position: relative;
+        }
+        .btn-brutalist:hover {
+            background: var(--sofia-red);
+            color: #000;
+            box-shadow: 4px 4px 0 rgba(255, 77, 77, 0.3);
+            transform: translate(-2px, -2px);
+        }
+        .btn-brutalist:active {
+            transform: translate(0, 0);
+            box-shadow: none;
         }
     </style>
 </head>
 <body class="h-screen flex overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] transition-colors duration-300">
     <!-- SIDEBAR -->
-    <aside class="w-64 min-w-[16rem] shrink-0 border-r border-[var(--border-color)] flex flex-col bg-[var(--bg-sidebar)] z-20 transition-colors duration-300">
-        <div class="p-6 flex items-center gap-3">
-            <div class="logo-container w-10 h-10 rounded-lg bg-black/5 dark:bg-sofia-bg flex items-center justify-center border border-sofia/30 glow-red transition-colors duration-300">
+    <aside class="w-20 lg:w-64 min-w-[5rem] lg:min-w-[16rem] shrink-0 border-r border-[var(--border-color)] flex flex-col bg-[var(--bg-sidebar)] z-20 transition-all duration-300">
+        <div class="p-4 lg:p-6 flex flex-col lg:flex-row items-center gap-3">
+            <div class="logo-container w-10 h-10 bg-black flex items-center justify-center border border-sofia/50 glow-red transition-colors duration-300">
                 <img src="/assets/sofiamantis.png" alt="S" class="w-7 h-7 object-contain">
             </div>
-            <div>
-                <h1 class="text-xl font-bold tracking-tight text-[var(--text-main)] transition-colors duration-300">Sofia</h1>
+            <div class="hidden lg:block">
+                <h1 class="text-xl font-bold tracking-tighter uppercase text-[var(--text-main)] transition-colors duration-300">Sofia</h1>
+                <div class="text-[8px] text-sofia font-bold tracking-[0.2em] -mt-1">COMMAND</div>
             </div>
         </div>
 
-        <nav class="flex-grow px-4 mt-4 space-y-1">
+        <nav class="flex-grow px-2 lg:px-4 mt-8 space-y-2">
             <a href="#" onclick="showTab('chat')" id="nav-chat" class="nav-item active">
                 <i data-lucide="message-square" class="w-5 h-5"></i>
-                <span>Chat</span>
+                <span class="hidden lg:inline">Terminal</span>
             </a>
             <a href="#" onclick="showTab('agents')" id="nav-agents" class="nav-item">
                 <i data-lucide="users" class="w-5 h-5"></i>
-                <span>Agents</span>
+                <span class="hidden lg:inline">Agents</span>
             </a>
-
-
-
-
             <a href="#" onclick="showTab('settings')" id="nav-settings" class="nav-item">
                 <i data-lucide="settings" class="w-5 h-5"></i>
-                <span>Settings</span>
+                <span class="hidden lg:inline">System</span>
             </a>
-
         </nav>
 
-        <div class="p-4 border-t border-[var(--border-color)] space-y-4">
-
-
-            <div class="bg-[var(--bg-main)] rounded-xl p-4 border border-[var(--border-color)]">
+        <div class="p-4 border-t border-[var(--border-color)] space-y-4 hidden lg:block">
+            <div class="bg-black/40 p-4 border-l-2 border-sofia">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-[10px] font-bold uppercase text-zinc-500">System Status</span>
-                    <span class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span>
+                    <span class="text-[9px] font-bold uppercase tracking-widest text-zinc-500">Core Status</span>
+                    <span class="w-2 h-2 bg-sofia shadow-[0_0_8px_rgba(255,77,77,0.5)]"></span>
                 </div>
-                <div id="mini-status" class="text-xs text-zinc-400 space-y-1">
-                    <div class="flex justify-between"><span>Version:</span> <span id="stat-version" class="text-[var(--text-main)] font-mono">-</span></div>
+                <div id="mini-status" class="text-[10px] text-zinc-400 space-y-1 font-mono">
+                    <div class="flex justify-between"><span>V-OS:</span> <span id="stat-version" class="text-sofia">-</span></div>
                 </div>
             </div>
         </div>
     </aside>
 
     <!-- MAIN CONTENT -->
-    <main class="flex-grow flex flex-col relative bg-[var(--bg-main)]">
+    <main class="flex-grow flex flex-col relative bg-[var(--bg-main)] min-w-0">
         <!-- Top Header -->
-        <header class="min-h-16 border-b border-[var(--border-color)] flex items-center justify-between px-8 py-3 bg-[var(--bg-sidebar)]/50 backdrop-blur-md z-10 transition-colors duration-300">
-            <div class="flex flex-col items-start">
-                <h2 id="view-title" class="text-sm font-semibold text-zinc-400 uppercase tracking-wider">Direct Chat</h2>
-                <div id="settings-header-tabs" class="hidden items-center gap-2 mt-2">
-                    <button id="settings-tab-prompts" onclick="showSettingsSubTab('prompts')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Sofia</button>
-                    <button id="settings-tab-heartbeat" onclick="showSettingsSubTab('heartbeat')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Heartbeat</button>
-                    <button id="settings-tab-models" onclick="showSettingsSubTab('models')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Models</button>
-                    <button id="settings-tab-channels" onclick="showSettingsSubTab('channels')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Channels</button>
-                    <button id="settings-tab-tools" onclick="showSettingsSubTab('tools')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Tools</button>
-                    <button id="settings-tab-skills" onclick="showSettingsSubTab('skills')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Skills</button>
-                    <button id="settings-tab-logs" onclick="showSettingsSubTab('logs')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Logs</button>
-                    <button id="settings-tab-security" onclick="showSettingsSubTab('security')" class="px-3 py-1.5 rounded-lg text-xs border border-[var(--border-color)] bg-transparent">Security</button>
+        <header class="h-16 border-b border-[var(--border-color)] flex items-center justify-between px-6 lg:px-8 bg-black/20 backdrop-blur-md z-10 transition-colors duration-300">
+            <div class="flex items-center gap-6">
+                <h2 id="view-title" class="text-xs font-bold text-sofia uppercase tracking-[0.3em]">Direct Chat</h2>
+                <div id="settings-header-tabs" class="hidden items-center gap-1">
+                    <button id="settings-tab-prompts" onclick="showSettingsSubTab('prompts')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Identity</button>
+                    <button id="settings-tab-heartbeat" onclick="showSettingsSubTab('heartbeat')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Pulse</button>
+                    <button id="settings-tab-models" onclick="showSettingsSubTab('models')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Models</button>
+                    <button id="settings-tab-channels" onclick="showSettingsSubTab('channels')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Comms</button>
+                    <button id="settings-tab-tools" onclick="showSettingsSubTab('tools')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Arsenal</button>
+                    <button id="settings-tab-skills" onclick="showSettingsSubTab('skills')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Skills</button>
+                    <button id="settings-tab-logs" onclick="showSettingsSubTab('logs')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Logs</button>
+                    <button id="settings-tab-security" onclick="showSettingsSubTab('security')" class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Security</button>
                 </div>
             </div>
             <div class="flex items-center gap-4">
-                <div class="flex items-center gap-2 text-[11px] text-zinc-500 border border-[var(--border-color)] rounded-full px-3 py-1 bg-[var(--bg-main)]">
-                    <i data-lucide="activity" class="w-3 h-3 text-blue-400"></i>
-                    <span class="text-zinc-400">CPU</span>
-                    <span id="stat-cpu" class="text-[var(--text-main)] font-mono font-medium">-</span>
+                <div class="hidden md:flex items-center gap-4 border-r border-[var(--border-color)] pr-4">
+                    <div class="flex flex-col items-end">
+                        <span class="text-[8px] text-zinc-500 font-bold uppercase">CPU Load</span>
+                        <span id="stat-cpu" class="text-[10px] text-sofia font-mono">-</span>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <span class="text-[8px] text-zinc-500 font-bold uppercase">Memory</span>
+                        <span id="stat-mem" class="text-[10px] text-sofia font-mono">-</span>
+                    </div>
                 </div>
-                <div class="flex items-center gap-2 text-[11px] text-zinc-500 border border-[var(--border-color)] rounded-full px-3 py-1 bg-[var(--bg-main)]">
-                    <i data-lucide="database" class="w-3 h-3 text-green-400"></i>
-                    <span class="text-zinc-400">RAM</span>
-                    <span id="stat-mem" class="text-[var(--text-main)] font-mono font-medium">-</span>
-                </div>
-                <div id="status-badge" class="flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--bg-main)] border border-[var(--border-color)] text-[11px] font-medium text-zinc-400 transition-colors duration-300">
-                    <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                    Gateway Online
-                </div>
-                <!-- Update & Restart Buttons -->
-                <div class="flex items-center gap-2 border-l border-[var(--border-color)] pl-4 ml-2">
-                    <button onclick="updateSofia()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--nav-hover)] hover:bg-sofia/20 text-[var(--sofia-red)] transition-colors border border-[var(--border-color)]">
-                        <i data-lucide="download-cloud" class="w-3.5 h-3.5"></i>
-                        Update
+                
+                <div class="flex items-center gap-2">
+                    <button onclick="updateSofia()" title="Update" class="p-2 text-zinc-500 hover:text-sofia transition-colors">
+                        <i data-lucide="download-cloud" class="w-4 h-4"></i>
                     </button>
-                    <button onclick="restartSofia()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--nav-hover)] hover:bg-sofia/20 text-[var(--sofia-red)] transition-colors border border-[var(--border-color)]">
-                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-                        Restart
+                    <button onclick="restartSofia()" title="Restart" class="p-2 text-zinc-500 hover:text-sofia transition-colors">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    </button>
+                    <button id="theme-toggle" onclick="toggleTheme()" class="p-2 text-zinc-500 hover:text-sofia transition-colors">
+                        <i data-lucide="moon" class="w-4 h-4"></i>
                     </button>
                 </div>
-                <button id="theme-toggle" onclick="toggleTheme()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--nav-hover)] transition text-zinc-500">
-                    <i data-lucide="moon" class="w-4 h-4"></i>
-                </button>
-                <button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--nav-hover)] transition text-zinc-500">
-                    <i data-lucide="bell" class="w-4 h-4"></i>
-                </button>
             </div>
         </header>
 
         <!-- Content Area -->
-        <div class="flex-grow overflow-hidden p-6">
+        <div class="flex-grow-fix p-4 lg:p-6">
             
             <!-- CHAT TAB -->
             <div id="tab-chat" class="tab-content active">
-                <div class="flex-grow flex gap-6 overflow-hidden">
+                <div class="flex-grow-fix flex flex-col lg:flex-row gap-6">
                     <!-- Chat Area -->
-                    <div class="flex-grow flex flex-col glass-panel rounded-2xl border border-[var(--border-color)] overflow-hidden shadow-2xl transition-all duration-300">
-                        <div id="chat-history" class="flex-grow overflow-y-auto p-6 space-y-6">
-                            <div class="flex gap-4 animate-fade-in">
-                                <div class="w-8 h-8 rounded-lg bg-sofia/10 border border-sofia/20 flex items-center justify-center shrink-0">
-                                    <img src="/assets/sofiamantis.png" class="w-5 h-5 opacity-80">
+                        <div class="flex-grow-fix flex flex-col glass-panel border border-[var(--border-color)] shadow-2xl">
+                            <div id="chat-history" class="flex-grow-fix overflow-y-auto p-4 lg:p-6 space-y-6">
+                                <div class="flex gap-4 animate-fade-in">
+                                    <div class="w-8 h-8 bg-sofia/10 border border-sofia/20 flex items-center justify-center shrink-0">
+                                        <img src="/assets/sofiamantis.png" class="w-5 h-5 opacity-80">
+                                    </div>
+                                    <div class="chat-bubble-sofia px-4 py-3 text-xs leading-relaxed max-w-[85%] text-zinc-300">
+                                        SYSTEM INITIALIZED. AWAITING INSTRUCTIONS.
+                                    </div>
                                 </div>
-                                <div class="chat-bubble-sofia px-4 py-3 rounded-2xl text-sm leading-relaxed max-w-[85%] text-[var(--text-main)] transition-colors duration-300">
-                                    Welcome User. System is ready for instructions. How can I assist you today?
+                            </div>
+                            
+                            <!-- Input Area -->
+                            <div class="p-4 bg-black/40 border-t border-[var(--border-color)]">
+                                <div class="relative flex items-center">
+                                    <input type="text" id="chat-input" placeholder="ENTER COMMAND..." 
+                                        class="w-full bg-black border border-[var(--border-color)] rounded-none pl-12 pr-24 py-4 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white placeholder:text-zinc-700">
+                                    <div class="absolute left-4 text-sofia/50">
+                                        <i data-lucide="terminal" class="w-5 h-5"></i>
+                                    </div>
+                                    <div class="absolute right-3">
+                                        <button onclick="sendChat()" class="btn-brutalist px-6 py-2 text-[10px]">
+                                            EXECUTE
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="mt-2 px-1 flex justify-between">
+                                    <span class="text-[9px] text-zinc-700 font-bold uppercase">Ready for input</span>
+                                    <span id="typing-indicator" class="text-[9px] text-sofia font-bold uppercase hidden animate-pulse">Sofia is thinking...</span>
                                 </div>
                             </div>
                         </div>
-                        
-                        <!-- Input Area -->
-                        <div class="p-4 bg-[var(--bg-sidebar)]/50 border-t border-[var(--border-color)] transition-colors duration-300">
-                            <div class="relative flex items-center">
-                                <input type="text" id="chat-input" placeholder="Send a command to Sofia..." 
-                                    class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl pl-12 pr-24 py-4 text-sm focus:outline-none focus:border-sofia/50 focus:ring-1 focus:ring-sofia/20 transition-all text-[var(--text-main)]">
-                                <div class="absolute left-4 text-zinc-500">
-                                    <i data-lucide="command" class="w-5 h-5"></i>
-                                </div>
-                                <div class="absolute right-3 flex gap-2">
-                                    <button onclick="sendChat()" class="bg-sofia hover:bg-sofia-hover text-white px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2">
-                                        <span>Send</span>
-                                        <i data-lucide="send" class="w-3 h-3"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="mt-2 px-2 flex justify-between">
-                                <span class="text-[10px] text-zinc-600 font-medium">Press <kbd class="px-1 bg-[var(--bg-main)] border border-[var(--border-color)] rounded">Enter</kbd> to send</span>
-                                <span id="typing-indicator" class="text-[10px] text-sofia/60 font-medium hidden animate-pulse">Sofia is typing...</span>
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- Right Sidebar: Agent Monitor -->
-                    <div id="agent-monitor-sidebar" class="w-80 shrink-0 flex flex-col">
-                        <div class="glass-panel rounded-2xl border border-[var(--border-color)] flex flex-col h-full overflow-hidden shadow-2xl transition-all duration-300">
-                            <div class="p-4 border-b border-[var(--border-color)] bg-[var(--bg-sidebar)]/50 flex items-center justify-between transition-colors duration-300">
-                                <h3 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Agent Monitor</h3>
-                                <div class="flex gap-1">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-sofia animate-pulse"></span>
-                                </div>
-                            </div>
-                            <div id="agent-activity-monitor" class="flex-grow p-4 overflow-y-auto space-y-4 bg-black/5 dark:bg-black/20 transition-colors duration-300">
-                                <!-- Agent boxes will be injected here -->
-                            </div>
-                            <!-- Live Status Panel (Moved from left sidebar) -->
-                            <div id="live-activity-panel" class="p-4 border-t border-[var(--border-color)] bg-sofia/5 hidden transition-colors duration-300">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="text-[10px] font-bold uppercase text-sofia/80 tracking-widest">Global Status</span>
-                                    <div class="w-2 h-2 rounded-full bg-sofia animate-pulse shadow-[0_0_8px_rgba(255,77,77,0.5)]"></div>
-                                </div>
-                                <div class="grid grid-cols-2 gap-2">
-                                    <div class="flex items-center gap-2 bg-black/5 dark:bg-black/20 p-2 rounded-lg border border-[var(--border-color)] overflow-hidden transition-colors duration-300">
-                                        <div class="w-6 h-6 rounded bg-sofia/10 flex items-center justify-center text-sofia shrink-0">
-                                            <i data-lucide="bot" class="w-3 h-3"></i>
-                                        </div>
-                                        <div class="overflow-hidden">
-                                            <div class="text-[8px] text-zinc-500 font-bold uppercase leading-tight">Agent</div>
-                                            <div id="active-agent-name" class="text-[10px] text-[var(--text-main)] font-mono truncate">-</div>
-                                        </div>
+                        <!-- Right Sidebar: Agent Monitor -->
+                        <div id="agent-monitor-sidebar" class="w-full lg:w-80 shrink-0 flex flex-col h-64 lg:h-auto">
+                            <div class="glass-panel border border-[var(--border-color)] flex flex-col h-full shadow-2xl">
+                                <div class="p-3 border-b border-[var(--border-color)] bg-black/40 flex items-center justify-between">
+                                    <h3 class="text-[9px] font-bold uppercase tracking-[0.2em] text-sofia">Agent Monitor</h3>
+                                    <div class="flex gap-1">
+                                        <span class="w-1.5 h-1.5 bg-sofia animate-pulse"></span>
                                     </div>
-                                    <div class="flex items-center gap-2 bg-black/5 dark:bg-black/20 p-2 rounded-lg border border-[var(--border-color)] overflow-hidden transition-colors duration-300">
-                                        <div class="w-6 h-6 rounded bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 shrink-0">
-                                            <i data-lucide="activity" class="w-3 h-3 animate-spin-slow"></i>
+                                </div>
+                                <div id="agent-activity-monitor" class="flex-grow-fix p-4 overflow-y-auto space-y-4 bg-black/20">
+                                    <!-- Agent boxes will be injected here -->
+                                </div>
+                                <!-- Live Status Panel -->
+                                <div id="live-activity-panel" class="p-4 border-t border-[var(--border-color)] bg-sofia/5 hidden">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <span class="text-[9px] font-bold uppercase text-sofia tracking-widest">Global Link</span>
+                                        <div class="w-2 h-2 bg-sofia animate-pulse"></div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div class="flex items-center gap-2 bg-black/40 p-2 border border-[var(--border-color)] overflow-hidden">
+                                            <div class="w-6 h-6 bg-sofia/10 flex items-center justify-center text-sofia shrink-0">
+                                                <i data-lucide="bot" class="w-3 h-3"></i>
+                                            </div>
+                                            <div class="overflow-hidden">
+                                                <div class="text-[8px] text-zinc-500 font-bold uppercase">Active</div>
+                                                <div id="active-agent-name" class="text-[9px] text-zinc-300 font-mono truncate">-</div>
+                                            </div>
                                         </div>
-                                        <div class="overflow-hidden">
-                                            <div class="text-[8px] text-zinc-500 font-bold uppercase leading-tight">Status</div>
-                                            <div id="active-agent-status" class="text-[10px] text-zinc-500 dark:text-zinc-300 truncate italic">Thinking...</div>
+                                        <div class="flex items-center gap-2 bg-black/40 p-2 border border-[var(--border-color)] overflow-hidden">
+                                            <div class="w-6 h-6 bg-zinc-900 flex items-center justify-center text-zinc-600 shrink-0">
+                                                <i data-lucide="activity" class="w-3 h-3 animate-spin-slow"></i>
+                                            </div>
+                                            <div class="overflow-hidden">
+                                                <div class="text-[8px] text-zinc-500 font-bold uppercase">State</div>
+                                                <div id="active-agent-status" class="text-[9px] text-zinc-500 font-mono truncate italic">IDLE</div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
                 </div>
             </div>
 
-            <!-- LOGS TAB -->
             <!-- AGENTS TAB -->
             <div id="tab-agents" class="tab-content">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 h-full overflow-y-auto pr-2">
+                <div class="flex-grow-fix flex flex-col lg:flex-row gap-6">
                     <!-- Add/Edit Agent -->
-                    <div class="md:col-span-1 glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl h-fit sticky top-0 transition-all duration-300">
-                        <div class="flex items-center gap-3 mb-6">
-                            <div class="w-10 h-10 rounded-xl bg-sofia/10 flex items-center justify-center text-sofia">
+                    <div class="w-full lg:w-96 shrink-0 glass-panel p-6 border border-[var(--border-color)] shadow-xl overflow-y-auto">
+                        <div class="flex items-center gap-3 mb-8">
+                            <div class="w-10 h-10 bg-sofia/10 border border-sofia/30 flex items-center justify-center text-sofia">
                                 <i data-lucide="user-plus" class="w-5 h-5"></i>
                             </div>
-                            <h2 id="agent-form-title" class="text-lg font-bold text-[var(--text-main)]">New Agent</h2>
+                            <h2 id="agent-form-title" class="text-sm font-bold uppercase tracking-widest text-white">Initialize Agent</h2>
                         </div>
-                        <div class="space-y-4">
+                        <div class="space-y-5">
                             <div>
-                                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Identifier (Slug)</label>
+                                <label class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Identifier (Slug)</label>
                                 <input type="text" id="agent-id" placeholder="e.g. coder" 
-                                    class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]">
+                                    class="w-full bg-black border border-[var(--border-color)] rounded-none px-4 py-3 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white">
                             </div>
                             <div>
-                                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Display Name</label>
+                                <label class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Display Name</label>
                                 <input type="text" id="agent-name" placeholder="e.g. Coder"
-                                    class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]">
+                                    class="w-full bg-black border border-[var(--border-color)] rounded-none px-4 py-3 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white">
                             </div>
                             <div>
-                                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">AI Model</label>
+                                <label class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2">AI Neural Model</label>
                                 <select id="agent-model"
-                                    class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]">
+                                    class="w-full bg-black border border-[var(--border-color)] rounded-none px-4 py-3 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white">
                                     <option value="">Default (System Default)</option>
                                 </select>
                             </div>
 							<div>
-								<label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Purpose Template (Antigravity)</label>
+								<label class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Purpose Template</label>
 								<select id="agent-template" onchange="onTemplateSelected()"
-									class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]">
+									class="w-full bg-black border border-[var(--border-color)] rounded-none px-4 py-3 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white">
 									<option value="">No template</option>
 								</select>
-								<div id="agent-template-missing-skills" class="mt-2 hidden text-[11px] text-yellow-500"></div>
 							</div>
 							<div>
-								<label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Purpose &amp; Instructions</label>
-								<div id="agent-template-missing-skills" class="mb-2 hidden text-[11px] text-yellow-500"></div>
-								<div id="agent-template-hint" class="hidden mb-1.5 text-[10px] text-sofia/70">Pre-filled from template — you can edit freely.</div>
-								<textarea id="agent-instructions" rows="7" placeholder="Describe what this agent should do and how it should behave..."
-									class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)] resize-none"></textarea>
+								<label class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Directives</label>
+								<div id="agent-template-missing-skills" class="mb-2 hidden text-[10px] text-yellow-500 font-bold uppercase">Missing dependencies detected</div>
+								<textarea id="agent-instructions" rows="8" placeholder="Enter behavioral directives..."
+									class="w-full bg-black border border-[var(--border-color)] rounded-none px-4 py-3 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white resize-none"></textarea>
 							</div>
                             <div>
-                                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Custom Skills</label>
-                                <div id="agent-custom-skills-tags" class="flex flex-wrap gap-1.5 mb-2 min-h-[24px]"></div>
-                                <select id="agent-custom-skills-picker" onchange="addCustomSkill()" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]">
-                                    <option value="">+ Add a skill...</option>
+                                <label class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Specialized Skills</label>
+                                <div id="agent-custom-skills-tags" class="flex flex-wrap gap-1.5 mb-3"></div>
+                                <select id="agent-custom-skills-picker" onchange="addCustomSkill()" class="w-full bg-black border border-[var(--border-color)] rounded-none px-3 py-2 text-[10px] font-mono focus:outline-none focus:border-sofia/50 transition-all text-white">
+                                    <option value="">+ INSTALL SKILL...</option>
                                 </select>
-                                <div class="mt-1 text-[10px] text-zinc-500">Skills added here are always available to this agent, regardless of template.</div>
                             </div>
                             <div class="pt-4 flex flex-col gap-2">
-                                <button onclick="saveAgent()" class="w-full bg-sofia hover:bg-sofia-hover text-white font-bold py-3 rounded-xl transition shadow-lg shadow-sofia/10">Save Agent</button>
-                                <button onclick="resetAgentForm()" class="w-full py-2 text-zinc-500 hover:text-zinc-300 text-xs font-medium transition">Reset form</button>
+                                <button onclick="saveAgent()" class="btn-brutalist w-full py-4 text-xs">Commit Configuration</button>
+                                <button onclick="resetAgentForm()" class="text-zinc-600 hover:text-zinc-400 text-[9px] font-bold uppercase tracking-widest transition">Purge Form</button>
                             </div>
                         </div>
                     </div>
 
                     <!-- Agent List -->
-                    <div class="md:col-span-2 space-y-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <h2 class="text-lg font-bold text-[var(--text-main)]">Configured Agents</h2>
-                            <span class="text-xs text-zinc-500" id="agent-count">0 agents</span>
+                    <div class="flex-grow-fix overflow-y-auto pr-2">
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Active Agent Matrix</h2>
+                            <span class="text-[10px] font-mono text-sofia" id="agent-count">0 UNITS</span>
                         </div>
-                        <div id="agents-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div id="agents-list" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                             <!-- Filled by JS -->
                         </div>
                     </div>
@@ -473,7 +540,7 @@
                         
 
                             <!-- Add/Edit Model Form (Progressive) -->
-                            <div id="model-config-form" class="hidden mb-6 glass-panel p-6 rounded-2xl border border-sofia/30 shadow-xl transition-all duration-300 bg-sofia/5">
+                            <div id="model-config-form" class="hidden mb-6 glass-panel p-6 rounded-xl border border-sofia/30 shadow-xl transition-all duration-300 bg-sofia/5">
                                 <div class="flex items-center justify-between mb-6">
                                     <h3 id="model-form-title" class="text-sm font-bold text-sofia uppercase tracking-widest">Add New Model</h3>
                                     <button onclick="closeModelForm()" class="text-zinc-500 hover:text-[var(--text-main)]">
@@ -585,7 +652,7 @@
                             </div>
 
                         <!-- Configured Models List -->
-                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
+                        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
                             <div class="flex items-center justify-between mb-4">
                                 <div>
                                     <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500">Configured Models</h3>
@@ -606,7 +673,7 @@
 
                     <div id="settings-subtab-channels" class="settings-subtab hidden">
 	<div class="flex-grow min-h-0 overflow-y-auto pr-2">
-                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+                        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
                             <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Channel Setup</label>
                             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                 <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3">
@@ -643,7 +710,6 @@
                             <div id="cfg-channels-warning" class="hidden mt-3 text-[11px] text-yellow-500">One or more enabled channels are missing tokens.</div>
 
                             <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
-                            <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
                                 <i data-lucide="save" class="w-4 h-4"></i>
                                 Save changes
                             </button>
@@ -660,14 +726,14 @@
 						<h2 class="text-xl font-bold text-[var(--text-main)]">Native Tools</h2>
 						<p class="text-sm text-zinc-500">Built-in tools available to all agents.</p>
 					</div>
-			<div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
+			<div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
 						<div id="tools-list" class="space-y-3">
 							<!-- Filled by JS -->
 						</div>
 					</div>
 
 					<!-- Google CLI Tool (gog) -->
-					<div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
+					<div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
 						<div class="flex items-center justify-between mb-4">
 							<div class="flex items-center gap-3">
 								<div class="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center">
@@ -719,11 +785,11 @@
 					</div>
 
 					<!-- GitHub CLI Tool -->
-					<div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
+					<div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
 						<div class="flex items-center justify-between mb-4">
 							<div class="flex items-center gap-3">
-								<div class="w-9 h-9 rounded-xl bg-purple-500/10 flex items-center justify-center">
-									<i data-lucide="github" class="w-5 h-5 text-purple-400"></i>
+								<div class="w-9 h-9 rounded-lg bg-zinc-500/10 flex items-center justify-center">
+									<i data-lucide="github" class="w-5 h-5 text-zinc-400"></i>
 								</div>
 								<div>
 									<h3 class="text-sm font-bold text-[var(--text-main)]">GitHub Integration</h3>
@@ -764,7 +830,7 @@
 
                     <!-- Tools & Add Skill -->
                     <div class="flex flex-col gap-6 overflow-hidden">
-                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl shrink-0 transition-all duration-300">
+                        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl shrink-0 transition-all duration-300">
                             <h2 class="text-lg font-bold text-[var(--text-main)] mb-4">Install New Skill</h2>
                             <div class="space-y-4">
                                 <input type="text" id="new-skill-name" placeholder="Skill name (e.g. web-search)" 
@@ -779,7 +845,7 @@
             </div>
 
                     <div id="settings-subtab-logs" class="settings-subtab hidden">
-                <div class="glass-panel rounded-2xl border border-[var(--border-color)] p-6 flex flex-col flex-grow shadow-2xl transition-all duration-300" >
+                <div class="glass-panel rounded-xl border border-[var(--border-color)] p-6 flex flex-col flex-grow shadow-2xl transition-all duration-300" >
                     <div class="flex items-center justify-between mb-6">
                         <div>
                             <h2 class="text-xl font-bold text-[var(--text-main)]">System Logs</h2>
@@ -792,75 +858,81 @@
                             </button>
                         </div>
                     </div>
-                    <div id="log-view" class="bg-black/5 dark:bg-black/40 rounded-2xl p-6 font-mono text-xs overflow-y-auto text-zinc-500 dark:text-zinc-400 border border-[var(--border-color)] leading-relaxed transition-colors duration-300 flex-grow" >
+                    <div id="log-view" class="bg-black/5 dark:bg-black/40 rounded-xl p-6 font-mono text-xs overflow-y-auto text-zinc-500 dark:text-zinc-400 border border-[var(--border-color)] leading-relaxed transition-colors duration-300 flex-grow" >
                         <div class="text-zinc-600 italic">Connecting to stream...</div>
                     </div>
                 </div>
             </div>
 
                     <div id="settings-subtab-security" class="settings-subtab hidden">
-                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
-                            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Workspace Security</h3>
+                        <div class="flex-grow min-h-0 overflow-y-auto pr-2">
+                            <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+                                <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Workspace Security</h3>
 
-                            <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)]">
-                                <div class="flex items-start justify-between">
-                                    <div class="space-y-1 pr-6">
-                                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Restrict to Workspace</h4>
-                                        <p class="text-[11px] leading-relaxed text-zinc-500">
-                                            When enabled, Sofia's file and command tools are strictly sandboxed to the configured workspace path.
-                                            This prevents accidental modification of system files or parent directories.
-                                        </p>
+                                <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                                    <div class="flex items-start justify-between">
+                                        <div class="space-y-1 pr-6">
+                                            <h4 class="text-sm font-semibold text-[var(--text-main)]">Restrict to Workspace</h4>
+                                            <p class="text-[11px] leading-relaxed text-zinc-500">
+                                                When enabled, Sofia's file and command tools are strictly sandboxed to the configured workspace path.
+                                                This prevents accidental modification of system files or parent directories.
+                                            </p>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                                            <input type="checkbox" id="cfg-restrict-workspace" class="sr-only peer" onchange="saveConfig()">
+                                            <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                                        </label>
                                     </div>
-                                    <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-                                        <input type="checkbox" id="cfg-restrict-workspace" class="sr-only peer" onchange="saveConfig()">
-                                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
-                                    </label>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <div id="settings-subtab-heartbeat" class="settings-subtab hidden">
-                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
-                            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Heartbeat Background Agent</h3>
-                            
-                            <div class="flex items-start justify-between mb-4 pb-4 border-b border-[var(--border-color)]">
-                                <div>
-                                    <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable Heartbeat</h4>
-                                    <p class="text-[11px] leading-relaxed text-zinc-500 mt-1">Sofia will automatically spawn background agents on a schedule.</p>
+                        <div class="flex-grow min-h-0 overflow-y-auto pr-2">
+                            <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+                                <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Heartbeat Background Agent</h3>
+                                
+                                <div class="flex items-start justify-between mb-4 pb-4 border-b border-[var(--border-color)]">
+                                    <div>
+                                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable Heartbeat</h4>
+                                        <p class="text-[11px] leading-relaxed text-zinc-500 mt-1">Sofia will automatically spawn background agents on a schedule.</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer mt-1">
+                                        <input type="checkbox" id="cfg-heartbeat-enabled" class="sr-only peer" onchange="saveConfig()">
+                                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full relative"></div>
+                                    </label>
                                 </div>
-                                <label class="relative inline-flex items-center cursor-pointer mt-1">
-                                    <input type="checkbox" id="cfg-heartbeat-enabled" class="sr-only peer" onchange="saveConfig()">
-                                    <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full relative"></div>
-                                </label>
-                            </div>
 
-                            <div class="grid grid-cols-2 gap-4 mb-4">
-                                <div>
-                                    <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Interval (minutes)</label>
-                                    <input type="number" id="cfg-heartbeat-interval" min="5" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)] transition-colors focus:border-sofia focus:ring-1 focus:ring-sofia/20" onchange="saveConfig()">
+                                <div class="grid grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Interval (minutes)</label>
+                                        <input type="number" id="cfg-heartbeat-interval" min="5" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)] transition-colors focus:border-sofia focus:ring-1 focus:ring-sofia/20" onchange="saveConfig()">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Active Hours</label>
+                                        <input type="text" id="cfg-heartbeat-hours" placeholder="09:00-17:00 (Leave empty for 24/7)" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)] transition-colors focus:border-sofia focus:ring-1 focus:ring-sofia/20" onchange="saveConfig()">
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Active Hours</label>
-                                    <input type="text" id="cfg-heartbeat-hours" placeholder="09:00-17:00 (Leave empty for 24/7)" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)] transition-colors focus:border-sofia focus:ring-1 focus:ring-sofia/20" onchange="saveConfig()">
-                                </div>
-                            </div>
 
-                            <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Active Days (Leave empty for every day)</label>
-                            <div class="flex flex-wrap gap-2 mb-6" id="cfg-heartbeat-days-container">
-                                <!-- Days will be injected here via JS -->
+                                <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Active Days (Leave empty for every day)</label>
+                                <div class="flex flex-wrap gap-2 mb-6" id="cfg-heartbeat-days-container">
+                                    <!-- Days will be injected here via JS -->
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <div id="settings-subtab-prompts" class="settings-subtab hidden">
-                        <div class="glass-panel p-6 rounded-2xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
-                            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Prompt Files</h3>
-                            <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">IDENTITY.md</label>
-                            <textarea id="cfg-identity-md" rows="16" class="w-full min-h-[28rem] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-mono text-[var(--text-main)] mb-3"></textarea>
-                            <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">SOUL.md</label>
-                            <textarea id="cfg-soul-md" rows="16" class="w-full min-h-[28rem] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-mono text-[var(--text-main)]"></textarea>
-                            <button onclick="saveWorkspaceDocs()" class="mt-3 px-4 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-xs hover:bg-[var(--nav-hover)]">Save prompt files</button>
+                        <div class="flex-grow min-h-0 overflow-y-auto pr-2">
+                            <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+                                <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Prompt Files</h3>
+                                <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">IDENTITY.md</label>
+                                <textarea id="cfg-identity-md" rows="16" class="w-full min-h-[28rem] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs font-mono text-[var(--text-main)] mb-3"></textarea>
+                                <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">SOUL.md</label>
+                                <textarea id="cfg-soul-md" rows="16" class="w-full min-h-[28rem] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs font-mono text-[var(--text-main)]"></textarea>
+                                <button onclick="saveWorkspaceDocs()" class="mt-3 px-4 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-xs hover:bg-[var(--nav-hover)]">Save prompt files</button>
+                            </div>
                         </div>
                     </div>
 
@@ -1488,7 +1560,7 @@
             for (const source in grouped) {
                 html += "<div class='mb-6'><h3 class='text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3 ml-1'>" + source + "</h3>";
                 grouped[source].forEach(s => {
-                    html += "<div class='group p-4 bg-zinc-900/40 rounded-2xl border border-zinc-800/50 hover:border-sofia/30 transition-all cursor-default'>" +
+                    html += "<div class='group p-4 bg-zinc-900/40 rounded-xl border border-zinc-800/50 hover:border-sofia/30 transition-all cursor-default'>" +
                             "<div class='flex justify-between items-start'>" +
                             "<div class='font-bold text-sm text-zinc-200 group-hover:text-sofia transition-colors'>" + s.name + "</div>" +
                             "<span class='px-1.5 py-0.5 rounded bg-zinc-800 text-[9px] text-zinc-500 border border-zinc-700'>SKILL</span>" +
@@ -1591,7 +1663,7 @@
 					const templateSkillsMode = a.template_skills_mode || "fallback";
 					const agentSkillsJson = JSON.stringify(a.skills || []).replace(/"/g, "&quot;");
 					const skillCount = a.skills && a.skills.length ? a.skills.length : 0;
-					return '<div data-agent-id="' + a.id + '" data-agent-name="' + (a.name || '').replace(/'/g, "&#39;") + '" data-agent-model="' + modelName.replace(/'/g, "&#39;") + '" data-agent-template="' + templateName.replace(/'/g, "&#39;") + '" data-agent-tsm="' + templateSkillsMode + '" data-agent-skills="' + agentSkillsJson + '" class="group p-5 bg-zinc-900/40 border ' + (isActive ? 'border-sofia bg-sofia/5' : 'border-zinc-800') + ' rounded-2xl hover:border-sofia/30 transition-all shadow-lg">' +
+					return '<div data-agent-id="' + a.id + '" data-agent-name="' + (a.name || '').replace(/'/g, "&#39;") + '" data-agent-model="' + modelName.replace(/'/g, "&#39;") + '" data-agent-template="' + templateName.replace(/'/g, "&#39;") + '" data-agent-tsm="' + templateSkillsMode + '" data-agent-skills="' + agentSkillsJson + '" class="group p-5 bg-zinc-900/40 border ' + (isActive ? 'border-sofia bg-sofia/5' : 'border-zinc-800') + ' rounded-xl hover:border-sofia/30 transition-all shadow-lg">' +
                         '<div class="flex justify-between items-start mb-4">' +
                             '<div class="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-sofia group-hover:bg-sofia/10 transition-colors">' +
                                 '<i data-lucide="bot" class="w-5 h-5"></i>' +
@@ -2137,7 +2209,7 @@
             // User message
             history.innerHTML += 
                 "<div class='flex flex-col items-end gap-1 animate-slide-up'>" +
-                    "<div class='chat-bubble-user px-4 py-3 rounded-2xl text-sm max-w-[85%] text-white'>" + msg + "</div>" +
+                    "<div class='chat-bubble-user px-4 py-3 rounded-xl text-sm max-w-[85%] text-white'>" + msg + "</div>" +
                     "<div class='text-[9px] text-zinc-600 mr-1 font-medium'>MAGNUS</div>" +
                 "</div>";
             
@@ -2175,7 +2247,7 @@
                             "<img src='/assets/sofiamantis.png' class='w-5 h-5 opacity-80'>" +
                         "</div>" +
                         "<div>" +
-                            "<div class='chat-bubble-sofia px-4 py-3 rounded-2xl text-sm leading-relaxed max-w-[85%] text-zinc-300 whitespace-pre-wrap break-words'>" + formatAssistantMessage(responseData.response) + "</div>" +
+                            "<div class='chat-bubble-sofia px-4 py-3 rounded-xl text-sm leading-relaxed max-w-[85%] text-zinc-300 whitespace-pre-wrap break-words'>" + formatAssistantMessage(responseData.response) + "</div>" +
                             "<div class='text-[9px] text-zinc-600 ml-1 mt-1 font-bold uppercase tracking-widest'>Sofia System</div>" +
                         "</div>" +
                     "</div>";
