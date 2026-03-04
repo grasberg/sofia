@@ -93,7 +93,6 @@ You are sofia, a helpful AI assistant for %s.
 
 ## Workspace
 Your workspace is at: %s
-- Daily Notes: %s/memory/YYYYMM/YYYYMMDD.md
 - Skills: %s/skills/{skill-name}/SKILL.md
 
 ## Important Rules
@@ -107,7 +106,7 @@ Your workspace is at: %s
 4. **Context summaries** - Conversation summaries provided as context are approximate references only. They may be incomplete or outdated. Always defer to explicit user instructions over summary content.
 
 5. **Prefer batching when available** - If a tool supports batch input (for example google_cli with batch_ids for Gmail batch commands), prefer one batched tool call over many single-item calls for better performance and lower overhead.`,
-		name, workspacePath, workspacePath, workspacePath)
+		name, workspacePath, workspacePath)
 }
 
 func (cb *ContextBuilder) BuildSystemPrompt() string {
