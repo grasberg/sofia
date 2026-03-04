@@ -1,6 +1,6 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.46-blue)
+![Version](https://img.shields.io/badge/version-v0.0.47-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
@@ -14,22 +14,30 @@ Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerar
 
 ## 📂 Workspace-struktur
 
-Sofias hjärna och arbetsyta är strukturerad enligt följande (placerad i `~/.sofia/workspace-coder`):
+Sofias konfiguration och arbetsyta finns under `~/.sofia/`:
 
 ```text
-workspace-coder/
-├── IDENTITY.md            # Basidentitet: ton, roll och hur Sofia ska presentera sig
-├── SOUL.md                # Kärnprinciper: beteende, värderingar och beslutsstil
-├── memory/
-│   ├── MEMORY.md          # Sofias långtidsminne och globala kontext
-│   └── YYYYMM/            # Dagliga anteckningar och task-tracking (ex. 20260228.md)
-├── skills/                # Antigravity Kit - Expertis och beteendemönster
-│   ├── frontend-specialist/
-│   ├── security-auditor/
-│   ├── devops-engineer/
-│   ├── clean-code/
-│   └── ... 
-└── workspace/             # Arbetsyta för kodgenerering och projekt
+~/.sofia/
+├── config.json            # Huvudkonfiguration (modeller, kanaler, inställningar)
+├── memory.db              # Delad SQLite-databas för minne och sessionshistorik
+├── antigravity-kit/       # Bundlat Antigravity Kit (installeras via sofia onboard)
+└── workspace/             # Sofias arbetsyta
+    ├── IDENTITY.md        # Basidentitet: ton, roll och hur Sofia ska presentera sig
+    ├── SOUL.md            # Kärnprinciper: beteende, värderingar och beslutsstil
+    ├── AGENT.md           # Agent-specifik systemprompt
+    ├── USER.md            # Användarkontext och preferenser
+    ├── HEARTBEAT.md       # Instruktioner för bakgrundsagenten
+    ├── memory/            # Lokal minnesmapp (legacy, ersatt av memory.db)
+    ├── skills/            # Lokala skills/expert-personas
+    │   ├── github/
+    │   ├── hardware/
+    │   ├── skill-creator/
+    │   ├── summarize/
+    │   ├── tmux/
+    │   ├── weather/
+    │   └── ...
+    ├── cron/              # Schemalagda jobb (jobs.json)
+    └── state/             # Persistent runtime-state
 ```
 
 ## 🚀 Installation & Kom igång
