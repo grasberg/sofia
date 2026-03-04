@@ -631,3 +631,116 @@ func TestAgentLoop_ContextExhaustionRetry(t *testing.T) {
 		t.Errorf("Expected history to be compressed (len < 8), got %d", len(finalHistory))
 	}
 }
+
+// TestGetStartupInfo_IncludesAgentList verifies that GetStartupInfo returns per-agent metadata.
+func TestGetStartupInfo_IncludesAgentList(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "agent-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	cfg := &config.Config{
+		Agents: config.AgentsConfig{
+			Defaults: config.AgentDefaults{
+				Workspace:         tmpDir,
+				Model:             "standard",
+				MaxTokens:         4096,
+				MaxToolIterations: 10,
+			},
+			List: []config.AgentConfig{
+				{ID: "main", Name: "Sofia", Default: true},
+				{ID: "coder", Name: "Coder"},
+			},
+		},
+	}
+
+	msgBus := bus.NewMessageBus()
+	provider := &mockProvider{}
+	al := NewAgentLoop(cfg, msgBus, provider)
+
+	info := al.GetStartupInfo()
+
+	agentsInfo, ok := info["agents"].(map[string]any)
+	if !ok {
+		t.Fatal("Expected 'agents' to be a map")
+	}
+
+	list, ok := agentsInfo["list"]
+	if !ok {
+		t.Fatal("Expected 'list' key in agents info")
+	}
+
+	listSlice, ok := list.([]map[string]any)
+	if !ok {
+		t.Fatalf("Expected 'list' to be []map[string]any, got %T", list)
+	}
+
+	if len(listSlice) != 2 {
+		t.Errorf("Expected 2 agents in list, got %d", len(listSlice))
+	}
+
+	// Verify at least one entry has the expected keys
+	for _, entry := range listSlice {
+		if _, hasID := entry["id"]; !hasID {
+			t.Error("Agent entry missing 'id'")
+		}
+		if _, hasName := entry["name"]; !hasName {
+			t.Error("Agent entry missing 'name'")
+		}
+		if _, hasRole := entry["role"]; !hasRole {
+			t.Error("Agent entry missing 'role'")
+		}
+	}
+}
+
+// TestProcessSystemMessage_RoutedThroughSofia verifies that sub-agent completion
+// system messages are always processed by the default (Sofia) agent.
+func TestProcessSystemMessage_RoutedThroughSofia(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "agent-system-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	const expectedResponse = "Sub-agent task complete, Sofia speaking."
+
+	cfg := &config.Config{
+		Agents: config.AgentsConfig{
+			Defaults: config.AgentDefaults{
+				Workspace:         tmpDir,
+				Model:             "test-model",
+				MaxTokens:         4096,
+				MaxToolIterations: 10,
+			},
+			List: []config.AgentConfig{
+				{ID: "main", Name: "Sofia", Default: true},
+				{ID: "worker", Name: "Worker"},
+			},
+		},
+	}
+
+	msgBus := bus.NewMessageBus()
+	provider := &simpleMockProvider{response: expectedResponse}
+	al := NewAgentLoop(cfg, msgBus, provider)
+
+	// System message simulating an async sub-agent completion
+	msg := bus.InboundMessage{
+		Channel:  "system",
+		SenderID: "worker",
+		ChatID:   "telegram:chat123",
+		Content:  "Task 'do something' completed.\n\nResult:\nThe analysis is done.",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	response, err := al.processMessage(ctx, msg)
+	if err != nil {
+		t.Fatalf("processMessage failed: %v", err)
+	}
+
+	if response == "" {
+		t.Error("Expected non-empty response from Sofia after system message")
+	}
+}

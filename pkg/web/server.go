@@ -17,6 +17,7 @@ import (
 	"github.com/grasberg/sofia/pkg/agent"
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/routing"
 	"github.com/grasberg/sofia/pkg/skills"
 )
 
@@ -385,7 +386,16 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodGet {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(s.cfg.Agents.List)
+		// Exclude the default/main agent — it is Sofia itself and is configured
+		// via the Settings page, not the Sub-Agents page.
+		subAgents := []config.AgentConfig{}
+		for _, a := range s.cfg.Agents.List {
+			if a.Default || routing.NormalizeAgentID(a.ID) == routing.DefaultAgentID {
+				continue
+			}
+			subAgents = append(subAgents, a)
+		}
+		json.NewEncoder(w).Encode(subAgents)
 		return
 	}
 
@@ -439,6 +449,19 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 		if id == "" {
 			s.sendJSONError(w, "Agent ID is required", http.StatusBadRequest)
 			return
+		}
+
+		// Prevent deleting the default/main agent (Sofia itself).
+		if routing.NormalizeAgentID(id) == routing.DefaultAgentID {
+			s.sendJSONError(w, "Cannot delete the default agent", http.StatusBadRequest)
+			return
+		}
+		// Also prevent deleting any agent explicitly marked as default.
+		for _, a := range s.cfg.Agents.List {
+			if a.ID == id && a.Default {
+				s.sendJSONError(w, "Cannot delete the default agent", http.StatusBadRequest)
+				return
+			}
 		}
 
 		newList := []config.AgentConfig{}

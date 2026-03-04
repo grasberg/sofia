@@ -114,6 +114,17 @@ func (r *AgentRegistry) CanSpawnSubagent(parentAgentID, targetAgentID string) bo
 	return false
 }
 
+// ListAgents returns all registered agent instances (a snapshot copy).
+func (r *AgentRegistry) ListAgents() []*AgentInstance {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	list := make([]*AgentInstance, 0, len(r.agents))
+	for _, a := range r.agents {
+		list = append(list, a)
+	}
+	return list
+}
+
 // GetDefaultAgent returns the default agent instance.
 func (r *AgentRegistry) GetDefaultAgent() *AgentInstance {
 	r.mu.RLock()

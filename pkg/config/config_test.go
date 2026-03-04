@@ -180,8 +180,14 @@ func TestConfig_BackwardCompat_NoAgentsList(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
-	if len(cfg.Agents.List) != 0 {
-		t.Errorf("agents.list should be empty for backward compat, got %d", len(cfg.Agents.List))
+	// When agents.list is absent from the JSON, DefaultConfig seeds it with the
+	// implicit main agent.  After unmarshal (which does not clear a nil/absent
+	// list from JSON), the main agent must still be present.
+	if len(cfg.Agents.List) != 1 {
+		t.Errorf("agents.list should have 1 entry (main agent), got %d", len(cfg.Agents.List))
+	}
+	if len(cfg.Agents.List) > 0 && !cfg.Agents.List[0].Default {
+		t.Errorf("agents.list[0] should be the default (main) agent")
 	}
 	if len(cfg.Bindings) != 0 {
 		t.Errorf("bindings should be empty, got %d", len(cfg.Bindings))

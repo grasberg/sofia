@@ -49,15 +49,6 @@
                     <textarea id="agent-instructions" rows="8" placeholder="Enter behavioral directives..."
                         class="w-full bg-black border border-[var(--border-color)] rounded-none px-4 py-3 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white resize-none"></textarea>
                 </div>
-                <div>
-                    <label class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Specialized
-                        Skills</label>
-                    <div id="agent-custom-skills-tags" class="flex flex-wrap gap-1.5 mb-3"></div>
-                    <select id="agent-custom-skills-picker" onchange="addCustomSkill()"
-                        class="w-full bg-black border border-[var(--border-color)] rounded-none px-3 py-2 text-[10px] font-mono focus:outline-none focus:border-sofia/50 transition-all text-white">
-                        <option value="">+ INSTALL SKILL...</option>
-                    </select>
-                </div>
                 <div class="pt-4 flex flex-col gap-2">
                     <button onclick="saveAgent()" class="btn-brutalist w-full py-4 text-xs">Commit
                         Configuration</button>

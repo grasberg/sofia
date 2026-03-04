@@ -245,8 +245,5 @@ func (r *RouteResolver) resolveDefaultAgentID() string {
 			}
 		}
 	}
-	if id := strings.TrimSpace(agents[0].ID); id != "" {
-		return NormalizeAgentID(id)
-	}
 	return DefaultAgentID
 }

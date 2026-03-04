@@ -159,7 +159,7 @@ func registerSharedTools(
 		agent.Tools.Register(tools.NewInstallSkillTool(registryMgr, agent.Workspace))
 
 		// Spawn tool with allowlist checker
-		subagentManager := tools.NewSubagentManager(provider, agent.Model, agent.Workspace, msgBus)
+		subagentManager := tools.NewSubagentManager(provider, agent.ModelID, agent.Workspace, msgBus)
 		subagentManager.SetLLMOptions(agent.MaxTokens, agent.Temperature)
 		subagentManager.SetAgentTaskRunner(agentTaskRunner)
 		spawnTool := tools.NewSpawnTool(subagentManager)
@@ -240,7 +240,7 @@ func (al *AgentLoop) ReloadAgents() {
 	// Create a new provider from the updated config every time.
 	// This ensures changes to the default model or provider keys take effect immediately
 	// without requiring a full process restart.
-	provider, modelID, err := providers.CreateProvider(al.cfg)
+	provider, _, err := providers.CreateProvider(al.cfg)
 	if err != nil {
 		logger.ErrorCF("agent", "Cannot reload agents: provider creation failed", map[string]any{"error": err.Error()})
 		// Fallback to existing provider if creation fails, so we don't crash
@@ -254,10 +254,8 @@ func (al *AgentLoop) ReloadAgents() {
 			provider = defaultAgent.Provider
 		}
 	} else {
-		if modelID != "" {
-			al.cfg.Agents.Defaults.ModelName = modelID
-		}
-		logger.InfoCF("agent", "Created provider from updated config", map[string]any{"model": modelID})
+		logger.InfoCF("agent", "Created provider from updated config",
+			map[string]any{"model": al.cfg.Agents.Defaults.GetModelName()})
 	}
 
 	newRegistry := NewAgentRegistry(al.cfg, provider)
@@ -418,6 +416,33 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 			"matched_by":  route.MatchedBy,
 		})
 
+	// Deterministic delegation: if a sub-agent scores >= threshold, run it
+	// synchronously and fold the result back into Sofia's context.
+	if subagent := al.delegateTo(msg.Content); subagent != nil {
+		logger.InfoCF("agent", "Delegating to sub-agent",
+			map[string]any{
+				"subagent_id":   subagent.ID,
+				"subagent_name": subagent.Name,
+			})
+		subResult, err := al.runSpawnedTaskAsAgent(ctx, subagent.ID, "", msg.Content, msg.Channel, msg.ChatID)
+		if err != nil {
+			logger.InfoCF("agent", "Sub-agent delegation failed, falling back to Sofia",
+				map[string]any{"error": err.Error()})
+		} else {
+			// Let Sofia synthesise and present the sub-agent's result to the user.
+			synthesisMsg := fmt.Sprintf("[Subagent result from %s]\n\n%s", subagent.Name, subResult)
+			return al.runAgentLoop(ctx, agent, processOptions{
+				SessionKey:      sessionKey,
+				Channel:         msg.Channel,
+				ChatID:          msg.ChatID,
+				UserMessage:     synthesisMsg,
+				DefaultResponse: defaultResponse,
+				EnableSummary:   true,
+				SendResponse:    false,
+			})
+		}
+	}
+
 	return al.runAgentLoop(ctx, agent, processOptions{
 		SessionKey:      sessionKey,
 		Channel:         msg.Channel,
@@ -478,7 +503,7 @@ func (al *AgentLoop) processSystemMessage(ctx context.Context, msg bus.InboundMe
 		SessionKey:      sessionKey,
 		Channel:         originChannel,
 		ChatID:          originChatID,
-		UserMessage:     fmt.Sprintf("[System: %s] %s", msg.SenderID, msg.Content),
+		UserMessage:     fmt.Sprintf("[Subagent result from %s]\n\n%s", msg.SenderID, content),
 		DefaultResponse: "Background task completed.",
 		EnableSummary:   false,
 		SendResponse:    true,
@@ -674,7 +699,7 @@ func (al *AgentLoop) runLLMIteration(
 				}
 				return fbResult.Response, nil
 			}
-			return agent.Provider.Chat(ctx, messages, providerToolDefs, agent.Model, map[string]any{
+			return agent.Provider.Chat(ctx, messages, providerToolDefs, agent.ModelID, map[string]any{
 				"max_tokens":       agent.MaxTokens,
 				"temperature":      agent.Temperature,
 				"prompt_cache_key": agent.ID,
@@ -987,10 +1012,26 @@ func (al *AgentLoop) GetStartupInfo() map[string]any {
 	// Skills info
 	info["skills"] = agent.ContextBuilder.GetSkillsInfo()
 
-	// Agents info
+	// Agents info — per-agent metadata for Agent Monitor
+	allAgents := al.registry.ListAgents()
+	agentMeta := make([]map[string]any, 0, len(allAgents))
+	for _, a := range allAgents {
+		role := "subagent"
+		if a.ID == routing.DefaultAgentID {
+			role = "sofia"
+		}
+		agentMeta = append(agentMeta, map[string]any{
+			"id":       a.ID,
+			"name":     a.Name,
+			"role":     role,
+			"model":    a.Model,
+			"model_id": a.ModelID,
+		})
+	}
 	info["agents"] = map[string]any{
-		"count": len(al.registry.ListAgentIDs()),
+		"count": len(allAgents),
 		"ids":   al.registry.ListAgentIDs(),
+		"list":  agentMeta,
 		"active": map[string]any{
 			"id":     al.activeAgentID.Load(),
 			"status": al.activeStatus.Load(),
@@ -1106,7 +1147,7 @@ func (al *AgentLoop) summarizeSession(agent *AgentInstance, sessionKey string) {
 			ctx,
 			[]providers.Message{{Role: "user", Content: mergePrompt}},
 			nil,
-			agent.Model,
+			agent.ModelID,
 			map[string]any{
 				"max_tokens":       1024,
 				"temperature":      0.3,
@@ -1157,7 +1198,7 @@ func (al *AgentLoop) summarizeBatch(
 		ctx,
 		[]providers.Message{{Role: "user", Content: prompt}},
 		nil,
-		agent.Model,
+		agent.ModelID,
 		map[string]any{
 			"max_tokens":       1024,
 			"temperature":      0.3,
@@ -1253,8 +1294,14 @@ func (al *AgentLoop) handleCommand(ctx context.Context, msg bus.InboundMessage) 
 			if defaultAgent == nil {
 				return "No default agent configured", true
 			}
+			// Validate the model name against model_list
+			mc, err := al.cfg.GetModelConfig(value)
+			if err != nil || mc == nil {
+				return fmt.Sprintf("Model %q not found in model_list. Use /list models to see available models.", value), true
+			}
 			oldModel := defaultAgent.Model
 			defaultAgent.Model = value
+			_, defaultAgent.ModelID = providers.ExtractProtocol(mc.Model)
 			return fmt.Sprintf("Switched model from %s to %s", oldModel, value), true
 		case "channel":
 			if al.channelManager == nil {

@@ -18,7 +18,8 @@ type AgentInstance struct {
 	ID             string
 	Name           string
 	Template       string
-	Model          string
+	Model          string // User-facing alias (model_name from model_list)
+	ModelID        string // Raw model ID without protocol prefix, passed to Chat()
 	Fallbacks      []string
 	Workspace      string
 	MaxIterations  int
@@ -47,6 +48,7 @@ func NewAgentInstance(
 
 	model := resolveAgentModel(agentCfg, defaults)
 	fallbacks := resolveAgentFallbacks(agentCfg, defaults)
+	modelID := resolveAgentModelID(model, cfg)
 
 	restrict := defaults.RestrictToWorkspace
 	toolsRegistry := tools.NewToolRegistry()
@@ -110,6 +112,21 @@ func NewAgentInstance(
 	}
 	candidates := providers.ResolveCandidates(modelCfg, defaults.Provider)
 
+	// If this agent has a custom model that differs from the default, create a
+	// per-agent provider from its model config. This allows different agents to
+	// use different API keys or providers without sharing the global provider.
+	agentProvider := provider
+	if agentCfg != nil && agentCfg.Model != nil && strings.TrimSpace(agentCfg.Model.Primary) != "" {
+		if mc, err := cfg.GetModelConfig(model); err == nil && mc != nil {
+			if mc.Workspace == "" {
+				mc.Workspace = cfg.WorkspacePath()
+			}
+			if p, _, err := providers.CreateProviderFromConfig(mc); err == nil && p != nil {
+				agentProvider = p
+			}
+		}
+	}
+
 	return &AgentInstance{
 		ID:   agentID,
 		Name: agentName,
@@ -120,13 +137,14 @@ func NewAgentInstance(
 			return ""
 		}(),
 		Model:          model,
+		ModelID:        modelID,
 		Fallbacks:      fallbacks,
 		Workspace:      workspace,
 		MaxIterations:  maxIter,
 		MaxTokens:      maxTokens,
 		Temperature:    temperature,
 		ContextWindow:  maxTokens,
-		Provider:       provider,
+		Provider:       agentProvider,
 		Sessions:       sessionsManager,
 		ContextBuilder: contextBuilder,
 		Tools:          toolsRegistry,
@@ -135,6 +153,23 @@ func NewAgentInstance(
 		PurposePrompt:  contextBuilder.purposeInstructions,
 		Candidates:     candidates,
 	}
+}
+
+// resolveAgentModelID resolves the raw model ID (without protocol prefix) for a given alias.
+// It looks up the alias in cfg.ModelList; if found, it extracts the model ID from the
+// Model field (e.g. "openai/gpt-4o" -> "gpt-4o"). Falls back to the alias itself if not found.
+func resolveAgentModelID(alias string, cfg *config.Config) string {
+	if alias == "" {
+		return ""
+	}
+	mc, err := cfg.GetModelConfig(alias)
+	if err != nil || mc == nil {
+		// Not found in model_list — alias might already be a raw model ID
+		_, id := providers.ExtractProtocol(alias)
+		return id
+	}
+	_, id := providers.ExtractProtocol(mc.Model)
+	return id
 }
 
 // resolveAgentWorkspace determines the workspace directory for an agent.

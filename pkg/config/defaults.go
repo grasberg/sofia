@@ -5,6 +5,21 @@
 
 package config
 
+import "strings"
+
+// ensureMainAgent guarantees that agents.list always contains exactly one entry
+// with id "main" and default=true. It is called from LoadConfig to handle
+// configs written before this requirement was introduced.
+func ensureMainAgent(cfg *Config) {
+	for _, a := range cfg.Agents.List {
+		if a.Default || strings.EqualFold(strings.TrimSpace(a.ID), "main") {
+			return // already present
+		}
+	}
+	// Prepend so it appears first in the list.
+	cfg.Agents.List = append([]AgentConfig{{ID: "main", Name: "Sofia", Default: true}}, cfg.Agents.List...)
+}
+
 // DefaultConfig returns the default configuration for Sofia.
 func DefaultConfig() *Config {
 	return &Config{
@@ -17,6 +32,13 @@ func DefaultConfig() *Config {
 				MaxTokens:           32768,
 				Temperature:         nil, // nil means use provider default
 				MaxToolIterations:   50,
+			},
+			List: []AgentConfig{
+				{
+					ID:      "main",
+					Name:    "Sofia",
+					Default: true,
+				},
 			},
 		},
 		Bindings: []AgentBinding{},

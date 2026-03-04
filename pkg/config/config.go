@@ -446,12 +446,16 @@ func LoadConfig(path string) (*Config, error) {
 	// would silently inherit values from the DefaultConfig template at the same
 	// index position. We only reset cfg.ModelList when the user actually provides
 	// entries; when count is 0 we keep DefaultConfig's built-in list as fallback.
+	// The same logic applies to agents.list.
 	var tmp Config
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return nil, err
 	}
 	if len(tmp.ModelList) > 0 {
 		cfg.ModelList = nil
+	}
+	if len(tmp.Agents.List) > 0 {
+		cfg.Agents.List = nil
 	}
 
 	if err := json.Unmarshal(data, cfg); err != nil {
@@ -466,6 +470,11 @@ func LoadConfig(path string) (*Config, error) {
 	if len(cfg.ModelList) == 0 && cfg.HasProvidersConfig() {
 		cfg.ModelList = ConvertProvidersToModelList(cfg)
 	}
+
+	// Ensure the main/default agent is always present in agents.list.
+	// This handles existing configs written before the main agent was added to
+	// DefaultConfig, so existing users get the correct behaviour on upgrade.
+	ensureMainAgent(cfg)
 
 	// Validate model_list for uniqueness and required fields
 	if err := cfg.ValidateModelList(); err != nil {

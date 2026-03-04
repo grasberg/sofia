@@ -39,18 +39,13 @@ func gatewayCmd(debug bool) error {
 		return fmt.Errorf("error loading config: %w", err)
 	}
 
-	provider, modelID, err := providers.CreateProvider(cfg)
+	provider, _, err := providers.CreateProvider(cfg)
 	if err != nil {
 		return fmt.Errorf("error creating provider: %w", err)
 	}
 
 	if provider == nil {
 		fmt.Println("⚠  No default model configured. Start the Web UI and configure a model to begin.")
-	}
-
-	// Use the resolved model ID from provider creation
-	if modelID != "" {
-		cfg.Agents.Defaults.ModelName = modelID
 	}
 
 	msgBus := bus.NewMessageBus()

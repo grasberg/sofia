@@ -178,6 +178,7 @@
         let currentTab = 'chat';
         let skillsData = [];
         let activeAgentID = null;
+        let agentMeta = {}; // id → {name, model, role} populated from /api/status
         let purposeTemplates = [];
         let purposeTemplateMap = {};
         let currentConfig = null;
@@ -315,12 +316,10 @@
 
             if (agentModelSelect) {
                 configuredModels.forEach(m => {
-                    if (m.api_key) {
-                        const opt = document.createElement("option");
-                        opt.value = m.model_name;
-                        opt.textContent = m.model_name;
-                        agentModelSelect.appendChild(opt);
-                    }
+                    const opt = document.createElement("option");
+                    opt.value = m.model_name;
+                    opt.textContent = m.model_name;
+                    agentModelSelect.appendChild(opt);
                 });
                 if (prevAgent === "" || Array.from(agentModelSelect.options).some(o => o.value === prevAgent)) {
                     agentModelSelect.value = prevAgent;
@@ -546,12 +545,10 @@
             const prevAgent = agentModelSelect ? agentModelSelect.value : "";
             agentModelSelect.innerHTML = "<option value=''>Default (System Default)</option>";
             configuredModels.forEach(m => {
-                if (m.api_key) {
-                    const opt = document.createElement("option");
-                    opt.value = m.model_name;
-                    opt.textContent = m.model_name;
-                    agentModelSelect.appendChild(opt);
-                }
+                const opt = document.createElement("option");
+                opt.value = m.model_name;
+                opt.textContent = m.model_name;
+                agentModelSelect.appendChild(opt);
             });
             if (prevAgent === "" || Array.from(agentModelSelect.options).some(o => o.value === prevAgent)) {
                 agentModelSelect.value = prevAgent;
@@ -696,6 +693,13 @@
                 }
                 const data = await res.json();
 
+                // Build agent metadata map for use in Agent Monitor cards
+                if (data.agents && data.agents.list) {
+                    data.agents.list.forEach(function (a) {
+                        agentMeta[a.id] = { name: a.name || a.id, model: a.model || "", role: a.role || "subagent" };
+                    });
+                }
+
                 // Update Mini Status in Sidebar
                 document.getElementById("stat-version").innerText = data.version || "dev";
 
@@ -712,7 +716,10 @@
                     if (sidebar) sidebar.classList.remove("hidden");
                     const activeAgentName = document.getElementById("active-agent-name");
                     const activeAgentStatus = document.getElementById("active-agent-status");
-                    if (activeAgentName) activeAgentName.innerText = data.agents.active.id;
+                    if (activeAgentName) {
+                        const meta = agentMeta[data.agents.active.id];
+                        activeAgentName.innerText = (meta && meta.name) ? meta.name : data.agents.active.id;
+                    }
                     if (activeAgentStatus) activeAgentStatus.innerText = data.agents.active.status;
                 } else {
                     activeAgentID = null;
@@ -850,12 +857,12 @@
             const warning = document.getElementById("agent-template-missing-skills");
             const hint = document.getElementById("agent-template-hint");
             const textarea = document.getElementById("agent-instructions");
-            if (!templateSelect || !warning || !hint || !textarea) return;
+            if (!templateSelect || !warning || !textarea) return;
             const selected = templateSelect.value;
 
             warning.classList.add("hidden");
             warning.innerText = "";
-            hint.classList.add("hidden");
+            if (hint) hint.classList.add("hidden");
 
             if (!selected) {
                 return;
@@ -871,7 +878,7 @@
                 if (!res.ok) return;
                 const data = await res.json();
                 textarea.value = data.instructions || "";
-                hint.classList.remove("hidden");
+                if (hint) hint.classList.remove("hidden");
 
                 const availableSkills = new Set((skillsData || []).map(s => s.name));
                 const missing = (data.skills || []).filter(s => !availableSkills.has(s));
@@ -1395,7 +1402,8 @@
                     '<div class="px-3 py-2 bg-sofia/10 border-b border-sofia/10 flex items-center justify-between">' +
                     '  <div class="flex items-center gap-2">' +
                     '    <div id="dot-' + agentId + '" class="w-2 h-2 rounded-full bg-sofia animate-pulse shadow-[0_0_6px_rgba(255,77,77,0.6)]"></div>' +
-                    '    <span class="text-[10px] font-bold uppercase tracking-widest text-white">' + agentId + '</span>' +
+                    '    <span class="text-[10px] font-bold uppercase tracking-widest text-white">' + (agentMeta[agentId] ? agentMeta[agentId].name : agentId) + '</span>' +
+                    (agentMeta[agentId] && agentMeta[agentId].model ? '<span class="text-[8px] text-zinc-500 font-mono ml-1">' + agentMeta[agentId].model + '</span>' : '') +
                     '  </div>' +
                     '  <span id="status-' + agentId + '" class="text-[8px] text-sofia/80 font-mono animate-pulse">WORKING</span>' +
                     '</div>' +
