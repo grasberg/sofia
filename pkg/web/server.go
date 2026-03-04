@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"net/http"
 	"os"
 	"os/exec"
@@ -22,7 +21,7 @@ import (
 )
 
 //go:embed templates/layout.html
-var layoutHTML string
+var layoutHTML []byte
 
 type Server struct {
 	cfg            *config.Config
@@ -31,21 +30,14 @@ type Server struct {
 	server         *http.Server
 	mu             sync.RWMutex
 	skillInstaller *skills.SkillInstaller
-	tmpl           *template.Template
 }
 
 func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *Server {
-	tmpl, err := template.New("layout").Parse(layoutHTML)
-	if err != nil {
-		panic("failed to parse layout template: " + err.Error())
-	}
-
 	s := &Server{
 		cfg:            cfg,
 		agentLoop:      agentLoop,
 		Version:        version,
 		skillInstaller: skills.NewSkillInstaller(cfg.WorkspacePath()),
-		tmpl:           tmpl,
 	}
 
 	mux := http.NewServeMux()
@@ -100,9 +92,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.Execute(w, nil); err != nil {
-		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
-	}
+	w.Write(layoutHTML)
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -470,7 +460,6 @@ func resolveAssetsDir() string {
 
 	return "assets"
 }
-
 
 func (s *Server) handleRestart(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
