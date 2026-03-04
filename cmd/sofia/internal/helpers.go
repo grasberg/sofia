@@ -9,10 +9,10 @@ import (
 	"github.com/grasberg/sofia/pkg/config"
 )
 
-const Logo = "🦞"
+const Logo = "🪲"
 
 var (
-	version   = "v0.0.50"
+	version   = "v0.0.51"
 	gitCommit string
 	buildTime string
 	goVersion string

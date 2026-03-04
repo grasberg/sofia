@@ -14,12 +14,9 @@ import (
 
 	"github.com/grasberg/sofia/cmd/sofia/internal"
 	"github.com/grasberg/sofia/cmd/sofia/internal/agent"
-	"github.com/grasberg/sofia/cmd/sofia/internal/auth"
 	"github.com/grasberg/sofia/cmd/sofia/internal/cron"
 	"github.com/grasberg/sofia/cmd/sofia/internal/gateway"
 	"github.com/grasberg/sofia/cmd/sofia/internal/onboard"
-	"github.com/grasberg/sofia/cmd/sofia/internal/skills"
-	"github.com/grasberg/sofia/cmd/sofia/internal/status"
 	"github.com/grasberg/sofia/cmd/sofia/internal/version"
 )
 
@@ -29,19 +26,18 @@ func NewSofiaCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "sofia",
 		Short:   short,
-		Example: "sofia list",
+		Example: "sofia gateway",
 	}
 
 	cmd.AddCommand(
 		onboard.NewOnboardCommand(),
 		agent.NewAgentCommand(),
-		auth.NewAuthCommand(),
 		gateway.NewGatewayCommand(),
-		status.NewStatusCommand(),
 		cron.NewCronCommand(),
-		skills.NewSkillsCommand(),
 		version.NewVersionCommand(),
 	)
+
+	cmd.Root().CompletionOptions.DisableDefaultCmd = true
 
 	return cmd
 }

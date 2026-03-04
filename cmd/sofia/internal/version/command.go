@@ -22,7 +22,7 @@ func NewVersionCommand() *cobra.Command {
 }
 
 func printVersion() {
-	fmt.Printf("%s sofia %s\n", internal.Logo, internal.FormatVersion())
+	fmt.Printf("sofia %s\n", internal.FormatVersion())
 	build, goVer := internal.FormatBuildInfo()
 	if build != "" {
 		fmt.Printf("  Build: %s\n", build)
