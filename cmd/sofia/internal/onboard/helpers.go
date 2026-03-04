@@ -40,16 +40,6 @@ func onboard() {
 	}
 
 	fmt.Printf("%s sofia is ready!\n", internal.Logo)
-	fmt.Println("\nNext steps:")
-	fmt.Println("  1. Add your API key to", configPath)
-	fmt.Println("")
-	fmt.Println("     Recommended:")
-	fmt.Println("     - OpenRouter: https://openrouter.ai/keys (access 100+ models)")
-	fmt.Println("     - Ollama:     https://ollama.com (local, free)")
-	fmt.Println("")
-	fmt.Println("     See README.md for 17+ supported providers.")
-	fmt.Println("")
-	fmt.Println("  2. Chat: sofia agent -m \"Hello!\"")
 }
 
 func installAntigravityKit() error {
