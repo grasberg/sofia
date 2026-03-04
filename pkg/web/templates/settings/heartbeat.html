@@ -30,5 +30,16 @@
                                     <!-- Days will be injected here via JS -->
                                 </div>
                             </div>
+
+                            <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300 mt-4">
+                                <div class="flex items-center justify-between border-b border-[var(--border-color)] pb-3 mb-3">
+                                    <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500">Heartbeat Instructions</h3>
+                                    <button onclick="saveWorkspaceDocs()" class="px-4 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-xs hover:bg-[var(--nav-hover)]">Save</button>
+                                </div>
+                                <p class="text-[11px] leading-relaxed text-zinc-500 mb-3">Instructions for the background agent. Defines what Sofia should do on each heartbeat tick.</p>
+                                <textarea id="cfg-heartbeat-md" rows="12"
+                                    class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)] font-mono transition-colors focus:border-sofia focus:ring-1 focus:ring-sofia/20 resize-none"
+                                    placeholder="# Heartbeat Instructions&#10;&#10;What should Sofia do on each scheduled run?"></textarea>
+                            </div>
                         </div>
                     </div>

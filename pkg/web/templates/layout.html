@@ -1154,13 +1154,15 @@
             try {
                 const identityEl = document.getElementById("cfg-identity-md");
                 const soulEl = document.getElementById("cfg-soul-md");
-                if (!identityEl || !soulEl) return;
+                const heartbeatEl = document.getElementById("cfg-heartbeat-md");
+                if (!identityEl && !soulEl && !heartbeatEl) return;
 
                 const res = await fetch("/api/workspace-docs");
                 if (!res.ok) return;
                 const docs = await res.json();
-                identityEl.value = docs.identity || "";
-                soulEl.value = docs.soul || "";
+                if (identityEl) identityEl.value = docs.identity || "";
+                if (soulEl) soulEl.value = docs.soul || "";
+                if (heartbeatEl) heartbeatEl.value = docs.heartbeat || "";
             } catch (e) {
                 console.error("Workspace docs fetch failed", e);
             }
@@ -1169,8 +1171,9 @@
         async function saveWorkspaceDocs() {
             try {
                 const payload = {
-                    identity: document.getElementById("cfg-identity-md").value,
-                    soul: document.getElementById("cfg-soul-md").value,
+                    identity: document.getElementById("cfg-identity-md")?.value ?? "",
+                    soul: document.getElementById("cfg-soul-md")?.value ?? "",
+                    heartbeat: document.getElementById("cfg-heartbeat-md")?.value ?? "",
                 };
                 const res = await fetch("/api/workspace-docs", {
                     method: "POST",

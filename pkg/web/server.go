@@ -565,6 +565,7 @@ func (s *Server) handleWorkspaceDocs(w http.ResponseWriter, r *http.Request) {
 	workspace := s.cfg.WorkspacePath()
 	identityPath := filepath.Join(workspace, "IDENTITY.md")
 	soulPath := filepath.Join(workspace, "SOUL.md")
+	heartbeatPath := filepath.Join(workspace, "HEARTBEAT.md")
 
 	if r.Method == http.MethodGet {
 		readOrEmpty := func(path string) string {
@@ -577,16 +578,18 @@ func (s *Server) handleWorkspaceDocs(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
-			"identity": readOrEmpty(identityPath),
-			"soul":     readOrEmpty(soulPath),
+			"identity":  readOrEmpty(identityPath),
+			"soul":      readOrEmpty(soulPath),
+			"heartbeat": readOrEmpty(heartbeatPath),
 		})
 		return
 	}
 
 	if r.Method == http.MethodPost {
 		var req struct {
-			Identity string `json:"identity"`
-			Soul     string `json:"soul"`
+			Identity  string `json:"identity"`
+			Soul      string `json:"soul"`
+			Heartbeat string `json:"heartbeat"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			s.sendJSONError(w, err.Error(), http.StatusBadRequest)
@@ -605,6 +608,12 @@ func (s *Server) handleWorkspaceDocs(w http.ResponseWriter, r *http.Request) {
 		if err := os.WriteFile(soulPath, []byte(req.Soul), 0o644); err != nil {
 			s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		if req.Heartbeat != "" {
+			if err := os.WriteFile(heartbeatPath, []byte(req.Heartbeat), 0o644); err != nil {
+				s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 
 		w.WriteHeader(http.StatusOK)
