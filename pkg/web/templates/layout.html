@@ -189,6 +189,11 @@
         let currentConfig = null;
         let currentSettingsSubTab = 'settings-tab-models';
 
+        // chatWaiting: true while /api/chat is in flight — used to update typing indicator live
+        let chatWaiting = false;
+        // openCodeActive: true while an OpenCode exec is running — drives the distinct indicator style
+        let openCodeActive = false;
+
         // Persistent chat history: array of {role: "user"|"sofia"|"error", html: string}
         let chatHistory = [];
 
@@ -1655,11 +1660,50 @@
 
         function handleAgentLog(entry) {
             const agentId = entry.component.replace("agent:", "");
+            const msg = entry.message || "";
+
+            // While a chat request is in flight, update the typing indicator in the chat area
+            if (chatWaiting) {
+                const indicator = document.getElementById("typing-indicator");
+                if (indicator) {
+                    let hint = "";
+                    if (msg.startsWith("OPENCODE: started")) {
+                        openCodeActive = true;
+                        indicator.classList.remove("text-sofia", "text-[9px]");
+                        indicator.classList.add("text-amber-400", "text-[10px]", "px-2", "py-0.5", "bg-amber-400/10", "border", "border-amber-400/40", "rounded");
+                        hint = "OpenCode running...";
+                    } else if (msg.startsWith("OPENCODE: finished")) {
+                        openCodeActive = false;
+                        indicator.classList.remove("text-amber-400", "text-[10px]", "px-2", "py-0.5", "bg-amber-400/10", "border", "border-amber-400/40", "rounded");
+                        indicator.classList.add("text-sofia", "text-[9px]");
+                        hint = "OpenCode done";
+                    } else if (msg.startsWith("TOOL: started ")) {
+                        hint = "Running " + msg.replace(/^TOOL: started\s*/, "").replace(/\s*\(.*/, "") + "...";
+                    } else if (msg.startsWith("TOOL: finished ")) {
+                        hint = "Done: " + msg.replace(/^TOOL: finished\s*/, "").split(" in ")[0];
+                    } else if (msg.startsWith("TOOL: LLM requested ")) {
+                        hint = msg.replace(/^TOOL:\s*/, "");
+                    } else if (msg.startsWith("SOFIA: generating response")) {
+                        hint = "Generating response...";
+                    } else if (msg.startsWith("SOFIA: synthesis start")) {
+                        hint = "Synthesizing result...";
+                    } else if (msg.startsWith("SOFIA: delegating to")) {
+                        const m = msg.match(/delegating to "([^"]+)"/);
+                        hint = m ? "Delegating to " + m[1] + "..." : "Delegating...";
+                    } else if (msg.startsWith("SUBAGENT: task started")) {
+                        hint = "Sub-agent working...";
+                    } else if (msg.startsWith("ROUTER:")) {
+                        hint = "Routing request...";
+                    }
+                    if (hint) {
+                        indicator.textContent = hint.length > 60 ? hint.substring(0, 60) + "…" : hint;
+                    }
+                }
+            }
 
             // Update the task label on the persistent card if it exists
             const taskEl = document.getElementById('card-task-' + agentId);
             if (taskEl) {
-                const msg = entry.message || "";
                 // Show a condensed task hint from key log messages
                 let hint = "";
                 if (msg.startsWith("TOOL:")) {
@@ -1845,7 +1889,9 @@
             input.value = "";
             attachedFiles = [];
             renderFilePreview();
+            indicator.textContent = "Sofia is thinking...";
             indicator.classList.remove("hidden");
+            chatWaiting = true;
             history.scrollTop = history.scrollHeight;
 
             try {
@@ -1875,9 +1921,11 @@
                     if (typeof updateSessionLabel === 'function') updateSessionLabel();
                 }
 
-                indicator.classList.add("hidden");
-
-                // Sofia message
+                chatWaiting = false;
+                openCodeActive = false;
+                indicator.classList.remove("text-amber-400", "text-[10px]", "px-2", "py-0.5", "bg-amber-400/10", "border", "border-amber-400/40", "rounded");
+                indicator.classList.add("text-sofia", "text-[9px]", "hidden");
+                indicator.textContent = "Sofia is thinking...";
                 const sofiaHtml =
                     "<div class='flex gap-4 animate-slide-up'>" +
                     "<div class='w-8 h-8 rounded-lg bg-sofia/10 border border-sofia/20 flex items-center justify-center shrink-0'>" +
@@ -1891,7 +1939,11 @@
                 chatHistory.push(sofiaHtml);
                 history.innerHTML += sofiaHtml;
             } catch (err) {
-                indicator.classList.add("hidden");
+                chatWaiting = false;
+                openCodeActive = false;
+                indicator.classList.remove("text-amber-400", "text-[10px]", "px-2", "py-0.5", "bg-amber-400/10", "border", "border-amber-400/40", "rounded");
+                indicator.classList.add("text-sofia", "text-[9px]", "hidden");
+                indicator.textContent = "Sofia is thinking...";
                 const errHtml =
                     "<div class='flex flex-col items-center py-4'>" +
                     "<div class='px-4 py-2 rounded-xl bg-red-900/10 border border-red-900/30 text-[11px] text-red-400 flex items-center gap-2'>" +

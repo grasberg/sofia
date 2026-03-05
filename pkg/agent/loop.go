@@ -971,6 +971,18 @@ func (al *AgentLoop) runLLMIteration(
 					"args_preview": argsPreview,
 				})
 
+			// Emit a dedicated log entry when exec is running opencode, so the UI can show a distinct indicator.
+			if tc.Name == "exec" {
+				if cmd, ok := tc.Arguments["command"].(string); ok &&
+					strings.Contains(strings.ToLower(cmd), "opencode") {
+					logger.InfoCF(agentComp, "OPENCODE: started",
+						map[string]any{
+							"agent_id":  agent.ID,
+							"iteration": iteration,
+						})
+				}
+			}
+
 			// Create async callback for tools that implement AsyncTool
 			// NOTE: Following openclaw's design, async tools do NOT send results directly to users.
 			// Instead, they notify the agent via PublishInbound, and the agent decides
@@ -1015,6 +1027,20 @@ func (al *AgentLoop) runLLMIteration(
 					"result_preview": utils.Truncate(toolResult.ForLLM, 160),
 					"error":          toolErrStr,
 				})
+
+			// Emit dedicated finish log for opencode exec invocations.
+			if tc.Name == "exec" {
+				if cmd, ok := tc.Arguments["command"].(string); ok &&
+					strings.Contains(strings.ToLower(cmd), "opencode") {
+					logger.InfoCF(agentComp,
+						fmt.Sprintf("OPENCODE: finished in %dms — %s", toolDur, toolStatus),
+						map[string]any{
+							"agent_id":    agent.ID,
+							"duration_ms": toolDur,
+							"status":      toolStatus,
+						})
+				}
+			}
 
 			// Send ForUser content to user immediately if not Silent
 			if !toolResult.Silent && toolResult.ForUser != "" && opts.SendResponse {
