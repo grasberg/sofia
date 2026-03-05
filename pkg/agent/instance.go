@@ -74,6 +74,7 @@ func NewAgentInstance(
 	}
 
 	contextBuilder := NewContextBuilder(workspace, cfg.UserName, memDB, agentID)
+	contextBuilder.SetUseOpenCode(defaults.UseOpenCode)
 
 	if agentCfg != nil {
 		contextBuilder.SetPurposeTemplate(agentCfg.Template)

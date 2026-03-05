@@ -1271,6 +1271,9 @@
                 const restrictWorkspace = document.getElementById("cfg-restrict-workspace");
                 if (restrictWorkspace) restrictWorkspace.checked = !!cfg.agents.defaults.restrict_to_workspace;
 
+                const useOpenCode = document.getElementById("cfg-use-opencode");
+                if (useOpenCode) useOpenCode.checked = !!cfg.agents.defaults.use_opencode;
+
                 // Heartbeat mapping
                 const heartbeatEnabled = document.getElementById("cfg-heartbeat-enabled");
                 if (heartbeatEnabled) {
@@ -2011,6 +2014,11 @@
                 const restrictWorkspaceEl = document.getElementById("cfg-restrict-workspace");
                 if (restrictWorkspaceEl) {
                     cfg.agents.defaults.restrict_to_workspace = restrictWorkspaceEl.checked;
+                }
+
+                const useOpenCodeEl = document.getElementById("cfg-use-opencode");
+                if (useOpenCodeEl) {
+                    cfg.agents.defaults.use_opencode = useOpenCodeEl.checked;
                 }
 
                 // Save Heartbeat settings if block exists

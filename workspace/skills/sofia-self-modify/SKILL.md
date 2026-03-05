@@ -10,17 +10,11 @@ Use this skill whenever a task requires modifying Sofia's own Go source code
 
 ## Decision: Use OpenCode if available
 
-Run this command — it works on macOS, Linux, and Windows:
+Check rule 6 in your system prompt — it tells you whether the user has enabled OpenCode for code edits.
 
-```
-opencode --version
-```
-
-- If it **prints a version string**: OpenCode is installed. **Delegate all code edits to OpenCode.** Do not write files manually.
-- If it **fails** (exit error, "command not found", or similar): OpenCode is not installed. Fall back to direct file editing with your own tools.
-
-A failed check is not an error — it is a normal signal to use the fallback path.
-Do not proceed with OpenCode steps if the check fails.
+- **If OpenCode is enabled**: run `opencode --version` to confirm it is installed, then delegate all code edits to OpenCode.
+- **If OpenCode is disabled**: skip the OpenCode steps entirely and edit files directly with your own tools (read_file, write_file, edit_file).
+- **If OpenCode is enabled but not installed**: `opencode --version` will fail — fall back to direct file editing.
 
 ## Workflow
 

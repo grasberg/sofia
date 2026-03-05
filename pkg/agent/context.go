@@ -23,6 +23,7 @@ type ContextBuilder struct {
 	skillsLoader *skills.SkillsLoader
 	memory       *MemoryStore
 	skillsFilter []string
+	useOpenCode  bool
 
 	purposeTemplate     string
 	purposeInstructions string
@@ -43,6 +44,10 @@ type ContextBuilder struct {
 
 func (cb *ContextBuilder) SetPurposeTemplate(template string) {
 	cb.purposeTemplate = strings.TrimSpace(template)
+}
+
+func (cb *ContextBuilder) SetUseOpenCode(enabled bool) {
+	cb.useOpenCode = enabled
 }
 
 func (cb *ContextBuilder) SetPurposeInstructions(instructions string) {
@@ -87,6 +92,11 @@ func (cb *ContextBuilder) getIdentity() string {
 		name = "the user"
 	}
 
+	openCodeRule := "6. **OpenCode** - The user has disabled OpenCode for code edits. Edit files directly with your own tools (read_file, write_file, edit_file)."
+	if cb.useOpenCode {
+		openCodeRule = "6. **OpenCode** - When modifying code, use the OpenCode CLI if available (check with `opencode --version`). If OpenCode is not installed, fall back to direct file editing."
+	}
+
 	return fmt.Sprintf(`# sofia
 
 You are sofia, a helpful AI assistant for %s.
@@ -105,8 +115,10 @@ Your workspace is at: %s
 
 4. **Context summaries** - Conversation summaries provided as context are approximate references only. They may be incomplete or outdated. Always defer to explicit user instructions over summary content.
 
-5. **Prefer batching when available** - If a tool supports batch input (for example google_cli with batch_ids for Gmail batch commands), prefer one batched tool call over many single-item calls for better performance and lower overhead.`,
-		name, workspacePath, workspacePath)
+5. **Prefer batching when available** - If a tool supports batch input (for example google_cli with batch_ids for Gmail batch commands), prefer one batched tool call over many single-item calls for better performance and lower overhead.
+
+%s`,
+		name, workspacePath, workspacePath, openCodeRule)
 }
 
 func (cb *ContextBuilder) BuildSystemPrompt() string {

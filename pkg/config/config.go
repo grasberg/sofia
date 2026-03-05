@@ -181,6 +181,7 @@ type SessionConfig struct {
 type AgentDefaults struct {
 	Workspace           string   `json:"workspace"                       env:"SOFIA_AGENTS_DEFAULTS_WORKSPACE"`
 	RestrictToWorkspace bool     `json:"restrict_to_workspace"           env:"SOFIA_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE"`
+	UseOpenCode         bool     `json:"use_opencode"                    env:"SOFIA_AGENTS_DEFAULTS_USE_OPENCODE"`
 	Provider            string   `json:"provider"                        env:"SOFIA_AGENTS_DEFAULTS_PROVIDER"`
 	ModelName           string   `json:"model_name,omitempty"            env:"SOFIA_AGENTS_DEFAULTS_MODEL_NAME"`
 	Model               string   `json:"model,omitempty"                 env:"SOFIA_AGENTS_DEFAULTS_MODEL"` // Deprecated: use model_name instead
