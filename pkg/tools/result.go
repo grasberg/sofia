@@ -27,6 +27,10 @@ type ToolResult struct {
 	// When true, the tool will complete later and notify via callback.
 	Async bool `json:"async"`
 
+	// Images is an optional list of base64 data URLs (e.g. "data:image/png;base64,...")
+	// to inject into the next LLM message. Used by image_analyze and computer_use.
+	Images []string `json:"images,omitempty"`
+
 	// Err is the underlying error (not JSON serialized).
 	// Used for internal error handling and logging.
 	Err error `json:"-"`

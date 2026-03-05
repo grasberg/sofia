@@ -60,6 +60,7 @@ func NewAgentInstance(
 	toolsRegistry.Register(tools.NewExecToolWithConfig(workspace, restrict, cfg))
 	toolsRegistry.Register(tools.NewEditFileTool(workspace, restrict))
 	toolsRegistry.Register(tools.NewAppendFileTool(workspace, restrict))
+	toolsRegistry.Register(tools.NewImageAnalyzeTool(workspace, restrict))
 
 	agentID := routing.DefaultAgentID
 	agentName := ""

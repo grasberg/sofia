@@ -59,8 +59,8 @@ type Config struct {
 	Heartbeat HeartbeatConfig `json:"heartbeat"`
 	Devices   DevicesConfig   `json:"devices"`
 	WebUI     WebUIConfig     `json:"webui"`
-	UserName  string          `json:"user_name"  env:"SOFIA_USER_NAME"`
-	MemoryDB  string          `json:"memory_db"  env:"SOFIA_MEMORY_DB"` // Path to SQLite memory database (default: ~/.sofia/memory.db)
+	UserName  string          `json:"user_name"           env:"SOFIA_USER_NAME"`
+	MemoryDB  string          `json:"memory_db"           env:"SOFIA_MEMORY_DB"` // Path to SQLite memory database (default: ~/.sofia/memory.db)
 }
 
 type WebUIConfig struct {

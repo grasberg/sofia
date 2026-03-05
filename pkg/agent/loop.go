@@ -174,6 +174,13 @@ func registerSharedTools(
 		agent.Tools.Register(tools.NewI2CTool())
 		agent.Tools.Register(tools.NewSPITool())
 
+		// Computer use tool - macOS/Linux only; uses vision LLM for autonomous desktop control
+		agent.Tools.Register(tools.NewComputerUseTool(tools.ComputerUseOptions{
+			Workspace: agent.Workspace,
+			Provider:  agent.Provider,
+			ModelID:   agent.ModelID,
+		}))
+
 		// Message tool
 		messageTool := tools.NewMessageTool()
 		messageTool.SetSendCallback(func(channel, chatID, content string) error {
@@ -1061,6 +1068,7 @@ func (al *AgentLoop) runLLMIteration(
 				Role:       "tool",
 				Content:    contentForLLM,
 				ToolCallID: tc.ID,
+				Images:     toolResult.Images,
 			}
 			messages = append(messages, toolResultMsg)
 

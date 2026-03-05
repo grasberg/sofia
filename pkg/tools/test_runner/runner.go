@@ -2,7 +2,6 @@ package test_runner
 
 import (
 	"bytes"
-	"encoding/json"
 	"os/exec"
 )
 
@@ -27,6 +26,6 @@ func RunTests() (*TestResult, error) {
 
 	// Här skulle vi kunna lägga till logik för att parsa JSON-output
 	// och extrahera specifika felmeddelanden.
-	
+
 	return result, nil
 }
