@@ -83,6 +83,12 @@ func DefaultConfig() *Config {
 					APIKey:     "",
 					MaxResults: 5,
 				},
+				Browser: BrowserConfig{
+					Headless:       true,
+					TimeoutSeconds: 30,
+					BrowserType:    "chromium",
+					ScreenshotDir:  "",
+				},
 			},
 			Cron: CronToolsConfig{
 				ExecTimeoutMinutes: 5,

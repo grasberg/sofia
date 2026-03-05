@@ -370,11 +370,19 @@ type PerplexityConfig struct {
 	MaxResults int    `json:"max_results" env:"SOFIA_TOOLS_WEB_PERPLEXITY_MAX_RESULTS"`
 }
 
+type BrowserConfig struct {
+	Headless       bool   `json:"headless"        env:"SOFIA_TOOLS_WEB_BROWSER_HEADLESS"`
+	TimeoutSeconds int    `json:"timeout_seconds" env:"SOFIA_TOOLS_WEB_BROWSER_TIMEOUT_SECONDS"`
+	BrowserType    string `json:"browser_type"    env:"SOFIA_TOOLS_WEB_BROWSER_TYPE"` // "chromium", "firefox", "webkit"
+	ScreenshotDir  string `json:"screenshot_dir"  env:"SOFIA_TOOLS_WEB_BROWSER_SCREENSHOT_DIR"`
+}
+
 type WebToolsConfig struct {
 	Brave      BraveConfig      `json:"brave"`
 	Tavily     TavilyConfig     `json:"tavily"`
 	DuckDuckGo DuckDuckGoConfig `json:"duckduckgo"`
 	Perplexity PerplexityConfig `json:"perplexity"`
+	Browser    BrowserConfig    `json:"browser"`
 	// Proxy is an optional proxy URL for web tools (http/https/socks5/socks5h).
 	// For authenticated proxies, prefer HTTP_PROXY/HTTPS_PROXY env vars instead of embedding credentials in config.
 	Proxy string `json:"proxy,omitempty" env:"SOFIA_TOOLS_WEB_PROXY"`

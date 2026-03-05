@@ -18,6 +18,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/playwright-community/playwright-go"
+
 	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/grasberg/sofia/pkg/channels"
 	"github.com/grasberg/sofia/pkg/config"
@@ -100,6 +102,17 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		fallback:    fallbackChain,
 	}
 
+	// Ensure Playwright browser binaries are installed.
+	// This is a no-op if they are already present.
+	go func() {
+		if err := playwright.Install(&playwright.RunOptions{Browsers: []string{"chromium"}}); err != nil {
+			logger.WarnCF("agent", "Playwright browser install failed (web_browse may not work)",
+				map[string]any{"error": err.Error()})
+		} else {
+			logger.InfoCF("agent", "Playwright chromium ready", nil)
+		}
+	}()
+
 	// Register shared tools to all agents.
 	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent)
 
@@ -141,6 +154,13 @@ func registerSharedTools(
 			agent.Tools.Register(searchTool)
 		}
 		agent.Tools.Register(tools.NewWebFetchToolWithProxy(50000, cfg.Tools.Web.Proxy))
+		agent.Tools.Register(tools.NewWebBrowseTool(tools.BrowseToolOptions{
+			Headless:       cfg.Tools.Web.Browser.Headless,
+			TimeoutSeconds: cfg.Tools.Web.Browser.TimeoutSeconds,
+			BrowserType:    cfg.Tools.Web.Browser.BrowserType,
+			ScreenshotDir:  cfg.Tools.Web.Browser.ScreenshotDir,
+			Workspace:      agent.Workspace,
+		}))
 
 		if cfg.Tools.Google.Enabled {
 			agent.Tools.Register(tools.NewGoogleCLITool(
