@@ -14,7 +14,33 @@ import (
 	"time"
 
 	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/logger"
 )
+
+const (
+	maxTimeoutRetries = 2
+	timeoutMultiplier = 2
+)
+
+// commandNotFoundPatterns matches common "command not found" messages across shells/platforms.
+var commandNotFoundPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)command not found`),
+	regexp.MustCompile(`(?i)not recognized as an internal or external command`),
+	regexp.MustCompile(`(?i)is not recognized`),
+	regexp.MustCompile(`(?i)no such file or directory`),
+	regexp.MustCompile(`(?i)cannot find the path`),
+	regexp.MustCompile(`(?i)program not found`),
+}
+
+// isCommandNotFound returns true if stderr looks like a "command not found" error.
+func isCommandNotFound(stderr string) bool {
+	for _, p := range commandNotFoundPatterns {
+		if p.MatchString(stderr) {
+			return true
+		}
+	}
+	return false
+}
 
 type ExecTool struct {
 	workingDir          string
@@ -134,6 +160,82 @@ func (t *ExecTool) Parameters() map[string]any {
 	}
 }
 
+// runResult holds the outcome of a single command execution attempt.
+type runResult struct {
+	output   string
+	timedOut bool
+	err      error
+}
+
+// runOnce executes the command once with the given timeout and returns a runResult.
+func (t *ExecTool) runOnce(ctx context.Context, command, cwd string, timeout time.Duration) runResult {
+	var cmdCtx context.Context
+	var cancel context.CancelFunc
+	if timeout > 0 {
+		cmdCtx, cancel = context.WithTimeout(ctx, timeout)
+	} else {
+		cmdCtx, cancel = context.WithCancel(ctx)
+	}
+	defer cancel()
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.CommandContext(cmdCtx, "powershell", "-NoProfile", "-NonInteractive", "-Command", command)
+	} else {
+		cmd = exec.CommandContext(cmdCtx, "sh", "-c", command)
+	}
+	if cwd != "" {
+		cmd.Dir = cwd
+	}
+
+	prepareCommandForTermination(cmd)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return runResult{
+			output: fmt.Sprintf("failed to start command: %v", err),
+			err:    err,
+		}
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	var err error
+	select {
+	case err = <-done:
+	case <-cmdCtx.Done():
+		_ = terminateProcessTree(cmd)
+		select {
+		case err = <-done:
+		case <-time.After(2 * time.Second):
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			err = <-done
+		}
+	}
+
+	if errors.Is(cmdCtx.Err(), context.DeadlineExceeded) {
+		return runResult{timedOut: true, err: err}
+	}
+
+	output := stdout.String()
+	if stderr.Len() > 0 {
+		output += "\nSTDERR:\n" + stderr.String()
+	}
+	if err != nil {
+		output += fmt.Sprintf("\nExit code: %v", err)
+	}
+
+	return runResult{output: output, err: err}
+}
+
 func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult {
 	command, ok := args["command"].(string)
 	if !ok {
@@ -164,94 +266,65 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 		return ErrorResult(guardError)
 	}
 
-	// timeout == 0 means no timeout
-	var cmdCtx context.Context
-	var cancel context.CancelFunc
-	if t.timeout > 0 {
-		cmdCtx, cancel = context.WithTimeout(ctx, t.timeout)
-	} else {
-		cmdCtx, cancel = context.WithCancel(ctx)
-	}
-	defer cancel()
+	// Auto-debug-loop: retry on timeout (up to maxTimeoutRetries times, doubling the timeout each time).
+	effectiveTimeout := t.timeout
+	for attempt := 0; ; attempt++ {
+		res := t.runOnce(ctx, command, cwd, effectiveTimeout)
 
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.CommandContext(cmdCtx, "powershell", "-NoProfile", "-NonInteractive", "-Command", command)
-	} else {
-		cmd = exec.CommandContext(cmdCtx, "sh", "-c", command)
-	}
-	if cwd != "" {
-		cmd.Dir = cwd
-	}
-
-	prepareCommandForTermination(cmd)
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Start(); err != nil {
-		return ErrorResult(fmt.Sprintf("failed to start command: %v", err))
-	}
-
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-
-	var err error
-	select {
-	case err = <-done:
-	case <-cmdCtx.Done():
-		_ = terminateProcessTree(cmd)
-		select {
-		case err = <-done:
-		case <-time.After(2 * time.Second):
-			if cmd.Process != nil {
-				_ = cmd.Process.Kill()
+		if res.timedOut {
+			if attempt < maxTimeoutRetries {
+				newTimeout := effectiveTimeout * timeoutMultiplier
+				logger.Info(fmt.Sprintf(
+					"Command timed out (attempt %d/%d), retrying with increased timeout %v → %v: %s",
+					attempt+1, maxTimeoutRetries, effectiveTimeout, newTimeout, command,
+				))
+				effectiveTimeout = newTimeout
+				continue
 			}
-			err = <-done
+			// Exhausted retries — report final timeout to LLM with diagnostic context.
+			msg := fmt.Sprintf(
+				"[AUTO-DEBUG] Command timed out after %d attempts (final timeout: %v).\n"+
+					"Consider: breaking the command into smaller steps, using a background process, "+
+					"or increasing the timeout explicitly.\nCommand: %s",
+				attempt+1, effectiveTimeout, command,
+			)
+			return &ToolResult{ForLLM: msg, ForUser: msg, IsError: true}
 		}
-	}
 
-	output := stdout.String()
-	if stderr.Len() > 0 {
-		output += "\nSTDERR:\n" + stderr.String()
-	}
-
-	if err != nil {
-		if errors.Is(cmdCtx.Err(), context.DeadlineExceeded) {
-			msg := fmt.Sprintf("Command timed out after %v", t.timeout)
-			return &ToolResult{
-				ForLLM:  msg,
-				ForUser: msg,
-				IsError: true,
+		if res.err != nil {
+			// Check for "command not found" — surface a rich diagnostic for the LLM.
+			if isCommandNotFound(res.output) {
+				msg := fmt.Sprintf(
+					"[AUTO-DEBUG] Command not found or binary missing.\n"+
+						"Diagnosis: the executable invoked by the command does not exist on this system or is not in PATH.\n"+
+						"Suggestions: verify the tool is installed, check PATH, or use an alternative command.\n"+
+						"Original output:\n%s",
+					res.output,
+				)
+				logger.Info(fmt.Sprintf("Auto-debug: command not found for: %s", command))
+				return &ToolResult{ForLLM: msg, ForUser: msg, IsError: true}
 			}
+
+			// General failure — return as-is.
+			output := res.output
+			if output == "" {
+				output = "(no output)"
+			}
+			if len(output) > 10000 {
+				output = output[:10000] + fmt.Sprintf("\n... (truncated, %d more chars)", len(output)-10000)
+			}
+			return &ToolResult{ForLLM: output, ForUser: output, IsError: true}
 		}
-		output += fmt.Sprintf("\nExit code: %v", err)
-	}
 
-	if output == "" {
-		output = "(no output)"
-	}
-
-	maxLen := 10000
-	if len(output) > maxLen {
-		output = output[:maxLen] + fmt.Sprintf("\n... (truncated, %d more chars)", len(output)-maxLen)
-	}
-
-	if err != nil {
-		return &ToolResult{
-			ForLLM:  output,
-			ForUser: output,
-			IsError: true,
+		// Success.
+		output := res.output
+		if output == "" {
+			output = "(no output)"
 		}
-	}
-
-	return &ToolResult{
-		ForLLM:  output,
-		ForUser: output,
-		IsError: false,
+		if len(output) > 10000 {
+			output = output[:10000] + fmt.Sprintf("\n... (truncated, %d more chars)", len(output)-10000)
+		}
+		return &ToolResult{ForLLM: output, ForUser: output, IsError: false}
 	}
 }
 
