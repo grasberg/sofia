@@ -14,7 +14,7 @@ import (
 	"github.com/grasberg/sofia/pkg/providers"
 )
 
-const schemaVersion = 3
+const schemaVersion = 4
 
 // MemoryDB is a shared SQLite database for session history and memory notes.
 // It is opened once at AgentLoop startup and shared across all AgentInstances.
@@ -100,6 +100,12 @@ func (m *MemoryDB) migrate() error {
 
 	if current < 3 {
 		if err = m.applyV3(); err != nil {
+			return err
+		}
+	}
+
+	if current < 4 {
+		if err = m.applyV4(); err != nil {
 			return err
 		}
 	}
@@ -1245,4 +1251,133 @@ func (m *MemoryDB) GetReflectionStats(agentID string, days int) (ReflectionStats
 		return s, fmt.Errorf("memory: get reflection stats: %w", err)
 	}
 	return s, nil
+}
+
+// ---------------------------------------------------------------------------
+// Schema migration v4: plan templates table
+// ---------------------------------------------------------------------------
+
+func (m *MemoryDB) applyV4() error {
+	const ddl = `
+CREATE TABLE IF NOT EXISTS plan_templates (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT    NOT NULL UNIQUE,
+    goal         TEXT    NOT NULL DEFAULT '',
+    steps        TEXT    NOT NULL DEFAULT '[]',
+    tags         TEXT    NOT NULL DEFAULT '',
+    use_count    INTEGER NOT NULL DEFAULT 0,
+    success_rate REAL    NOT NULL DEFAULT 0.0,
+    created_at   DATETIME NOT NULL DEFAULT (datetime('now')),
+    updated_at   DATETIME NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_plan_templates_name ON plan_templates(name);
+`
+	_, err := m.db.Exec(ddl)
+	return err
+}
+
+// ---------------------------------------------------------------------------
+// Plan templates CRUD
+// ---------------------------------------------------------------------------
+
+// PlanTemplate represents a reusable plan structure.
+type PlanTemplate struct {
+	ID          int64
+	Name        string
+	Goal        string
+	Steps       []string
+	Tags        string
+	UseCount    int
+	SuccessRate float64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// SavePlanTemplate upserts a plan template.
+func (m *MemoryDB) SavePlanTemplate(name, goal string, steps []string, tags string) error {
+	stepsJSON, err := json.Marshal(steps)
+	if err != nil {
+		return fmt.Errorf("memory: marshal template steps: %w", err)
+	}
+	now := time.Now().UTC()
+	_, err = m.db.Exec(
+		`INSERT INTO plan_templates (name, goal, steps, tags, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(name) DO UPDATE SET
+		   goal = excluded.goal,
+		   steps = excluded.steps,
+		   tags = excluded.tags,
+		   updated_at = excluded.updated_at`,
+		name, goal, string(stepsJSON), tags, now, now,
+	)
+	if err != nil {
+		return fmt.Errorf("memory: save plan template: %w", err)
+	}
+	return nil
+}
+
+// GetPlanTemplate returns a single template by name.
+func (m *MemoryDB) GetPlanTemplate(name string) (*PlanTemplate, error) {
+	var t PlanTemplate
+	var stepsJSON, created, updated string
+	err := m.db.QueryRow(
+		`SELECT id, name, goal, steps, tags, use_count, success_rate, created_at, updated_at
+		 FROM plan_templates WHERE name = ?`, name,
+	).Scan(&t.ID, &t.Name, &t.Goal, &stepsJSON, &t.Tags,
+		&t.UseCount, &t.SuccessRate, &created, &updated)
+	if err != nil {
+		return nil, fmt.Errorf("memory: get plan template: %w", err)
+	}
+	if err = json.Unmarshal([]byte(stepsJSON), &t.Steps); err != nil {
+		t.Steps = nil
+	}
+	t.CreatedAt, _ = time.Parse(time.RFC3339, created)
+	t.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
+	return &t, nil
+}
+
+// FindPlanTemplates searches templates by name, goal, or tags using LIKE.
+func (m *MemoryDB) FindPlanTemplates(query string, limit int) ([]PlanTemplate, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	pattern := "%" + query + "%"
+	rows, err := m.db.Query(
+		`SELECT id, name, goal, steps, tags, use_count, success_rate, created_at, updated_at
+		 FROM plan_templates
+		 WHERE name LIKE ? OR goal LIKE ? OR tags LIKE ?
+		 ORDER BY use_count DESC, updated_at DESC
+		 LIMIT ?`,
+		pattern, pattern, pattern, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("memory: find plan templates: %w", err)
+	}
+	defer rows.Close()
+
+	var templates []PlanTemplate
+	for rows.Next() {
+		var t PlanTemplate
+		var stepsJSON, created, updated string
+		if err = rows.Scan(&t.ID, &t.Name, &t.Goal, &stepsJSON, &t.Tags,
+			&t.UseCount, &t.SuccessRate, &created, &updated); err != nil {
+			return nil, fmt.Errorf("memory: scan plan template: %w", err)
+		}
+		if err = json.Unmarshal([]byte(stepsJSON), &t.Steps); err != nil {
+			t.Steps = nil
+		}
+		t.CreatedAt, _ = time.Parse(time.RFC3339, created)
+		t.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
+		templates = append(templates, t)
+	}
+	return templates, rows.Err()
+}
+
+// IncrementTemplateUseCount bumps the use_count for a template.
+func (m *MemoryDB) IncrementTemplateUseCount(name string) error {
+	_, err := m.db.Exec(
+		`UPDATE plan_templates SET use_count = use_count + 1, updated_at = ? WHERE name = ?`,
+		time.Now().UTC(), name,
+	)
+	return err
 }
