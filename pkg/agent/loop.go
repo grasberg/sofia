@@ -123,7 +123,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	}()
 
 	// Register shared tools to all agents.
-	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent, planMgr, scratchpad)
+	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent, planMgr, scratchpad, memDB)
 
 	al.activeAgentID.Store("")
 	al.activeStatus.Store("Idle")
@@ -139,6 +139,7 @@ func registerSharedTools(
 	agentTaskRunner func(ctx context.Context, agentID, sessionKey, task, originChannel, originChatID string) (string, error),
 	planMgr *tools.PlanManager,
 	scratchpad *tools.SharedScratchpad,
+	memDB *memory.MemoryDB,
 ) {
 	for _, agentID := range registry.ListAgentIDs() {
 		agent, ok := registry.GetAgent(agentID)
@@ -256,6 +257,11 @@ func registerSharedTools(
 		}
 		orchTool := tools.NewOrchestrateTool(orchCfg)
 		agent.Tools.Register(orchTool)
+
+		// Knowledge Graph — semantic memory with structured entities and relationships
+		if memDB != nil {
+			agent.Tools.Register(tools.NewKnowledgeGraphTool(memDB, agentID))
+		}
 	}
 }
 
@@ -354,7 +360,7 @@ func (al *AgentLoop) ReloadAgents() {
 	}
 
 	newRegistry := NewAgentRegistry(al.cfg, provider, al.memDB)
-	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent, al.planManager, al.scratchpad)
+	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent, al.planManager, al.scratchpad, al.memDB)
 
 	al.registryMu.Lock()
 	al.registry = newRegistry

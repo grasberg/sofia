@@ -18,15 +18,17 @@ import (
 // - Long-term memory: stored as kind="longterm", date_key=""
 // - Daily notes:      stored as kind="daily",    date_key="YYYYMMDD"
 type MemoryStore struct {
-	db      *memory.MemoryDB
-	agentID string
+	db       *memory.MemoryDB
+	agentID  string
+	semantic *SemanticMemory
 }
 
 // NewMemoryStore creates a new MemoryStore backed by the given MemoryDB.
 func NewMemoryStore(db *memory.MemoryDB, agentID string) *MemoryStore {
 	return &MemoryStore{
-		db:      db,
-		agentID: agentID,
+		db:       db,
+		agentID:  agentID,
+		semantic: NewSemanticMemory(db, agentID),
 	}
 }
 
@@ -111,8 +113,12 @@ func (ms *MemoryStore) GetRecentDailyNotes(days int) string {
 func (ms *MemoryStore) GetMemoryContext() string {
 	longTerm := ms.ReadLongTerm()
 	recentNotes := ms.GetRecentDailyNotes(3)
+	graphContext := ""
+	if ms.semantic != nil {
+		graphContext = ms.semantic.GetContext(10)
+	}
 
-	if longTerm == "" && recentNotes == "" {
+	if longTerm == "" && recentNotes == "" && graphContext == "" {
 		return ""
 	}
 
@@ -124,11 +130,18 @@ func (ms *MemoryStore) GetMemoryContext() string {
 	}
 
 	if recentNotes != "" {
-		if longTerm != "" {
+		if sb.Len() > 0 {
 			sb.WriteString("\n\n---\n\n")
 		}
 		sb.WriteString("## Recent Daily Notes\n\n")
 		sb.WriteString(recentNotes)
+	}
+
+	if graphContext != "" {
+		if sb.Len() > 0 {
+			sb.WriteString("\n\n---\n\n")
+		}
+		sb.WriteString(graphContext)
 	}
 
 	return sb.String()
