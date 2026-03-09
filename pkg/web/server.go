@@ -62,8 +62,21 @@ type Server struct {
 	agentLoop      *agent.AgentLoop
 	Version        string
 	server         *http.Server
+	mux            *http.ServeMux
 	mu             sync.RWMutex
 	skillInstaller *skills.SkillInstaller
+}
+
+// WebhookRegistrar is an interface for registering webhook HTTP handlers.
+type WebhookRegistrar interface {
+	RegisterWebhooks(mux *http.ServeMux)
+}
+
+// RegisterWebhooks registers webhook trigger handlers on the server's HTTP mux.
+func (s *Server) RegisterWebhooks(registrar WebhookRegistrar) {
+	if registrar != nil && s.mux != nil {
+		registrar.RegisterWebhooks(s.mux)
+	}
 }
 
 func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *Server {
@@ -151,6 +164,7 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/api/sessions", s.handleSessions)
 	mux.HandleFunc("/api/sessions/", s.handleSessionDetail)
 
+	s.mux = mux
 	s.server = &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.WebUI.Host, cfg.WebUI.Port),
 		Handler: mux,
@@ -304,7 +318,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	ctx := context.Background()
+	ctx := r.Context()
 	var response string
 	var err error
 
@@ -333,7 +347,20 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// Restrict CORS to same-origin requests only (SSE endpoint)
+	origin := r.Header.Get("Origin")
+	if origin != "" {
+		expectedOrigin := fmt.Sprintf("http://%s:%d", s.cfg.WebUI.Host, s.cfg.WebUI.Port)
+		if s.cfg.WebUI.Host == "" || s.cfg.WebUI.Host == "0.0.0.0" {
+			// Allow localhost variants when binding to all interfaces
+			if origin == fmt.Sprintf("http://localhost:%d", s.cfg.WebUI.Port) ||
+				origin == fmt.Sprintf("http://127.0.0.1:%d", s.cfg.WebUI.Port) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+			}
+		} else if origin == expectedOrigin {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
+	}
 
 	logChan := logger.Subscribe()
 	defer logger.Unsubscribe(logChan)
@@ -744,6 +771,11 @@ func (s *Server) handleSessionDetail(w http.ResponseWriter, r *http.Request) {
 	key := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
 	if key == "" {
 		s.sendJSONError(w, "Missing session key", http.StatusBadRequest)
+		return
+	}
+	// Validate session key format to prevent path traversal or injection
+	if strings.ContainsAny(key, "/\\..") || strings.Contains(key, "..") {
+		s.sendJSONError(w, "Invalid session key", http.StatusBadRequest)
 		return
 	}
 

@@ -1,6 +1,9 @@
 package tools
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // ToolResult represents the structured return value from tool execution.
 // It provides clear semantics for different types of results and supports
@@ -30,6 +33,21 @@ type ToolResult struct {
 	// Images is an optional list of base64 data URLs (e.g. "data:image/png;base64,...")
 	// to inject into the next LLM message. Used by image_analyze and computer_use.
 	Images []string `json:"images,omitempty"`
+
+	// Retryable indicates whether the error is transient and the tool call can be retried.
+	// Only meaningful when IsError is true.
+	Retryable bool `json:"retryable,omitempty"`
+
+	// RetryHint provides guidance to the LLM on how to retry or work around the error.
+	// Only meaningful when IsError is true.
+	RetryHint string `json:"retry_hint,omitempty"`
+
+	// ConfirmationRequired indicates the tool needs user confirmation before proceeding.
+	// When true, the agent loop should pause and request confirmation from the user.
+	ConfirmationRequired bool `json:"confirmation_required,omitempty"`
+
+	// ConfirmationPrompt is the message to show the user when confirmation is required.
+	ConfirmationPrompt string `json:"confirmation_prompt,omitempty"`
 
 	// Err is the underlying error (not JSON serialized).
 	// Used for internal error handling and logging.
@@ -144,4 +162,42 @@ func (tr *ToolResult) MarshalJSON() ([]byte, error) {
 func (tr *ToolResult) WithError(err error) *ToolResult {
 	tr.Err = err
 	return tr
+}
+
+// WithRetryHint marks the error as retryable with a hint for the LLM.
+func (tr *ToolResult) WithRetryHint(hint string) *ToolResult {
+	tr.Retryable = true
+	tr.RetryHint = hint
+	return tr
+}
+
+// RetryableError creates an error result that is marked as retryable.
+func RetryableError(message, hint string) *ToolResult {
+	return &ToolResult{
+		ForLLM:    fmt.Sprintf("%s\n[TOOL_STATUS: error, retryable: true, hint: %q]", message, hint),
+		ForUser:   message,
+		IsError:   true,
+		Retryable: true,
+		RetryHint: hint,
+	}
+}
+
+// NonRetryableError creates an error result that should not be retried.
+func NonRetryableError(message string) *ToolResult {
+	return &ToolResult{
+		ForLLM:    fmt.Sprintf("%s\n[TOOL_STATUS: error, retryable: false]", message),
+		ForUser:   message,
+		IsError:   true,
+		Retryable: false,
+	}
+}
+
+// ConfirmationResult creates a result that requires user confirmation before proceeding.
+func ConfirmationResult(prompt string) *ToolResult {
+	return &ToolResult{
+		ForLLM:               fmt.Sprintf("[CONFIRMATION_REQUIRED: %s]", prompt),
+		Silent:               true,
+		ConfirmationRequired: true,
+		ConfirmationPrompt:   prompt,
+	}
 }

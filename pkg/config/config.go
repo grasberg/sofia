@@ -56,11 +56,42 @@ type Config struct {
 	ModelList []ModelConfig   `json:"model_list"` // New model-centric provider configuration
 	Gateway   GatewayConfig   `json:"gateway"`
 	Tools     ToolsConfig     `json:"tools"`
+	Triggers  TriggersConfig  `json:"triggers,omitempty"`
 	Heartbeat HeartbeatConfig `json:"heartbeat"`
 	Devices   DevicesConfig   `json:"devices"`
 	WebUI     WebUIConfig     `json:"webui"`
 	UserName  string          `json:"user_name"           env:"SOFIA_USER_NAME"`
 	MemoryDB  string          `json:"memory_db"           env:"SOFIA_MEMORY_DB"` // Path to SQLite memory database (default: ~/.sofia/memory.db)
+}
+
+// TriggersConfig configures event-driven triggers.
+type TriggersConfig struct {
+	Webhooks   []WebhookTriggerConfig   `json:"webhooks,omitempty"`
+	FileWatch  []FileWatchTriggerConfig `json:"file_watch,omitempty"`
+	Patterns   []PatternTriggerConfig   `json:"patterns,omitempty"`
+}
+
+// WebhookTriggerConfig configures an HTTP webhook trigger.
+type WebhookTriggerConfig struct {
+	Path    string `json:"path"`              // URL path (e.g., "/webhook/deploy")
+	AgentID string `json:"agent_id,omitempty"` // Target agent (default: main)
+	Secret  string `json:"secret,omitempty"`  // Optional HMAC secret for verification
+}
+
+// FileWatchTriggerConfig configures a filesystem watcher trigger.
+type FileWatchTriggerConfig struct {
+	Path      string `json:"path"`               // File or directory to watch
+	Pattern   string `json:"pattern,omitempty"`   // Glob pattern filter (e.g., "*.log")
+	AgentID   string `json:"agent_id,omitempty"`  // Target agent (default: main)
+	Prompt    string `json:"prompt,omitempty"`    // Prompt template ({{.File}} {{.Event}} available)
+	Recursive bool   `json:"recursive,omitempty"` // Watch subdirectories
+}
+
+// PatternTriggerConfig configures a regex pattern trigger on messages.
+type PatternTriggerConfig struct {
+	Regex   string `json:"regex"`              // Regex pattern to match on messages
+	AgentID string `json:"agent_id,omitempty"` // Target agent (default: main)
+	Prompt  string `json:"prompt,omitempty"`   // Prompt template ({{.Match}} available)
 }
 
 type WebUIConfig struct {
@@ -191,6 +222,9 @@ type AgentDefaults struct {
 	MaxTokens           int      `json:"max_tokens"                      env:"SOFIA_AGENTS_DEFAULTS_MAX_TOKENS"`
 	Temperature         *float64 `json:"temperature,omitempty"           env:"SOFIA_AGENTS_DEFAULTS_TEMPERATURE"`
 	MaxToolIterations   int      `json:"max_tool_iterations"             env:"SOFIA_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS"`
+	ReflectionInterval  int      `json:"reflection_interval,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_REFLECTION_INTERVAL"`
+	LearnFromFeedback   bool     `json:"learn_from_feedback,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_LEARN_FROM_FEEDBACK"`
+	ParallelToolCalls   bool     `json:"parallel_tool_calls,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_PARALLEL_TOOL_CALLS"`
 }
 
 // GetModelName returns the effective model name for the agent defaults.
@@ -396,6 +430,7 @@ type CronToolsConfig struct {
 type ExecConfig struct {
 	EnableDenyPatterns bool     `json:"enable_deny_patterns" env:"SOFIA_TOOLS_EXEC_ENABLE_DENY_PATTERNS"`
 	CustomDenyPatterns []string `json:"custom_deny_patterns" env:"SOFIA_TOOLS_EXEC_CUSTOM_DENY_PATTERNS"`
+	ConfirmPatterns    []string `json:"confirm_patterns"     env:"SOFIA_TOOLS_EXEC_CONFIRM_PATTERNS"`
 }
 
 type GoogleToolsConfig struct {

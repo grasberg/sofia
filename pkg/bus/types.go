@@ -11,10 +11,11 @@ type InboundMessage struct {
 }
 
 type OutboundMessage struct {
-	Channel string `json:"channel"`
-	ChatID  string `json:"chat_id"`
-	Content string `json:"content"`
-	Type    string `json:"type,omitempty"` // e.g., "thinking"
+	Channel  string `json:"channel"`
+	ChatID   string `json:"chat_id"`
+	Content  string `json:"content"`
+	Type     string `json:"type,omitempty"`      // e.g., "thinking", "stream_start", "stream_delta", "stream_end"
+	StreamID string `json:"stream_id,omitempty"` // Identifies a streaming session
 }
 
 type MessageHandler func(InboundMessage) error

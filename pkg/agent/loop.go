@@ -19,6 +19,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/playwright-community/playwright-go"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/grasberg/sofia/pkg/channels"
@@ -39,6 +40,7 @@ type AgentLoop struct {
 	bus            *bus.MessageBus
 	cfg            *config.Config
 	registry       *AgentRegistry
+	registryMu     sync.RWMutex
 	state          *state.Manager
 	memDB          *memory.MemoryDB
 	running        atomic.Bool
@@ -47,6 +49,8 @@ type AgentLoop struct {
 	channelManager *channels.Manager
 	activeAgentID  atomic.Value // string
 	activeStatus   atomic.Value // string
+	planManager    *tools.PlanManager
+	scratchpad     *tools.SharedScratchpad
 }
 
 // processOptions configures how a message is processed
@@ -92,6 +96,9 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		stateManager = state.NewManager(defaultAgent.Workspace)
 	}
 
+	planMgr := tools.NewPlanManager()
+	scratchpad := tools.NewSharedScratchpad()
+
 	al := &AgentLoop{
 		bus:         msgBus,
 		cfg:         cfg,
@@ -100,6 +107,8 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		memDB:       memDB,
 		summarizing: sync.Map{},
 		fallback:    fallbackChain,
+		planManager: planMgr,
+		scratchpad:  scratchpad,
 	}
 
 	// Ensure Playwright browser binaries are installed.
@@ -114,20 +123,22 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	}()
 
 	// Register shared tools to all agents.
-	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent)
+	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent, planMgr, scratchpad)
 
 	al.activeAgentID.Store("")
 	al.activeStatus.Store("Idle")
 	return al
 }
 
-// registerSharedTools registers tools that are shared across all agents (web, message, spawn).
+// registerSharedTools registers tools that are shared across all agents (web, message, spawn, plan, scratchpad, orchestrate).
 func registerSharedTools(
 	cfg *config.Config,
 	msgBus *bus.MessageBus,
 	registry *AgentRegistry,
 	provider providers.LLMProvider,
 	agentTaskRunner func(ctx context.Context, agentID, sessionKey, task, originChannel, originChatID string) (string, error),
+	planMgr *tools.PlanManager,
+	scratchpad *tools.SharedScratchpad,
 ) {
 	for _, agentID := range registry.ListAgentIDs() {
 		agent, ok := registry.GetAgent(agentID)
@@ -217,6 +228,34 @@ func registerSharedTools(
 			return registry.CanSpawnSubagent(currentAgentID, targetAgentID)
 		})
 		agent.Tools.Register(spawnTool)
+
+		// Plan tool — structured plan-then-execute
+		agent.Tools.Register(tools.NewPlanTool(planMgr))
+
+		// Scratchpad — agent-to-agent shared key-value store
+		agent.Tools.Register(tools.NewScratchpadTool(scratchpad, "default"))
+
+		// Subagent (synchronous) tool
+		subagentTool := tools.NewSubagentTool(subagentManager)
+		agent.Tools.Register(subagentTool)
+
+		// Orchestrate tool — multi-agent task coordination
+		orchCfg := tools.OrchestrateToolConfig{
+			AgentScorer: func(candidateID, taskDescription string) float64 {
+				candidate, ok := registry.GetAgent(candidateID)
+				if !ok {
+					return 0
+				}
+				return scoreCandidate(candidate, strings.ToLower(taskDescription))
+			},
+			ListAgentIDs: registry.ListAgentIDs,
+			RunAgentTask: func(ctx context.Context, targetAgentID, task, channel, chatID string) (string, error) {
+				return agentTaskRunner(ctx, targetAgentID, "", task, channel, chatID)
+			},
+			Scratchpad: scratchpad,
+		}
+		orchTool := tools.NewOrchestrateTool(orchCfg)
+		agent.Tools.Register(orchTool)
 	}
 }
 
@@ -243,7 +282,7 @@ func (al *AgentLoop) Run(ctx context.Context) error {
 				// If so, skip publishing to avoid duplicate messages to the user.
 				// Use default agent's tools to check (message tool is shared).
 				alreadySent := false
-				defaultAgent := al.registry.GetDefaultAgent()
+				defaultAgent := al.getRegistry().GetDefaultAgent()
 				if defaultAgent != nil {
 					if tool, ok := defaultAgent.Tools.Get("message"); ok {
 						if mt, ok := tool.(*tools.MessageTool); ok {
@@ -270,9 +309,16 @@ func (al *AgentLoop) Stop() {
 	al.running.Store(false)
 }
 
+// getRegistry returns the current agent registry with proper synchronization.
+func (al *AgentLoop) getRegistry() *AgentRegistry {
+	al.registryMu.RLock()
+	defer al.registryMu.RUnlock()
+	return al.registry
+}
+
 func (al *AgentLoop) RegisterTool(tool tools.Tool) {
-	for _, agentID := range al.registry.ListAgentIDs() {
-		if agent, ok := al.registry.GetAgent(agentID); ok {
+	for _, agentID := range al.getRegistry().ListAgentIDs() {
+		if agent, ok := al.getRegistry().GetAgent(agentID); ok {
 			agent.Tools.Register(tool)
 		}
 	}
@@ -293,13 +339,13 @@ func (al *AgentLoop) ReloadAgents() {
 	if err != nil {
 		logger.ErrorCF("agent", "Cannot reload agents: provider creation failed", map[string]any{"error": err.Error()})
 		// Fallback to existing provider if creation fails, so we don't crash
-		if defaultAgent := al.registry.GetDefaultAgent(); defaultAgent != nil {
+		if defaultAgent := al.getRegistry().GetDefaultAgent(); defaultAgent != nil {
 			provider = defaultAgent.Provider
 		}
 	} else if provider == nil {
 		logger.WarnCF("agent", "Cannot reload agents: no model configured", nil)
 		// Fallback to existing
-		if defaultAgent := al.registry.GetDefaultAgent(); defaultAgent != nil {
+		if defaultAgent := al.getRegistry().GetDefaultAgent(); defaultAgent != nil {
 			provider = defaultAgent.Provider
 		}
 	} else {
@@ -308,9 +354,11 @@ func (al *AgentLoop) ReloadAgents() {
 	}
 
 	newRegistry := NewAgentRegistry(al.cfg, provider, al.memDB)
-	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent)
+	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent, al.planManager, al.scratchpad)
 
+	al.registryMu.Lock()
 	al.registry = newRegistry
+	al.registryMu.Unlock()
 	logger.InfoCF("agent", "Agents reloaded successfully", nil)
 }
 
@@ -318,7 +366,7 @@ func (al *AgentLoop) runSpawnedTaskAsAgent(
 	ctx context.Context,
 	agentID, sessionKey, task, originChannel, originChatID string,
 ) (string, error) {
-	target, ok := al.registry.GetAgent(agentID)
+	target, ok := al.getRegistry().GetAgent(agentID)
 	if !ok || target == nil {
 		return "", fmt.Errorf("target agent %q not found", agentID)
 	}
@@ -406,7 +454,10 @@ func (al *AgentLoop) ProcessDirectWithImages(
 	content, sessionKey string,
 	images []string,
 ) (string, error) {
-	agent := al.registry.GetDefaultAgent()
+	agent := al.getRegistry().GetDefaultAgent()
+	if agent == nil {
+		return "", fmt.Errorf("no default agent configured")
+	}
 	return al.runAgentLoop(ctx, agent, processOptions{
 		SessionKey:      sessionKey,
 		Channel:         "cli",
@@ -437,7 +488,10 @@ func (al *AgentLoop) ProcessDirectWithChannel(
 // ProcessHeartbeat processes a heartbeat request without session history.
 // Each heartbeat is independent and doesn't accumulate context.
 func (al *AgentLoop) ProcessHeartbeat(ctx context.Context, content, channel, chatID string) (string, error) {
-	agent := al.registry.GetDefaultAgent()
+	agent := al.getRegistry().GetDefaultAgent()
+	if agent == nil {
+		return "", fmt.Errorf("no default agent configured")
+	}
 	return al.runAgentLoop(ctx, agent, processOptions{
 		SessionKey:      "heartbeat",
 		Channel:         channel,
@@ -472,7 +526,7 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 	}
 
 	// Route to determine agent and session key
-	route := al.registry.ResolveRoute(routing.RouteInput{
+	route := al.getRegistry().ResolveRoute(routing.RouteInput{
 		Channel:    msg.Channel,
 		AccountID:  msg.Metadata["account_id"],
 		Peer:       extractPeer(msg),
@@ -481,9 +535,12 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 		TeamID:     msg.Metadata["team_id"],
 	})
 
-	agent, ok := al.registry.GetAgent(route.AgentID)
+	agent, ok := al.getRegistry().GetAgent(route.AgentID)
 	if !ok {
-		agent = al.registry.GetDefaultAgent()
+		agent = al.getRegistry().GetDefaultAgent()
+	}
+	if agent == nil {
+		return "", fmt.Errorf("no agent available for route %q", route.AgentID)
 	}
 
 	al.activeAgentID.Store(agent.ID)
@@ -505,9 +562,13 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 			"chat_id":     msg.ChatID,
 		})
 
-	// Deterministic delegation: if a sub-agent scores >= threshold, run it
-	// synchronously and fold the result back into Sofia's context.
-	if subagent := al.delegateTo(msg.Content); subagent != nil {
+	// Delegation: first try keyword-based scoring, then fall back to semantic (LLM-based).
+	subagent := al.delegateTo(msg.Content)
+	if subagent == nil {
+		// Semantic delegation fallback: use an LLM call to determine the best agent
+		subagent = al.semanticDelegateTo(ctx, msg.Content)
+	}
+	if subagent != nil {
 		score := scoreCandidate(subagent, strings.ToLower(msg.Content))
 		logger.InfoCF(
 			agentComp,
@@ -613,7 +674,10 @@ func (al *AgentLoop) processSystemMessage(ctx context.Context, msg bus.InboundMe
 	}
 
 	// Use default agent for system messages
-	agent := al.registry.GetDefaultAgent()
+	agent := al.getRegistry().GetDefaultAgent()
+	if agent == nil {
+		return "", fmt.Errorf("no default agent configured")
+	}
 
 	// Use the origin session for context
 	sessionKey := routing.BuildAgentMainSessionKey(agent.ID)
@@ -742,6 +806,11 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 		al.maybeSummarize(agent, opts.SessionKey, opts.Channel, opts.ChatID)
 	}
 
+	// 7b. Learn from feedback (#8) — detect correction patterns in user message
+	if al.cfg.Agents.Defaults.LearnFromFeedback {
+		al.maybLearnFromFeedback(agent, opts.UserMessage)
+	}
+
 	// 8. Optional: send response via bus
 	if opts.SendResponse {
 		al.bus.PublishOutbound(bus.OutboundMessage{
@@ -779,8 +848,49 @@ func (al *AgentLoop) runLLMIteration(
 	iteration := 0
 	var finalContent string
 
+	reflectionInterval := al.cfg.Agents.Defaults.ReflectionInterval
+	parallelTools := al.cfg.Agents.Defaults.ParallelToolCalls
+
 	for iteration < agent.MaxIterations {
 		iteration++
+
+		// Feature: Self-reflection checkpoint (#2)
+		// At every N iterations, inject a system reflection prompt
+		if reflectionInterval > 0 && iteration > 1 && (iteration-1)%reflectionInterval == 0 {
+			reflectionPrompt := "[REFLECTION CHECKPOINT] " +
+				"Pause and assess your progress. " +
+				"What have you accomplished so far? Are you making meaningful progress? " +
+				"Should you change your approach or strategy? " +
+				"If stuck, consider alternative methods."
+
+			// Inject plan status if active
+			if plan := al.planManager.GetActivePlan(); plan != nil {
+				reflectionPrompt += "\n\nCurrent plan status:\n" + plan.FormatStatus()
+			}
+
+			messages = append(messages, providers.Message{
+				Role:    "user",
+				Content: reflectionPrompt,
+			})
+
+			logger.InfoCF(agentComp, fmt.Sprintf("REFLECT: injected reflection at iteration %d", iteration),
+				map[string]any{"agent_id": agent.ID, "iteration": iteration})
+		}
+
+		// Feature: Inject active plan context (#1)
+		// On every iteration, if there's an active plan, include its status
+		if iteration == 1 {
+			if plan := al.planManager.GetActivePlan(); plan != nil {
+				planStatus := plan.FormatStatus()
+				// Append to the last system or user message rather than adding a new one
+				for i := len(messages) - 1; i >= 0; i-- {
+					if messages[i].Role == "user" {
+						messages[i].Content += "\n\n[Active Plan Status]\n" + planStatus
+						break
+					}
+				}
+			}
+		}
 
 		logger.DebugCF(agentComp, "LLM iteration",
 			map[string]any{
@@ -965,8 +1075,16 @@ func (al *AgentLoop) runLLMIteration(
 		// Save assistant message with tool calls to session
 		agent.Sessions.AddFullMessage(opts.SessionKey, assistantMsg)
 
-		// Execute tool calls
-		for _, tc := range normalizedToolCalls {
+		// Execute tool calls — parallel or sequential based on config
+		type toolCallResult struct {
+			index     int
+			tc        providers.ToolCall
+			result    *tools.ToolResult
+			durMs     int64
+			resultMsg providers.Message
+		}
+
+		executeSingleTool := func(idx int, tc providers.ToolCall) toolCallResult {
 			al.activeStatus.Store(fmt.Sprintf("Executing tool: %s", tc.Name))
 			argsJSON, _ := json.Marshal(tc.Arguments)
 			argsPreview := utils.Truncate(string(argsJSON), 200)
@@ -978,22 +1096,15 @@ func (al *AgentLoop) runLLMIteration(
 					"args_preview": argsPreview,
 				})
 
-			// Emit a dedicated log entry when exec is running opencode, so the UI can show a distinct indicator.
+			// Emit opencode indicator
 			if tc.Name == "exec" {
 				if cmd, ok := tc.Arguments["command"].(string); ok &&
 					strings.Contains(strings.ToLower(cmd), "opencode") {
 					logger.InfoCF(agentComp, "OPENCODE: started",
-						map[string]any{
-							"agent_id":  agent.ID,
-							"iteration": iteration,
-						})
+						map[string]any{"agent_id": agent.ID, "iteration": iteration})
 				}
 			}
 
-			// Create async callback for tools that implement AsyncTool
-			// NOTE: Following openclaw's design, async tools do NOT send results directly to users.
-			// Instead, they notify the agent via PublishInbound, and the agent decides
-			// whether to forward the result to the user (in processSystemMessage).
 			asyncCallback := func(callbackCtx context.Context, result *tools.ToolResult) {
 				if !result.Silent && result.ForUser != "" {
 					logger.InfoCF(agentComp, fmt.Sprintf("TOOL: async completed %s", tc.Name),
@@ -1007,16 +1118,10 @@ func (al *AgentLoop) runLLMIteration(
 
 			toolStart := time.Now()
 			toolResult := agent.Tools.ExecuteWithContext(
-				ctx,
-				tc.Name,
-				tc.Arguments,
-				opts.Channel,
-				opts.ChatID,
-				asyncCallback,
+				ctx, tc.Name, tc.Arguments, opts.Channel, opts.ChatID, asyncCallback,
 			)
 			toolDur := time.Since(toolStart).Milliseconds()
 
-			// Log tool result
 			toolStatus := "ok"
 			toolErrStr := ""
 			if toolResult.Err != nil {
@@ -1035,45 +1140,100 @@ func (al *AgentLoop) runLLMIteration(
 					"error":          toolErrStr,
 				})
 
-			// Emit dedicated finish log for opencode exec invocations.
 			if tc.Name == "exec" {
 				if cmd, ok := tc.Arguments["command"].(string); ok &&
 					strings.Contains(strings.ToLower(cmd), "opencode") {
 					logger.InfoCF(agentComp,
 						fmt.Sprintf("OPENCODE: finished in %dms — %s", toolDur, toolStatus),
-						map[string]any{
-							"agent_id":    agent.ID,
-							"duration_ms": toolDur,
-							"status":      toolStatus,
-						})
+						map[string]any{"agent_id": agent.ID, "duration_ms": toolDur, "status": toolStatus})
 				}
 			}
 
-			// Send ForUser content to user immediately if not Silent
-			if !toolResult.Silent && toolResult.ForUser != "" && opts.SendResponse {
-				al.bus.PublishOutbound(bus.OutboundMessage{
-					Channel: opts.Channel,
-					ChatID:  opts.ChatID,
-					Content: toolResult.ForUser,
-				})
-			}
-
-			// Determine content for LLM based on tool result
 			contentForLLM := toolResult.ForLLM
 			if contentForLLM == "" && toolResult.Err != nil {
 				contentForLLM = toolResult.Err.Error()
 			}
 
-			toolResultMsg := providers.Message{
-				Role:       "tool",
-				Content:    contentForLLM,
-				ToolCallID: tc.ID,
-				Images:     toolResult.Images,
+			return toolCallResult{
+				index:  idx,
+				tc:     tc,
+				result: toolResult,
+				durMs:  toolDur,
+				resultMsg: providers.Message{
+					Role:       "tool",
+					Content:    contentForLLM,
+					ToolCallID: tc.ID,
+					Images:     toolResult.Images,
+				},
 			}
-			messages = append(messages, toolResultMsg)
+		}
 
-			// Save tool result message to session
-			agent.Sessions.AddFullMessage(opts.SessionKey, toolResultMsg)
+		var tcResults []toolCallResult
+
+		if parallelTools && len(normalizedToolCalls) > 1 {
+			// Parallel tool execution using errgroup
+			results := make([]toolCallResult, len(normalizedToolCalls))
+			g, _ := errgroup.WithContext(ctx)
+
+			for i, tc := range normalizedToolCalls {
+				g.Go(func() error {
+					results[i] = executeSingleTool(i, tc)
+					return nil
+				})
+			}
+			_ = g.Wait() // errors are always nil; tool errors are captured in results
+			tcResults = results
+		} else {
+			// Sequential tool execution (default)
+			for i, tc := range normalizedToolCalls {
+				tcResults = append(tcResults, executeSingleTool(i, tc))
+			}
+		}
+
+		// Process results in order
+		confirmationNeeded := false
+		for _, tcr := range tcResults {
+			// Handle confirmation-required results (#5)
+			if tcr.result.ConfirmationRequired {
+				confirmationNeeded = true
+				logger.InfoCF(agentComp, "CONFIRM: tool requires confirmation",
+					map[string]any{
+						"tool":   tcr.tc.Name,
+						"prompt": tcr.result.ConfirmationPrompt,
+					})
+
+				// Send confirmation request to user
+				if opts.SendResponse && opts.Channel != "" {
+					al.bus.PublishOutbound(bus.OutboundMessage{
+						Channel: opts.Channel,
+						ChatID:  opts.ChatID,
+						Content: fmt.Sprintf("⚠️ Confirmation required: %s\n\nReply 'yes' to proceed or 'no' to cancel.",
+							tcr.result.ConfirmationPrompt),
+					})
+				}
+
+				// Add a tool result indicating confirmation is pending
+				tcr.resultMsg.Content = fmt.Sprintf("[CONFIRMATION_PENDING: %s — awaiting user response]",
+					tcr.result.ConfirmationPrompt)
+			}
+
+			// Send ForUser content to user immediately if not Silent
+			if !tcr.result.Silent && tcr.result.ForUser != "" && opts.SendResponse {
+				al.bus.PublishOutbound(bus.OutboundMessage{
+					Channel: opts.Channel,
+					ChatID:  opts.ChatID,
+					Content: tcr.result.ForUser,
+				})
+			}
+
+			messages = append(messages, tcr.resultMsg)
+			agent.Sessions.AddFullMessage(opts.SessionKey, tcr.resultMsg)
+		}
+
+		// If any tool requires confirmation, stop the loop and let the user respond
+		if confirmationNeeded {
+			finalContent = "Waiting for user confirmation before proceeding."
+			break
 		}
 	}
 
@@ -1082,20 +1242,12 @@ func (al *AgentLoop) runLLMIteration(
 
 // updateToolContexts updates the context for tools that need channel/chatID info.
 func (al *AgentLoop) updateToolContexts(agent *AgentInstance, channel, chatID string) {
-	// Use ContextualTool interface instead of type assertions
-	if tool, ok := agent.Tools.Get("message"); ok {
-		if mt, ok := tool.(tools.ContextualTool); ok {
-			mt.SetContext(channel, chatID)
-		}
-	}
-	if tool, ok := agent.Tools.Get("spawn"); ok {
-		if st, ok := tool.(tools.ContextualTool); ok {
-			st.SetContext(channel, chatID)
-		}
-	}
-	if tool, ok := agent.Tools.Get("subagent"); ok {
-		if st, ok := tool.(tools.ContextualTool); ok {
-			st.SetContext(channel, chatID)
+	contextualTools := []string{"message", "spawn", "subagent", "orchestrate"}
+	for _, name := range contextualTools {
+		if tool, ok := agent.Tools.Get(name); ok {
+			if ct, ok := tool.(tools.ContextualTool); ok {
+				ct.SetContext(channel, chatID)
+			}
 		}
 	}
 }
@@ -1171,10 +1323,87 @@ func (al *AgentLoop) forceCompression(agent *AgentInstance, sessionKey string) {
 	})
 }
 
+// correctionPatterns detects user messages that contain corrections or preferences.
+var correctionPatterns = []string{
+	"no, ",
+	"actually,",
+	"actually ",
+	"i meant",
+	"i prefer",
+	"always use",
+	"never use",
+	"don't use",
+	"do not use",
+	"please always",
+	"please never",
+	"from now on",
+	"remember that",
+	"keep in mind",
+	"i want you to",
+	"use this instead",
+	"that's wrong",
+	"that's not right",
+	"incorrect",
+	"that is wrong",
+}
+
+// maybLearnFromFeedback checks if the user message contains correction patterns
+// and extracts preferences to store in long-term memory.
+func (al *AgentLoop) maybLearnFromFeedback(agent *AgentInstance, userMsg string) {
+	if userMsg == "" || al.memDB == nil {
+		return
+	}
+
+	lower := strings.ToLower(userMsg)
+	isCorrection := false
+	for _, pattern := range correctionPatterns {
+		if strings.Contains(lower, pattern) {
+			isCorrection = true
+			break
+		}
+	}
+
+	if !isCorrection {
+		return
+	}
+
+	// Extract and store the preference
+	memStore := NewMemoryStore(al.memDB, agent.ID)
+	existing := memStore.ReadLongTerm()
+
+	// Truncate user message for storage
+	preference := userMsg
+	if len(preference) > 200 {
+		preference = preference[:200] + "..."
+	}
+
+	entry := fmt.Sprintf("- User preference: %s", preference)
+
+	// Avoid duplicates
+	if strings.Contains(existing, preference[:min(len(preference), 50)]) {
+		return
+	}
+
+	var newContent string
+	if existing == "" {
+		newContent = "## User Preferences (auto-learned)\n\n" + entry
+	} else {
+		newContent = existing + "\n" + entry
+	}
+
+	if err := memStore.WriteLongTerm(newContent); err != nil {
+		logger.WarnCF("agent", "Failed to save learned preference",
+			map[string]any{"error": err.Error()})
+	} else {
+		logger.InfoCF("agent", "Learned user preference from feedback",
+			map[string]any{"preference": utils.Truncate(preference, 80)})
+	}
+}
+
 // GetDefaultSessionManager returns the session manager for the default agent.
 // This is used by the web server to expose session history endpoints.
 func (al *AgentLoop) GetDefaultSessionManager() *session.SessionManager {
-	agent := al.registry.GetDefaultAgent()
+	agent := al.getRegistry().GetDefaultAgent()
 	if agent == nil {
 		return nil
 	}
@@ -1185,7 +1414,7 @@ func (al *AgentLoop) GetDefaultSessionManager() *session.SessionManager {
 func (al *AgentLoop) GetStartupInfo() map[string]any {
 	info := make(map[string]any)
 
-	agent := al.registry.GetDefaultAgent()
+	agent := al.getRegistry().GetDefaultAgent()
 	if agent == nil {
 		return info
 	}
@@ -1212,7 +1441,7 @@ func (al *AgentLoop) GetStartupInfo() map[string]any {
 	info["skills"] = agent.ContextBuilder.GetSkillsInfo()
 
 	// Agents info — per-agent metadata for Agent Monitor
-	allAgents := al.registry.ListAgents()
+	allAgents := al.getRegistry().ListAgents()
 	agentMeta := make([]map[string]any, 0, len(allAgents))
 	for _, a := range allAgents {
 		role := "subagent"
@@ -1229,7 +1458,7 @@ func (al *AgentLoop) GetStartupInfo() map[string]any {
 	}
 	info["agents"] = map[string]any{
 		"count": len(allAgents),
-		"ids":   al.registry.ListAgentIDs(),
+		"ids":   al.getRegistry().ListAgentIDs(),
 		"list":  agentMeta,
 		"active": map[string]any{
 			"id":     al.activeAgentID.Load(),
@@ -1443,7 +1672,7 @@ func (al *AgentLoop) handleCommand(ctx context.Context, msg bus.InboundMessage) 
 		}
 		switch args[0] {
 		case "model":
-			defaultAgent := al.registry.GetDefaultAgent()
+			defaultAgent := al.getRegistry().GetDefaultAgent()
 			if defaultAgent == nil {
 				return "No default agent configured", true
 			}
@@ -1451,7 +1680,7 @@ func (al *AgentLoop) handleCommand(ctx context.Context, msg bus.InboundMessage) 
 		case "channel":
 			return fmt.Sprintf("Current channel: %s", msg.Channel), true
 		case "agents":
-			agentIDs := al.registry.ListAgentIDs()
+			agentIDs := al.getRegistry().ListAgentIDs()
 			return fmt.Sprintf("Registered agents: %s", strings.Join(agentIDs, ", ")), true
 		default:
 			return fmt.Sprintf("Unknown show target: %s", args[0]), true
@@ -1474,7 +1703,7 @@ func (al *AgentLoop) handleCommand(ctx context.Context, msg bus.InboundMessage) 
 			}
 			return fmt.Sprintf("Enabled channels: %s", strings.Join(channels, ", ")), true
 		case "agents":
-			agentIDs := al.registry.ListAgentIDs()
+			agentIDs := al.getRegistry().ListAgentIDs()
 			return fmt.Sprintf("Registered agents: %s", strings.Join(agentIDs, ", ")), true
 		default:
 			return fmt.Sprintf("Unknown list target: %s", args[0]), true
@@ -1489,7 +1718,7 @@ func (al *AgentLoop) handleCommand(ctx context.Context, msg bus.InboundMessage) 
 
 		switch target {
 		case "model":
-			defaultAgent := al.registry.GetDefaultAgent()
+			defaultAgent := al.getRegistry().GetDefaultAgent()
 			if defaultAgent == nil {
 				return "No default agent configured", true
 			}

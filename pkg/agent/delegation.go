@@ -1,8 +1,14 @@
 package agent
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"strings"
+	"time"
 
+	"github.com/grasberg/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/routing"
 )
 
@@ -101,4 +107,94 @@ func (al *AgentLoop) delegateTo(msg string) *AgentInstance {
 		return bestAgent
 	}
 	return nil
+}
+
+// semanticDelegateTo uses an LLM call to determine the best agent for a message.
+// This is a fallback when keyword-based scoring doesn't find a match above threshold.
+// Returns nil if no suitable agent is found or LLM delegation is unavailable.
+func (al *AgentLoop) semanticDelegateTo(ctx context.Context, msg string) *AgentInstance {
+	defaultAgent := al.getRegistry().GetDefaultAgent()
+	if defaultAgent == nil || defaultAgent.Provider == nil {
+		return nil
+	}
+
+	// Build agent descriptions for the LLM
+	agents := al.getRegistry().ListAgents()
+	if len(agents) <= 1 {
+		return nil // Only the main agent exists
+	}
+
+	var agentDescs []string
+	for _, agent := range agents {
+		if agent.ID == routing.DefaultAgentID {
+			continue
+		}
+		desc := fmt.Sprintf("- id: %q, name: %q", agent.ID, agent.Name)
+		if agent.PurposePrompt != "" {
+			purpose := agent.PurposePrompt
+			if len(purpose) > 100 {
+				purpose = purpose[:100] + "..."
+			}
+			desc += fmt.Sprintf(", purpose: %q", purpose)
+		}
+		if len(agent.SkillsFilter) > 0 {
+			desc += fmt.Sprintf(", skills: %v", agent.SkillsFilter)
+		}
+		agentDescs = append(agentDescs, desc)
+	}
+
+	prompt := fmt.Sprintf(`Which agent best handles this user message? Return ONLY a JSON object with "agent_id" field, or {"agent_id": ""} if none fit.
+
+Available agents:
+%s
+
+User message: %s`, strings.Join(agentDescs, "\n"), msg)
+
+	// Use a short timeout for this delegation call
+	delegateCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	resp, err := defaultAgent.Provider.Chat(delegateCtx, []providers.Message{
+		{Role: "system", Content: "You are a routing assistant. Reply with only valid JSON."},
+		{Role: "user", Content: prompt},
+	}, nil, defaultAgent.ModelID, map[string]any{
+		"max_tokens":  100,
+		"temperature": 0.0,
+	})
+	if err != nil {
+		logger.DebugCF("delegation", "Semantic delegation LLM call failed",
+			map[string]any{"error": err.Error()})
+		return nil
+	}
+
+	// Parse response
+	var result struct {
+		AgentID string `json:"agent_id"`
+	}
+
+	content := strings.TrimSpace(resp.Content)
+	// Strip markdown code fences if present
+	content = strings.TrimPrefix(content, "```json")
+	content = strings.TrimPrefix(content, "```")
+	content = strings.TrimSuffix(content, "```")
+	content = strings.TrimSpace(content)
+
+	if err := json.Unmarshal([]byte(content), &result); err != nil {
+		logger.DebugCF("delegation", "Failed to parse semantic delegation response",
+			map[string]any{"content": content, "error": err.Error()})
+		return nil
+	}
+
+	if result.AgentID == "" {
+		return nil
+	}
+
+	agent, ok := al.getRegistry().GetAgent(result.AgentID)
+	if !ok {
+		return nil
+	}
+
+	logger.InfoCF("delegation", fmt.Sprintf("Semantic delegation selected agent %q", agent.Name),
+		map[string]any{"agent_id": agent.ID, "message_preview": msg[:min(len(msg), 80)]})
+	return agent
 }

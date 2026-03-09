@@ -1,16 +1,27 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.63-blue)
+![Version](https://img.shields.io/badge/version-v0.0.64-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
 
 *   🛠️ **Autonom Verktygsanvändning:** Kan läsa/redigera filer, köra bash-kommandon, interagera med Google CLI (Gmail/Calendar) och hämta data från webben.
 *   🧠 **Persistens & Minne:** Upprätthåller ett långtidsminne och för dagliga anteckningar i en delad SQLite-databas (`~/.sofia/memory.db`) för att aldrig tappa kontexten över tid.
-*   🤖 **Multi-Agent Orkestrering:** Kan starta bakgrundsprocesser (`spawn`) och delegera komplexa uppgifter till parallella agenter.
-*   🌐 **Brett AI-stöd:** Inbyggt stöd för 16 olika AI-leverantörer inkl. OpenAI, Anthropic, Gemini, DeepSeek, Grok, MiniMax och fler via ett enkelt webbgränssnitt.
+*   🤖 **Multi-Agent Orkestrering:** Kan starta bakgrundsprocesser (`spawn`) och delegera komplexa uppgifter till parallella agenter med beroendegraf och automatisk agentval.
+*   🌐 **Brett AI-stöd:** Inbyggt stöd för 20+ AI-leverantörer inkl. OpenAI, Anthropic (Claude 4.5), Gemini, DeepSeek, Grok, MiniMax, Moonshot, Qwen, Zai, GitHub Copilot och fler via ett enkelt webbgränssnitt.
 *   📚 **Antigravity Kit (Skill System):** Bestyckad med unika "skills" (expert-personas och kunskapsmoduler) för domänspecifik expertis inom allt från frontend-arkitektur till penetrationstestning.
 *   💬 **Gateway Mode:** Inbyggt stöd för chattplattformar som Telegram och Discord via `sofia gateway`.
+*   🖥️ **Computer Use:** Autonom datorstyrning via skärmdumpar och vision-LLM — styr mus och tangentbord på macOS och Linux.
+*   🌍 **Webbläsarautomation (Playwright):** Autonom webbsurfning med klick, formulärifyllning, skärmdumpar och textextraktion via inbyggd Playwright-integration.
+*   📸 **Bildanalys:** Analysera lokala bilder (PNG, JPEG, GIF, WebP) via vision-LLM — OCR, beskrivningar och frågor om skärmdumpar.
+*   🎤 **Rösttranskribering:** Transkribera ljudfiler till text via Groq Whisper (`whisper-large-v3`).
+*   📋 **Plan & Execute:** Strukturerad uppgiftsplanering med steg-för-steg-uppföljning — skapa, uppdatera och övervaka planer direkt i chatten.
+*   📝 **Delad Scratchpad:** Nyckel-värde-lagring för agent-till-agent-kommunikation, namespaced per uppgiftsgrupp.
+*   ⏰ **Cron-schemaläggning:** Agenten kan själv skapa, lista, ta bort och schemalägga återkommande uppgifter.
+*   🔄 **Provider Fallback:** Automatiska fallback-kedjor om en AI-leverantör misslyckas — sömlös övergång till nästa leverantör.
+*   🔌 **IoT & Hårdvara:** Stöd för I2C- och SPI-bussar (Linux), USB-hotplug-övervakning och enhetsnotifieringar via chattkanaler.
+*   📜 **Chatthistorik & Sessioner:** Full sessionshantering med historik, sökbarhet och möjlighet att återuppta gamla konversationer.
+*   🎨 **Modernt Web UI (HTMX):** Brutalistiskt designtema med CRT-effekter, realtidsuppdateringar, filuppladdning i chatten, och alla inställningar samlade under Settings-flikar.
 
 ## 📂 Workspace-struktur
 
@@ -71,6 +82,60 @@ sofia gateway
 3. **Öppna Sofias kontrollpanel:**
 Surfa till `http://127.0.0.1:18795` i din webbläsare. Gå till fliken **Models** för att lägga till din leverantör och API-nyckel.
 
+## 🤖 Multi-Agent Orkestrering
+
+Sofia kan delegera och koordinera arbete över flera agenter:
+
+*   **Orchestrate-verktyg:** Definiera en uppsättning subtasks med beroenden — oberoende uppgifter körs parallellt, beroende uppgifter i rätt ordning. Automatisk agentval baserat på poängberäkning.
+*   **Sub-Agenter:** Starta dedikerade bakgrundsagenter (`spawn`) eller synkrona sub-agenter (`subagent`) som ärver verktyg och kontext.
+*   **Delad Scratchpad:** Agenter kan dela data via en nyckel-värde-lagring namespaced per uppgiftsgrupp.
+*   **Plan & Execute:** Skapa strukturerade planer med steg som kan spåras och uppdateras under exekvering.
+
+## 🖥️ Computer Use
+
+Sofia kan styra din dator autonomt via skärmdumpar och vision-LLM:
+
+*   Tar skärmdumpar av skrivbordet och analyserar dem med vision-LLM
+*   Utför mus-klick, tangentbordstryckningar, scrollning och textinmatning
+*   Loopar tills uppgiften är klar eller max antal steg är nådd
+*   **Plattformar:** macOS (screencapture + osascript) och Linux (scrot + xdotool)
+
+## 🌍 Webbläsarautomation (Playwright)
+
+Sofia har inbyggd Playwright-integration för autonom webbsurfning:
+
+*   Navigera till URL:er, klicka på element, fyll i formulär
+*   Ta skärmdumpar, extrahera text och köra JavaScript
+*   Vänta på element, hantera tidsgränser och scroll
+*   Stödjer Chromium, Firefox och WebKit
+*   Headless och headful-läge
+
+## 📸 Bildanalys
+
+Analysera lokala bilder direkt i konversationen:
+
+*   Stöd för PNG, JPEG, GIF och WebP
+*   OCR (textavläsning), bildbeskrivning och frågor om bildinnehåll
+*   Automatisk MIME-typ-detektering och storleksbegränsning
+*   Integrerat med vision-LLM-pipelinen
+
+## 🎤 Rösttranskribering
+
+Sofia kan transkribera ljudfiler till text:
+
+*   Använder Groq:s Whisper-API (`whisper-large-v3`)
+*   Automatisk språkdetektering
+*   Stöd för alla vanliga ljudformat
+*   Konfigureras via Groq API-nyckel
+
+## 🔌 IoT & Hårdvara
+
+Sofia har inbyggt stöd för hårdvaruinteraktion:
+
+*   **I2C-buss:** Läsa och skriva till I2C-enheter (Linux)
+*   **SPI-buss:** Kommunicera med SPI-enheter (Linux)
+*   **USB-övervakning:** Detektera USB-hotplug-händelser och skicka notifieringar via chatten
+*   **Enhetsnotifieringar:** Automatiska meddelanden till den senast aktiva chattkanalen vid enhetshändelser
 
 ## 🔒 Säkerhetsmodell
 
@@ -124,6 +189,47 @@ Definierar personlighet, språk, värderingar och beslutslogik. Exempel:
 ```
 
 > 💡 **Tips:** Du kan ge Sofia vilken personlighet du vill — formell, avslappnad, sarkastisk, pedagogisk, eller helt skräddarsydd för ditt arbetsflöde.
+
+## 🎨 Web UI
+
+Sofias webbgränssnitt är byggt med **HTMX** och **Go Templates** och har ett unikt brutalistiskt designtema med CRT-effekter:
+
+*   **Chatt:** Realtidskonversation med streaming, markdown-rendering och filuppladdning (inkl. bilduppladdning för vision-modeller).
+*   **Chatthistorik:** Sök, bläddra och återuppta tidigare konversationer med full sessionshantering.
+*   **Agenter:** Hantera och konfigurera flera agenter med egna modeller, prompts och verktyg.
+*   **Settings-flikar:** Alla inställningar samlade under en enhetlig Settings-vy:
+    *   **Models** — Hantera AI-leverantörer och modeller
+    *   **Channels** — Konfigurera Telegram, Discord m.m.
+    *   **Tools** — Aktivera/inaktivera och konfigurera verktyg
+    *   **Skills** — Hantera installerade skills
+    *   **Security** — Workspace-restriktioner
+    *   **Heartbeat** — Schemaläggning av bakgrundsagenten
+    *   **Prompts** — Redigera IDENTITY.md och SOUL.md
+    *   **Logs** — Realtidsloggar
+
+## 🔄 AI-leverantörer
+
+Sofia stödjer 20+ leverantörer via ett OpenAI-kompatibelt API-interface:
+
+| Leverantör | Stöd |
+|---|---|
+| OpenAI (GPT-4o, o1, o3) | ✅ |
+| Anthropic (Claude 4.5 Sonnet/Opus) | ✅ |
+| Google Gemini (2.5 Pro/Flash) | ✅ |
+| DeepSeek (V3, R1) | ✅ |
+| Grok (xAI) | ✅ |
+| MiniMax | ✅ |
+| Moonshot (Kimi) | ✅ |
+| Qwen (Alibaba) | ✅ |
+| Zai | ✅ |
+| GitHub Copilot | ✅ |
+| Groq | ✅ |
+| Together AI | ✅ |
+| Fireworks AI | ✅ |
+| OpenRouter | ✅ |
+| Mistral AI | ✅ |
+
+**Provider Fallback:** Konfigurera fallback-kedjor så att Sofia automatiskt byter till nästa leverantör om den primära misslyckas.
 
 ## 🔌 Integrationer
 
@@ -207,6 +313,24 @@ Sofia kan även vara aktiv i Discord-servrar och DM:s.
 
 
 > 💡 **Tips:** Sätt `mention_only` till `true` om Sofia är i en aktiv kanal med många användare — annars svarar hon på allt.
+
+## 🛠️ Komplett verktygslista
+
+| Verktyg | Beskrivning |
+|---|---|
+| `file_read` / `file_write` / `file_edit` | Läsa, skriva och redigera filer |
+| `shell` | Köra terminalkommandon |
+| `web_browse` | Autonom webbsurfning via Playwright |
+| `computer_use` | Styra datorns skärm, mus och tangentbord |
+| `image_analyze` | Analysera lokala bilder via vision-LLM |
+| `orchestrate` | Multi-agent-orkestrering med beroendegraf |
+| `spawn` / `subagent` | Starta asynkrona/synkrona sub-agenter |
+| `plan` | Strukturerad uppgiftsplanering |
+| `scratchpad` | Delad nyckel-värde-lagring mellan agenter |
+| `cron` | Skapa och hantera schemalagda jobb |
+| `message` | Skicka meddelanden till chattkanaler |
+| `gogcli` | Google Gmail, Calendar och Drive |
+| `i2c` / `spi` | Kommunicera med I2C/SPI-hårdvara |
 
 
 ---

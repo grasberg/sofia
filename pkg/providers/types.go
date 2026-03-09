@@ -74,6 +74,27 @@ func (e *FailoverError) IsRetriable() bool {
 	return e.Reason != FailoverFormat
 }
 
+// StreamChunk represents a chunk of a streaming LLM response.
+type StreamChunk struct {
+	Delta     string     `json:"delta"`               // Text content delta
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"` // Incremental tool calls
+	Done      bool       `json:"done"`                // True when streaming is complete
+}
+
+// StreamingProvider is an optional interface that providers can implement
+// to support streaming responses. Use ChatStream for the final iteration
+// when no tool calls are expected, to allow real-time output to users.
+type StreamingProvider interface {
+	LLMProvider
+	ChatStream(
+		ctx context.Context,
+		messages []Message,
+		tools []ToolDefinition,
+		model string,
+		options map[string]any,
+	) (<-chan StreamChunk, error)
+}
+
 // ModelConfig holds primary model and fallback list.
 type ModelConfig struct {
 	Primary   string
