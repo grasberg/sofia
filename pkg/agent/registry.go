@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/grasberg/sofia/pkg/config"
@@ -125,6 +126,19 @@ func (r *AgentRegistry) ListAgents() []*AgentInstance {
 		list = append(list, a)
 	}
 	return list
+}
+
+// RegisterAgent adds a new agent instance to the registry at runtime.
+// Returns an error if an agent with the same ID already exists.
+func (r *AgentRegistry) RegisterAgent(instance *AgentInstance) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	id := routing.NormalizeAgentID(instance.ID)
+	if _, exists := r.agents[id]; exists {
+		return fmt.Errorf("agent %q already registered", id)
+	}
+	r.agents[id] = instance
+	return nil
 }
 
 // GetDefaultAgent returns the default agent instance.

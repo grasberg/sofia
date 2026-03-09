@@ -51,6 +51,7 @@ type AgentLoop struct {
 	activeStatus   atomic.Value // string
 	planManager    *tools.PlanManager
 	scratchpad     *tools.SharedScratchpad
+	a2aRouter      *A2ARouter
 }
 
 // processOptions configures how a message is processed
@@ -98,6 +99,12 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 
 	planMgr := tools.NewPlanManager()
 	scratchpad := tools.NewSharedScratchpad()
+	a2aRouter := NewA2ARouter()
+
+	// Register all agents with the A2A router
+	for _, id := range registry.ListAgentIDs() {
+		a2aRouter.Register(id)
+	}
 
 	al := &AgentLoop{
 		bus:         msgBus,
@@ -109,6 +116,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		fallback:    fallbackChain,
 		planManager: planMgr,
 		scratchpad:  scratchpad,
+		a2aRouter:   a2aRouter,
 	}
 
 	// Ensure Playwright browser binaries are installed.
@@ -123,14 +131,14 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	}()
 
 	// Register shared tools to all agents.
-	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent, planMgr, scratchpad, memDB)
+	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent, planMgr, scratchpad, memDB, a2aRouter)
 
 	al.activeAgentID.Store("")
 	al.activeStatus.Store("Idle")
 	return al
 }
 
-// registerSharedTools registers tools that are shared across all agents (web, message, spawn, plan, scratchpad, orchestrate).
+// registerSharedTools registers tools that are shared across all agents (web, message, spawn, plan, scratchpad, orchestrate, a2a).
 func registerSharedTools(
 	cfg *config.Config,
 	msgBus *bus.MessageBus,
@@ -140,6 +148,7 @@ func registerSharedTools(
 	planMgr *tools.PlanManager,
 	scratchpad *tools.SharedScratchpad,
 	memDB *memory.MemoryDB,
+	a2aRouter *A2ARouter,
 ) {
 	for _, agentID := range registry.ListAgentIDs() {
 		agent, ok := registry.GetAgent(agentID)
@@ -262,6 +271,53 @@ func registerSharedTools(
 		if memDB != nil {
 			agent.Tools.Register(tools.NewKnowledgeGraphTool(memDB, agentID))
 		}
+
+		// A2A — agent-to-agent communication protocol
+		if a2aRouter != nil {
+			a2aAdapter := tools.NewA2ARouterAdapter(
+				func(from, to, msgType, subject, payload, replyTo string) (string, error) {
+					msg := &A2AMessage{
+						From:    from,
+						To:      to,
+						Type:    A2AMessageType(msgType),
+						Subject: subject,
+						Payload: payload,
+						ReplyTo: replyTo,
+					}
+					if err := a2aRouter.Send(msg); err != nil {
+						return "", err
+					}
+					return msg.ID, nil
+				},
+				a2aRouter.Broadcast,
+				func(aid string, timeout time.Duration) *tools.A2AMessageForTool {
+					msg := a2aRouter.Receive(aid, timeout)
+					if msg == nil {
+						return nil
+					}
+					return &tools.A2AMessageForTool{
+						ID: msg.ID, From: msg.From, To: msg.To,
+						Type: string(msg.Type), Subject: msg.Subject,
+						Payload: msg.Payload, ReplyTo: msg.ReplyTo,
+						Timestamp: msg.Timestamp,
+					}
+				},
+				func(aid string) *tools.A2AMessageForTool {
+					msg := a2aRouter.Poll(aid)
+					if msg == nil {
+						return nil
+					}
+					return &tools.A2AMessageForTool{
+						ID: msg.ID, From: msg.From, To: msg.To,
+						Type: string(msg.Type), Subject: msg.Subject,
+						Payload: msg.Payload, ReplyTo: msg.ReplyTo,
+						Timestamp: msg.Timestamp,
+					}
+				},
+				a2aRouter.PendingCount,
+			)
+			agent.Tools.Register(tools.NewA2ATool(a2aAdapter, agentID))
+		}
 	}
 }
 
@@ -360,7 +416,13 @@ func (al *AgentLoop) ReloadAgents() {
 	}
 
 	newRegistry := NewAgentRegistry(al.cfg, provider, al.memDB)
-	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent, al.planManager, al.scratchpad, al.memDB)
+
+	// Re-register new agents with the A2A router
+	for _, id := range newRegistry.ListAgentIDs() {
+		al.a2aRouter.Register(id)
+	}
+
+	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent, al.planManager, al.scratchpad, al.memDB, al.a2aRouter)
 
 	al.registryMu.Lock()
 	al.registry = newRegistry
