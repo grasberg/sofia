@@ -1,6 +1,6 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.64-blue)
+![Version](https://img.shields.io/badge/version-v0.0.65-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
@@ -14,13 +14,11 @@ Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerar
 *   🖥️ **Computer Use:** Autonom datorstyrning via skärmdumpar och vision-LLM — styr mus och tangentbord på macOS och Linux.
 *   🌍 **Webbläsarautomation (Playwright):** Autonom webbsurfning med klick, formulärifyllning, skärmdumpar och textextraktion via inbyggd Playwright-integration.
 *   📸 **Bildanalys:** Analysera lokala bilder (PNG, JPEG, GIF, WebP) via vision-LLM — OCR, beskrivningar och frågor om skärmdumpar.
-*   🎤 **Rösttranskribering:** Transkribera ljudfiler till text via Groq Whisper (`whisper-large-v3`).
 *   📋 **Plan & Execute:** Strukturerad uppgiftsplanering med steg-för-steg-uppföljning — skapa, uppdatera och övervaka planer direkt i chatten.
 *   📝 **Delad Scratchpad:** Nyckel-värde-lagring för agent-till-agent-kommunikation, namespaced per uppgiftsgrupp.
 *   ⏰ **Cron-schemaläggning:** Agenten kan själv skapa, lista, ta bort och schemalägga återkommande uppgifter.
 *   🔄 **Provider Fallback:** Automatiska fallback-kedjor om en AI-leverantör misslyckas — sömlös övergång till nästa leverantör.
-*   🔌 **IoT & Hårdvara:** Stöd för I2C- och SPI-bussar (Linux), USB-hotplug-övervakning och enhetsnotifieringar via chattkanaler.
-*   📜 **Chatthistorik & Sessioner:** Full sessionshantering med historik, sökbarhet och möjlighet att återuppta gamla konversationer.
+*    **Chatthistorik & Sessioner:** Full sessionshantering med historik, sökbarhet och möjlighet att återuppta gamla konversationer.
 *   🎨 **Modernt Web UI (HTMX):** Brutalistiskt designtema med CRT-effekter, realtidsuppdateringar, filuppladdning i chatten, och alla inställningar samlade under Settings-flikar.
 
 ## 📂 Workspace-struktur
@@ -119,23 +117,6 @@ Analysera lokala bilder direkt i konversationen:
 *   Automatisk MIME-typ-detektering och storleksbegränsning
 *   Integrerat med vision-LLM-pipelinen
 
-## 🎤 Rösttranskribering
-
-Sofia kan transkribera ljudfiler till text:
-
-*   Använder Groq:s Whisper-API (`whisper-large-v3`)
-*   Automatisk språkdetektering
-*   Stöd för alla vanliga ljudformat
-*   Konfigureras via Groq API-nyckel
-
-## 🔌 IoT & Hårdvara
-
-Sofia har inbyggt stöd för hårdvaruinteraktion:
-
-*   **I2C-buss:** Läsa och skriva till I2C-enheter (Linux)
-*   **SPI-buss:** Kommunicera med SPI-enheter (Linux)
-*   **USB-övervakning:** Detektera USB-hotplug-händelser och skicka notifieringar via chatten
-*   **Enhetsnotifieringar:** Automatiska meddelanden till den senast aktiva chattkanalen vid enhetshändelser
 
 ## 🔒 Säkerhetsmodell
 
@@ -330,7 +311,6 @@ Sofia kan även vara aktiv i Discord-servrar och DM:s.
 | `cron` | Skapa och hantera schemalagda jobb |
 | `message` | Skicka meddelanden till chattkanaler |
 | `gogcli` | Google Gmail, Calendar och Drive |
-| `i2c` / `spi` | Kommunicera med I2C/SPI-hårdvara |
 
 
 ---
