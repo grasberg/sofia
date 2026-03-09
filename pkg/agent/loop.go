@@ -225,6 +225,8 @@ func registerSharedTools(
 		)
 		agent.Tools.Register(tools.NewFindSkillsTool(registryMgr, searchCache))
 		agent.Tools.Register(tools.NewInstallSkillTool(registryMgr, agent.Workspace))
+		agent.Tools.Register(tools.NewCreateSkillTool(agent.Workspace))
+		agent.Tools.Register(tools.NewUpdateSkillTool(agent.Workspace))
 
 		// Spawn tool with allowlist checker.
 		// Use agent.Provider (not the global provider) so that ad-hoc subagents spawned by
@@ -270,6 +272,7 @@ func registerSharedTools(
 		// Knowledge Graph — semantic memory with structured entities and relationships
 		if memDB != nil {
 			agent.Tools.Register(tools.NewKnowledgeGraphTool(memDB, agentID))
+			agent.Tools.Register(tools.NewDistillKnowledgeTool(memDB, agentID))
 		}
 
 		// A2A — agent-to-agent communication protocol
