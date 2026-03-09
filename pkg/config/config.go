@@ -66,21 +66,21 @@ type Config struct {
 
 // TriggersConfig configures event-driven triggers.
 type TriggersConfig struct {
-	Webhooks   []WebhookTriggerConfig   `json:"webhooks,omitempty"`
-	FileWatch  []FileWatchTriggerConfig `json:"file_watch,omitempty"`
-	Patterns   []PatternTriggerConfig   `json:"patterns,omitempty"`
+	Webhooks  []WebhookTriggerConfig   `json:"webhooks,omitempty"`
+	FileWatch []FileWatchTriggerConfig `json:"file_watch,omitempty"`
+	Patterns  []PatternTriggerConfig   `json:"patterns,omitempty"`
 }
 
 // WebhookTriggerConfig configures an HTTP webhook trigger.
 type WebhookTriggerConfig struct {
-	Path    string `json:"path"`              // URL path (e.g., "/webhook/deploy")
+	Path    string `json:"path"`               // URL path (e.g., "/webhook/deploy")
 	AgentID string `json:"agent_id,omitempty"` // Target agent (default: main)
-	Secret  string `json:"secret,omitempty"`  // Optional HMAC secret for verification
+	Secret  string `json:"secret,omitempty"`   // Optional HMAC secret for verification
 }
 
 // FileWatchTriggerConfig configures a filesystem watcher trigger.
 type FileWatchTriggerConfig struct {
-	Path      string `json:"path"`               // File or directory to watch
+	Path      string `json:"path"`                // File or directory to watch
 	Pattern   string `json:"pattern,omitempty"`   // Glob pattern filter (e.g., "*.log")
 	AgentID   string `json:"agent_id,omitempty"`  // Target agent (default: main)
 	Prompt    string `json:"prompt,omitempty"`    // Prompt template ({{.File}} {{.Event}} available)
@@ -225,6 +225,8 @@ type AgentDefaults struct {
 	ReflectionInterval  int      `json:"reflection_interval,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_REFLECTION_INTERVAL"`
 	LearnFromFeedback   bool     `json:"learn_from_feedback,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_LEARN_FROM_FEEDBACK"`
 	ParallelToolCalls   bool     `json:"parallel_tool_calls,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_PARALLEL_TOOL_CALLS"`
+	PostTaskReflection  bool     `json:"post_task_reflection,omitempty"  env:"SOFIA_AGENTS_DEFAULTS_POST_TASK_REFLECTION"`
+	PerformanceScoring  bool     `json:"performance_scoring,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_PERFORMANCE_SCORING"`
 }
 
 // GetModelName returns the effective model name for the agent defaults.

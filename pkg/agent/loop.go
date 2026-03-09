@@ -789,7 +789,7 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 			})
 	}
 	llmStart := time.Now()
-	finalContent, iteration, err := al.runLLMIteration(ctx, agent, messages, opts)
+	finalContent, iteration, errorCount, err := al.runLLMIteration(ctx, agent, messages, opts)
 	llmDur := time.Since(llmStart).Milliseconds()
 	if err != nil {
 		return "", err
@@ -815,6 +815,11 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 	// 7b. Learn from feedback (#8) — detect correction patterns in user message
 	if al.cfg.Agents.Defaults.LearnFromFeedback {
 		al.maybLearnFromFeedback(agent, opts.UserMessage)
+	}
+
+	// 7c. Post-task self-reflection
+	if al.cfg.Agents.Defaults.PostTaskReflection && !opts.NoHistory {
+		go al.maybeReflect(agent, opts.SessionKey, finalContent, iteration, errorCount, llmDur)
 	}
 
 	// 8. Optional: send response via bus
@@ -844,14 +849,16 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 }
 
 // runLLMIteration executes the LLM call loop with tool handling.
+// Returns (finalContent, iteration, errorCount, error).
 func (al *AgentLoop) runLLMIteration(
 	ctx context.Context,
 	agent *AgentInstance,
 	messages []providers.Message,
 	opts processOptions,
-) (string, int, error) {
+) (string, int, int, error) {
 	agentComp := fmt.Sprintf("agent:%s", agent.ID)
 	iteration := 0
+	errorCount := 0
 	var finalContent string
 
 	reflectionInterval := al.cfg.Agents.Defaults.ReflectionInterval
@@ -1008,7 +1015,7 @@ func (al *AgentLoop) runLLMIteration(
 					"iteration": iteration,
 					"error":     err.Error(),
 				})
-			return "", iteration, fmt.Errorf("LLM call failed after retries: %w", err)
+			return "", iteration, errorCount, fmt.Errorf("LLM call failed after retries: %w", err)
 		}
 
 		// Check if no tool calls - we're done
@@ -1024,7 +1031,7 @@ func (al *AgentLoop) runLLMIteration(
 					"response_preview": utils.Truncate(finalContent, 120),
 				},
 			)
-			break
+			break // no tool calls — direct answer
 		}
 
 		normalizedToolCalls := make([]providers.ToolCall, 0, len(response.ToolCalls))
@@ -1196,9 +1203,12 @@ func (al *AgentLoop) runLLMIteration(
 			}
 		}
 
-		// Process results in order
+		// Process results in order and count errors
 		confirmationNeeded := false
 		for _, tcr := range tcResults {
+			if tcr.result != nil && tcr.result.Err != nil {
+				errorCount++
+			}
 			// Handle confirmation-required results (#5)
 			if tcr.result.ConfirmationRequired {
 				confirmationNeeded = true
@@ -1243,7 +1253,7 @@ func (al *AgentLoop) runLLMIteration(
 		}
 	}
 
-	return finalContent, iteration, nil
+	return finalContent, iteration, errorCount, nil
 }
 
 // updateToolContexts updates the context for tools that need channel/chatID info.
@@ -1403,6 +1413,28 @@ func (al *AgentLoop) maybLearnFromFeedback(agent *AgentInstance, userMsg string)
 	} else {
 		logger.InfoCF("agent", "Learned user preference from feedback",
 			map[string]any{"preference": utils.Truncate(preference, 80)})
+	}
+}
+
+// maybeReflect runs a post-task self-evaluation asynchronously.
+// It uses the LLM to evaluate the conversation quality and stores structured reflections.
+func (al *AgentLoop) maybeReflect(
+	agent *AgentInstance,
+	sessionKey, finalContent string,
+	iteration, errorCount int,
+	durationMs int64,
+) {
+	if al.memDB == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	engine := NewReflectionEngine(al.memDB, agent.ID)
+	if err := engine.Reflect(ctx, agent, sessionKey, finalContent, iteration, errorCount, durationMs); err != nil {
+		logger.WarnCF("reflection", "Post-task reflection failed",
+			map[string]any{"agent_id": agent.ID, "error": err.Error()})
 	}
 }
 

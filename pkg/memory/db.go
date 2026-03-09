@@ -14,7 +14,7 @@ import (
 	"github.com/grasberg/sofia/pkg/providers"
 )
 
-const schemaVersion = 2
+const schemaVersion = 3
 
 // MemoryDB is a shared SQLite database for session history and memory notes.
 // It is opened once at AgentLoop startup and shared across all AgentInstances.
@@ -94,6 +94,12 @@ func (m *MemoryDB) migrate() error {
 
 	if current < 2 {
 		if err = m.applyV2(); err != nil {
+			return err
+		}
+	}
+
+	if current < 3 {
+		if err = m.applyV3(); err != nil {
 			return err
 		}
 	}
@@ -1083,4 +1089,160 @@ func (m *MemoryDB) MergeNodes(primaryID int64, secondaryIDs []int64) error {
 	}
 
 	return tx.Commit()
+}
+
+// ---------------------------------------------------------------------------
+// Schema migration v3: reflections table
+// ---------------------------------------------------------------------------
+
+func (m *MemoryDB) applyV3() error {
+	const ddl = `
+CREATE TABLE IF NOT EXISTS reflections (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id     TEXT NOT NULL DEFAULT '',
+    session_key  TEXT NOT NULL DEFAULT '',
+    task_summary TEXT NOT NULL DEFAULT '',
+    what_worked  TEXT NOT NULL DEFAULT '',
+    what_failed  TEXT NOT NULL DEFAULT '',
+    lessons      TEXT NOT NULL DEFAULT '',
+    score        REAL NOT NULL DEFAULT 0.0,
+    tool_count   INTEGER NOT NULL DEFAULT 0,
+    error_count  INTEGER NOT NULL DEFAULT 0,
+    duration_ms  INTEGER NOT NULL DEFAULT 0,
+    created_at   DATETIME NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_reflections_agent ON reflections(agent_id, created_at);
+`
+	_, err := m.db.Exec(ddl)
+	return err
+}
+
+// ---------------------------------------------------------------------------
+// Reflections CRUD
+// ---------------------------------------------------------------------------
+
+// ReflectionRecord holds a single post-task self-evaluation.
+type ReflectionRecord struct {
+	ID          int64
+	AgentID     string
+	SessionKey  string
+	TaskSummary string
+	WhatWorked  string
+	WhatFailed  string
+	Lessons     string
+	Score       float64
+	ToolCount   int
+	ErrorCount  int
+	DurationMs  int64
+	CreatedAt   time.Time
+}
+
+// SaveReflection inserts a new reflection record.
+func (m *MemoryDB) SaveReflection(r ReflectionRecord) error {
+	_, err := m.db.Exec(
+		`INSERT INTO reflections
+		    (agent_id, session_key, task_summary, what_worked, what_failed, lessons,
+		     score, tool_count, error_count, duration_ms, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		r.AgentID, r.SessionKey, r.TaskSummary, r.WhatWorked, r.WhatFailed, r.Lessons,
+		r.Score, r.ToolCount, r.ErrorCount, r.DurationMs, time.Now().UTC(),
+	)
+	if err != nil {
+		return fmt.Errorf("memory: save reflection: %w", err)
+	}
+	return nil
+}
+
+// GetRecentReflections returns the last N reflections for an agent.
+func (m *MemoryDB) GetRecentReflections(agentID string, limit int) ([]ReflectionRecord, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := m.db.Query(
+		`SELECT id, agent_id, session_key, task_summary, what_worked, what_failed, lessons,
+		        score, tool_count, error_count, duration_ms, created_at
+		 FROM reflections WHERE agent_id = ?
+		 ORDER BY created_at DESC LIMIT ?`,
+		agentID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("memory: get recent reflections: %w", err)
+	}
+	defer rows.Close()
+
+	var records []ReflectionRecord
+	for rows.Next() {
+		var r ReflectionRecord
+		var created string
+		if err = rows.Scan(&r.ID, &r.AgentID, &r.SessionKey, &r.TaskSummary,
+			&r.WhatWorked, &r.WhatFailed, &r.Lessons,
+			&r.Score, &r.ToolCount, &r.ErrorCount, &r.DurationMs, &created); err != nil {
+			return nil, fmt.Errorf("memory: scan reflection: %w", err)
+		}
+		r.CreatedAt, _ = time.Parse(time.RFC3339, created)
+		records = append(records, r)
+	}
+	return records, rows.Err()
+}
+
+// SearchReflections searches past reflections matching a text query against lessons and what_failed.
+func (m *MemoryDB) SearchReflections(agentID, query string, limit int) ([]ReflectionRecord, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	pattern := "%" + query + "%"
+	rows, err := m.db.Query(
+		`SELECT id, agent_id, session_key, task_summary, what_worked, what_failed, lessons,
+		        score, tool_count, error_count, duration_ms, created_at
+		 FROM reflections
+		 WHERE agent_id = ? AND (lessons LIKE ? OR what_failed LIKE ? OR task_summary LIKE ?)
+		 ORDER BY created_at DESC LIMIT ?`,
+		agentID, pattern, pattern, pattern, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("memory: search reflections: %w", err)
+	}
+	defer rows.Close()
+
+	var records []ReflectionRecord
+	for rows.Next() {
+		var r ReflectionRecord
+		var created string
+		if err = rows.Scan(&r.ID, &r.AgentID, &r.SessionKey, &r.TaskSummary,
+			&r.WhatWorked, &r.WhatFailed, &r.Lessons,
+			&r.Score, &r.ToolCount, &r.ErrorCount, &r.DurationMs, &created); err != nil {
+			return nil, fmt.Errorf("memory: scan reflection: %w", err)
+		}
+		r.CreatedAt, _ = time.Parse(time.RFC3339, created)
+		records = append(records, r)
+	}
+	return records, rows.Err()
+}
+
+// ReflectionStats holds aggregated performance metrics.
+type ReflectionStats struct {
+	TotalReflections int
+	AvgScore         float64
+	AvgToolCount     float64
+	AvgErrorCount    float64
+	AvgDurationMs    float64
+}
+
+// GetReflectionStats returns aggregate performance stats for an agent over the last N days.
+func (m *MemoryDB) GetReflectionStats(agentID string, days int) (ReflectionStats, error) {
+	if days <= 0 {
+		days = 30
+	}
+	cutoff := time.Now().UTC().AddDate(0, 0, -days)
+	var s ReflectionStats
+	err := m.db.QueryRow(
+		`SELECT COUNT(*), COALESCE(AVG(score), 0), COALESCE(AVG(tool_count), 0),
+		        COALESCE(AVG(error_count), 0), COALESCE(AVG(duration_ms), 0)
+		 FROM reflections WHERE agent_id = ? AND created_at >= ?`,
+		agentID, cutoff,
+	).Scan(&s.TotalReflections, &s.AvgScore, &s.AvgToolCount, &s.AvgErrorCount, &s.AvgDurationMs)
+	if err != nil {
+		return s, fmt.Errorf("memory: get reflection stats: %w", err)
+	}
+	return s, nil
 }
