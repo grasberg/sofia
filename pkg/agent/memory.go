@@ -109,7 +109,7 @@ func (ms *MemoryStore) GetRecentDailyNotes(days int) string {
 }
 
 // GetMemoryContext returns formatted memory context for the agent prompt.
-// Includes long-term memory and recent daily notes.
+// Includes long-term memory, recent daily notes, knowledge graph, and reflection lessons.
 func (ms *MemoryStore) GetMemoryContext() string {
 	longTerm := ms.ReadLongTerm()
 	recentNotes := ms.GetRecentDailyNotes(3)
@@ -118,7 +118,14 @@ func (ms *MemoryStore) GetMemoryContext() string {
 		graphContext = ms.semantic.GetContext(10)
 	}
 
-	if longTerm == "" && recentNotes == "" && graphContext == "" {
+	// Reflection lessons from past self-evaluations
+	reflectionContext := ""
+	if ms.db != nil {
+		engine := NewReflectionEngine(ms.db, ms.agentID)
+		reflectionContext = engine.FormatLessonsContext(5)
+	}
+
+	if longTerm == "" && recentNotes == "" && graphContext == "" && reflectionContext == "" {
 		return ""
 	}
 
@@ -142,6 +149,13 @@ func (ms *MemoryStore) GetMemoryContext() string {
 			sb.WriteString("\n\n---\n\n")
 		}
 		sb.WriteString(graphContext)
+	}
+
+	if reflectionContext != "" {
+		if sb.Len() > 0 {
+			sb.WriteString("\n\n---\n\n")
+		}
+		sb.WriteString(reflectionContext)
 	}
 
 	return sb.String()
