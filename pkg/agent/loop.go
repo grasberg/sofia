@@ -230,8 +230,8 @@ func registerSharedTools(
 		})
 		agent.Tools.Register(spawnTool)
 
-		// Plan tool — structured plan-then-execute
-		agent.Tools.Register(tools.NewPlanTool(planMgr))
+		// Plan tool — structured plan-then-execute with template persistence
+		agent.Tools.Register(tools.NewPlanTool(planMgr, memDB))
 
 		// Scratchpad — agent-to-agent shared key-value store
 		agent.Tools.Register(tools.NewScratchpadTool(scratchpad, "default"))
