@@ -145,6 +145,13 @@ func RunToolLoop(
 				contentForLLM = toolResult.Err.Error()
 			}
 
+			// Add structured tool status metadata for error results
+			if toolResult.IsError && contentForLLM != "" && !toolResult.Retryable {
+				if toolResult.RetryHint == "" {
+					contentForLLM += "\n[TOOL_STATUS: error, retryable: false]"
+				}
+			}
+
 			// Add tool result message
 			toolResultMsg := providers.Message{
 				Role:       "tool",

@@ -188,10 +188,14 @@ func buildParams(
 func translateTools(tools []ToolDefinition) []anthropic.ToolUnionParam {
 	result := make([]anthropic.ToolUnionParam, 0, len(tools))
 	for _, t := range tools {
+		var properties any
+		if t.Function.Parameters != nil {
+			properties = t.Function.Parameters["properties"]
+		}
 		tool := anthropic.ToolParam{
 			Name: t.Function.Name,
 			InputSchema: anthropic.ToolInputSchemaParam{
-				Properties: t.Function.Parameters["properties"],
+				Properties: properties,
 			},
 		}
 		if desc := t.Function.Description; desc != "" {

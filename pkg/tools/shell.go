@@ -47,6 +47,7 @@ type ExecTool struct {
 	timeout             time.Duration
 	denyPatterns        []*regexp.Regexp
 	allowPatterns       []*regexp.Regexp
+	confirmPatterns     []*regexp.Regexp
 	restrictToWorkspace bool
 }
 
@@ -126,11 +127,24 @@ func NewExecToolWithConfig(workingDir string, restrict bool, config *config.Conf
 		denyPatterns = append(denyPatterns, defaultDenyPatterns...)
 	}
 
+	var confirmPatterns []*regexp.Regexp
+	if config != nil {
+		for _, pattern := range config.Tools.Exec.ConfirmPatterns {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				fmt.Printf("Invalid confirm pattern %q: %v\n", pattern, err)
+				continue
+			}
+			confirmPatterns = append(confirmPatterns, re)
+		}
+	}
+
 	return &ExecTool{
 		workingDir:          workingDir,
 		timeout:             60 * time.Second,
 		denyPatterns:        denyPatterns,
 		allowPatterns:       nil,
+		confirmPatterns:     confirmPatterns,
 		restrictToWorkspace: restrict,
 	}
 }
@@ -263,7 +277,19 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 	}
 
 	if guardError := t.guardCommand(command, cwd); guardError != "" {
-		return ErrorResult(guardError)
+		return NonRetryableError(guardError)
+	}
+
+	// Check confirmation patterns
+	if len(t.confirmPatterns) > 0 {
+		lower := strings.ToLower(strings.TrimSpace(command))
+		for _, pattern := range t.confirmPatterns {
+			if pattern.MatchString(lower) {
+				return ConfirmationResult(
+					fmt.Sprintf("Command matches confirmation pattern. Allow execution?\nCommand: %s", command),
+				)
+			}
+		}
 	}
 
 	// Auto-debug-loop: retry on timeout (up to maxTimeoutRetries times, doubling the timeout each time).
@@ -288,7 +314,7 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 					"or increasing the timeout explicitly.\nCommand: %s",
 				attempt+1, effectiveTimeout, command,
 			)
-			return &ToolResult{ForLLM: msg, ForUser: msg, IsError: true}
+			return RetryableError(msg, "Try breaking the command into smaller steps or increasing the timeout")
 		}
 
 		if res.err != nil {
@@ -302,7 +328,7 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 					res.output,
 				)
 				logger.Info(fmt.Sprintf("Auto-debug: command not found for: %s", command))
-				return &ToolResult{ForLLM: msg, ForUser: msg, IsError: true}
+				return NonRetryableError(msg)
 			}
 
 			// General failure — return as-is.
@@ -313,7 +339,12 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 			if len(output) > 10000 {
 				output = output[:10000] + fmt.Sprintf("\n... (truncated, %d more chars)", len(output)-10000)
 			}
-			return &ToolResult{ForLLM: output, ForUser: output, IsError: true}
+			return &ToolResult{
+				ForLLM:    output + "\n[TOOL_STATUS: error, retryable: true]",
+				ForUser:   output,
+				IsError:   true,
+				Retryable: true,
+			}
 		}
 
 		// Success.
@@ -328,6 +359,22 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 	}
 }
 
+// shellMetacharPatterns detects shell metacharacters that can bypass simple pattern matching.
+var shellMetacharPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`\\x[0-9a-fA-F]{2}`),         // hex escapes
+	regexp.MustCompile(`\\u[0-9a-fA-F]{4}`),         // unicode escapes
+	regexp.MustCompile(`\$'[^']*\\[^']*'`),          // $'...' ANSI-C quoting with escapes
+	regexp.MustCompile(`\benv\b.*\b\w+=.*\b\w+\b`),  // env VAR=val cmd (command execution via env)
+	regexp.MustCompile(`\bxargs\b.*\b(sh|bash|rm)\b`), // xargs piped to dangerous commands
+	regexp.MustCompile(`\bfind\b.*-exec\b`),          // find -exec runs commands
+	regexp.MustCompile(`\bawk\b.*\bsystem\s*\(`),     // awk system() calls
+	regexp.MustCompile(`\bperl\b.*\s-e\s`),           // perl one-liners
+	regexp.MustCompile(`\bruby\b.*\s-e\s`),           // ruby one-liners
+	regexp.MustCompile(`\bexec\s+\d*[<>]`),           // exec with redirections
+	regexp.MustCompile(`\|\s*while\b`),               // pipe to while loop
+	regexp.MustCompile(`\bbase64\b.*\|\s*(sh|bash)`),  // base64 decode to shell
+}
+
 func (t *ExecTool) guardCommand(command, cwd string) string {
 	cmd := strings.TrimSpace(command)
 	lower := strings.ToLower(cmd)
@@ -335,6 +382,13 @@ func (t *ExecTool) guardCommand(command, cwd string) string {
 	for _, pattern := range t.denyPatterns {
 		if pattern.MatchString(lower) {
 			return "Command blocked by safety guard (dangerous pattern detected)"
+		}
+	}
+
+	// Check shell metacharacter bypass patterns
+	for _, pattern := range shellMetacharPatterns {
+		if pattern.MatchString(lower) {
+			return "Command blocked by safety guard (shell metacharacter bypass detected)"
 		}
 	}
 

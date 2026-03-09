@@ -30,7 +30,6 @@ linters:
     # TODO: Disabled, because they are failing at the moment, we should fix them and enable (step by step)
     - contextcheck
     - embeddedstructfieldcheck
-    - errcheck
     - errchkjson
     - errorlint
     - exhaustive
@@ -43,8 +42,6 @@ linters:
     - gocritic
     - gocyclo
     - godox
-    - gosec
-    - ineffassign
     - lll
     - maintidx
     - mnd
@@ -54,7 +51,6 @@ linters:
     - paralleltest
     - perfsprint
     - revive
-    - staticcheck
     - tagalign
     - testifylint
     - thelper

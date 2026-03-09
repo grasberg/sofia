@@ -780,8 +780,8 @@
                 if (toolsList && data.tools.list) {
                     toolsList.innerHTML = data.tools.list.map(t =>
                         "<div class='p-3 bg-zinc-900/30 rounded-xl border border-zinc-800/50 hover:border-zinc-700 transition-colors'>" +
-                        "<div class='font-bold text-xs text-sofia flex items-center gap-2'><i data-lucide='box' class='w-3 h-3'></i>" + t.name + "</div>" +
-                        "<div class='text-[10px] text-zinc-500 mt-1 leading-relaxed'>" + (t.description || "No description.") + "</div>" +
+                        "<div class='font-bold text-xs text-sofia flex items-center gap-2'><i data-lucide='box' class='w-3 h-3'></i>" + escapeHtml(t.name) + "</div>" +
+                        "<div class='text-[10px] text-zinc-500 mt-1 leading-relaxed'>" + escapeHtml(t.description || "No description.") + "</div>" +
                         "</div>"
                     ).join("");
                     refreshIcons();
@@ -929,23 +929,23 @@
                     const templateSkillsMode = a.template_skills_mode || "fallback";
                     const agentSkillsJson = JSON.stringify(a.skills || []).replace(/"/g, "&quot;");
                     const skillCount = a.skills && a.skills.length ? a.skills.length : 0;
-                    return '<div data-agent-id="' + a.id + '" data-agent-name="' + (a.name || '').replace(/'/g, "&#39;") + '" data-agent-model="' + modelName.replace(/'/g, "&#39;") + '" data-agent-template="' + templateName.replace(/'/g, "&#39;") + '" data-agent-tsm="' + templateSkillsMode + '" data-agent-skills="' + agentSkillsJson + '" class="group p-5 bg-zinc-900/40 border ' + (isActive ? 'border-sofia bg-sofia/5' : 'border-zinc-800') + ' rounded-xl hover:border-sofia/30 transition-all shadow-lg">' +
+                    return '<div data-agent-id="' + escapeHtml(a.id) + '" data-agent-name="' + escapeHtml(a.name || '') + '" data-agent-model="' + escapeHtml(modelName) + '" data-agent-template="' + escapeHtml(templateName) + '" data-agent-tsm="' + escapeHtml(templateSkillsMode) + '" data-agent-skills="' + agentSkillsJson + '" class="group p-5 bg-zinc-900/40 border ' + (isActive ? 'border-sofia bg-sofia/5' : 'border-zinc-800') + ' rounded-xl hover:border-sofia/30 transition-all shadow-lg">' +
                         '<div class="flex justify-between items-start mb-4">' +
                         '<div class="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-sofia group-hover:bg-sofia/10 transition-colors">' +
                         '<i data-lucide="bot" class="w-5 h-5"></i>' +
                         '</div>' +
                         '<div class="flex gap-1">' +
-                        '<button onclick="editAgentFromCard(this)" data-card-id="' + a.id + '" class="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>' +
-                        '<button onclick="deleteAgent(\'' + a.id + '\')" class="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>' +
+                        '<button onclick="editAgentFromCard(this)" data-card-id="' + escapeHtml(a.id) + '" class="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>' +
+                        '<button onclick="deleteAgent(this.dataset.agentId)" data-agent-id="' + escapeHtml(a.id) + '" class="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>' +
                         '</div>' +
                         '</div>' +
                         '<div>' +
-                        '<div class="font-bold text-zinc-200">' + (a.name || a.id) + '</div>' +
-                        '<div class="text-[10px] font-mono text-zinc-600 uppercase tracking-tighter mt-0.5">' + a.id + '</div>' +
-                        (templateName ? '<div class="mt-2 text-[10px] text-sofia/80 font-medium">Purpose: ' + templateName + '</div>' : '') +
+                        '<div class="font-bold text-zinc-200">' + escapeHtml(a.name || a.id) + '</div>' +
+                        '<div class="text-[10px] font-mono text-zinc-600 uppercase tracking-tighter mt-0.5">' + escapeHtml(a.id) + '</div>' +
+                        (templateName ? '<div class="mt-2 text-[10px] text-sofia/80 font-medium">Purpose: ' + escapeHtml(templateName) + '</div>' : '') +
                         (skillCount > 0 ? '<div class="mt-1 text-[10px] text-zinc-500 flex items-center gap-1"><i data-lucide=\"zap\" class=\"w-2.5 h-2.5\"></i> ' + skillCount + ' custom skill' + (skillCount !== 1 ? 's' : '') + '</div>' : '') +
                         '<div class="mt-4 pt-4 border-t border-zinc-800/50 flex items-center justify-between">' +
-                        '<div class="text-[10px] text-zinc-500 font-medium flex items-center gap-1.5"><i data-lucide="cpu" class="w-3 h-3"></i> ' + (modelName || 'Default') + '</div>' +
+                        '<div class="text-[10px] text-zinc-500 font-medium flex items-center gap-1.5"><i data-lucide="cpu" class="w-3 h-3"></i> ' + escapeHtml(modelName || 'Default') + '</div>' +
                         '<span class="w-1.5 h-1.5 rounded-full ' + (isActive ? 'bg-sofia animate-pulse' : 'bg-green-500/50') + '"></span>' +
                         '</div>' +
                         '</div>' +
@@ -1850,13 +1850,13 @@
             strip.innerHTML = attachedFiles.map((f, i) => {
                 if (f.isImage && f.previewURL) {
                     return "<div class='relative group'>" +
-                        "<img src='" + f.previewURL + "' class='h-16 w-16 object-cover border border-sofia/20' title='" + f.name + "'>" +
+                        "<img src='" + f.previewURL + "' class='h-16 w-16 object-cover border border-sofia/20' title='" + escapeHtml(f.name) + "'>" +
                         "<button onclick='removeAttachment(" + i + ")' class='absolute top-0 right-0 bg-black/70 text-red-400 text-xs w-4 h-4 flex items-center justify-center hover:bg-red-500 hover:text-white transition'>&times;</button>" +
                         "</div>";
                 }
                 return "<div class='flex items-center gap-1.5 px-2 py-1 bg-sofia/10 border border-sofia/20 text-[10px] text-sofia font-mono'>" +
                     "<i data-lucide='file-text' class='w-3 h-3 shrink-0'></i>" +
-                    "<span class='truncate max-w-[160px]'>" + f.name + "</span>" +
+                    "<span class='truncate max-w-[160px]'>" + escapeHtml(f.name) + "</span>" +
                     "<button onclick='removeAttachment(" + i + ")' class='ml-1 text-sofia/50 hover:text-red-400 transition leading-none text-xs'>&times;</button>" +
                     "</div>";
             }).join("");
@@ -1883,7 +1883,7 @@
                 ? "<div class='mt-2 flex flex-wrap gap-2'>" +
                 attachedFiles.map(f => f.isImage && f.previewURL
                     ? "<img src='" + f.previewURL + "' class='h-20 w-20 object-cover border border-sofia/30'>"
-                    : "<span class='px-1.5 py-0.5 bg-zinc-800 text-[9px] text-zinc-400 border border-zinc-700 font-mono'>" + f.name + "</span>"
+                    : "<span class='px-1.5 py-0.5 bg-zinc-800 text-[9px] text-zinc-400 border border-zinc-700 font-mono'>" + escapeHtml(f.name) + "</span>"
                 ).join("") +
                 "</div>"
                 : "";

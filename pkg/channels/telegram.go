@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -410,8 +411,8 @@ func (c *TelegramChannel) downloadFileWithInfo(file *telego.File, ext string) st
 	url := c.bot.FileDownloadURL(file.FilePath)
 	logger.DebugCF("telegram", "File URL", map[string]any{"url": url})
 
-	// Use FilePath as filename for better identification
-	filename := file.FilePath + ext
+	// Use base name only to prevent path traversal
+	filename := filepath.Base(file.FilePath) + ext
 	return utils.DownloadFile(url, filename, utils.DownloadOptions{
 		LoggerPrefix: "telegram",
 	})
