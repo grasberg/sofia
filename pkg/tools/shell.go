@@ -361,17 +361,17 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 
 // shellMetacharPatterns detects shell metacharacters that can bypass simple pattern matching.
 var shellMetacharPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`\\x[0-9a-fA-F]{2}`),         // hex escapes
-	regexp.MustCompile(`\\u[0-9a-fA-F]{4}`),         // unicode escapes
-	regexp.MustCompile(`\$'[^']*\\[^']*'`),          // $'...' ANSI-C quoting with escapes
-	regexp.MustCompile(`\benv\b.*\b\w+=.*\b\w+\b`),  // env VAR=val cmd (command execution via env)
+	regexp.MustCompile(`\\x[0-9a-fA-F]{2}`),           // hex escapes
+	regexp.MustCompile(`\\u[0-9a-fA-F]{4}`),           // unicode escapes
+	regexp.MustCompile(`\$'[^']*\\[^']*'`),            // $'...' ANSI-C quoting with escapes
+	regexp.MustCompile(`\benv\b.*\b\w+=.*\b\w+\b`),    // env VAR=val cmd (command execution via env)
 	regexp.MustCompile(`\bxargs\b.*\b(sh|bash|rm)\b`), // xargs piped to dangerous commands
-	regexp.MustCompile(`\bfind\b.*-exec\b`),          // find -exec runs commands
-	regexp.MustCompile(`\bawk\b.*\bsystem\s*\(`),     // awk system() calls
-	regexp.MustCompile(`\bperl\b.*\s-e\s`),           // perl one-liners
-	regexp.MustCompile(`\bruby\b.*\s-e\s`),           // ruby one-liners
-	regexp.MustCompile(`\bexec\s+\d*[<>]`),           // exec with redirections
-	regexp.MustCompile(`\|\s*while\b`),               // pipe to while loop
+	regexp.MustCompile(`\bfind\b.*-exec\b`),           // find -exec runs commands
+	regexp.MustCompile(`\bawk\b.*\bsystem\s*\(`),      // awk system() calls
+	regexp.MustCompile(`\bperl\b.*\s-e\s`),            // perl one-liners
+	regexp.MustCompile(`\bruby\b.*\s-e\s`),            // ruby one-liners
+	regexp.MustCompile(`\bexec\s+\d*[<>]`),            // exec with redirections
+	regexp.MustCompile(`\|\s*while\b`),                // pipe to while loop
 	regexp.MustCompile(`\bbase64\b.*\|\s*(sh|bash)`),  // base64 decode to shell
 }
 

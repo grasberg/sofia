@@ -442,12 +442,19 @@ type GoogleToolsConfig struct {
 	AllowedCommands []string `json:"allowed_commands" env:"SOFIA_TOOLS_GOOGLE_ALLOWED_COMMANDS"`
 }
 
+type MCPServerConfig struct {
+	Command string            `json:"command"`
+	Args    []string          `json:"args,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
+}
+
 type ToolsConfig struct {
-	Web    WebToolsConfig    `json:"web"`
-	Cron   CronToolsConfig   `json:"cron"`
-	Exec   ExecConfig        `json:"exec"`
-	Google GoogleToolsConfig `json:"google"`
-	Skills SkillsToolsConfig `json:"skills"`
+	Web    WebToolsConfig             `json:"web"`
+	Cron   CronToolsConfig            `json:"cron"`
+	Exec   ExecConfig                 `json:"exec"`
+	Google GoogleToolsConfig          `json:"google"`
+	Skills SkillsToolsConfig          `json:"skills"`
+	MCP    map[string]MCPServerConfig `json:"mcp,omitempty"`
 }
 
 type SkillsToolsConfig struct {

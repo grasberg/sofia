@@ -76,9 +76,9 @@ func (e *FailoverError) IsRetriable() bool {
 
 // StreamChunk represents a chunk of a streaming LLM response.
 type StreamChunk struct {
-	Delta     string     `json:"delta"`               // Text content delta
+	Delta     string     `json:"delta"`                // Text content delta
 	ToolCalls []ToolCall `json:"tool_calls,omitempty"` // Incremental tool calls
-	Done      bool       `json:"done"`                // True when streaming is complete
+	Done      bool       `json:"done"`                 // True when streaming is complete
 }
 
 // StreamingProvider is an optional interface that providers can implement

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/mcp"
 	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/routing"
@@ -44,6 +45,7 @@ func NewAgentInstance(
 	cfg *config.Config,
 	provider providers.LLMProvider,
 	memDB *memory.MemoryDB,
+	mcpManager *mcp.GlobalManager,
 ) *AgentInstance {
 	workspace := resolveAgentWorkspace(agentCfg, defaults)
 	os.MkdirAll(workspace, 0o755)
@@ -61,6 +63,14 @@ func NewAgentInstance(
 	toolsRegistry.Register(tools.NewEditFileTool(workspace, restrict))
 	toolsRegistry.Register(tools.NewAppendFileTool(workspace, restrict))
 	toolsRegistry.Register(tools.NewImageAnalyzeTool(workspace, restrict))
+
+	if mcpManager != nil {
+		for _, srv := range mcpManager.GetServers() {
+			for _, t := range srv.Tools {
+				toolsRegistry.Register(tools.NewMCPToolAdapter(srv.Name, t, srv.Client))
+			}
+		}
+	}
 
 	agentID := routing.DefaultAgentID
 	agentName := ""

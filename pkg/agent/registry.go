@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"sync"
 
+	"context"
+
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/mcp"
 	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/routing"
@@ -13,9 +16,10 @@ import (
 
 // AgentRegistry manages multiple agent instances and routes messages to them.
 type AgentRegistry struct {
-	agents   map[string]*AgentInstance
-	resolver *routing.RouteResolver
-	mu       sync.RWMutex
+	agents     map[string]*AgentInstance
+	resolver   *routing.RouteResolver
+	mu         sync.RWMutex
+	mcpManager *mcp.GlobalManager
 }
 
 // NewAgentRegistry creates a registry from config, instantiating all agents.
@@ -24,9 +28,15 @@ func NewAgentRegistry(
 	provider providers.LLMProvider,
 	memDB *memory.MemoryDB,
 ) *AgentRegistry {
+	mcpMgr := mcp.NewGlobalManager()
+	if cfg.Tools.MCP != nil && len(cfg.Tools.MCP) > 0 {
+		_ = mcpMgr.EnsureServers(context.Background(), cfg.Tools.MCP)
+	}
+
 	registry := &AgentRegistry{
-		agents:   make(map[string]*AgentInstance),
-		resolver: routing.NewRouteResolver(cfg),
+		agents:     make(map[string]*AgentInstance),
+		resolver:   routing.NewRouteResolver(cfg),
+		mcpManager: mcpMgr,
 	}
 
 	agentConfigs := cfg.Agents.List
@@ -35,7 +45,7 @@ func NewAgentRegistry(
 			ID:      "main",
 			Default: true,
 		}
-		instance := NewAgentInstance(implicitAgent, &cfg.Agents.Defaults, cfg, provider, memDB)
+		instance := NewAgentInstance(implicitAgent, &cfg.Agents.Defaults, cfg, provider, memDB, registry.mcpManager)
 		registry.agents["main"] = instance
 		logger.InfoCF("agent", "Created implicit main agent (no agents.list configured)", nil)
 	} else {
@@ -46,7 +56,7 @@ func NewAgentRegistry(
 			if id == "main" || ac.Default {
 				hasMainOrDefault = true
 			}
-			instance := NewAgentInstance(ac, &cfg.Agents.Defaults, cfg, provider, memDB)
+			instance := NewAgentInstance(ac, &cfg.Agents.Defaults, cfg, provider, memDB, registry.mcpManager)
 			registry.agents[id] = instance
 			logger.InfoCF("agent", "Registered agent",
 				map[string]any{
@@ -62,7 +72,7 @@ func NewAgentRegistry(
 				ID:      "main",
 				Default: true,
 			}
-			instance := NewAgentInstance(implicitAgent, &cfg.Agents.Defaults, cfg, provider, memDB)
+			instance := NewAgentInstance(implicitAgent, &cfg.Agents.Defaults, cfg, provider, memDB, registry.mcpManager)
 			registry.agents["main"] = instance
 			logger.InfoCF("agent", "Created implicit main agent (no default in agents.list)", nil)
 		}

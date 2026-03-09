@@ -146,12 +146,12 @@ func (t *A2ATool) executeBroadcast(args map[string]any) *ToolResult {
 }
 
 func (t *A2ATool) executeReceive(args map[string]any) *ToolResult {
-	timeoutSec := 5
+	var timeout time.Duration = 5 * time.Second
 	if ts, ok := args["timeout_seconds"].(float64); ok && ts > 0 {
-		timeoutSec = int(ts)
+		timeout = time.Duration(ts * float64(time.Second))
 	}
 
-	msg := t.router.Receive(t.agentID, time.Duration(timeoutSec)*time.Second)
+	msg := t.router.Receive(t.agentID, timeout)
 	if msg == nil {
 		return SilentResult("No A2A messages received (timeout)")
 	}
