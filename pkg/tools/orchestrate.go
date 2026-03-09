@@ -83,8 +83,8 @@ func (t *OrchestrateTool) Parameters() map[string]any {
 							"description": "Target agent ID (auto-assigned if empty)",
 						},
 						"depends_on": map[string]any{
-							"type":  "array",
-							"items": map[string]any{"type": "string"},
+							"type":        "array",
+							"items":       map[string]any{"type": "string"},
 							"description": "IDs of tasks that must complete first",
 						},
 					},
