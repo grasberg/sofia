@@ -94,7 +94,7 @@ func CreateProviderFromConfig(cfg *config.ModelConfig) (LLMProvider, string, err
 
 	case "openrouter", "groq", "gemini", "nvidia",
 		"ollama", "moonshot", "deepseek", "cerebras",
-		"volcengine", "qwen", "mistral", "grok", "zai", "minimax":
+		"volcengine", "qwen", "mistral", "grok", "zai", "minimax", "vllm", "shengsuanyun":
 		// All other OpenAI-compatible HTTP providers
 		if cfg.APIKey == "" && cfg.APIBase == "" {
 			return nil, "", fmt.Errorf("api_key or api_base is required for HTTP-based protocol %q", protocol)
@@ -135,6 +135,23 @@ func CreateProviderFromConfig(cfg *config.ModelConfig) (LLMProvider, string, err
 			cfg.MaxTokensField,
 			cfg.RequestTimeout,
 		), modelID, nil
+
+	case "claude-cli", "claude-code", "claudecode":
+		workspace := cfg.Workspace
+		if workspace == "" {
+			workspace = "."
+		}
+		return NewClaudeCliProvider(workspace), modelID, nil
+
+	case "codex-cli", "codex-code":
+		workspace := cfg.Workspace
+		if workspace == "" {
+			workspace = "."
+		}
+		return NewCodexCliProvider(workspace), modelID, nil
+
+	case "antigravity":
+		return NewAntigravityProvider(), modelID, nil
 
 	default:
 		return nil, "", fmt.Errorf("unknown protocol %q in model %q", protocol, cfg.Model)
