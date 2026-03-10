@@ -64,6 +64,10 @@ func (cb *ContextBuilder) SetSkillsFilter(skillNames []string) {
 	cb.skillsFilter = append([]string(nil), skillNames...)
 }
 
+func (cb *ContextBuilder) GetSkillsLoader() *skills.SkillsLoader {
+	return cb.skillsLoader
+}
+
 func (cb *ContextBuilder) SetSystemSuffix(suffix string) {
 	cb.systemSuffix = suffix
 }

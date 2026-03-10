@@ -51,6 +51,13 @@ func (t *SpawnTool) Parameters() map[string]any {
 				"type":        "string",
 				"description": "Optional target agent ID to delegate the task to",
 			},
+			"skills": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "string",
+				},
+				"description": "Optional list of skill names to equip the subagent with",
+			},
 		},
 		"required": []string{"task"},
 	}
@@ -74,6 +81,15 @@ func (t *SpawnTool) Execute(ctx context.Context, args map[string]any) *ToolResul
 	label, _ := args["label"].(string)
 	agentID, _ := args["agent_id"].(string)
 
+	var skillsFilter []string
+	if rawSkills, ok := args["skills"].([]any); ok {
+		for _, v := range rawSkills {
+			if s, ok := v.(string); ok && s != "" {
+				skillsFilter = append(skillsFilter, s)
+			}
+		}
+	}
+
 	// Check allowlist if targeting a specific agent
 	if agentID != "" && t.allowlistCheck != nil {
 		if !t.allowlistCheck(agentID) {
@@ -86,7 +102,7 @@ func (t *SpawnTool) Execute(ctx context.Context, args map[string]any) *ToolResul
 	}
 
 	// Pass callback to manager for async completion notification
-	result, err := t.manager.Spawn(ctx, task, label, agentID, t.originChannel, t.originChatID, t.callback)
+	result, err := t.manager.Spawn(ctx, task, label, agentID, skillsFilter, t.originChannel, t.originChatID, t.callback)
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("failed to spawn subagent: %v", err))
 	}

@@ -81,7 +81,7 @@ Find a robust solution to this problem, applying the lessons learned. Report you
 		}
 	}
 
-	resultMsg, err := t.manager.Spawn(ctx, practiceTask, "practice-sandbox", "", "internal", "practice", customCallback)
+	resultMsg, err := t.manager.Spawn(ctx, practiceTask, "practice-sandbox", "", nil, "internal", "practice", customCallback)
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("Failed to spawn practice subagent: %v", err))
 	}
