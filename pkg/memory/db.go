@@ -14,7 +14,7 @@ import (
 	"github.com/grasberg/sofia/pkg/providers"
 )
 
-const schemaVersion = 4
+const schemaVersion = 5
 
 // MemoryDB is a shared SQLite database for session history and memory notes.
 // It is opened once at AgentLoop startup and shared across all AgentInstances.
@@ -111,6 +111,12 @@ func (m *MemoryDB) migrate() error {
 
 	if current < 4 {
 		if err = m.applyV4(); err != nil {
+			return err
+		}
+	}
+
+	if current < 5 {
+		if err = m.applyV5(); err != nil {
 			return err
 		}
 	}
@@ -1416,5 +1422,131 @@ func (m *MemoryDB) IncrementTemplateUseCount(name string) error {
 		`UPDATE plan_templates SET use_count = use_count + 1, updated_at = ? WHERE name = ?`,
 		time.Now().UTC(), name,
 	)
+	return err
+}
+
+// ---------------------------------------------------------------------------
+// Schema V5: Checkpoints
+// ---------------------------------------------------------------------------
+
+func (m *MemoryDB) applyV5() error {
+	const ddl = `
+CREATE TABLE IF NOT EXISTS checkpoints (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_key TEXT    NOT NULL REFERENCES sessions(key) ON DELETE CASCADE,
+    agent_id    TEXT    NOT NULL DEFAULT '',
+    name        TEXT    NOT NULL DEFAULT '',
+    iteration   INTEGER NOT NULL DEFAULT 0,
+    msg_count   INTEGER NOT NULL DEFAULT 0,
+    created_at  DATETIME NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_checkpoints_session ON checkpoints(session_key, created_at);
+`
+	_, err := m.db.Exec(ddl)
+	return err
+}
+
+// ---------------------------------------------------------------------------
+// Checkpoint CRUD
+// ---------------------------------------------------------------------------
+
+// CountMessages returns the number of messages in a session.
+func (m *MemoryDB) CountMessages(sessionKey string) (int, error) {
+	var count int
+	err := m.db.QueryRow(
+		`SELECT COUNT(*) FROM messages WHERE session_key = ?`, sessionKey,
+	).Scan(&count)
+	return count, err
+}
+
+// CreateCheckpoint inserts a new checkpoint row and returns its ID.
+func (m *MemoryDB) CreateCheckpoint(sessionKey, agentID, name string, iteration, msgCount int) (int64, error) {
+	res, err := m.db.Exec(
+		`INSERT INTO checkpoints (session_key, agent_id, name, iteration, msg_count, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		sessionKey, agentID, name, iteration, msgCount, time.Now().UTC(),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("memory: create checkpoint: %w", err)
+	}
+	return res.LastInsertId()
+}
+
+// CheckpointRow is the data returned by checkpoint queries.
+type CheckpointRow struct {
+	ID         int64
+	SessionKey string
+	AgentID    string
+	Name       string
+	Iteration  int
+	MsgCount   int
+	CreatedAt  time.Time
+}
+
+// GetCheckpoint retrieves a single checkpoint by ID.
+func (m *MemoryDB) GetCheckpoint(id int64) (*CheckpointRow, error) {
+	row := m.db.QueryRow(
+		`SELECT id, session_key, agent_id, name, iteration, msg_count, created_at
+		 FROM checkpoints WHERE id = ?`, id,
+	)
+	var cp CheckpointRow
+	var created string
+	err := row.Scan(&cp.ID, &cp.SessionKey, &cp.AgentID, &cp.Name, &cp.Iteration, &cp.MsgCount, &created)
+	if err != nil {
+		return nil, fmt.Errorf("memory: get checkpoint: %w", err)
+	}
+	cp.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
+	return &cp, nil
+}
+
+// ListCheckpoints returns all checkpoints for a session, newest first.
+func (m *MemoryDB) ListCheckpoints(sessionKey string) ([]CheckpointRow, error) {
+	rows, err := m.db.Query(
+		`SELECT id, session_key, agent_id, name, iteration, msg_count, created_at
+		 FROM checkpoints WHERE session_key = ? ORDER BY created_at DESC`,
+		sessionKey,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("memory: list checkpoints: %w", err)
+	}
+	defer rows.Close()
+
+	var result []CheckpointRow
+	for rows.Next() {
+		var cp CheckpointRow
+		var created string
+		if err := rows.Scan(&cp.ID, &cp.SessionKey, &cp.AgentID, &cp.Name, &cp.Iteration, &cp.MsgCount, &created); err != nil {
+			return nil, fmt.Errorf("memory: scan checkpoint: %w", err)
+		}
+		cp.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
+		result = append(result, cp)
+	}
+	return result, rows.Err()
+}
+
+// TruncateMessagesToCount keeps only the first `count` messages in a session
+// (by position order), deleting the rest.
+func (m *MemoryDB) TruncateMessagesToCount(sessionKey string, count int) error {
+	_, err := m.db.Exec(
+		`DELETE FROM messages
+		 WHERE session_key = ?
+		   AND position >= ?`,
+		sessionKey, count,
+	)
+	return err
+}
+
+// DeleteCheckpointsAfter removes all checkpoints for a session with ID > the given ID.
+func (m *MemoryDB) DeleteCheckpointsAfter(sessionKey string, afterID int64) error {
+	_, err := m.db.Exec(
+		`DELETE FROM checkpoints WHERE session_key = ? AND id > ?`,
+		sessionKey, afterID,
+	)
+	return err
+}
+
+// DeleteAllCheckpoints removes all checkpoints for a session.
+func (m *MemoryDB) DeleteAllCheckpoints(sessionKey string) error {
+	_, err := m.db.Exec(`DELETE FROM checkpoints WHERE session_key = ?`, sessionKey)
 	return err
 }

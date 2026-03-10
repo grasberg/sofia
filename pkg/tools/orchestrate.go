@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/grasberg/sofia/pkg/conflict"
 )
 
 // OrchestrationTask represents a subtask in an orchestration plan.
@@ -255,6 +257,29 @@ func (t *OrchestrateTool) Execute(ctx context.Context, args map[string]any) *Too
 		sb.WriteString(fmt.Sprintf("All %d tasks completed successfully.", len(tasks)))
 	} else {
 		sb.WriteString(fmt.Sprintf("Completed %d/%d tasks.", len(completed), len(tasks)))
+	}
+
+	// Conflict detection: analyze completed task outputs for disagreements
+	var completedOutputs []conflict.Output
+	for _, task := range tasks {
+		if task.Status == "completed" && task.Result != "" {
+			completedOutputs = append(completedOutputs, conflict.Output{
+				AgentID: task.AgentID,
+				TaskID:  task.ID,
+				Content: task.Result,
+			})
+		}
+	}
+	if len(completedOutputs) >= 2 {
+		detection := conflict.Detect(completedOutputs)
+		if detection.HasConflicts {
+			sb.WriteString("\n\n⚠ CONFLICT DETECTION:\n")
+			sb.WriteString(detection.Format())
+			sb.WriteString("\nUse the conflict_resolve tool to resolve these conflicts, ")
+			sb.WriteString("or review the outputs manually to determine the correct result.")
+		} else {
+			fmt.Fprintf(&sb, "\n\nNo conflicts detected among task outputs (agreement: %.0f%%).", detection.Agreement*100)
+		}
 	}
 
 	return SilentResult(sb.String())
