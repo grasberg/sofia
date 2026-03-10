@@ -93,5 +93,5 @@ func TestGetConfigPath_Windows(t *testing.T) {
 }
 
 func TestGetVersion(t *testing.T) {
-	assert.Equal(t, "dev", GetVersion())
+	assert.Equal(t, version, GetVersion())
 }

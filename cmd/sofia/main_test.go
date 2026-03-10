@@ -34,12 +34,9 @@ func TestNewSofiaCommand(t *testing.T) {
 
 	allowedCommands := []string{
 		"agent",
-		"auth",
 		"cron",
 		"gateway",
 		"onboard",
-		"skills",
-		"status",
 		"version",
 	}
 
