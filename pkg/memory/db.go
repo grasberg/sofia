@@ -19,7 +19,8 @@ const schemaVersion = 8
 // MemoryDB is a shared SQLite database for session history and memory notes.
 // It is opened once at AgentLoop startup and shared across all AgentInstances.
 type MemoryDB struct {
-	db *sql.DB
+	db   *sql.DB
+	path string
 }
 
 // Open opens (or creates) the SQLite database at the given path.
@@ -49,13 +50,21 @@ func Open(path string) (*MemoryDB, error) {
 		return nil, fmt.Errorf("memory: enable foreign keys: %w", err)
 	}
 
-	m := &MemoryDB{db: db}
+	m := &MemoryDB{
+		db:   db,
+		path: path,
+	}
 	if err = m.migrate(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("memory: migrate: %w", err)
 	}
 
 	return m, nil
+}
+
+// Path returns the filepath where the database is located.
+func (m *MemoryDB) Path() string {
+	return m.path
 }
 
 // Exec allows raw SQL execution, primarily useful for test setups and migrations.

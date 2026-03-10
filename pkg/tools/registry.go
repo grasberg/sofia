@@ -12,14 +12,22 @@ import (
 )
 
 type ToolRegistry struct {
-	tools map[string]Tool
-	mu    sync.RWMutex
+	tools   map[string]Tool
+	tracker *ToolTracker
+	mu      sync.RWMutex
 }
 
 func NewToolRegistry() *ToolRegistry {
 	return &ToolRegistry{
 		tools: make(map[string]Tool),
 	}
+}
+
+// SetTracker attaches a ToolTracker to the registry to observe performance metrics.
+func (r *ToolRegistry) SetTracker(t *ToolTracker) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.tracker = t
 }
 
 func (r *ToolRegistry) Register(tool Tool) {
@@ -88,6 +96,14 @@ func (r *ToolRegistry) ExecuteWithContext(
 	start := time.Now()
 	result := tool.Execute(ctx, args)
 	duration := time.Since(start)
+
+	// Record execution metrics if tracker is active
+	r.mu.RLock()
+	tracker := r.tracker
+	r.mu.RUnlock()
+	if tracker != nil {
+		tracker.Record(name, duration, result.IsError)
+	}
 
 	// Log based on result type
 	if result.IsError {
