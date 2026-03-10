@@ -1,6 +1,6 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.90-blue)
+![Version](https://img.shields.io/badge/version-v0.0.91-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
@@ -11,6 +11,7 @@ Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerar
 *   🌐 **Brett AI-stöd:** Inbyggt stöd för 20+ AI-leverantörer inkl. OpenAI, Anthropic (Claude 4.5), Gemini, DeepSeek, Grok, MiniMax, Moonshot, Qwen, Zai, GitHub Copilot och fler.
 *   📚 **Skill-system med Självlärande:** Antigravity Kit med expert-personas, plus automatisk skill-skapande, förfining och kunskapsdestillering från erfarenheter.
 *   🔄 **Självreflektion & Självförbättring:** Post-task utvärdering, prestandaspårning över tid, prompt-självoptimering och kodsjälvmodifiering med säkerhetsspärrar.
+*   🔧 **Smart Verktygshantering:** Semantisk verktygsmatchning via embeddings, prestandaspårning för att välja de mest pålitliga verktygen, och dynamisk tool-composition (pipelines) för att skapa nya makro-verktyg.
 *   🎯 **Autonomi & Proaktivitet:** Långsiktiga mål, kontextmedvetna triggers, proaktiva förslag och självinitierad research utan användarinteraktion.
 *   🛡️ **Guardrails & Säkerhet:** Inputvalidering, outputfiltrering (PII/hemligheter), prompt injection-försvar och åtgärdsbekräftelse för högrisk-operationer.
 *   🔌 **MCP-klient:** Model Context Protocol-stöd för anslutning till externa MCP-servrar och verktyg.
@@ -150,6 +151,15 @@ Sofia kan agera självständigt utan användarinitiering:
 *   **Kontextmedvetna Triggers:** `manage_triggers`-verktyget skapar villkorliga handlingar som aktiveras baserat på användarens samtalskontext.
 *   **Proaktiva Förslag:** `AutonomyService` analyserar periodiskt senaste aktiviteten och genererar oombedda förslag när de bedöms vara värdefulla.
 *   **Autonom Research:** Identifierar kunskapsluckor och initierar självständigt forskning om relevanta ämnen.
+
+## 🔧 Tool Use & Discovery
+
+Sofia har avancerad logik för att hantera och optimera sin verktygsanvändning:
+
+*   **Semantisk Verktygsmatchning:** Använder embeddings för att filtrera fram de mest relevanta verktygen baserat på användarens intent. Detta minskar token-användning och ökar fokus för LLM:en.
+*   **Tool Performance Tracking:** `ToolTracker` mäter automatiskt framgångsgrad och exekveringstid för alla verktyg. Sofia kan använda `get_tool_stats` för att se vilka verktyg som fungerar bäst för specifika uppgifter.
+*   **Tool Composition (Pipelines):** Med `create_pipeline` kan Sofia kedja ihop flera verktyg till ett nytt, återanvändbart makro-verktyg. Data flödar automatiskt mellan stegen i pipelinen.
+*   **MCP-stöd:** Dynamisk upptäckt av verktyg via Model Context Protocol-servrar.
 
 ## 📚 Skill-system med Självlärande
 
@@ -376,6 +386,8 @@ Sofia kan även vara aktiv i Discord-servrar och DM:s.
 | `distill_knowledge` | Destillera erfarenheter till återanvändbar kunskap |
 | `self_modify` | Självmodifiering av kod/konfiguration med säkerhetsspärrar |
 | `notify_user` | Push-meddelanden till användarens skrivbord |
+| `get_tool_stats` | Hämta prestandadata och framgångsgrad för verktyg |
+| `create_pipeline` | Skapa ett nytt makro-verktyg genom att kedja ihop befintliga verktyg |
 | `mcp` | Anslut till externa MCP-servrar för dynamiska verktyg |
 
 
