@@ -24,10 +24,12 @@ import (
 
 	"github.com/grasberg/sofia/pkg/autonomy"
 	"github.com/grasberg/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/checkpoint"
 	"github.com/grasberg/sofia/pkg/channels"
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/constants"
 	"github.com/grasberg/sofia/pkg/logger"
+	mcpPkg "github.com/grasberg/sofia/pkg/mcp"
 	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/routing"
@@ -53,6 +55,7 @@ type AgentLoop struct {
 	activeStatus   atomic.Value // string
 	planManager    *tools.PlanManager
 	scratchpad     *tools.SharedScratchpad
+	checkpointMgr  *checkpoint.Manager
 	a2aRouter      *A2ARouter
 
 	// Rate limiting state
@@ -110,6 +113,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 
 	planMgr := tools.NewPlanManager()
 	scratchpad := tools.NewSharedScratchpad()
+	checkpointMgr := checkpoint.NewManager(memDB)
 	a2aRouter := NewA2ARouter()
 
 	// Register all agents with the A2A router
@@ -127,6 +131,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		fallback:         fallbackChain,
 		planManager:      planMgr,
 		scratchpad:       scratchpad,
+		checkpointMgr:    checkpointMgr,
 		a2aRouter:        a2aRouter,
 		rpmCounts:        make(map[string]int),
 		rpmResetTime:     make(map[string]time.Time),
@@ -149,14 +154,14 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	al.startAutonomyServices(provider)
 
 	// Register shared tools to all agents.
-	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent, planMgr, scratchpad, memDB, a2aRouter)
+	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent, planMgr, scratchpad, checkpointMgr, memDB, a2aRouter)
 
 	al.activeAgentID.Store("")
 	al.activeStatus.Store("Idle")
 	return al
 }
 
-// registerSharedTools registers tools that are shared across all agents (web, message, spawn, plan, scratchpad, orchestrate, a2a).
+// registerSharedTools registers tools that are shared across all agents.
 func registerSharedTools(
 	cfg *config.Config,
 	msgBus *bus.MessageBus,
@@ -165,6 +170,7 @@ func registerSharedTools(
 	agentTaskRunner func(ctx context.Context, agentID, sessionKey, task, originChannel, originChatID string) (string, error),
 	planMgr *tools.PlanManager,
 	scratchpad *tools.SharedScratchpad,
+	checkpointMgr *checkpoint.Manager,
 	memDB *memory.MemoryDB,
 	a2aRouter *A2ARouter,
 ) {
@@ -265,6 +271,9 @@ func registerSharedTools(
 		// Scratchpad — agent-to-agent shared key-value store
 		agent.Tools.Register(tools.NewScratchpadTool(scratchpad, "default"))
 
+		// Checkpoint — save/restore execution state mid-task
+		agent.Tools.Register(tools.NewCheckpointTool(checkpointMgr, agentID))
+
 		// Subagent (synchronous) tool
 		subagentTool := tools.NewSubagentTool(subagentManager)
 		agent.Tools.Register(subagentTool)
@@ -292,6 +301,9 @@ func registerSharedTools(
 		}
 		orchTool := tools.NewOrchestrateTool(orchCfg)
 		agent.Tools.Register(orchTool)
+
+		// Conflict Resolution — detect and resolve conflicting outputs from parallel agents
+		agent.Tools.Register(tools.NewConflictResolveTool(scratchpad))
 
 		// Knowledge Graph — semantic memory with structured entities and relationships
 		if memDB != nil {
@@ -462,7 +474,7 @@ func (al *AgentLoop) ReloadAgents() {
 		al.a2aRouter.Register(id)
 	}
 
-	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent, al.planManager, al.scratchpad, al.memDB, al.a2aRouter)
+	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent, al.planManager, al.scratchpad, al.checkpointMgr, al.memDB, al.a2aRouter)
 
 	al.registryMu.Lock()
 	al.registry = newRegistry
@@ -952,6 +964,13 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 	// 1. Update tool contexts
 	al.updateToolContexts(agent, opts.Channel, opts.ChatID)
 
+	// 1a. Set checkpoint tool session key
+	if cpTool, ok := agent.Tools.Get("checkpoint"); ok {
+		if ct, ok := cpTool.(*tools.CheckpointTool); ok {
+			ct.SetSessionKey(opts.SessionKey)
+		}
+	}
+
 	// 1b. Signal thinking status to the channel (only if we intend to send a response)
 	if opts.SendResponse && opts.Channel != "" && opts.ChatID != "" && !constants.IsInternalChannel(opts.Channel) {
 		al.bus.PublishOutbound(bus.OutboundMessage{
@@ -1027,6 +1046,11 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 	// 6. Save final assistant message to session
 	agent.Sessions.AddMessage(opts.SessionKey, "assistant", finalContent)
 	agent.Sessions.Save(opts.SessionKey)
+
+	// 6b. Cleanup auto-checkpoints after successful completion
+	if err := al.checkpointMgr.Cleanup(opts.SessionKey); err != nil {
+		logger.WarnCF(agentComp, "Failed to cleanup checkpoints", map[string]any{"error": err.Error()})
+	}
 
 	// 7. Optional: summarization
 	if opts.EnableSummary {
@@ -1402,6 +1426,17 @@ func (al *AgentLoop) runLLMIteration(
 		// Save assistant message with tool calls to session
 		agent.Sessions.AddFullMessage(opts.SessionKey, assistantMsg)
 
+		// Auto-checkpoint before tool execution
+		cpName := fmt.Sprintf("auto:iter-%d", iteration)
+		if _, cpErr := al.checkpointMgr.Create(opts.SessionKey, agent.ID, cpName, iteration); cpErr != nil {
+			logger.WarnCF(agentComp, "Failed to create auto-checkpoint", map[string]any{
+				"error": cpErr.Error(), "iteration": iteration,
+			})
+		} else {
+			logger.DebugCF(agentComp, fmt.Sprintf("CHECKPOINT: saved %s", cpName),
+				map[string]any{"iteration": iteration})
+		}
+
 		// Execute tool calls — parallel or sequential based on config
 		type toolCallResult struct {
 			index     int
@@ -1566,6 +1601,38 @@ func (al *AgentLoop) runLLMIteration(
 
 			messages = append(messages, tcr.resultMsg)
 			agent.Sessions.AddFullMessage(opts.SessionKey, tcr.resultMsg)
+		}
+
+		// Auto-rollback: if error count reaches threshold, rollback to last checkpoint
+		const autoRollbackThreshold = 3
+		if errorCount >= autoRollbackThreshold {
+			cp, restoredMsgs, rbErr := al.checkpointMgr.RollbackToLatest(opts.SessionKey)
+			if rbErr != nil {
+				logger.WarnCF(agentComp, "Auto-rollback failed", map[string]any{"error": rbErr.Error()})
+			} else if cp != nil {
+				logger.InfoCF(agentComp,
+					fmt.Sprintf("CHECKPOINT: auto-rollback to %q (iter %d) after %d errors", cp.Name, cp.Iteration, errorCount),
+					map[string]any{"checkpoint_id": cp.ID, "errors": errorCount})
+
+				// Rebuild in-memory messages from restored state
+				messages = agent.ContextBuilder.BuildMessages(
+					restoredMsgs,
+					agent.Sessions.GetSummary(opts.SessionKey),
+					"",
+					nil, opts.Channel, opts.ChatID,
+				)
+
+				// Inject rollback notice so the LLM knows what happened
+				messages = append(messages, providers.Message{
+					Role: "user",
+					Content: fmt.Sprintf("[SYSTEM: Auto-rollback triggered after %d consecutive tool errors. "+
+						"State restored to checkpoint %q (iteration %d). "+
+						"Please try a different approach.]", errorCount, cp.Name, cp.Iteration),
+				})
+
+				errorCount = 0 // Reset for the new attempt
+				continue       // Restart the iteration loop from the restored state
+			}
 		}
 
 		// If any tool requires confirmation, stop the loop and let the user respond
@@ -2181,6 +2248,64 @@ func extractPeer(msg bus.InboundMessage) *routing.RoutePeer {
 		}
 	}
 	return &routing.RoutePeer{Kind: peerKind, ID: peerID}
+}
+
+// ListAgentIDs returns all registered agent IDs.
+func (al *AgentLoop) ListAgentIDs() []string {
+	return al.getRegistry().ListAgentIDs()
+}
+
+// ListAgentTools returns tool names for a given agent. If agentID is empty, uses default agent.
+func (al *AgentLoop) ListAgentTools(agentID string) []string {
+	reg := al.getRegistry()
+	if agentID == "" {
+		agent := reg.GetDefaultAgent()
+		if agent == nil {
+			return nil
+		}
+		return agent.Tools.List()
+	}
+	agent, ok := reg.GetAgent(agentID)
+	if !ok {
+		return nil
+	}
+	return agent.Tools.List()
+}
+
+// ListSessionMetas returns lightweight metadata for all sessions.
+func (al *AgentLoop) ListSessionMetas() []mcpPkg.SessionMeta {
+	sm := al.GetDefaultSessionManager()
+	if sm == nil {
+		return nil
+	}
+	sessions := sm.ListSessions()
+	result := make([]mcpPkg.SessionMeta, len(sessions))
+	for i, s := range sessions {
+		result[i] = mcpPkg.SessionMeta{
+			Key:          s.Key,
+			Channel:      s.Channel,
+			Preview:      s.Preview,
+			MessageCount: s.MessageCount,
+		}
+	}
+	return result
+}
+
+// GetSessionHistory returns messages for a session key.
+func (al *AgentLoop) GetSessionHistory(sessionKey string) []mcpPkg.MessageInfo {
+	sm := al.GetDefaultSessionManager()
+	if sm == nil {
+		return nil
+	}
+	history := sm.GetHistory(sessionKey)
+	result := make([]mcpPkg.MessageInfo, len(history))
+	for i, m := range history {
+		result[i] = mcpPkg.MessageInfo{
+			Role:    m.Role,
+			Content: m.Content,
+		}
+	}
+	return result
 }
 
 // extractParentPeer extracts the parent peer (reply-to) from inbound message metadata.

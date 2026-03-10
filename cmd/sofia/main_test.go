@@ -36,6 +36,7 @@ func TestNewSofiaCommand(t *testing.T) {
 		"agent",
 		"cron",
 		"gateway",
+		"mcp-server",
 		"onboard",
 		"version",
 	}
