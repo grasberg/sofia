@@ -263,6 +263,12 @@ func registerSharedTools(
 		subagentTool := tools.NewSubagentTool(subagentManager)
 		agent.Tools.Register(subagentTool)
 
+		// Practice tool - self-improving training data generator
+		if memDB != nil {
+			practiceTool := tools.NewPracticeTool(memDB, subagentManager, agentID)
+			agent.Tools.Register(practiceTool)
+		}
+
 		// Orchestrate tool — multi-agent task coordination
 		orchCfg := tools.OrchestrateToolConfig{
 			AgentScorer: func(candidateID, taskDescription string) float64 {
@@ -333,6 +339,10 @@ func registerSharedTools(
 			)
 			agent.Tools.Register(tools.NewA2ATool(a2aAdapter, agentID))
 		}
+
+		// Self-Modification tool
+		cwd, _ := os.Getwd()
+		agent.Tools.Register(tools.NewSelfModifyTool(cwd))
 	}
 }
 
@@ -1158,13 +1168,36 @@ func (al *AgentLoop) runLLMIteration(
 			al.rlMutex.Unlock()
 		}
 
+		// --- AUTO-TUNING ---
+		// Dynamically adjust temperature based on task type inferred from messages
+		callTemp := agent.Temperature
+		// Only auto-tune if leaving at default (0.7)
+		if callTemp == 0.7 {
+			lastMsg := ""
+			for i := len(messages) - 1; i >= 0; i-- {
+				if messages[i].Role == "user" {
+					lastMsg = strings.ToLower(messages[i].Content)
+					break
+				}
+			}
+
+			if strings.Contains(lastMsg, "code") || strings.Contains(lastMsg, "debug") || strings.Contains(lastMsg, "fix") {
+				callTemp = 0.2 // Lower temp for analytical/coding tasks
+				logger.DebugCF(agentComp, "Auto-Tuning: lowered temperature for coding task", map[string]any{"temp": callTemp})
+			} else if strings.Contains(lastMsg, "brainstorm") || strings.Contains(lastMsg, "write") || strings.Contains(lastMsg, "creative") || strings.Contains(lastMsg, "idea") {
+				callTemp = 0.8 // Higher temp for creative tasks
+				logger.DebugCF(agentComp, "Auto-Tuning: raised temperature for creative task", map[string]any{"temp": callTemp})
+			}
+		}
+		// -------------------
+
 		callLLM := func() (*providers.LLMResponse, error) {
 			if len(agent.Candidates) > 1 && al.fallback != nil {
 				fbResult, fbErr := al.fallback.Execute(ctx, agent.Candidates,
 					func(ctx context.Context, provider, model string) (*providers.LLMResponse, error) {
 						return agent.Provider.Chat(ctx, messages, providerToolDefs, model, map[string]any{
 							"max_tokens":       agent.MaxTokens,
-							"temperature":      agent.Temperature,
+							"temperature":      callTemp,
 							"prompt_cache_key": agent.ID,
 						})
 					},
@@ -1181,7 +1214,7 @@ func (al *AgentLoop) runLLMIteration(
 			}
 			return agent.Provider.Chat(ctx, messages, providerToolDefs, agent.ModelID, map[string]any{
 				"max_tokens":       agent.MaxTokens,
-				"temperature":      agent.Temperature,
+				"temperature":      callTemp,
 				"prompt_cache_key": agent.ID,
 			})
 		}
@@ -1687,6 +1720,14 @@ func (al *AgentLoop) maybLearnFromFeedback(agent *AgentInstance, userMsg string)
 	} else {
 		logger.InfoCF("agent", "Learned user preference from feedback",
 			map[string]any{"preference": utils.Truncate(preference, 80)})
+	}
+
+	// Feedback-Driven Evolution: Also append directly to USER.md
+	userMDPath := filepath.Join(agent.Workspace, "USER.md")
+	f, err := os.OpenFile(userMDPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err == nil {
+		f.WriteString(fmt.Sprintf("\n- Auto-learned preference from feedback: %s\n", preference))
+		f.Close()
 	}
 }
 
