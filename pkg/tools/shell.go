@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/grasberg/sofia/pkg/config"
@@ -49,6 +50,9 @@ type ExecTool struct {
 	allowPatterns       []*regexp.Regexp
 	confirmPatterns     []*regexp.Regexp
 	restrictToWorkspace bool
+	mu                  sync.Mutex
+	pendingTokens       map[string]time.Time
+	sandboxConfig       *config.SandboxedExecConfig
 }
 
 var defaultDenyPatterns = []*regexp.Regexp{
@@ -100,11 +104,11 @@ func NewExecTool(workingDir string, restrict bool) *ExecTool {
 	return NewExecToolWithConfig(workingDir, restrict, nil)
 }
 
-func NewExecToolWithConfig(workingDir string, restrict bool, config *config.Config) *ExecTool {
+func NewExecToolWithConfig(workingDir string, restrict bool, cfg *config.Config) *ExecTool {
 	denyPatterns := make([]*regexp.Regexp, 0)
 
-	if config != nil {
-		execConfig := config.Tools.Exec
+	if cfg != nil {
+		execConfig := cfg.Tools.Exec
 		enableDenyPatterns := execConfig.EnableDenyPatterns
 		if enableDenyPatterns {
 			denyPatterns = append(denyPatterns, defaultDenyPatterns...)
@@ -128,8 +132,9 @@ func NewExecToolWithConfig(workingDir string, restrict bool, config *config.Conf
 	}
 
 	var confirmPatterns []*regexp.Regexp
-	if config != nil {
-		for _, pattern := range config.Tools.Exec.ConfirmPatterns {
+	var sandboxCfg *config.SandboxedExecConfig
+	if cfg != nil {
+		for _, pattern := range cfg.Tools.Exec.ConfirmPatterns {
 			re, err := regexp.Compile(pattern)
 			if err != nil {
 				fmt.Printf("Invalid confirm pattern %q: %v\n", pattern, err)
@@ -137,6 +142,7 @@ func NewExecToolWithConfig(workingDir string, restrict bool, config *config.Conf
 			}
 			confirmPatterns = append(confirmPatterns, re)
 		}
+		sandboxCfg = &cfg.Guardrails.SandboxedExec
 	}
 
 	return &ExecTool{
@@ -146,6 +152,8 @@ func NewExecToolWithConfig(workingDir string, restrict bool, config *config.Conf
 		allowPatterns:       nil,
 		confirmPatterns:     confirmPatterns,
 		restrictToWorkspace: restrict,
+		pendingTokens:       make(map[string]time.Time),
+		sandboxConfig:       sandboxCfg,
 	}
 }
 
@@ -168,6 +176,10 @@ func (t *ExecTool) Parameters() map[string]any {
 			"working_dir": map[string]any{
 				"type":        "string",
 				"description": "Optional working directory for the command",
+			},
+			"approval_token": map[string]any{
+				"type":        "string",
+				"description": "Token provided by user to confirm execution",
 			},
 		},
 		"required": []string{"command"},
@@ -193,13 +205,55 @@ func (t *ExecTool) runOnce(ctx context.Context, command, cwd string, timeout tim
 	defer cancel()
 
 	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.CommandContext(cmdCtx, "powershell", "-NoProfile", "-NonInteractive", "-Command", command)
+
+	// Guardrail: Sandboxed Execution via Docker
+	if t.sandboxConfig != nil && t.sandboxConfig.Enabled {
+		image := t.sandboxConfig.DockerImage
+		if image == "" {
+			image = "alpine:latest" // Default
+		}
+
+		// Mount the workingDir as /workspace in the container
+		mountDir := cwd
+		if t.workingDir != "" && t.restrictToWorkspace {
+			mountDir = t.workingDir // Always mount the root workspace if restricted
+		}
+
+		// Calculate relative path inside the container if we mounted a higher directory
+		innerCwd := "/workspace"
+		if mountDir != cwd && strings.HasPrefix(cwd, mountDir) {
+			relPath, _ := filepath.Rel(mountDir, cwd)
+			if relPath != "" && relPath != "." {
+				innerCwd = filepath.Join(innerCwd, relPath)
+			}
+		}
+
+		// docker run --rm --network none -v <mountDir>:/workspace -w <innerCwd> <image> sh -c <command>
+		dockerArgs := []string{
+			"run", "--rm",
+			"--network", "none", // Prevent network access
+			"-v", fmt.Sprintf("%s:/workspace", mountDir),
+			"-w", innerCwd,
+			image,
+			"sh", "-c", command,
+		}
+
+		logger.Audit("Sandboxed Command Executed", map[string]any{
+			"command": command,
+			"image":   image,
+			"cwd":     mountDir,
+		})
+
+		cmd = exec.CommandContext(cmdCtx, "docker", dockerArgs...)
 	} else {
-		cmd = exec.CommandContext(cmdCtx, "sh", "-c", command)
-	}
-	if cwd != "" {
-		cmd.Dir = cwd
+		if runtime.GOOS == "windows" {
+			cmd = exec.CommandContext(cmdCtx, "powershell", "-NoProfile", "-NonInteractive", "-Command", command)
+		} else {
+			cmd = exec.CommandContext(cmdCtx, "sh", "-c", command)
+		}
+		if cwd != "" {
+			cmd.Dir = cwd
+		}
 	}
 
 	prepareCommandForTermination(cmd)
@@ -280,14 +334,58 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 		return NonRetryableError(guardError)
 	}
 
+	// Clean up expired tokens
+	t.mu.Lock()
+	now := time.Now()
+	for tok, exp := range t.pendingTokens {
+		if now.After(exp) {
+			delete(t.pendingTokens, tok)
+		}
+	}
+	t.mu.Unlock()
+
+	// Handle approval token if provided
+	providedToken, hasToken := args["approval_token"].(string)
+
 	// Check confirmation patterns
 	if len(t.confirmPatterns) > 0 {
 		lower := strings.ToLower(strings.TrimSpace(command))
+		needsConfirm := false
 		for _, pattern := range t.confirmPatterns {
 			if pattern.MatchString(lower) {
+				needsConfirm = true
+				break
+			}
+		}
+
+		if needsConfirm {
+			if !hasToken || providedToken == "" {
+				// Generate new token
+				token := fmt.Sprintf("tok_%d", time.Now().UnixNano()/1000)
+
+				t.mu.Lock()
+				t.pendingTokens[token] = time.Now().Add(5 * time.Minute)
+				t.mu.Unlock()
+
 				return ConfirmationResult(
-					fmt.Sprintf("Command matches confirmation pattern. Allow execution?\nCommand: %s", command),
+					fmt.Sprintf("Command requires confirmation: `%s`\nUse tool again with approval_token: %q to proceed.",
+						command, token),
 				)
+			} else {
+				// Verify token
+				t.mu.Lock()
+				expires, valid := t.pendingTokens[providedToken]
+				if valid {
+					delete(t.pendingTokens, providedToken) // One-time use
+				}
+				t.mu.Unlock()
+
+				if !valid {
+					return ErrorResult("Invalid or expired approval_token.")
+				} else if time.Now().After(expires) {
+					return ErrorResult("approval_token has expired. Please try again.")
+				}
+				// Valid! proceed.
 			}
 		}
 	}
@@ -318,7 +416,7 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 		}
 
 		if res.err != nil {
-			// Check for "command not found" — surface a rich diagnostic for the LLM.
+			// check for "command not found" — surface a rich diagnostic for the LLM.
 			if isCommandNotFound(res.output) {
 				msg := fmt.Sprintf(
 					"[AUTO-DEBUG] Command not found or binary missing.\n"+
@@ -328,6 +426,11 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 					res.output,
 				)
 				logger.Info(fmt.Sprintf("Auto-debug: command not found for: %s", command))
+				logger.Audit("Command Execution Failed", map[string]any{
+					"command": command,
+					"cwd":     cwd,
+					"error":   "command not found",
+				})
 				return NonRetryableError(msg)
 			}
 
@@ -339,6 +442,11 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 			if len(output) > 10000 {
 				output = output[:10000] + fmt.Sprintf("\n... (truncated, %d more chars)", len(output)-10000)
 			}
+			logger.Audit("Command Execution Error", map[string]any{
+				"command":   command,
+				"cwd":       cwd,
+				"exit_code": res.err.Error(),
+			})
 			return &ToolResult{
 				ForLLM:    output + "\n[TOOL_STATUS: error, retryable: true]",
 				ForUser:   output,
@@ -355,6 +463,10 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 		if len(output) > 10000 {
 			output = output[:10000] + fmt.Sprintf("\n... (truncated, %d more chars)", len(output)-10000)
 		}
+		logger.Audit("Command Executed Successfully", map[string]any{
+			"command": command,
+			"cwd":     cwd,
+		})
 		return &ToolResult{ForLLM: output, ForUser: output, IsError: false}
 	}
 }
