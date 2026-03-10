@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -28,8 +29,9 @@ func TestExecTool_ActionConfirmation(t *testing.T) {
 	// Set up confirmation patterns on the tool (since it reads from config)
 	// We'll mock this by directly assigning since there's no set function
 	// Wait, we can set it in config.
-	cfg.Guardrails.Confirmation.Enabled = true
-	cfg.Guardrails.Confirmation.ConfirmPatterns = []string{`^rm\s+`}
+	// Confirmation in ExecTool is controlled by cfg.Tools.Exec.ConfirmPatterns
+	cfg.Tools.Exec.EnableDenyPatterns = false
+	cfg.Tools.Exec.ConfirmPatterns = []string{`^rm\s+`}
 
 	// Re-init with new config
 	tool = NewExecToolWithConfig(cfg.Agents.Defaults.Workspace, false, cfg)
@@ -44,13 +46,16 @@ func TestExecTool_ActionConfirmation(t *testing.T) {
 		t.Fatalf("Expected confirmation to be required for 'rm' command")
 	}
 
-	if result.ApprovalToken == "" {
-		t.Fatalf("Expected an approval token to be generated")
-	}
-
 	if !strings.Contains(result.ConfirmationPrompt, "rm -rf") {
 		t.Fatalf("Confirmation prompt should contain the command")
 	}
+
+	re := regexp.MustCompile(`approval_token:\s*"([^"]+)"`)
+	matches := re.FindStringSubmatch(result.ConfirmationPrompt)
+	if len(matches) < 2 {
+		t.Fatalf("Expected an approval token to be generated in prompt, got: %s", result.ConfirmationPrompt)
+	}
+	approvalToken := matches[1]
 
 	// 2. Second execution with invalid token should fail or require confirmation again (depends on implementation)
 	argsInvalidToken := map[string]any{
@@ -58,7 +63,7 @@ func TestExecTool_ActionConfirmation(t *testing.T) {
 		"approval_token": "invalid_123",
 	}
 	resultInvalid := tool.Execute(ctx, argsInvalidToken)
-	if resultInvalid.Err == nil && !resultInvalid.ConfirmationRequired {
+	if !resultInvalid.IsError && !resultInvalid.ConfirmationRequired {
 		t.Fatalf("Expected execution to fail with invalid token or re-require confirmation")
 	}
 
@@ -67,7 +72,7 @@ func TestExecTool_ActionConfirmation(t *testing.T) {
 	// We will look for ConfirmationRequired == false to prove it passed the guard.
 	argsValidToken := map[string]any{
 		"command":        "rm -rf /tmp/fake",
-		"approval_token": result.ApprovalToken,
+		"approval_token": approvalToken,
 	}
 	resultValid := tool.Execute(ctx, argsValidToken)
 
@@ -87,8 +92,8 @@ func TestExecTool_SandboxedExecution(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.Workspace = "/tmp/sofia-test-shell-sandbox"
-	cfg.Guardrails.Sandbox.Enabled = true
-	cfg.Guardrails.Sandbox.DockerImage = "alpine:latest"
+	cfg.Guardrails.SandboxedExec.Enabled = true
+	cfg.Guardrails.SandboxedExec.DockerImage = "alpine:latest"
 
 	memDB, err := memory.Open(":memory:")
 	if err != nil {
@@ -107,11 +112,11 @@ func TestExecTool_SandboxedExecution(t *testing.T) {
 	res := tool.Execute(ctx, args)
 
 	// In test environments without Docker, err will be "executable file not found".
-	if res.Err != nil && strings.Contains(res.Err.Error(), "executable file not found") {
+	if res.IsError && strings.Contains(res.ForLLM, "executable file not found") {
 		// Valid outcome if no docker locally.
-		t.Logf("Docker not found, but sandbox routing successful: %v", res.Err)
-	} else if res.Err != nil {
-		t.Logf("Command failed (maybe alpine isn't pulled): %v", res.Err)
+		t.Logf("Docker not found, but sandbox routing successful: %v", res.ForLLM)
+	} else if res.IsError {
+		t.Logf("Command failed (maybe alpine isn't pulled): %v", res.ForLLM)
 	} else {
 		if !strings.Contains(res.ForLLM, "sandbox test") {
 			t.Errorf("Expected output to contain 'sandbox test', got: %s", res.ForLLM)
