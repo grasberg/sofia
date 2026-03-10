@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -37,6 +38,7 @@ Respond ONLY with valid JSON in this exact format:
   "what_worked": "What went well in handling this task",
   "what_failed": "What went wrong or could have been better (empty string if nothing)",
   "lessons": "Specific, actionable lesson for future similar tasks",
+  "meta_learning": "How could your learning/evaluation process improve? What assumptions blinded you?",
   "score": 0.8
 }
 
@@ -50,11 +52,12 @@ Be honest and specific. Focus on actionable lessons, not generic advice.`
 
 // reflectionResult is the JSON structure returned by the self-evaluation LLM call.
 type reflectionResult struct {
-	TaskSummary string  `json:"task_summary"`
-	WhatWorked  string  `json:"what_worked"`
-	WhatFailed  string  `json:"what_failed"`
-	Lessons     string  `json:"lessons"`
-	Score       float64 `json:"score"`
+	TaskSummary  string  `json:"task_summary"`
+	WhatWorked   string  `json:"what_worked"`
+	WhatFailed   string  `json:"what_failed"`
+	Lessons      string  `json:"lessons"`
+	MetaLearning string  `json:"meta_learning"`
+	Score        float64 `json:"score"`
 }
 
 // Reflect runs a post-task self-evaluation and stores the result.
@@ -148,6 +151,16 @@ func (re *ReflectionEngine) Reflect(
 	entry := fmt.Sprintf("- Reflection (score=%.1f): %s", result.Score, result.Lessons)
 	_ = memStore.AppendToday(entry)
 
+	// Meta-Learning logging
+	if result.MetaLearning != "" {
+		logger.DebugCF("reflection", "Generated meta-learning insight", map[string]any{"insight": result.MetaLearning})
+	}
+
+	// Prompt Self-Optimization
+	if result.Score < 0.4 {
+		go re.optimizePrompt(ctx, agent, result)
+	}
+
 	logger.InfoCF("reflection", fmt.Sprintf("Self-evaluation complete (score=%.2f)", result.Score),
 		map[string]any{
 			"agent_id": re.agentID,
@@ -159,6 +172,42 @@ func (re *ReflectionEngine) Reflect(
 		})
 
 	return nil
+}
+
+// optimizePrompt generates a new system instruction based on failed performance.
+func (re *ReflectionEngine) optimizePrompt(ctx context.Context, agent *AgentInstance, res reflectionResult) {
+	prompt := fmt.Sprintf(`You recently performed poorly on a task.
+Task: %s
+What failed: %s
+Lessons: %s
+Score: %.1f
+
+Generate a concise, 1-2 sentence system instruction to PREVENT this failure in the future.
+Do not apologize or explain, just provide the instruction rule.`, res.TaskSummary, res.WhatFailed, res.Lessons, res.Score)
+
+	optCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	response, err := agent.Provider.Chat(optCtx, []providers.Message{
+		{Role: "user", Content: prompt},
+	}, nil, agent.ModelID, map[string]any{"temperature": 0.2})
+
+	if err != nil || response.Content == "" {
+		return
+	}
+
+	instruction := strings.TrimSpace(response.Content)
+
+	// Append to SELF_OPTIMIZATION.md in the workspace
+	importOS := true // Note: The file already has OS imported? Wait, let's just use it.
+	_ = importOS
+	optPath := agent.Workspace + "/SELF_OPTIMIZATION.md" // simple joining
+	f, err := os.OpenFile(optPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err == nil {
+		f.WriteString(fmt.Sprintf("\n- %s (Learned from failure on: %s)\n", instruction, time.Now().Format("2006-01-02 15:04")))
+		f.Close()
+	}
+	logger.InfoCF("reflection", "Self-optimized system prompt", map[string]any{"instruction": instruction})
 }
 
 // saveFallbackReflection stores a metrics-only reflection when LLM evaluation fails.

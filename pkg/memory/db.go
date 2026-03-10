@@ -1191,6 +1191,38 @@ func (m *MemoryDB) GetRecentReflections(agentID string, limit int) ([]Reflection
 	return records, rows.Err()
 }
 
+// GetFailedReflections returns reflections with a score below 0.5.
+func (m *MemoryDB) GetFailedReflections(agentID string, limit int) ([]ReflectionRecord, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := m.db.Query(
+		`SELECT id, agent_id, session_key, task_summary, what_worked, what_failed, lessons,
+		        score, tool_count, error_count, duration_ms, created_at
+		 FROM reflections WHERE agent_id = ? AND score < 0.5
+		 ORDER BY created_at DESC LIMIT ?`,
+		agentID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("memory: get failed reflections: %w", err)
+	}
+	defer rows.Close()
+
+	var records []ReflectionRecord
+	for rows.Next() {
+		var r ReflectionRecord
+		var created string
+		if err = rows.Scan(&r.ID, &r.AgentID, &r.SessionKey, &r.TaskSummary,
+			&r.WhatWorked, &r.WhatFailed, &r.Lessons,
+			&r.Score, &r.ToolCount, &r.ErrorCount, &r.DurationMs, &created); err != nil {
+			return nil, fmt.Errorf("memory: scan reflection: %w", err)
+		}
+		r.CreatedAt, _ = time.Parse(time.RFC3339, created)
+		records = append(records, r)
+	}
+	return records, rows.Err()
+}
+
 // SearchReflections searches past reflections matching a text query against lessons and what_failed.
 func (m *MemoryDB) SearchReflections(agentID, query string, limit int) ([]ReflectionRecord, error) {
 	if limit <= 0 {

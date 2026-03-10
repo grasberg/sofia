@@ -230,6 +230,7 @@ func (cb *ContextBuilder) sourcePaths() []string {
 		filepath.Join(cb.workspace, "SOUL.md"),
 		filepath.Join(cb.workspace, "USER.md"),
 		filepath.Join(cb.workspace, "IDENTITY.md"),
+		filepath.Join(cb.workspace, "SELF_OPTIMIZATION.md"),
 	}
 }
 
@@ -389,6 +390,7 @@ func (cb *ContextBuilder) LoadBootstrapFiles() string {
 		"SOUL.md",
 		"USER.md",
 		"IDENTITY.md",
+		"SELF_OPTIMIZATION.md",
 	}
 
 	var sb strings.Builder
