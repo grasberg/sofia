@@ -8,6 +8,7 @@ import (
 
 	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/grasberg/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/skills"
 )
 
 type SubagentTask struct {
@@ -36,6 +37,7 @@ type SubagentManager struct {
 	temperature     float64
 	hasMaxTokens    bool
 	hasTemperature  bool
+	skillsLoader    *skills.SkillsLoader
 	nextID          int
 }
 
@@ -66,6 +68,13 @@ func (sm *SubagentManager) SetLLMOptions(maxTokens int, temperature float64) {
 	sm.hasTemperature = true
 }
 
+// SetSkillsLoader sets the skills loader for injecting skills into dynamic subagents.
+func (sm *SubagentManager) SetSkillsLoader(loader *skills.SkillsLoader) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.skillsLoader = loader
+}
+
 // SetTools sets the tool registry for subagent execution.
 // If not set, subagent will have access to the provided tools.
 func (sm *SubagentManager) SetTools(tools *ToolRegistry) {
@@ -94,7 +103,9 @@ func (sm *SubagentManager) SetAgentTaskRunner(
 
 func (sm *SubagentManager) Spawn(
 	ctx context.Context,
-	task, label, agentID, originChannel, originChatID string,
+	task, label, agentID string,
+	skillsFilter []string,
+	originChannel, originChatID string,
 	callback AsyncCallback,
 ) (string, error) {
 	sm.mu.Lock()
@@ -116,7 +127,7 @@ func (sm *SubagentManager) Spawn(
 	sm.tasks[taskID] = subagentTask
 
 	// Start task in background with context cancellation support
-	go sm.runTask(ctx, subagentTask, callback)
+	go sm.runTask(ctx, subagentTask, skillsFilter, callback)
 
 	if label != "" {
 		return fmt.Sprintf("Spawned subagent '%s' for task: %s", label, task), nil
@@ -124,7 +135,7 @@ func (sm *SubagentManager) Spawn(
 	return fmt.Sprintf("Spawned subagent for task: %s", task), nil
 }
 
-func (sm *SubagentManager) runTask(ctx context.Context, task *SubagentTask, callback AsyncCallback) {
+func (sm *SubagentManager) runTask(ctx context.Context, task *SubagentTask, skillsFilter []string, callback AsyncCallback) {
 	task.Status = "running"
 	task.Created = time.Now().UnixMilli()
 
@@ -132,6 +143,17 @@ func (sm *SubagentManager) runTask(ctx context.Context, task *SubagentTask, call
 	systemPrompt := `You are a subagent. Complete the given task independently and report the result.
 You have access to tools - use them as needed to complete your task.
 After completing the task, provide a clear summary of what was done.`
+
+	sm.mu.RLock()
+	sLoader := sm.skillsLoader
+	sm.mu.RUnlock()
+
+	if len(skillsFilter) > 0 && sLoader != nil {
+		skillsSummary := sLoader.BuildSkillsSummaryFor(skillsFilter)
+		if skillsSummary != "" {
+			systemPrompt += fmt.Sprintf("\n\n# Skills\n\nThe following skills extend your capabilities. To use a skill, read its SKILL.md file using the read_file tool.\n\n%s", skillsSummary)
+		}
+	}
 
 	messages := []providers.Message{
 		{
@@ -350,6 +372,13 @@ func (t *SubagentTool) Parameters() map[string]any {
 				"type":        "string",
 				"description": "Optional short label for the task (for display)",
 			},
+			"skills": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "string",
+				},
+				"description": "Optional list of skill names to equip the subagent with",
+			},
 		},
 		"required": []string{"task"},
 	}
@@ -368,15 +397,37 @@ func (t *SubagentTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 
 	label, _ := args["label"].(string)
 
+	var skillsFilter []string
+	if rawSkills, ok := args["skills"].([]any); ok {
+		for _, v := range rawSkills {
+			if s, ok := v.(string); ok && s != "" {
+				skillsFilter = append(skillsFilter, s)
+			}
+		}
+	}
+
 	if t.manager == nil {
 		return ErrorResult("Subagent manager not configured").WithError(fmt.Errorf("manager is nil"))
+	}
+
+	systemPrompt := "You are a subagent. Complete the given task independently and provide a clear, concise result."
+
+	t.manager.mu.RLock()
+	sLoader := t.manager.skillsLoader
+	t.manager.mu.RUnlock()
+
+	if len(skillsFilter) > 0 && sLoader != nil {
+		skillsSummary := sLoader.BuildSkillsSummaryFor(skillsFilter)
+		if skillsSummary != "" {
+			systemPrompt += fmt.Sprintf("\n\n# Skills\n\nThe following skills extend your capabilities. To use a skill, read its SKILL.md file using the read_file tool.\n\n%s", skillsSummary)
+		}
 	}
 
 	// Build messages for subagent
 	messages := []providers.Message{
 		{
 			Role:    "system",
-			Content: "You are a subagent. Complete the given task independently and provide a clear, concise result.",
+			Content: systemPrompt,
 		},
 		{
 			Role:    "user",

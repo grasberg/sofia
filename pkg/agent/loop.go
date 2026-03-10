@@ -266,6 +266,7 @@ func registerSharedTools(
 		subagentManager := tools.NewSubagentManager(agent.Provider, agent.ModelID, agent.Workspace, msgBus)
 		subagentManager.SetLLMOptions(agent.MaxTokens, agent.Temperature)
 		subagentManager.SetAgentTaskRunner(agentTaskRunner)
+		subagentManager.SetSkillsLoader(agent.ContextBuilder.GetSkillsLoader())
 		spawnTool := tools.NewSpawnTool(subagentManager)
 		currentAgentID := agentID
 		spawnTool.SetAllowlistChecker(func(targetAgentID string) bool {
@@ -542,6 +543,7 @@ func (al *AgentLoop) startAutonomyServices(provider providers.LLMProvider, pushS
 
 		subagentManager := tools.NewSubagentManager(agent.Provider, agent.ModelID, agent.Workspace, al.bus)
 		subagentManager.SetAgentTaskRunner(al.runSpawnedTaskAsAgent)
+		subagentManager.SetSkillsLoader(agent.ContextBuilder.GetSkillsLoader())
 
 		svc := autonomy.NewService(
 			&al.cfg.Autonomy,
