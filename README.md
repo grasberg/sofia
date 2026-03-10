@@ -1,25 +1,28 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.79-blue)
+![Version](https://img.shields.io/badge/version-v0.0.80-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
 
 *   🛠️ **Autonom Verktygsanvändning:** Kan läsa/redigera filer, köra bash-kommandon, interagera med Google CLI (Gmail/Calendar) och hämta data från webben.
-*   🧠 **Persistens & Minne:** Upprätthåller ett långtidsminne och för dagliga anteckningar i en delad SQLite-databas (`~/.sofia/memory.db`) för att aldrig tappa kontexten över tid.
-*   🤖 **Multi-Agent Orkestrering:** Kan starta bakgrundsprocesser (`spawn`) och delegera komplexa uppgifter till parallella agenter med beroendegraf och automatisk agentval.
-*   🌐 **Brett AI-stöd:** Inbyggt stöd för 20+ AI-leverantörer inkl. OpenAI, Anthropic (Claude 4.5), Gemini, DeepSeek, Grok, MiniMax, Moonshot, Qwen, Zai, GitHub Copilot och fler via ett enkelt webbgränssnitt.
-*   📚 **Antigravity Kit (Skill System):** Bestyckad med unika "skills" (expert-personas och kunskapsmoduler) för domänspecifik expertis inom allt från frontend-arkitektur till penetrationstestning.
+*   🧠 **Avancerat Minne:** Lager av minne — korttids-, långtids-, episodiskt och semantiskt (kunskapsgraf). Automatisk konsolidering och strategisk glömska håller minnet effektivt.
+*   🤖 **Multi-Agent Orkestrering:** Delegera komplexa uppgifter till parallella agenter med beroendegraf, A2A-protokoll för inter-agent-kommunikation, och automatisk agentval.
+*   🌐 **Brett AI-stöd:** Inbyggt stöd för 20+ AI-leverantörer inkl. OpenAI, Anthropic (Claude 4.5), Gemini, DeepSeek, Grok, MiniMax, Moonshot, Qwen, Zai, GitHub Copilot och fler.
+*   📚 **Skill-system med Självlärande:** Antigravity Kit med expert-personas, plus automatisk skill-skapande, förfining och kunskapsdestillering från erfarenheter.
+*   🔄 **Självreflektion & Självförbättring:** Post-task utvärdering, prestandaspårning över tid, prompt-självoptimering och kodsjälvmodifiering med säkerhetsspärrar.
+*   🎯 **Autonomi & Proaktivitet:** Långsiktiga mål, kontextmedvetna triggers, proaktiva förslag och självinitierad research utan användarinteraktion.
+*   🛡️ **Guardrails & Säkerhet:** Inputvalidering, outputfiltrering (PII/hemligheter), prompt injection-försvar och åtgärdsbekräftelse för högrisk-operationer.
+*   🔌 **MCP-klient:** Model Context Protocol-stöd för anslutning till externa MCP-servrar och verktyg.
 *   💬 **Gateway Mode:** Inbyggt stöd för chattplattformar som Telegram och Discord via `sofia gateway`.
 *   🖥️ **Computer Use:** Autonom datorstyrning via skärmdumpar och vision-LLM — styr mus och tangentbord på macOS och Linux.
-*   🌍 **Webbläsarautomation (Playwright):** Autonom webbsurfning med klick, formulärifyllning, skärmdumpar och textextraktion via inbyggd Playwright-integration.
-*   📸 **Bildanalys:** Analysera lokala bilder (PNG, JPEG, GIF, WebP) via vision-LLM — OCR, beskrivningar och frågor om skärmdumpar.
-*   📋 **Plan & Execute:** Strukturerad uppgiftsplanering med steg-för-steg-uppföljning — skapa, uppdatera och övervaka planer direkt i chatten.
-*   📝 **Delad Scratchpad:** Nyckel-värde-lagring för agent-till-agent-kommunikation, namespaced per uppgiftsgrupp.
+*   🌍 **Webbläsarautomation (Playwright):** Autonom webbsurfning med klick, formulärifyllning, skärmdumpar och textextraktion.
+*   📸 **Bildanalys:** Analysera lokala bilder (PNG, JPEG, GIF, WebP) via vision-LLM — OCR, beskrivningar och frågor.
+*   📋 **Plan & Execute:** Strukturerad uppgiftsplanering med steg-för-steg-uppföljning.
+*   📝 **Delad Scratchpad:** Nyckel-värde-lagring för agent-till-agent-kommunikation.
 *   ⏰ **Cron-schemaläggning:** Agenten kan själv skapa, lista, ta bort och schemalägga återkommande uppgifter.
-*   🔄 **Provider Fallback:** Automatiska fallback-kedjor om en AI-leverantör misslyckas — sömlös övergång till nästa leverantör.
-*    **Chatthistorik & Sessioner:** Full sessionshantering med historik, sökbarhet och möjlighet att återuppta gamla konversationer.
-*   🎨 **Modernt Web UI (HTMX):** Brutalistiskt designtema med CRT-effekter, realtidsuppdateringar, filuppladdning i chatten, och alla inställningar samlade under Settings-flikar.
+*   🔄 **Provider Fallback:** Automatiska fallback-kedjor om en AI-leverantör misslyckas.
+*   🎨 **Modernt Web UI (HTMX):** Brutalistiskt designtema med CRT-effekter, realtidsuppdateringar och filuppladdning i chatten.
 
 ## 📂 Workspace-struktur
 
@@ -86,6 +89,7 @@ Sofia kan delegera och koordinera arbete över flera agenter:
 
 *   **Orchestrate-verktyg:** Definiera en uppsättning subtasks med beroenden — oberoende uppgifter körs parallellt, beroende uppgifter i rätt ordning. Automatisk agentval baserat på poängberäkning.
 *   **Sub-Agenter:** Starta dedikerade bakgrundsagenter (`spawn`) eller synkrona sub-agenter (`subagent`) som ärver verktyg och kontext.
+*   **A2A-protokoll (Agent-to-Agent):** Standardiserad inter-agent-kommunikation med mailbox-baserad routing, send/receive/broadcast och pending-polling.
 *   **Delad Scratchpad:** Agenter kan dela data via en nyckel-värde-lagring namespaced per uppgiftsgrupp.
 *   **Plan & Execute:** Skapa strukturerade planer med steg som kan spåras och uppdateras under exekvering.
 
@@ -118,15 +122,67 @@ Analysera lokala bilder direkt i konversationen:
 *   Integrerat med vision-LLM-pipelinen
 
 
-## 🔒 Säkerhetsmodell
+## 🧠 Avancerat Minne
 
-Sofia stödjer workspace-restriktioner för att förhindra oavsiktlig modifiering av systemfiler.
+Sofia har en flerlagrad minnesarkitektur:
+
+*   **Semantiskt Minne (Kunskapsgraf):** Strukturerade fakta, entiteter och relationer lagrade som noder och kanter. Verktyget `knowledge_graph` låter agenten lägga till, söka och ta bort kunskap.
+*   **Minneskonsolidering:** `MemoryConsolidator` slår samman duplicerade noder och löser konflikterande relationer — håller kunskapsgrafen ren automatiskt.
+*   **Strategisk Glömska:** `MemoryPruner` beräknar en överlevnadspoäng baserat på åtkomstfrekvens och tid sedan senaste åtkomst. Noder under tröskelvärdet tas bort automatiskt.
+*   **Självutvecklande Minne:** Alla åtkomster spåras via `RecordStat`, vilket driver både konsolidering och pruning baserat på faktiska användningsmönster.
+
+## 🔄 Självreflektion & Självförbättring
+
+Sofia utvärderar sig själv efter varje uppgift och förbättras kontinuerligt:
+
+*   **Post-Task Reflektion:** `ReflectionEngine` kör en LLM-driven utvärdering efter varje uppgift: vad fungerade, vad misslyckades, lärdommar och meta-learning.
+*   **Prestandapoäng:** `PerformanceScorer` beräknar ett 0.0–1.0-betyg baserat på felfrekvens, verktygseffektivitet och slutförande.
+*   **Trendanalys:** `GetPerformanceTrend` jämför nyliga vs äldre reflektioner för att detektera förbättring eller nedgång.
+*   **Prompt-självoptimering:** `optimizePrompt` justerar automatiskt systeminstruktioner baserat på dåliga prestationsresultat.
+*   **Meta-Learning:** Varje reflektion inkluderar ett `meta_learning`-fält som lagrar insikter om själva inlärningsprocessen.
+*   **Kodsjälvmodifiering:** `self_modify`-verktyget låter Sofia säkert modifiera sin egen kod med bekräftelse-hash och audit trail.
+
+## 🎯 Autonomi & Proaktivitet
+
+Sofia kan agera självständigt utan användarinitiering:
+
+*   **Långsiktiga Mål:** `manage_goals`-verktyget skapar och spårar mål som persisterar över sessioner. Aktiva mål injiceras automatiskt i agentens kontext.
+*   **Kontextmedvetna Triggers:** `manage_triggers`-verktyget skapar villkorliga handlingar som aktiveras baserat på användarens samtalskontext.
+*   **Proaktiva Förslag:** `AutonomyService` analyserar periodiskt senaste aktiviteten och genererar oombedda förslag när de bedöms vara värdefulla.
+*   **Autonom Research:** Identifierar kunskapsluckor och initierar självständigt forskning om relevanta ämnen.
+
+## 📚 Skill-system med Självlärande
+
+Sofia kan skapa och förbättra sina egna skills:
+
+*   **Auto-Skill Skapande:** `create_skill` genererar nya skills automatiskt från framgångsrika tillvägagångssätt.
+*   **Skill-förfining:** `update_skill` förbättrar befintliga skills baserat på användningsfeedback.
+*   **Kunskapsdestillering:** `distill_knowledge` komprimerar lärda erfarenheter till återanvändbar kunskap.
+
+## 🔌 MCP-stöd (Model Context Protocol)
+
+Sofia har inbyggd MCP-klient för anslutning till externa MCP-servrar:
+
+*   Anslut till externa verktygs- och datakällor via standardiserat protokoll.
+*   MCP-verktyg exponeras dynamiskt i agentens verktygsregister.
+*   Konfigurera MCP-servrar via `config.json`.
+
+## 🔒 Guardrails & Säkerhetsmodell
+
+Sofia har ett fullständigt säkerhetssystem med flera lager:
+
+*   **Workspace-restriktion:** Fil- och kommandoverktyg begränsas strikt till den konfigurerade workspace-sökvägen.
+*   **Inputvalidering:** Konfigurerbar maxlängd och deny-patterns för att blockera skadliga meddelanden.
+*   **Outputfiltrering:** Filtrerar känslig data (PII, hemligheter) från svar innan de visas.
+*   **Prompt Injection-försvar:** LLM-baserad detektering och blockering av prompt injection-försök med konfigurerbar action (block/warn).
+*   **Åtgärdsbekräftelse:** `self_modify`-verktyget kräver hash-bekräftelse innan högrisk-ändringar genomförs.
+*   **Audit Trail:** Alla självmodifieringar loggas med tidsstämpel i `self_modifications.log`.
 
 **Via Web UI:**
 1.  Öppna Sofias Web UI → **Settings**.
 2.  Klicka på fliken **Security**.
-3.  Aktivera **Restrict to Workspace** — fil- och kommandoverktyg begränsas då strikt till den konfigurerade workspace-sökvägen.
-4.  Inställningen sparas automatiskt.
+3.  Aktivera **Restrict to Workspace** och konfigurera guardrails.
+4.  Inställningarna sparas automatiskt.
 
 ## 💓 Heartbeat (Bakgrundsagent)
 
@@ -306,11 +362,20 @@ Sofia kan även vara aktiv i Discord-servrar och DM:s.
 | `image_analyze` | Analysera lokala bilder via vision-LLM |
 | `orchestrate` | Multi-agent-orkestrering med beroendegraf |
 | `spawn` / `subagent` | Starta asynkrona/synkrona sub-agenter |
+| `a2a` | Agent-to-Agent-kommunikation (send/receive/broadcast) |
 | `plan` | Strukturerad uppgiftsplanering |
 | `scratchpad` | Delad nyckel-värde-lagring mellan agenter |
 | `cron` | Skapa och hantera schemalagda jobb |
 | `message` | Skicka meddelanden till chattkanaler |
 | `gogcli` | Google Gmail, Calendar och Drive |
+| `knowledge_graph` | Kunskapsgraf — lägga till, söka och ta bort fakta och relationer |
+| `manage_goals` | Skapa, uppdatera och spåra långsiktiga mål |
+| `manage_triggers` | Skapa kontextmedvetna triggers för villkorliga handlingar |
+| `create_skill` | Skapa nya skills automatiskt från framgångsrika tillvägagångssätt |
+| `update_skill` | Förfina befintliga skills baserat på feedback |
+| `distill_knowledge` | Destillera erfarenheter till återanvändbar kunskap |
+| `self_modify` | Självmodifiering av kod/konfiguration med säkerhetsspärrar |
+| `mcp` | Anslut till externa MCP-servrar för dynamiska verktyg |
 
 
 ## 📊 Agentic AI Capability Scorecard
