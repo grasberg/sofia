@@ -81,6 +81,13 @@ func (p *CodexCliProvider) Chat(
 	return p.parseJSONLEvents(stdout.String())
 }
 
+// Embeddings implements EmbeddingProvider.
+func (p *CodexCliProvider) Embeddings(
+	ctx context.Context, texts []string, model string,
+) ([]EmbeddingResult, error) {
+	return nil, fmt.Errorf("embeddings not supported on CodexCliProvider")
+}
+
 // GetDefaultModel returns the default model identifier.
 func (p *CodexCliProvider) GetDefaultModel() string {
 	return "codex-cli"

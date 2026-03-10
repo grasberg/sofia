@@ -19,6 +19,7 @@ type (
 	GoogleExtra            = protocoltypes.GoogleExtra
 	ContentBlock           = protocoltypes.ContentBlock
 	CacheControl           = protocoltypes.CacheControl
+	EmbeddingResult        = protocoltypes.EmbeddingResult
 )
 
 type LLMProvider interface {
@@ -93,6 +94,17 @@ type StreamingProvider interface {
 		model string,
 		options map[string]any,
 	) (<-chan StreamChunk, error)
+}
+
+// EmbeddingProvider is an optional interface that providers can implement
+// to support generating vector embeddings for text.
+type EmbeddingProvider interface {
+	LLMProvider
+	Embeddings(
+		ctx context.Context,
+		texts []string,
+		model string,
+	) ([]EmbeddingResult, error)
 }
 
 // ModelConfig holds primary model and fallback list.

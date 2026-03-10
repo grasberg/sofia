@@ -38,6 +38,7 @@ type SubagentManager struct {
 	hasMaxTokens    bool
 	hasTemperature  bool
 	skillsLoader    *skills.SkillsLoader
+	semanticMatcher *SemanticMatcher
 	nextID          int
 }
 
@@ -254,11 +255,13 @@ After completing the task, provide a clear summary of what was done.`
 	}
 
 	loopResult, err := RunToolLoop(ctx, ToolLoopConfig{
-		Provider:      sm.provider,
-		Model:         sm.defaultModel,
-		Tools:         tools,
-		MaxIterations: maxIter,
-		LLMOptions:    llmOptions,
+		Provider:        sm.provider,
+		Model:           sm.defaultModel,
+		Tools:           tools,
+		MaxIterations:   maxIter,
+		LLMOptions:      llmOptions,
+		SemanticMatcher: sm.semanticMatcher,
+		SemanticTopK:    10, // Example config-driven value, defaulting to 10
 	}, messages, task.OriginChannel, task.OriginChatID)
 
 	sm.mu.Lock()

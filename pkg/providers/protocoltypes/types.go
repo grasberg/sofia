@@ -73,3 +73,8 @@ type ToolFunctionDefinition struct {
 	Description string         `json:"description"`
 	Parameters  map[string]any `json:"parameters"`
 }
+
+type EmbeddingResult struct {
+	Embedding []float32 `json:"embedding"`
+	Index     int       `json:"index"`
+}

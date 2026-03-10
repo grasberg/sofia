@@ -44,22 +44,23 @@ import (
 )
 
 type AgentLoop struct {
-	bus            *bus.MessageBus
-	cfg            *config.Config
-	registry       *AgentRegistry
-	registryMu     sync.RWMutex
-	state          *state.Manager
-	memDB          *memory.MemoryDB
-	running        atomic.Bool
-	summarizing    sync.Map
-	fallback       *providers.FallbackChain
-	channelManager *channels.Manager
-	activeAgentID  atomic.Value // string
-	activeStatus   atomic.Value // string
-	planManager    *tools.PlanManager
-	scratchpad     *tools.SharedScratchpad
-	checkpointMgr  *checkpoint.Manager
-	a2aRouter      *A2ARouter
+	bus             *bus.MessageBus
+	cfg             *config.Config
+	registry        *AgentRegistry
+	registryMu      sync.RWMutex
+	state           *state.Manager
+	memDB           *memory.MemoryDB
+	running         atomic.Bool
+	summarizing     sync.Map
+	fallback        *providers.FallbackChain
+	channelManager  *channels.Manager
+	activeAgentID   atomic.Value // string
+	activeStatus    atomic.Value // string
+	planManager     *tools.PlanManager
+	scratchpad      *tools.SharedScratchpad
+	checkpointMgr   *checkpoint.Manager
+	a2aRouter       *A2ARouter
+	semanticMatcher *tools.SemanticMatcher
 
 	// Rate limiting state
 	rlMutex        sync.Mutex
@@ -108,6 +109,12 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	cooldown := providers.NewCooldownTracker()
 	fallbackChain := providers.NewFallbackChain(cooldown)
 
+	// Set up semantic tool matcher if provider supports embeddings
+	var semanticMatcher *tools.SemanticMatcher
+	if embProvider, ok := provider.(providers.EmbeddingProvider); ok {
+		semanticMatcher = tools.NewSemanticMatcher(embProvider, "text-embedding-3-small") // Defaulting for OpenAI-compat
+	}
+
 	// Create state manager using default agent's workspace for channel recording
 	defaultAgent := registry.GetDefaultAgent()
 	var stateManager *state.Manager
@@ -137,6 +144,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		fallback:         fallbackChain,
 		planManager:      planMgr,
 		scratchpad:       scratchpad,
+		semanticMatcher:  semanticMatcher,
 		checkpointMgr:    checkpointMgr,
 		a2aRouter:        a2aRouter,
 		rpmCounts:        make(map[string]int),
@@ -1252,7 +1260,54 @@ func (al *AgentLoop) runLLMIteration(
 			})
 
 		// Build tool definitions
-		providerToolDefs := agent.Tools.ToProviderDefs()
+		var providerToolDefs []providers.ToolDefinition
+		var activeTools []tools.Tool
+
+		// Feature: Semantic Tool Matching
+		// If the semantic matcher is active and there are enough tools, filter them via embeddings
+		allToolNames := agent.Tools.List()
+		semanticTopK := 10 // Example top K, could be config-driven
+		if al.semanticMatcher != nil && len(allToolNames) > semanticTopK {
+			var intent string
+			for i := len(messages) - 1; i >= 0; i-- {
+				if messages[i].Role == "user" {
+					intent = messages[i].Content
+					break
+				}
+			}
+
+			var toolsList []tools.Tool
+			for _, name := range allToolNames {
+				if t, ok := agent.Tools.Get(name); ok {
+					toolsList = append(toolsList, t)
+				}
+			}
+			activeTools = al.semanticMatcher.MatchTools(ctx, intent, toolsList, semanticTopK)
+		} else {
+			for _, name := range allToolNames {
+				if t, ok := agent.Tools.Get(name); ok {
+					activeTools = append(activeTools, t)
+				}
+			}
+		}
+
+		for _, t := range activeTools {
+			schema := tools.ToolToSchema(t)
+			if fn, ok := schema["function"].(map[string]any); ok {
+				name, _ := fn["name"].(string)
+				desc, _ := fn["description"].(string)
+				params, _ := fn["parameters"].(map[string]any)
+
+				providerToolDefs = append(providerToolDefs, providers.ToolDefinition{
+					Type: "function",
+					Function: providers.ToolFunctionDefinition{
+						Name:        name,
+						Description: desc,
+						Parameters:  params,
+					},
+				})
+			}
+		}
 
 		// Log LLM request details
 		logger.DebugCF(agentComp, "LLM request",
