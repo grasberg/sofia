@@ -104,6 +104,11 @@ func NewAgentInstance(
 
 	contextBuilder.SetSkillsFilter(skillsFilter)
 
+	// Guardrail: Apply Prompt Injection system suffix if enabled
+	if cfg.Guardrails.PromptInjection.Enabled && cfg.Guardrails.PromptInjection.SystemSuffix != "" {
+		contextBuilder.SetSystemSuffix(cfg.Guardrails.PromptInjection.SystemSuffix)
+	}
+
 	sessionsManager := session.NewSessionManager(memDB, agentID)
 
 	maxIter := defaults.MaxToolIterations

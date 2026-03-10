@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ const (
 	WARN
 	ERROR
 	FATAL
+	AUDIT
 )
 
 var (
@@ -28,6 +30,7 @@ var (
 		WARN:  "WARN",
 		ERROR: "ERROR",
 		FATAL: "FATAL",
+		AUDIT: "AUDIT",
 	}
 
 	currentLevel = INFO
@@ -40,7 +43,8 @@ var (
 )
 
 type Logger struct {
-	file *os.File
+	file      *os.File
+	auditFile *os.File
 }
 
 func Subscribe() chan string {
@@ -112,6 +116,16 @@ func EnableFileLogging(filePath string) error {
 	}
 
 	logger.file = file
+
+	// Open audit log alongside main log file
+	auditPath := strings.TrimSuffix(filePath, filepath.Ext(filePath)) + "_audit.log"
+	auditFile, auditErr := os.OpenFile(auditPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if auditErr != nil {
+		log.Printf("Warning: failed to open audit log file %q: %v\n", auditPath, auditErr)
+	} else {
+		logger.auditFile = auditFile
+	}
+
 	log.Println("File logging enabled:", filePath)
 	return nil
 }
@@ -123,8 +137,12 @@ func DisableFileLogging() {
 	if logger.file != nil {
 		logger.file.Close()
 		logger.file = nil
-		log.Println("File logging disabled")
 	}
+	if logger.auditFile != nil {
+		logger.auditFile.Close()
+		logger.auditFile = nil
+	}
+	log.Println("File logging disabled")
 }
 
 func logMessage(level LogLevel, component string, message string, fields map[string]any) {
@@ -152,6 +170,10 @@ func logMessage(level LogLevel, component string, message string, fields map[str
 
 	if logger.file != nil {
 		logger.file.Write(append(jsonEntry, '\n'))
+	}
+
+	if level == AUDIT && logger.auditFile != nil {
+		logger.auditFile.Write(append(jsonEntry, '\n'))
 	}
 
 	var fieldStr string
@@ -288,4 +310,10 @@ func FatalF(message string, fields map[string]any) {
 
 func FatalCF(component string, message string, fields map[string]any) {
 	logMessage(FATAL, component, message, fields)
+}
+
+// Audit logs an event that has security or compliance implications.
+// It will be written to the application log as well as a dedicated audit log file.
+func Audit(action string, details map[string]any) {
+	logMessage(AUDIT, "SECURITY", action, details)
 }

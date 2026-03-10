@@ -48,20 +48,59 @@ func (f *FlexibleStringSlice) UnmarshalJSON(data []byte) error {
 }
 
 type Config struct {
-	Agents    AgentsConfig    `json:"agents"`
-	Bindings  []AgentBinding  `json:"bindings,omitempty"`
-	Session   SessionConfig   `json:"session,omitempty"`
-	Channels  ChannelsConfig  `json:"channels"`
-	Providers ProvidersConfig `json:"providers,omitempty"`
-	ModelList []ModelConfig   `json:"model_list"` // New model-centric provider configuration
-	Gateway   GatewayConfig   `json:"gateway"`
-	Tools     ToolsConfig     `json:"tools"`
-	Triggers  TriggersConfig  `json:"triggers,omitempty"`
-	Heartbeat HeartbeatConfig `json:"heartbeat"`
-	Devices   DevicesConfig   `json:"devices"`
-	WebUI     WebUIConfig     `json:"webui"`
-	UserName  string          `json:"user_name"           env:"SOFIA_USER_NAME"`
-	MemoryDB  string          `json:"memory_db"           env:"SOFIA_MEMORY_DB"` // Path to SQLite memory database (default: ~/.sofia/memory.db)
+	Agents     AgentsConfig     `json:"agents"`
+	Bindings   []AgentBinding   `json:"bindings,omitempty"`
+	Session    SessionConfig    `json:"session,omitempty"`
+	Channels   ChannelsConfig   `json:"channels"`
+	Providers  ProvidersConfig  `json:"providers,omitempty"`
+	ModelList  []ModelConfig    `json:"model_list"` // New model-centric provider configuration
+	Gateway    GatewayConfig    `json:"gateway"`
+	Tools      ToolsConfig      `json:"tools"`
+	Triggers   TriggersConfig   `json:"triggers,omitempty"`
+	Heartbeat  HeartbeatConfig  `json:"heartbeat"`
+	Devices    DevicesConfig    `json:"devices"`
+	WebUI      WebUIConfig      `json:"webui"`
+	Guardrails GuardrailsConfig `json:"guardrails,omitempty"`
+	UserName   string           `json:"user_name"           env:"SOFIA_USER_NAME"`
+	MemoryDB   string           `json:"memory_db"           env:"SOFIA_MEMORY_DB"` // Path to SQLite memory database (default: ~/.sofia/memory.db)
+}
+
+// GuardrailsConfig configures safety and trust features.
+type GuardrailsConfig struct {
+	InputValidation InputValidationConfig `json:"input_validation,omitempty"`
+	OutputFiltering OutputFilteringConfig `json:"output_filtering,omitempty"`
+	RateLimiting    RateLimitingConfig    `json:"rate_limiting,omitempty"`
+	SandboxedExec   SandboxedExecConfig   `json:"sandboxed_exec,omitempty"`
+	PromptInjection PromptInjectionConfig `json:"prompt_injection,omitempty"`
+}
+
+type InputValidationConfig struct {
+	Enabled          bool     `json:"enabled" env:"SOFIA_GUARDRAILS_INPUT_ENABLED"`
+	MaxMessageLength int      `json:"max_message_length" env:"SOFIA_GUARDRAILS_INPUT_MAX_LENGTH"`
+	DenyPatterns     []string `json:"deny_patterns" env:"SOFIA_GUARDRAILS_INPUT_DENY_PATTERNS"`
+}
+
+type OutputFilteringConfig struct {
+	Enabled        bool     `json:"enabled" env:"SOFIA_GUARDRAILS_OUTPUT_ENABLED"`
+	RedactPatterns []string `json:"redact_patterns" env:"SOFIA_GUARDRAILS_OUTPUT_REDACT_PATTERNS"`
+	Action         string   `json:"action" env:"SOFIA_GUARDRAILS_OUTPUT_ACTION"` // "redact" or "block"
+}
+
+type RateLimitingConfig struct {
+	Enabled          bool `json:"enabled" env:"SOFIA_GUARDRAILS_RATELIMIT_ENABLED"`
+	MaxRPM           int  `json:"max_rpm" env:"SOFIA_GUARDRAILS_RATELIMIT_RPM"`
+	MaxTokensPerHour int  `json:"max_tokens_per_hour" env:"SOFIA_GUARDRAILS_RATELIMIT_TOKENS"`
+}
+
+type SandboxedExecConfig struct {
+	Enabled     bool   `json:"enabled" env:"SOFIA_GUARDRAILS_SANDBOX_ENABLED"`
+	DockerImage string `json:"docker_image" env:"SOFIA_GUARDRAILS_SANDBOX_DOCKER_IMAGE"` // e.g., "alpine:latest"
+}
+
+type PromptInjectionConfig struct {
+	Enabled      bool   `json:"enabled" env:"SOFIA_GUARDRAILS_INJECTION_ENABLED"`
+	Action       string `json:"action" env:"SOFIA_GUARDRAILS_INJECTION_ACTION"` // "block" or "warn"
+	SystemSuffix string `json:"system_suffix" env:"SOFIA_GUARDRAILS_INJECTION_SUFFIX"`
 }
 
 // TriggersConfig configures event-driven triggers.

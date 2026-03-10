@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -52,6 +53,13 @@ type AgentLoop struct {
 	planManager    *tools.PlanManager
 	scratchpad     *tools.SharedScratchpad
 	a2aRouter      *A2ARouter
+
+	// Rate limiting state
+	rlMutex        sync.Mutex
+	rpmCounts      map[string]int       // AgentID -> requests this minute
+	rpmResetTime   map[string]time.Time // AgentID -> next reset time
+	tokenCounts    map[string]int       // AgentID -> tokens this hour
+	tokenResetTime map[string]time.Time // AgentID -> next reset time
 }
 
 // processOptions configures how a message is processed
@@ -107,16 +115,20 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	}
 
 	al := &AgentLoop{
-		bus:         msgBus,
-		cfg:         cfg,
-		registry:    registry,
-		state:       stateManager,
-		memDB:       memDB,
-		summarizing: sync.Map{},
-		fallback:    fallbackChain,
-		planManager: planMgr,
-		scratchpad:  scratchpad,
-		a2aRouter:   a2aRouter,
+		bus:            msgBus,
+		cfg:            cfg,
+		registry:       registry,
+		state:          stateManager,
+		memDB:          memDB,
+		summarizing:    sync.Map{},
+		fallback:       fallbackChain,
+		planManager:    planMgr,
+		scratchpad:     scratchpad,
+		a2aRouter:      a2aRouter,
+		rpmCounts:      make(map[string]int),
+		rpmResetTime:   make(map[string]time.Time),
+		tokenCounts:    make(map[string]int),
+		tokenResetTime: make(map[string]time.Time),
 	}
 
 	// Ensure Playwright browser binaries are installed.
@@ -591,6 +603,77 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 		return al.processSystemMessage(ctx, msg)
 	}
 
+	// Guardrail: Input Validation
+	if al.cfg.Guardrails.InputValidation.Enabled {
+		if maxLen := al.cfg.Guardrails.InputValidation.MaxMessageLength; maxLen > 0 && len(msg.Content) > maxLen {
+			errMsg := fmt.Sprintf("Error: message exceeds maximum allowed length of %d characters.", maxLen)
+			logger.WarnCF("agent:main", "Guardrail blocked input: length exceeded", map[string]any{
+				"length":     len(msg.Content),
+				"max_length": maxLen,
+			})
+			logger.Audit("Input Validation Blocked", map[string]any{
+				"reason":     "length exceeded",
+				"length":     len(msg.Content),
+				"max_length": maxLen,
+				"sender":     msg.SenderID,
+				"channel":    msg.Channel,
+			})
+			return errMsg, nil
+		}
+
+		for _, pattern := range al.cfg.Guardrails.InputValidation.DenyPatterns {
+			if matched, _ := regexp.MatchString(pattern, msg.Content); matched {
+				errMsg := "Error: message blocked by input security policy."
+				logger.WarnCF("agent:main", "Guardrail blocked input: pattern match", map[string]any{
+					"pattern": pattern,
+				})
+				logger.Audit("Input Validation Blocked", map[string]any{
+					"reason":  "pattern match",
+					"pattern": pattern,
+					"sender":  msg.SenderID,
+					"channel": msg.Channel,
+				})
+				return errMsg, nil
+			}
+		}
+	}
+
+	// Guardrail: Prompt Injection Defense (Heuristic check)
+	if al.cfg.Guardrails.PromptInjection.Enabled {
+		injectionPatterns := []string{
+			`(?i)ignore (all )?previous instructions`,
+			`(?i)ignore (all )?above`,
+			`(?i)disregard (all )?previous`,
+			`(?i)forget (all )?previous`,
+			`(?i)system prompt`,
+			`(?i)you are an assistant that`,
+			`(?i)new instructions:`,
+		}
+
+		for _, pattern := range injectionPatterns {
+			if matched, _ := regexp.MatchString(pattern, msg.Content); matched {
+				if al.cfg.Guardrails.PromptInjection.Action == "block" {
+					errMsg := "Error: input rejected due to potential prompt injection attempt."
+					logger.WarnCF("agent:main", "Guardrail blocked input: prompt injection blocked", map[string]any{"pattern": pattern})
+					logger.Audit("Prompt Injection Blocked", map[string]any{
+						"pattern": pattern,
+						"sender":  msg.SenderID,
+						"channel": msg.Channel,
+					})
+					return errMsg, nil
+				} else {
+					// Warn action - just log it and maybe append a strong warning to the system prompt later
+					logger.WarnCF("agent:main", "Guardrail detected potential prompt injection", map[string]any{"pattern": pattern})
+					logger.Audit("Prompt Injection Detected (Warn)", map[string]any{
+						"pattern": pattern,
+						"sender":  msg.SenderID,
+						"channel": msg.Channel,
+					})
+				}
+			}
+		}
+	}
+
 	// Check for commands
 	if response, handled := al.handleCommand(ctx, msg); handled {
 		return response, nil
@@ -887,6 +970,28 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 		go al.maybeReflect(agent, opts.SessionKey, finalContent, iteration, errorCount, llmDur)
 	}
 
+	// Guardrail: Output Filtering
+	if al.cfg.Guardrails.OutputFiltering.Enabled {
+		for _, pattern := range al.cfg.Guardrails.OutputFiltering.RedactPatterns {
+			re, err := regexp.Compile(pattern)
+			if err == nil {
+				if al.cfg.Guardrails.OutputFiltering.Action == "block" {
+					if re.MatchString(finalContent) {
+						finalContent = "[CONTENT BLOCKED BY OUTPUT FILTER]"
+						logger.WarnCF(agentComp, "Guardrail blocked output: pattern match", map[string]any{"pattern": pattern})
+						break
+					}
+				} else {
+					// Default to redact
+					if re.MatchString(finalContent) {
+						finalContent = re.ReplaceAllString(finalContent, "[REDACTED]")
+						logger.WarnCF(agentComp, "Guardrail redacted output: pattern match", map[string]any{"pattern": pattern})
+					}
+				}
+			}
+		}
+	}
+
 	// 8. Optional: send response via bus
 	if opts.SendResponse {
 		al.bus.PublishOutbound(bus.OutboundMessage{
@@ -1004,6 +1109,54 @@ func (al *AgentLoop) runLLMIteration(
 		// Call LLM with fallback chain if candidates are configured.
 		var response *providers.LLMResponse
 		var err error
+
+		// Guardrail: Rate Limiting
+		if al.cfg.Guardrails.RateLimiting.Enabled {
+			al.rlMutex.Lock()
+			now := time.Now()
+
+			// Reset RPM counter if minute passed
+			if now.After(al.rpmResetTime[agent.ID]) {
+				al.rpmCounts[agent.ID] = 0
+				al.rpmResetTime[agent.ID] = now.Add(time.Minute)
+			}
+			// Reset Token counter if hour passed
+			if now.After(al.tokenResetTime[agent.ID]) {
+				al.tokenCounts[agent.ID] = 0
+				al.tokenResetTime[agent.ID] = now.Add(time.Hour)
+			}
+
+			// Check limits
+			if maxRPM := al.cfg.Guardrails.RateLimiting.MaxRPM; maxRPM > 0 && al.rpmCounts[agent.ID] >= maxRPM {
+				al.rlMutex.Unlock()
+				logger.WarnCF(agentComp, "Guardrail: Rate limit exceeded (RPM)", map[string]any{"rpm": al.rpmCounts[agent.ID], "max": maxRPM})
+				logger.Audit("Rate Limit Exceeded", map[string]any{
+					"agent_id": agent.ID,
+					"type":     "RPM",
+					"rpm":      al.rpmCounts[agent.ID],
+					"max":      maxRPM,
+				})
+				return "Error: Agent rate limit exceeded (requests per minute). Please try again later.", iteration, errorCount, nil
+			}
+
+			estimatedTokens := al.estimateTokens(messages) // Approximate
+			if maxTokens := al.cfg.Guardrails.RateLimiting.MaxTokensPerHour; maxTokens > 0 && al.tokenCounts[agent.ID]+estimatedTokens > maxTokens {
+				al.rlMutex.Unlock()
+				logger.WarnCF(agentComp, "Guardrail: Rate limit exceeded (Tokens)", map[string]any{"tokens": al.tokenCounts[agent.ID], "max": maxTokens})
+				logger.Audit("Rate Limit Exceeded", map[string]any{
+					"agent_id": agent.ID,
+					"type":     "TokensPerHour",
+					"tokens":   al.tokenCounts[agent.ID],
+					"max":      maxTokens,
+				})
+				return "Error: Agent rate limit exceeded (tokens per hour). Please try again later.", iteration, errorCount, nil
+			}
+
+			// Increment
+			al.rpmCounts[agent.ID]++
+			al.tokenCounts[agent.ID] += estimatedTokens
+			al.rlMutex.Unlock()
+		}
 
 		callLLM := func() (*providers.LLMResponse, error) {
 			if len(agent.Candidates) > 1 && al.fallback != nil {
@@ -1300,11 +1453,19 @@ func (al *AgentLoop) runLLMIteration(
 
 			// Send ForUser content to user immediately if not Silent
 			if !tcr.result.Silent && tcr.result.ForUser != "" && opts.SendResponse {
-				al.bus.PublishOutbound(bus.OutboundMessage{
-					Channel: opts.Channel,
-					ChatID:  opts.ChatID,
-					Content: tcr.result.ForUser,
-				})
+				outContent := tcr.result.ForUser
+				// Guardrail: Output Filtering on Tool Results
+				if outContent != "" {
+					outContent = al.applyOutputFilter(agentComp, tcr.tc.Name, outContent)
+				}
+
+				if outContent != "" {
+					al.bus.PublishOutbound(bus.OutboundMessage{
+						Channel: opts.Channel,
+						ChatID:  opts.ChatID,
+						Content: outContent,
+					})
+				}
 			}
 
 			messages = append(messages, tcr.resultMsg)
@@ -1318,7 +1479,55 @@ func (al *AgentLoop) runLLMIteration(
 		}
 	}
 
+	if finalContent != "" {
+		finalContent = al.applyOutputFilter(agentComp, "llm_response", finalContent)
+	}
+
 	return finalContent, iteration, errorCount, nil
+}
+
+// applyOutputFilter checks a string against OutputFiltering redact patterns,
+// optionally blocking or redacting the content, and logging audits.
+func (al *AgentLoop) applyOutputFilter(agentComp, source, content string) string {
+	if !al.cfg.Guardrails.OutputFiltering.Enabled || len(al.cfg.Guardrails.OutputFiltering.RedactPatterns) == 0 {
+		return content
+	}
+
+	filteredContent := content
+	for _, pattern := range al.cfg.Guardrails.OutputFiltering.RedactPatterns {
+		// Tip: patterns could be cached/compiled once at startup for performance
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			continue
+		}
+
+		if re.MatchString(filteredContent) {
+			if al.cfg.Guardrails.OutputFiltering.Action == "block" {
+				logger.WarnCF(agentComp, "Guardrail blocked output", map[string]any{
+					"source":  source,
+					"pattern": pattern,
+				})
+				logger.Audit("Output Blocked", map[string]any{
+					"source":  source,
+					"pattern": pattern,
+				})
+				return "[OUTPUT BLOCKED BY FILTER]"
+			}
+
+			// Redact action
+			filteredContent = re.ReplaceAllString(filteredContent, "[REDACTED]")
+			logger.WarnCF(agentComp, "Guardrail redacted output", map[string]any{
+				"source":  source,
+				"pattern": pattern,
+			})
+			logger.Audit("Output Redacted", map[string]any{
+				"source":  source,
+				"pattern": pattern,
+			})
+		}
+	}
+
+	return filteredContent
 }
 
 // updateToolContexts updates the context for tools that need channel/chatID info.

@@ -40,6 +40,8 @@ type ContextBuilder struct {
 	// created (didn't exist at cache time, now exist) or deleted (existed at
 	// cache time, now gone) — both of which should trigger a cache rebuild.
 	existedAtCache map[string]bool
+
+	systemSuffix string // Guardrail: suffix to prevent prompt injection
 }
 
 func (cb *ContextBuilder) SetPurposeTemplate(template string) {
@@ -60,6 +62,10 @@ func (cb *ContextBuilder) SetSkillsFilter(skillNames []string) {
 		return
 	}
 	cb.skillsFilter = append([]string(nil), skillNames...)
+}
+
+func (cb *ContextBuilder) SetSystemSuffix(suffix string) {
+	cb.systemSuffix = suffix
 }
 
 func getGlobalConfigDir() string {
@@ -476,6 +482,12 @@ func (cb *ContextBuilder) BuildMessages(
 			summary)
 		stringParts = append(stringParts, summaryText)
 		contentBlocks = append(contentBlocks, providers.ContentBlock{Type: "text", Text: summaryText})
+	}
+
+	// Guardrail: Apply system suffix for Prompt Injection Defense
+	if cb.systemSuffix != "" {
+		stringParts = append(stringParts, cb.systemSuffix)
+		contentBlocks = append(contentBlocks, providers.ContentBlock{Type: "text", Text: cb.systemSuffix})
 	}
 
 	fullSystemPrompt := strings.Join(stringParts, "\n\n---\n\n")
