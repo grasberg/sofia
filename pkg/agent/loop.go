@@ -22,6 +22,7 @@ import (
 	"github.com/playwright-community/playwright-go"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/grasberg/sofia/pkg/abtest"
 	"github.com/grasberg/sofia/pkg/autonomy"
 	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/grasberg/sofia/pkg/checkpoint"
@@ -304,6 +305,14 @@ func registerSharedTools(
 
 		// Conflict Resolution — detect and resolve conflicting outputs from parallel agents
 		agent.Tools.Register(tools.NewConflictResolveTool(scratchpad))
+
+		// A/B Testing — behavioral experiments to compare different approaches
+		if memDB != nil {
+			abtestMgr := abtest.NewManager(memDB)
+			agent.Tools.Register(tools.NewABTestTool(
+				abtestMgr, agent.Provider, agent.ModelID,
+			))
+		}
 
 		// Knowledge Graph — semantic memory with structured entities and relationships
 		if memDB != nil {
