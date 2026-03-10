@@ -134,6 +134,10 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 
 	pushService := notifications.NewPushService("Sofia")
 
+	// Set up Tool Performance Tracker
+	toolStatsPath := filepath.Join(memDBPath, "..", "tool_stats.json")
+	toolTracker := tools.NewToolTracker(toolStatsPath)
+
 	al := &AgentLoop{
 		bus:              msgBus,
 		cfg:              cfg,
@@ -169,7 +173,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	al.startAutonomyServices(provider, pushService)
 
 	// Register shared tools to all agents.
-	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent, planMgr, scratchpad, checkpointMgr, memDB, a2aRouter, pushService)
+	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent, planMgr, scratchpad, checkpointMgr, memDB, a2aRouter, pushService, toolTracker)
 
 	al.activeAgentID.Store("")
 	al.activeStatus.Store("Idle")
@@ -189,12 +193,20 @@ func registerSharedTools(
 	memDB *memory.MemoryDB,
 	a2aRouter *A2ARouter,
 	pushService *notifications.PushService,
+	toolTracker *tools.ToolTracker,
 ) {
 	for _, agentID := range registry.ListAgentIDs() {
 		agent, ok := registry.GetAgent(agentID)
 		if !ok {
 			continue
 		}
+
+		// Attach tool tracker
+		agent.Tools.SetTracker(toolTracker)
+
+		// Performance & Pipeline additions
+		agent.Tools.Register(tools.NewGetToolStatsTool(toolTracker))
+		agent.Tools.Register(tools.NewCreatePipelineTool(agent.Tools))
 
 		// Web tools
 		if searchTool := tools.NewWebSearchTool(tools.WebSearchToolOptions{
@@ -525,7 +537,13 @@ func (al *AgentLoop) ReloadAgents() {
 		al.a2aRouter.Register(id)
 	}
 
-	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent, al.planManager, al.scratchpad, al.checkpointMgr, al.memDB, al.a2aRouter, al.pushService)
+	toolStatsPath := filepath.Join(al.memDB.Path(), "..", "tool_stats.json")
+	var toolTracker *tools.ToolTracker
+	if al.registry != nil {
+		toolTracker = tools.NewToolTracker(toolStatsPath)
+	}
+
+	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent, al.planManager, al.scratchpad, al.checkpointMgr, al.memDB, al.a2aRouter, al.pushService, toolTracker)
 
 	al.registryMu.Lock()
 	al.registry = newRegistry
