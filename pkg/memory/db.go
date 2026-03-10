@@ -14,7 +14,7 @@ import (
 	"github.com/grasberg/sofia/pkg/providers"
 )
 
-const schemaVersion = 5
+const schemaVersion = 6
 
 // MemoryDB is a shared SQLite database for session history and memory notes.
 // It is opened once at AgentLoop startup and shared across all AgentInstances.
@@ -61,6 +61,16 @@ func Open(path string) (*MemoryDB, error) {
 // Exec allows raw SQL execution, primarily useful for test setups and migrations.
 func (m *MemoryDB) Exec(query string, args ...any) (sql.Result, error) {
 	return m.db.Exec(query, args...)
+}
+
+// Query executes a query that returns rows.
+func (m *MemoryDB) Query(query string, args ...any) (*sql.Rows, error) {
+	return m.db.Query(query, args...)
+}
+
+// QueryRow executes a query that returns at most one row.
+func (m *MemoryDB) QueryRow(query string, args ...any) *sql.Row {
+	return m.db.QueryRow(query, args...)
 }
 
 // Close closes the database connection.
@@ -117,6 +127,12 @@ func (m *MemoryDB) migrate() error {
 
 	if current < 5 {
 		if err = m.applyV5(); err != nil {
+			return err
+		}
+	}
+
+	if current < 6 {
+		if err = m.applyV6(); err != nil {
 			return err
 		}
 	}
@@ -1548,5 +1564,55 @@ func (m *MemoryDB) DeleteCheckpointsAfter(sessionKey string, afterID int64) erro
 // DeleteAllCheckpoints removes all checkpoints for a session.
 func (m *MemoryDB) DeleteAllCheckpoints(sessionKey string) error {
 	_, err := m.db.Exec(`DELETE FROM checkpoints WHERE session_key = ?`, sessionKey)
+	return err
+}
+
+// ---------------------------------------------------------------------------
+// Schema V6: A/B Testing
+// ---------------------------------------------------------------------------
+
+func (m *MemoryDB) applyV6() error {
+	const ddl = `
+CREATE TABLE IF NOT EXISTS ab_experiments (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL UNIQUE,
+    description   TEXT NOT NULL DEFAULT '',
+    status        TEXT NOT NULL DEFAULT 'active',
+    winner        TEXT NOT NULL DEFAULT '',
+    created_at    DATETIME NOT NULL DEFAULT (datetime('now')),
+    concluded_at  DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS ab_variants (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    experiment_id  INTEGER NOT NULL
+        REFERENCES ab_experiments(id) ON DELETE CASCADE,
+    name           TEXT NOT NULL,
+    config         TEXT NOT NULL DEFAULT '{}',
+    UNIQUE(experiment_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS ab_trials (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    experiment_id  INTEGER NOT NULL
+        REFERENCES ab_experiments(id) ON DELETE CASCADE,
+    variant_id     INTEGER NOT NULL
+        REFERENCES ab_variants(id) ON DELETE CASCADE,
+    prompt         TEXT NOT NULL,
+    response       TEXT NOT NULL DEFAULT '',
+    score          REAL,
+    latency_ms     INTEGER NOT NULL DEFAULT 0,
+    tokens_in      INTEGER NOT NULL DEFAULT 0,
+    tokens_out     INTEGER NOT NULL DEFAULT 0,
+    error          TEXT NOT NULL DEFAULT '',
+    created_at     DATETIME NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_ab_trials_experiment
+    ON ab_trials(experiment_id);
+CREATE INDEX IF NOT EXISTS idx_ab_trials_variant
+    ON ab_trials(variant_id);
+`
+	_, err := m.db.Exec(ddl)
 	return err
 }
