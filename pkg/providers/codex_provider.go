@@ -17,6 +17,7 @@ import (
 
 const (
 	codexDefaultModel        = "gpt-5.2"
+	codexDefaultEmbeddings   = "text-embedding-3-small"
 	codexDefaultInstructions = "You are Codex, a coding assistant."
 )
 
@@ -151,6 +152,15 @@ func (p *CodexProvider) Chat(
 	}
 
 	return parseCodexResponse(resp), nil
+}
+
+func (p *CodexProvider) Embeddings(
+	ctx context.Context, texts []string, model string,
+) ([]EmbeddingResult, error) {
+	// Codex backend may not have an embeddings endpoint that works identically
+	// to standard OpenAI. We'll return an error to fallback for now, as Codex
+	// is typically only for completions.
+	return nil, fmt.Errorf("embeddings not supported on CodexProvider")
 }
 
 func (p *CodexProvider) GetDefaultModel() string {

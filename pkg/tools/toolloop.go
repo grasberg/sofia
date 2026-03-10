@@ -18,11 +18,13 @@ import (
 
 // ToolLoopConfig configures the tool execution loop.
 type ToolLoopConfig struct {
-	Provider      providers.LLMProvider
-	Model         string
-	Tools         *ToolRegistry
-	MaxIterations int
-	LLMOptions    map[string]any
+	Provider        providers.LLMProvider
+	Model           string
+	Tools           *ToolRegistry
+	MaxIterations   int
+	LLMOptions      map[string]any
+	SemanticMatcher *SemanticMatcher
+	SemanticTopK    int
 }
 
 // ToolLoopResult contains the result of running the tool loop.
@@ -54,7 +56,55 @@ func RunToolLoop(
 		// 1. Build tool definitions
 		var providerToolDefs []providers.ToolDefinition
 		if config.Tools != nil {
-			providerToolDefs = config.Tools.ToProviderDefs()
+			var activeTools []Tool
+
+			// If we have a SemanticMatcher and enough tools, filter them
+			allToolNames := config.Tools.List()
+			if config.SemanticMatcher != nil && config.SemanticTopK > 0 && len(allToolNames) > config.SemanticTopK {
+				// Find intent: typically the last user message
+				var intent string
+				for i := len(messages) - 1; i >= 0; i-- {
+					if messages[i].Role == "user" {
+						intent = messages[i].Content
+						break
+					}
+				}
+
+				var toolsList []Tool
+				for _, name := range allToolNames {
+					if t, ok := config.Tools.Get(name); ok {
+						toolsList = append(toolsList, t)
+					}
+				}
+
+				activeTools = config.SemanticMatcher.MatchTools(ctx, intent, toolsList, config.SemanticTopK)
+			} else {
+				// Use all tools
+				for _, name := range allToolNames {
+					if t, ok := config.Tools.Get(name); ok {
+						activeTools = append(activeTools, t)
+					}
+				}
+			}
+
+			// Build provider definitions for the active tools
+			for _, t := range activeTools {
+				schema := ToolToSchema(t)
+				if fn, ok := schema["function"].(map[string]any); ok {
+					name, _ := fn["name"].(string)
+					desc, _ := fn["description"].(string)
+					params, _ := fn["parameters"].(map[string]any)
+
+					providerToolDefs = append(providerToolDefs, providers.ToolDefinition{
+						Type: "function",
+						Function: providers.ToolFunctionDefinition{
+							Name:        name,
+							Description: desc,
+							Parameters:  params,
+						},
+					})
+				}
+			}
 		}
 
 		// 2. Set default LLM options
