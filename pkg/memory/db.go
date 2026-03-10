@@ -14,7 +14,7 @@ import (
 	"github.com/grasberg/sofia/pkg/providers"
 )
 
-const schemaVersion = 6
+const schemaVersion = 8
 
 // MemoryDB is a shared SQLite database for session history and memory notes.
 // It is opened once at AgentLoop startup and shared across all AgentInstances.
@@ -133,6 +133,18 @@ func (m *MemoryDB) migrate() error {
 
 	if current < 6 {
 		if err = m.applyV6(); err != nil {
+			return err
+		}
+	}
+
+	if current < 7 {
+		if err = m.applyV7(); err != nil {
+			return err
+		}
+	}
+
+	if current < 8 {
+		if err = m.applyV8(); err != nil {
 			return err
 		}
 	}
@@ -1612,6 +1624,49 @@ CREATE INDEX IF NOT EXISTS idx_ab_trials_experiment
     ON ab_trials(experiment_id);
 CREATE INDEX IF NOT EXISTS idx_ab_trials_variant
     ON ab_trials(variant_id);
+`
+	_, err := m.db.Exec(ddl)
+	return err
+}
+
+// ---------------------------------------------------------------------------
+// Schema V7: Dynamic Tools
+// ---------------------------------------------------------------------------
+
+func (m *MemoryDB) applyV7() error {
+	const ddl = `
+CREATE TABLE IF NOT EXISTS dynamic_tools (
+    name        TEXT PRIMARY KEY,
+    definition  TEXT NOT NULL,
+    created_at  DATETIME NOT NULL DEFAULT (datetime('now')),
+    updated_at  DATETIME NOT NULL DEFAULT (datetime('now'))
+);
+`
+	_, err := m.db.Exec(ddl)
+	return err
+}
+
+func (m *MemoryDB) applyV8() error {
+	const ddl = `
+CREATE TABLE IF NOT EXISTS agent_reputation (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id   TEXT    NOT NULL,
+    category   TEXT    NOT NULL DEFAULT 'general',
+    task       TEXT    NOT NULL,
+    success    INTEGER NOT NULL DEFAULT 0,
+    score      REAL,
+    latency_ms INTEGER NOT NULL DEFAULT 0,
+    tokens_in  INTEGER NOT NULL DEFAULT 0,
+    tokens_out INTEGER NOT NULL DEFAULT 0,
+    error      TEXT    NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_reputation_agent
+    ON agent_reputation(agent_id);
+CREATE INDEX IF NOT EXISTS idx_reputation_agent_category
+    ON agent_reputation(agent_id, category);
+CREATE INDEX IF NOT EXISTS idx_reputation_created
+    ON agent_reputation(created_at DESC);
 `
 	_, err := m.db.Exec(ddl)
 	return err

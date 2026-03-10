@@ -33,6 +33,7 @@ import (
 	mcpPkg "github.com/grasberg/sofia/pkg/mcp"
 	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/reputation"
 	"github.com/grasberg/sofia/pkg/routing"
 	"github.com/grasberg/sofia/pkg/session"
 	"github.com/grasberg/sofia/pkg/skills"
@@ -292,7 +293,19 @@ func registerSharedTools(
 				if !ok {
 					return 0
 				}
-				return scoreCandidate(candidate, strings.ToLower(taskDescription))
+				keywordScore := scoreCandidate(
+					candidate, strings.ToLower(taskDescription),
+				)
+				// Blend with reputation if available.
+				if memDB != nil {
+					reputationMgr := reputation.NewManager(memDB)
+					repScore := reputationMgr.ReputationScore(
+						candidateID, taskDescription,
+					)
+					// 70% keyword match, 30% reputation history.
+					return 0.7*keywordScore + 0.3*repScore
+				}
+				return keywordScore
 			},
 			ListAgentIDs: registry.ListAgentIDs,
 			RunAgentTask: func(ctx context.Context, targetAgentID, task, channel, chatID string) (string, error) {
@@ -312,6 +325,20 @@ func registerSharedTools(
 			agent.Tools.Register(tools.NewABTestTool(
 				abtestMgr, agent.Provider, agent.ModelID,
 			))
+		}
+
+		// Dynamic Tool Creation — generate new tools on-the-fly
+		if memDB != nil {
+			agent.Tools.Register(tools.NewDynamicToolCreator(
+				memDB, agent.Tools, agent.Workspace,
+			))
+			tools.LoadDynamicTools(memDB, agent.Tools, agent.Workspace)
+		}
+
+		// Agent Reputation — track which agents perform best at which tasks
+		if memDB != nil {
+			reputationMgr := reputation.NewManager(memDB)
+			agent.Tools.Register(tools.NewReputationTool(reputationMgr))
 		}
 
 		// Knowledge Graph — semantic memory with structured entities and relationships
@@ -588,6 +615,7 @@ func (al *AgentLoop) runSpawnedTaskAsAgent(
 				"duration_ms": dur,
 				"error":       err.Error(),
 			})
+		al.recordReputation(agentID, task, false, dur, err.Error())
 		return result, err
 	}
 
@@ -599,7 +627,33 @@ func (al *AgentLoop) runSpawnedTaskAsAgent(
 			"result_len":     len(result),
 			"result_preview": utils.Truncate(result, 160),
 		})
+	al.recordReputation(agentID, task, true, dur, "")
 	return result, nil
+}
+
+// recordReputation persists a task outcome for reputation tracking.
+func (al *AgentLoop) recordReputation(
+	agentID, task string, success bool, latencyMs int64, errMsg string,
+) {
+	if al.memDB == nil {
+		return
+	}
+	mgr := reputation.NewManager(al.memDB)
+	_, err := mgr.RecordOutcome(reputation.TaskOutcome{
+		AgentID:   agentID,
+		Task:      task,
+		Success:   success,
+		LatencyMs: latencyMs,
+		Error:     errMsg,
+	})
+	if err != nil {
+		logger.WarnCF("reputation",
+			"Failed to record reputation outcome",
+			map[string]any{
+				"agent_id": agentID,
+				"error":    err.Error(),
+			})
+	}
 }
 
 // RecordLastChannel records the last active channel for this workspace.
