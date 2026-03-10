@@ -70,7 +70,7 @@ func TestAutonomyService_EvaluateRecentActivity(t *testing.T) {
 		IntervalMinutes: 60,
 	}
 
-	svc := NewService(cfg, db, msgBus, mockLLM, nil, agentID, "mock-model", "test-workspace")
+	svc := NewService(cfg, db, msgBus, mockLLM, nil, agentID, "mock-model", "test-workspace", nil)
 
 	// Test the iteration logic synchronously
 	svc.evaluateRecentActivity(context.Background())
@@ -123,7 +123,7 @@ func TestAutonomyService_NoSuggestion(t *testing.T) {
 		Suggestions: true,
 	}
 
-	svc := NewService(cfg, db, msgBus, mockLLM, nil, "agent-1", "mock-model", "test-workspace")
+	svc := NewService(cfg, db, msgBus, mockLLM, nil, "agent-1", "mock-model", "test-workspace", nil)
 
 	svc.evaluateRecentActivity(context.Background())
 

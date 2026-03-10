@@ -11,6 +11,7 @@ import (
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/memory"
+	"github.com/grasberg/sofia/pkg/notifications"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/tools"
 )
@@ -25,6 +26,7 @@ type Service struct {
 	modelID    string
 	agentID    string
 	workspace  string
+	push       *notifications.PushService
 	mu         sync.Mutex
 	cancelFunc context.CancelFunc
 }
@@ -39,6 +41,7 @@ func NewService(
 	agentID string,
 	modelID string,
 	workspace string,
+	push *notifications.PushService,
 ) *Service {
 	return &Service{
 		cfg:       cfg,
@@ -49,6 +52,7 @@ func NewService(
 		agentID:   agentID,
 		modelID:   modelID,
 		workspace: workspace,
+		push:      push,
 	}
 }
 
@@ -194,4 +198,9 @@ Instructions:
 		Content:    fmt.Sprintf("[PROACTIVE THOUGHT] Based on recent activity, I've had an idea:\n%s\n\nTake action on this using your tools, or simply send the suggestion to the user.", content),
 		SessionKey: topSession.Key, // inject directly into their ongoing session
 	})
+
+	// Send an OS desktop push notification so the user knows Sofia is thinking about them
+	if s.push != nil {
+		_ = s.push.Send("Sofia: Proactive Suggestion", "I have an idea based on your recent activity. Check the terminal/UI.")
+	}
 }

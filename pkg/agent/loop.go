@@ -25,13 +25,14 @@ import (
 	"github.com/grasberg/sofia/pkg/abtest"
 	"github.com/grasberg/sofia/pkg/autonomy"
 	"github.com/grasberg/sofia/pkg/bus"
-	"github.com/grasberg/sofia/pkg/checkpoint"
 	"github.com/grasberg/sofia/pkg/channels"
+	"github.com/grasberg/sofia/pkg/checkpoint"
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/constants"
 	"github.com/grasberg/sofia/pkg/logger"
 	mcpPkg "github.com/grasberg/sofia/pkg/mcp"
 	"github.com/grasberg/sofia/pkg/memory"
+	"github.com/grasberg/sofia/pkg/notifications"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/reputation"
 	"github.com/grasberg/sofia/pkg/routing"
@@ -68,6 +69,7 @@ type AgentLoop struct {
 	tokenResetTime map[string]time.Time // AgentID -> next reset time
 
 	autonomyServices map[string]*autonomy.Service
+	pushService      *notifications.PushService
 }
 
 // processOptions configures how a message is processed
@@ -123,6 +125,8 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		a2aRouter.Register(id)
 	}
 
+	pushService := notifications.NewPushService("Sofia")
+
 	al := &AgentLoop{
 		bus:              msgBus,
 		cfg:              cfg,
@@ -140,6 +144,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		tokenCounts:      make(map[string]int),
 		tokenResetTime:   make(map[string]time.Time),
 		autonomyServices: make(map[string]*autonomy.Service),
+		pushService:      pushService,
 	}
 
 	// Ensure Playwright browser binaries are installed.
@@ -153,10 +158,10 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		}
 	}()
 
-	al.startAutonomyServices(provider)
+	al.startAutonomyServices(provider, pushService)
 
 	// Register shared tools to all agents.
-	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent, planMgr, scratchpad, checkpointMgr, memDB, a2aRouter)
+	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent, planMgr, scratchpad, checkpointMgr, memDB, a2aRouter, pushService)
 
 	al.activeAgentID.Store("")
 	al.activeStatus.Store("Idle")
@@ -175,6 +180,7 @@ func registerSharedTools(
 	checkpointMgr *checkpoint.Manager,
 	memDB *memory.MemoryDB,
 	a2aRouter *A2ARouter,
+	pushService *notifications.PushService,
 ) {
 	for _, agentID := range registry.ListAgentIDs() {
 		agent, ok := registry.GetAgent(agentID)
@@ -510,19 +516,19 @@ func (al *AgentLoop) ReloadAgents() {
 		al.a2aRouter.Register(id)
 	}
 
-	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent, al.planManager, al.scratchpad, al.checkpointMgr, al.memDB, al.a2aRouter)
+	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent, al.planManager, al.scratchpad, al.checkpointMgr, al.memDB, al.a2aRouter, al.pushService)
 
 	al.registryMu.Lock()
 	al.registry = newRegistry
 	al.registryMu.Unlock()
 
 	al.stopAutonomyServices()
-	al.startAutonomyServices(provider)
+	al.startAutonomyServices(provider, al.pushService)
 
 	logger.InfoCF("agent", "Agents reloaded successfully", nil)
 }
 
-func (al *AgentLoop) startAutonomyServices(provider providers.LLMProvider) {
+func (al *AgentLoop) startAutonomyServices(provider providers.LLMProvider, pushService *notifications.PushService) {
 	al.registryMu.RLock()
 	defer al.registryMu.RUnlock()
 
@@ -546,6 +552,7 @@ func (al *AgentLoop) startAutonomyServices(provider providers.LLMProvider) {
 			agentID,
 			agent.ModelID,
 			agent.Workspace,
+			pushService,
 		)
 
 		if err := svc.Start(ctx); err == nil {
