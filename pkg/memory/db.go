@@ -58,6 +58,11 @@ func Open(path string) (*MemoryDB, error) {
 	return m, nil
 }
 
+// Exec allows raw SQL execution, primarily useful for test setups and migrations.
+func (m *MemoryDB) Exec(query string, args ...any) (sql.Result, error) {
+	return m.db.Exec(query, args...)
+}
+
 // Close closes the database connection.
 func (m *MemoryDB) Close() error {
 	return m.db.Close()

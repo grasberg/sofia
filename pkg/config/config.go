@@ -58,6 +58,7 @@ type Config struct {
 	Tools      ToolsConfig      `json:"tools"`
 	Triggers   TriggersConfig   `json:"triggers,omitempty"`
 	Heartbeat  HeartbeatConfig  `json:"heartbeat"`
+	Autonomy   AutonomyConfig   `json:"autonomy,omitempty"`
 	Devices    DevicesConfig    `json:"devices"`
 	WebUI      WebUIConfig      `json:"webui"`
 	Guardrails GuardrailsConfig `json:"guardrails,omitempty"`
@@ -301,6 +302,16 @@ type HeartbeatConfig struct {
 	Interval    int      `json:"interval"     env:"SOFIA_HEARTBEAT_INTERVAL"`     // minutes, min 5
 	ActiveHours string   `json:"active_hours" env:"SOFIA_HEARTBEAT_ACTIVE_HOURS"` // e.g. "09:00-17:00"
 	ActiveDays  []string `json:"active_days"  env:"SOFIA_HEARTBEAT_ACTIVE_DAYS"`  // e.g. ["Monday", "Tuesday"]
+}
+
+// AutonomyConfig configures proactive behaviors, goal persistence, and autonomous research.
+type AutonomyConfig struct {
+	Enabled         bool `json:"enabled"          env:"SOFIA_AUTONOMY_ENABLED"`
+	Suggestions     bool `json:"suggestions"      env:"SOFIA_AUTONOMY_SUGGESTIONS"`
+	Goals           bool `json:"goals"            env:"SOFIA_AUTONOMY_GOALS"`
+	Research        bool `json:"research"         env:"SOFIA_AUTONOMY_RESEARCH"`
+	ContextTriggers bool `json:"context_triggers" env:"SOFIA_AUTONOMY_CONTEXT_TRIGGERS"`
+	IntervalMinutes int  `json:"interval_minutes" env:"SOFIA_AUTONOMY_INTERVAL"`
 }
 
 type DevicesConfig struct {

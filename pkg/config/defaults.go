@@ -122,6 +122,14 @@ func DefaultConfig() *Config {
 			ActiveHours: "",
 			ActiveDays:  []string{},
 		},
+		Autonomy: AutonomyConfig{
+			Enabled:         true,
+			Suggestions:     true,
+			Goals:           true,
+			Research:        true,
+			ContextTriggers: true,
+			IntervalMinutes: 60,
+		},
 		Devices: DevicesConfig{
 			Enabled:    false,
 			MonitorUSB: true,

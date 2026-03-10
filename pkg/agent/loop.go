@@ -22,6 +22,7 @@ import (
 	"github.com/playwright-community/playwright-go"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/grasberg/sofia/pkg/autonomy"
 	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/grasberg/sofia/pkg/channels"
 	"github.com/grasberg/sofia/pkg/config"
@@ -60,6 +61,8 @@ type AgentLoop struct {
 	rpmResetTime   map[string]time.Time // AgentID -> next reset time
 	tokenCounts    map[string]int       // AgentID -> tokens this hour
 	tokenResetTime map[string]time.Time // AgentID -> next reset time
+
+	autonomyServices map[string]*autonomy.Service
 }
 
 // processOptions configures how a message is processed
@@ -115,20 +118,21 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	}
 
 	al := &AgentLoop{
-		bus:            msgBus,
-		cfg:            cfg,
-		registry:       registry,
-		state:          stateManager,
-		memDB:          memDB,
-		summarizing:    sync.Map{},
-		fallback:       fallbackChain,
-		planManager:    planMgr,
-		scratchpad:     scratchpad,
-		a2aRouter:      a2aRouter,
-		rpmCounts:      make(map[string]int),
-		rpmResetTime:   make(map[string]time.Time),
-		tokenCounts:    make(map[string]int),
-		tokenResetTime: make(map[string]time.Time),
+		bus:              msgBus,
+		cfg:              cfg,
+		registry:         registry,
+		state:            stateManager,
+		memDB:            memDB,
+		summarizing:      sync.Map{},
+		fallback:         fallbackChain,
+		planManager:      planMgr,
+		scratchpad:       scratchpad,
+		a2aRouter:        a2aRouter,
+		rpmCounts:        make(map[string]int),
+		rpmResetTime:     make(map[string]time.Time),
+		tokenCounts:      make(map[string]int),
+		tokenResetTime:   make(map[string]time.Time),
+		autonomyServices: make(map[string]*autonomy.Service),
 	}
 
 	// Ensure Playwright browser binaries are installed.
@@ -141,6 +145,8 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 			logger.InfoCF("agent", "Playwright chromium ready", nil)
 		}
 	}()
+
+	al.startAutonomyServices(provider)
 
 	// Register shared tools to all agents.
 	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent, planMgr, scratchpad, memDB, a2aRouter)
@@ -291,6 +297,16 @@ func registerSharedTools(
 		if memDB != nil {
 			agent.Tools.Register(tools.NewKnowledgeGraphTool(memDB, agentID))
 			agent.Tools.Register(tools.NewDistillKnowledgeTool(memDB, agentID))
+
+			// Autonomy Tools
+			agent.Tools.Register(tools.NewManageGoalsTool(tools.ManageGoalsOptions{
+				GoalManager: autonomy.NewGoalManager(memDB),
+				AgentID:     agentID,
+			}))
+			agent.Tools.Register(tools.NewManageTriggersTool(tools.ManageTriggersOptions{
+				TriggerManager: autonomy.NewTriggerManager(memDB),
+				AgentID:        agentID,
+			}))
 		}
 
 		// A2A — agent-to-agent communication protocol
@@ -345,7 +361,6 @@ func registerSharedTools(
 		agent.Tools.Register(tools.NewSelfModifyTool(cwd))
 	}
 }
-
 func (al *AgentLoop) Run(ctx context.Context) error {
 	al.running.Store(true)
 
@@ -391,9 +406,9 @@ func (al *AgentLoop) Run(ctx context.Context) error {
 
 	return nil
 }
-
 func (al *AgentLoop) Stop() {
 	al.running.Store(false)
+	al.stopAutonomyServices()
 }
 
 // getRegistry returns the current agent registry with proper synchronization.
@@ -452,7 +467,55 @@ func (al *AgentLoop) ReloadAgents() {
 	al.registryMu.Lock()
 	al.registry = newRegistry
 	al.registryMu.Unlock()
+
+	al.stopAutonomyServices()
+	al.startAutonomyServices(provider)
+
 	logger.InfoCF("agent", "Agents reloaded successfully", nil)
+}
+
+func (al *AgentLoop) startAutonomyServices(provider providers.LLMProvider) {
+	al.registryMu.RLock()
+	defer al.registryMu.RUnlock()
+
+	ctx := context.Background()
+
+	for _, agentID := range al.registry.ListAgentIDs() {
+		agent, ok := al.registry.GetAgent(agentID)
+		if !ok {
+			continue
+		}
+
+		subagentManager := tools.NewSubagentManager(agent.Provider, agent.ModelID, agent.Workspace, al.bus)
+		subagentManager.SetAgentTaskRunner(al.runSpawnedTaskAsAgent)
+
+		svc := autonomy.NewService(
+			&al.cfg.Autonomy,
+			al.memDB,
+			al.bus,
+			provider,
+			subagentManager,
+			agentID,
+			agent.ModelID,
+			agent.Workspace,
+		)
+
+		if err := svc.Start(ctx); err == nil {
+			al.autonomyServices[agentID] = svc
+		}
+	}
+}
+
+func (al *AgentLoop) stopAutonomyServices() {
+	al.registryMu.Lock()
+	defer al.registryMu.Unlock()
+
+	for _, svc := range al.autonomyServices {
+		if svc != nil {
+			svc.Stop()
+		}
+	}
+	al.autonomyServices = make(map[string]*autonomy.Service)
 }
 
 func (al *AgentLoop) runSpawnedTaskAsAgent(
