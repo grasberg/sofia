@@ -1,6 +1,6 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.85-blue)
+![Version](https://img.shields.io/badge/version-v0.0.86-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
@@ -391,11 +391,11 @@ Sofia's feature coverage across 10 core agentic AI capability categories:
 | 🤖 Multi-Agent Orchestration | **7/8** | ✅ Strong |
 | 🔧 Tool Use & Discovery | **5/8** | ⚠️ Moderate |
 | 📚 Skill & Knowledge Acquisition | **6/7** | ✅ Near Complete |
-| 🛡️ Guardrails, Safety & Trust | **7/8** | ✅ Near Complete |
+| 🛡️ Guardrails, Safety & Trust | **8/8** | ✅ Complete |
 | 🔄 Self-Improvement Mechanisms | **8/8** | ✅ Complete |
-| 📡 Communication & Protocols | **7/9** | ✅ Strong |
+| 📡 Communication & Protocols | **8/9** | ✅ Strong |
 | 🎯 Autonomy & Proactivity | **7/7** | ✅ Complete |
-| **Total** | **65/74** | **88%** |
+| **Total** | **67/74** | **91%** |
 
 ---
 *Byggd för att accelerera utveckling. Din lokala AI-kollega.*
