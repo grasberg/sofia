@@ -79,7 +79,7 @@ func (m *USBMonitor) Start(ctx context.Context) (<-chan *events.DeviceEvent, err
 			if line == "" {
 				// End of event block - only process UDEV events (skip KERNEL to avoid duplicate/incomplete notifications)
 				if isUdev && props != nil && (action == "add" || action == "remove") {
-					if ev := parseUSBEvent(action, props); ev != nil {
+					if ev := ParseUSBEvent(action, props); ev != nil {
 						select {
 						case eventCh <- ev:
 						case <-ctx.Done():
@@ -132,7 +132,7 @@ func (m *USBMonitor) Stop() error {
 	return nil
 }
 
-func parseUSBEvent(action string, props map[string]string) *events.DeviceEvent {
+func ParseUSBEvent(action string, props map[string]string) *events.DeviceEvent {
 	// Only care about add/remove for physical devices (not interfaces)
 	subsystem := props["SUBSYSTEM"]
 	if subsystem != "usb" {
