@@ -83,7 +83,10 @@ func getGlobalConfigDir() string {
 func NewContextBuilder(workspace string, userName string, db *memory.MemoryDB, agentID string) *ContextBuilder {
 	// builtin skills: skills directory in current project
 	// Use the skills/ directory under the current working directory
-	wd, _ := os.Getwd()
+	wd, err := os.Getwd()
+	if err != nil {
+		wd = "."
+	}
 	builtinSkillsDir := filepath.Join(wd, "skills")
 	globalSkillsDir := filepath.Join(getGlobalConfigDir(), "skills")
 
@@ -96,7 +99,7 @@ func NewContextBuilder(workspace string, userName string, db *memory.MemoryDB, a
 }
 
 func (cb *ContextBuilder) getIdentity() string {
-	workspacePath, _ := filepath.Abs(filepath.Join(cb.workspace))
+	workspacePath, _ := filepath.Abs(cb.workspace) //nolint:errcheck
 	name := cb.userName
 	if name == "" {
 		name = "the user"

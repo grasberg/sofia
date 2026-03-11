@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -126,12 +125,8 @@ func (m *GlobalManager) EnsureServers(ctx context.Context, cfg map[string]config
 			Name:   name,
 			Client: mcpClient,
 			Cleanup: func() {
-				// Avoid hanging by using a short timeout context for internal tools cleanup/shutdown
-				shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-				defer cancel()
 				if mcpClient != nil {
 					_ = mcpClient.Close() // Best effort close
-					<-shutdownCtx.Done()
 				}
 			},
 			Tools: toolsResp.Tools,

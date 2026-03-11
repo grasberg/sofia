@@ -29,6 +29,7 @@ import (
 	"github.com/grasberg/sofia/pkg/checkpoint"
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/constants"
+	"github.com/grasberg/sofia/pkg/dashboard"
 	"github.com/grasberg/sofia/pkg/logger"
 	mcpPkg "github.com/grasberg/sofia/pkg/mcp"
 	"github.com/grasberg/sofia/pkg/memory"
@@ -71,6 +72,7 @@ type AgentLoop struct {
 
 	autonomyServices map[string]*autonomy.Service
 	pushService      *notifications.PushService
+	dashboardHub     *dashboard.Hub
 }
 
 // processOptions configures how a message is processed
@@ -93,7 +95,13 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	// Default path: ~/.sofia/memory.db (configurable via cfg.MemoryDB).
 	memDBPath := cfg.MemoryDB
 	if memDBPath == "" {
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		if err != nil {
+			logger.ErrorCF("agent",
+				"Failed to get home directory",
+				map[string]any{"error": err.Error()})
+			home = "."
+		}
 		memDBPath = filepath.Join(home, ".sofia", "memory.db")
 	}
 	memDB, err := memory.Open(memDBPath)
@@ -135,7 +143,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	pushService := notifications.NewPushService("Sofia")
 
 	// Set up Tool Performance Tracker
-	toolStatsPath := filepath.Join(memDBPath, "..", "tool_stats.json")
+	toolStatsPath := filepath.Join(filepath.Dir(memDBPath), "tool_stats.json")
 	toolTracker := tools.NewToolTracker(toolStatsPath)
 
 	al := &AgentLoop{
@@ -157,16 +165,46 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		tokenResetTime:   make(map[string]time.Time),
 		autonomyServices: make(map[string]*autonomy.Service),
 		pushService:      pushService,
+		dashboardHub:     dashboard.NewHub(),
 	}
 
+	al.a2aRouter.SetMonitorCallback(func(msg *A2AMessage) {
+		al.dashboardHub.Broadcast(map[string]any{
+			"type":    "a2a_message",
+			"from":    msg.From,
+			"to":      msg.To,
+			"subject": msg.Subject,
+			"payload": msg.Payload,
+			"msgType": msg.Type,
+		})
+	})
+
 	// Ensure Playwright browser binaries are installed.
-	// This is a no-op if they are already present.
+	// This is a no-op if they are already present. Timeout prevents
+	// goroutine leak if download hangs.
 	go func() {
-		if err := playwright.Install(&playwright.RunOptions{Browsers: []string{"chromium"}}); err != nil {
-			logger.WarnCF("agent", "Playwright browser install failed (web_browse may not work)",
-				map[string]any{"error": err.Error()})
-		} else {
-			logger.InfoCF("agent", "Playwright chromium ready", nil)
+		installDone := make(chan error, 1)
+		go func() {
+			installDone <- playwright.Install(
+				&playwright.RunOptions{
+					Browsers: []string{"chromium"},
+				},
+			)
+		}()
+		select {
+		case err := <-installDone:
+			if err != nil {
+				logger.WarnCF("agent",
+					"Playwright browser install failed "+
+						"(web_browse may not work)",
+					map[string]any{"error": err.Error()})
+			} else {
+				logger.InfoCF("agent",
+					"Playwright chromium ready", nil)
+			}
+		case <-time.After(5 * time.Minute):
+			logger.WarnCF("agent",
+				"Playwright install timed out after 5m", nil)
 		}
 	}()
 
@@ -537,7 +575,7 @@ func (al *AgentLoop) ReloadAgents() {
 		al.a2aRouter.Register(id)
 	}
 
-	toolStatsPath := filepath.Join(al.memDB.Path(), "..", "tool_stats.json")
+	toolStatsPath := filepath.Join(filepath.Dir(al.memDB.Path()), "tool_stats.json")
 	var toolTracker *tools.ToolTracker
 	if al.registry != nil {
 		toolTracker = tools.NewToolTracker(toolStatsPath)
@@ -582,6 +620,8 @@ func (al *AgentLoop) startAutonomyServices(provider providers.LLMProvider, pushS
 			agent.Workspace,
 			pushService,
 		)
+		svc.SetDashboardHub(al.dashboardHub)
+		svc.SetTaskRunner(al.runSpawnedTaskAsAgent)
 
 		if err := svc.Start(ctx); err == nil {
 			al.autonomyServices[agentID] = svc
@@ -629,6 +669,14 @@ func (al *AgentLoop) runSpawnedTaskAsAgent(
 			"task_preview": taskPreview,
 		})
 
+	al.dashboardHub.Broadcast(map[string]any{
+		"type":        "subagent_task_start",
+		"agent_id":    agentID,
+		"agent_name":  agentName,
+		"task":        task,
+		"session_key": sessionKey,
+	})
+
 	start := time.Now()
 	result, err := al.runAgentLoop(ctx, target, processOptions{
 		SessionKey:      sessionKey,
@@ -651,6 +699,17 @@ func (al *AgentLoop) runSpawnedTaskAsAgent(
 				"error":       err.Error(),
 			})
 		al.recordReputation(agentID, task, false, dur, err.Error())
+
+		al.dashboardHub.Broadcast(map[string]any{
+			"type":        "subagent_task_end",
+			"agent_id":    agentID,
+			"agent_name":  agentName,
+			"session_key": sessionKey,
+			"success":     false,
+			"error":       err.Error(),
+			"duration_ms": dur,
+		})
+
 		return result, err
 	}
 
@@ -663,6 +722,17 @@ func (al *AgentLoop) runSpawnedTaskAsAgent(
 			"result_preview": utils.Truncate(result, 160),
 		})
 	al.recordReputation(agentID, task, true, dur, "")
+
+	al.dashboardHub.Broadcast(map[string]any{
+		"type":        "subagent_task_end",
+		"agent_id":    agentID,
+		"agent_name":  agentName,
+		"session_key": sessionKey,
+		"success":     true,
+		"result":      result,
+		"duration_ms": dur,
+	})
+
 	return result, nil
 }
 
@@ -882,6 +952,20 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 
 	al.activeAgentID.Store(agent.ID)
 	al.activeStatus.Store("Thinking...")
+	defer func() {
+		al.activeAgentID.Store("")
+		al.activeStatus.Store("Idle")
+	}()
+	agentName := agent.Name
+	if agentName == "" {
+		agentName = agent.ID
+	}
+	al.dashboardHub.Broadcast(map[string]any{
+		"type":       "agent_thinking",
+		"agent_id":   agent.ID,
+		"agent_name": agentName,
+		"model":      agent.Model,
+	})
 
 	// Use routed session key, but honor pre-set agent-scoped keys (for ProcessDirect/cron)
 	sessionKey := route.SessionKey
@@ -925,6 +1009,11 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 				"preview":    utils.Truncate(msg.Content, 120),
 			},
 		)
+		subagentName := subagent.Name
+		if subagentName == "" {
+			subagentName = subagent.ID
+		}
+		al.activeStatus.Store(fmt.Sprintf("Delegating to %s...", subagentName))
 		delegateStart := time.Now()
 		subResult, err := al.runSpawnedTaskAsAgent(ctx, subagent.ID, "", msg.Content, msg.Channel, msg.ChatID)
 		delegateDur := time.Since(delegateStart).Milliseconds()
@@ -1069,8 +1158,8 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 		}
 	}
 
-	// 1b. Signal thinking status to the channel (only if we intend to send a response)
-	if opts.SendResponse && opts.Channel != "" && opts.ChatID != "" && !constants.IsInternalChannel(opts.Channel) {
+	// 1b. Signal thinking status to the channel
+	if opts.Channel != "" && opts.ChatID != "" && !constants.IsInternalChannel(opts.Channel) {
 		al.bus.PublishOutbound(bus.OutboundMessage{
 			Channel: opts.Channel,
 			ChatID:  opts.ChatID,
@@ -1207,8 +1296,13 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 			"response_preview": responsePreview,
 		})
 
-	al.activeAgentID.Store("")
-	al.activeStatus.Store("Idle")
+	al.dashboardHub.Broadcast(map[string]any{
+		"type":          "agent_done",
+		"agent_id":      agent.ID,
+		"iterations":    iteration,
+		"duration_ms":   llmDur,
+		"response_len":  len(finalContent),
+	})
 
 	return finalContent, nil
 }
@@ -1452,6 +1546,7 @@ func (al *AgentLoop) runLLMIteration(
 		}
 
 		// Retry loop for context/token errors
+		al.activeStatus.Store(fmt.Sprintf("Waiting for LLM (iteration %d)...", iteration))
 		maxRetries := 2
 		for retry := 0; retry <= maxRetries; retry++ {
 			response, err = callLLM()
@@ -1603,6 +1698,14 @@ func (al *AgentLoop) runLLMIteration(
 					"args_preview": argsPreview,
 				})
 
+			al.dashboardHub.Broadcast(map[string]any{
+				"type":      "tool_call_start",
+				"agent_id":  agent.ID,
+				"tool":      tc.Name,
+				"args":      argsPreview,
+				"iteration": iteration,
+			})
+
 			// Emit opencode indicator
 			if tc.Name == "exec" {
 				if cmd, ok := tc.Arguments["command"].(string); ok &&
@@ -1646,6 +1749,17 @@ func (al *AgentLoop) runLLMIteration(
 					"result_preview": utils.Truncate(toolResult.ForLLM, 160),
 					"error":          toolErrStr,
 				})
+
+			al.dashboardHub.Broadcast(map[string]any{
+				"type":        "tool_call_end",
+				"agent_id":    agent.ID,
+				"tool":        tc.Name,
+				"duration_ms": toolDur,
+				"success":     toolResult.Err == nil && !toolResult.IsError,
+				"result":      utils.Truncate(toolResult.ForLLM, 300),
+				"error":       toolErrStr,
+				"iteration":   iteration,
+			})
 
 			if tc.Name == "exec" {
 				if cmd, ok := tc.Arguments["command"].(string); ok &&
@@ -2038,7 +2152,31 @@ func (al *AgentLoop) GetDefaultSessionManager() *session.SessionManager {
 	return agent.Sessions
 }
 
-// GetStartupInfo returns information about loaded tools and skills for logging.
+// DashboardHub returns the dashboard hub for websocket connections.
+func (al *AgentLoop) DashboardHub() *dashboard.Hub {
+	return al.dashboardHub
+}
+
+// ListGoals returns all goals across all agents (or for a specific agent).
+func (al *AgentLoop) ListGoals(agentID string) ([]*autonomy.Goal, error) {
+	if al.memDB == nil {
+		return nil, nil
+	}
+	gm := autonomy.NewGoalManager(al.memDB)
+	if agentID != "" {
+		return gm.ListAllGoals(agentID)
+	}
+	// Collect goals from all agents
+	var allGoals []*autonomy.Goal
+	for _, id := range al.getRegistry().ListAgentIDs() {
+		goals, err := gm.ListAllGoals(id)
+		if err != nil {
+			continue
+		}
+		allGoals = append(allGoals, goals...)
+	}
+	return allGoals, nil
+}
 func (al *AgentLoop) GetStartupInfo() map[string]any {
 	info := make(map[string]any)
 
@@ -2294,6 +2432,9 @@ func (al *AgentLoop) handleCommand(ctx context.Context, msg bus.InboundMessage) 
 	args := parts[1:]
 
 	switch cmd {
+	case "/status":
+		return al.handleStatusCommand(), true
+
 	case "/show":
 		if len(args) < 1 {
 			return "Usage: /show [model|channel|agents]", true
@@ -2376,6 +2517,24 @@ func (al *AgentLoop) handleCommand(ctx context.Context, msg bus.InboundMessage) 
 	}
 
 	return "", false
+}
+
+// handleStatusCommand returns a human-readable status of what Sofia is doing.
+func (al *AgentLoop) handleStatusCommand() string {
+	activeID, _ := al.activeAgentID.Load().(string)
+	status, _ := al.activeStatus.Load().(string)
+
+	if activeID == "" || status == "Idle" || status == "" {
+		return "Sofia is idle — no active tasks."
+	}
+
+	// Find agent name
+	agentName := activeID
+	if agent, ok := al.getRegistry().GetAgent(activeID); ok && agent.Name != "" {
+		agentName = agent.Name
+	}
+
+	return fmt.Sprintf("Sofia is busy:\n• Agent: %s\n• Status: %s", agentName, status)
 }
 
 // extractPeer extracts the routing peer from inbound message metadata.

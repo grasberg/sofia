@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/mcp"
 	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
@@ -48,7 +49,14 @@ func NewAgentInstance(
 	mcpManager *mcp.GlobalManager,
 ) *AgentInstance {
 	workspace := resolveAgentWorkspace(agentCfg, defaults)
-	os.MkdirAll(workspace, 0o755)
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		logger.WarnCF("agent",
+			"Failed to create workspace directory",
+			map[string]any{
+				"workspace": workspace,
+				"error":     err.Error(),
+			})
+	}
 
 	model := resolveAgentModel(agentCfg, defaults)
 	fallbacks := resolveAgentFallbacks(agentCfg, defaults)
@@ -206,7 +214,10 @@ func resolveAgentWorkspace(agentCfg *config.AgentConfig, defaults *config.AgentD
 	if agentCfg == nil || agentCfg.Default || agentCfg.ID == "" || routing.NormalizeAgentID(agentCfg.ID) == "main" {
 		return expandHome(defaults.Workspace)
 	}
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = "."
+	}
 	id := routing.NormalizeAgentID(agentCfg.ID)
 	return filepath.Join(home, ".sofia", "workspace-"+id)
 }
@@ -232,7 +243,10 @@ func expandHome(path string) string {
 		return path
 	}
 	if path[0] == '~' {
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		if err != nil {
+			home = "."
+		}
 		if len(path) > 1 && path[1] == '/' {
 			return home + path[1:]
 		}

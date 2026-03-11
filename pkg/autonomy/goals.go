@@ -121,6 +121,20 @@ func (gm *GoalManager) ListActiveGoals(agentID string) ([]any, error) {
 	return activeGoals, nil
 }
 
+// ListAllGoals returns all goals for an agent regardless of status.
+func (gm *GoalManager) ListAllGoals(agentID string) ([]*Goal, error) {
+	nodes, err := gm.memDB.FindNodes(agentID, "Goal", "", 100)
+	if err != nil {
+		return nil, err
+	}
+
+	goals := make([]*Goal, 0, len(nodes))
+	for _, node := range nodes {
+		goals = append(goals, parseGoalNode(&node))
+	}
+	return goals, nil
+}
+
 func parseGoalNode(node *memory.SemanticNode) *Goal {
 	g := &Goal{
 		ID:        node.ID,
