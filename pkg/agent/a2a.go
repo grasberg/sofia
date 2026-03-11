@@ -28,12 +28,12 @@ type A2AMessage struct {
 	Timestamp time.Time      `json:"timestamp"`
 }
 
-// A2ARouter manages inter-agent message routing with per-agent mailboxes.
 type A2ARouter struct {
-	mailboxes map[string]chan *A2AMessage
-	agents    []string
-	mu        sync.RWMutex
-	nextID    int
+	mailboxes       map[string]chan *A2AMessage
+	agents          []string
+	mu              sync.RWMutex
+	nextID          int
+	monitorCallback func(msg *A2AMessage)
 }
 
 const defaultMailboxSize = 64
@@ -43,6 +43,13 @@ func NewA2ARouter() *A2ARouter {
 	return &A2ARouter{
 		mailboxes: make(map[string]chan *A2AMessage),
 	}
+}
+
+// SetMonitorCallback sets a function to be called whenever a message is sent.
+func (r *A2ARouter) SetMonitorCallback(cb func(msg *A2AMessage)) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.monitorCallback = cb
 }
 
 // Register ensures an agent has a mailbox. Safe to call multiple times.
@@ -78,6 +85,12 @@ func (r *A2ARouter) Send(msg *A2AMessage) error {
 
 	select {
 	case ch <- msg:
+		r.mu.RLock()
+		cb := r.monitorCallback
+		r.mu.RUnlock()
+		if cb != nil {
+			cb(msg)
+		}
 		return nil
 	default:
 		return fmt.Errorf("a2a: mailbox full for agent %q", msg.To)

@@ -1,0 +1,588 @@
+<!-- MONITOR TAB (HTMX Partial) -->
+<div id="tab-monitor" class="flex flex-col flex-grow min-h-0 animate-fade-in relative z-10 w-full h-full pb-4 max-w-5xl mx-auto">
+    <!-- Header -->
+    <div class="px-6 py-5 border-b border-[var(--border-color)] bg-[var(--bg-main)]/50 backdrop-blur shrink-0 flex items-center justify-between sticky top-0 z-20">
+        <div>
+            <h2 class="text-xl font-bold tracking-tight text-[var(--text-main)] flex items-center gap-2">
+                <i data-lucide="activity" class="w-5 h-5 text-sofia"></i>
+                Activity Monitor
+            </h2>
+            <p class="text-xs text-zinc-500 mt-1">Real-time view of agent tasks, tool calls, and internal events.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="clearMonitorFeed()" class="px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-zinc-800 text-zinc-400 hover:text-[var(--text-main)] transition-colors border border-transparent hover:border-zinc-700">
+                Clear Feed
+            </button>
+            <div class="h-4 w-px bg-[var(--border-color)]"></div>
+            <div class="flex items-center gap-2 text-xs font-mono text-zinc-500 bg-zinc-900/50 px-3 py-1.5 rounded-full border border-zinc-800">
+                <span id="monitor-status-dot" class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] animate-pulse-slow"></span>
+                <span id="monitor-status-text">Live</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Currently Working Banner -->
+    <div id="working-banner" class="hidden px-6 pt-4 shrink-0">
+        <div class="max-w-4xl mx-auto bg-sofia/5 border border-sofia/30 rounded-xl p-4 flex items-center gap-4">
+            <div class="w-3 h-3 rounded-full bg-sofia animate-pulse shrink-0"></div>
+            <div class="flex-grow min-w-0">
+                <div class="text-sm font-semibold text-sofia">Sofia is working</div>
+                <div id="working-banner-text" class="text-xs text-zinc-400 font-mono truncate mt-0.5"></div>
+            </div>
+            <div id="working-banner-elapsed" class="text-xs text-zinc-500 font-mono shrink-0"></div>
+        </div>
+    </div>
+
+    <!-- Dashboard Summary -->
+    <div class="px-6 pt-5 pb-2 shrink-0">
+        <div class="grid grid-cols-4 gap-3 max-w-4xl mx-auto">
+            <!-- Active Agents -->
+            <div class="bg-zinc-950/60 border border-[var(--border-color)] rounded-xl p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <i data-lucide="users" class="w-4 h-4 text-blue-400"></i>
+                    <span class="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">Active Agents</span>
+                </div>
+                <div id="dash-active-count" class="text-2xl font-bold text-[var(--text-main)] tabular-nums">0</div>
+                <div id="dash-active-names" class="text-[11px] text-zinc-500 mt-1 truncate">&mdash;</div>
+            </div>
+            <!-- Tool Calls -->
+            <div class="bg-zinc-950/60 border border-[var(--border-color)] rounded-xl p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <i data-lucide="wrench" class="w-4 h-4 text-amber-400"></i>
+                    <span class="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">Tool Calls</span>
+                </div>
+                <div id="dash-tool-count" class="text-2xl font-bold text-[var(--text-main)] tabular-nums">0</div>
+                <div class="text-[11px] text-zinc-500 mt-1">this session</div>
+            </div>
+            <!-- Subagent Tasks -->
+            <div class="bg-zinc-950/60 border border-[var(--border-color)] rounded-xl p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <i data-lucide="git-branch" class="w-4 h-4 text-purple-400"></i>
+                    <span class="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">Subagent Tasks</span>
+                </div>
+                <div id="dash-subagent-count" class="text-2xl font-bold text-[var(--text-main)] tabular-nums">0</div>
+                <div class="text-[11px] text-zinc-500 mt-1">this session</div>
+            </div>
+            <!-- Errors -->
+            <div class="bg-zinc-950/60 border border-[var(--border-color)] rounded-xl p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 text-red-400"></i>
+                    <span class="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">Errors</span>
+                </div>
+                <div id="dash-error-count" class="text-2xl font-bold text-[var(--text-main)] tabular-nums">0</div>
+                <div class="text-[11px] text-zinc-500 mt-1">this session</div>
+            </div>
+        </div>
+
+        <!-- Active Agent Cards -->
+        <div id="dash-active-agents" class="max-w-4xl mx-auto mt-3 hidden">
+            <div id="dash-active-agent-list" class="flex flex-wrap gap-2"></div>
+        </div>
+    </div>
+
+    <!-- Goals Section -->
+    <div id="goals-section" class="px-6 pt-3 pb-1 shrink-0">
+        <div class="max-w-4xl mx-auto">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="target" class="w-4 h-4 text-sofia"></i>
+                    <span class="text-xs font-bold uppercase tracking-widest text-zinc-500">Goals</span>
+                </div>
+                <button onclick="fetchGoals()" class="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors font-mono">refresh</button>
+            </div>
+            <div id="goals-list" class="space-y-2">
+                <div id="goals-empty" class="text-xs text-zinc-600 font-mono py-2">No goals set</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feed Container -->
+    <div class="flex-grow overflow-y-auto px-6 py-4 scroll-smooth" id="monitor-feed-scroll">
+        <div id="monitor-feed" class="space-y-2 max-w-4xl mx-auto">
+            <!-- Feed items will be injected here via JavaScript -->
+            <div id="monitor-empty-state" class="flex flex-col items-center justify-center py-20 text-center opacity-50">
+                <i data-lucide="radio" class="w-12 h-12 text-zinc-600 mb-4 animate-pulse-slow"></i>
+                <p class="text-sm font-medium text-zinc-400">Waiting for agent activity...</p>
+                <p class="text-xs text-zinc-600 mt-2">Start a chat or task to see live events</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    lucide.createIcons();
+
+    const monitorFeed = document.getElementById("monitor-feed");
+    const emptyState = document.getElementById("monitor-empty-state");
+    const feedScroll = document.getElementById("monitor-feed-scroll");
+    const MAX_FEED_ITEMS = 200;
+
+    function clearMonitorFeed() {
+        if (!monitorFeed) return;
+        const items = monitorFeed.querySelectorAll('.monitor-item');
+        items.forEach(item => item.remove());
+        if (emptyState) emptyState.style.display = 'flex';
+    }
+
+    // Update the dashboard counters
+    window.updateMonitorDashboard = function() {
+        const stats = window.monitorStats || {};
+        const active = window.activeAgents || {};
+        const activeCount = Object.keys(active).length;
+
+        const el = (id) => document.getElementById(id);
+        const countEl = el('dash-active-count');
+        if (countEl) countEl.textContent = activeCount;
+
+        const namesEl = el('dash-active-names');
+        if (namesEl) {
+            if (activeCount > 0) {
+                const names = Object.values(active).map(a => a.name).join(', ');
+                namesEl.textContent = names;
+                namesEl.classList.remove('text-zinc-500');
+                namesEl.classList.add('text-blue-400');
+            } else {
+                namesEl.innerHTML = '&mdash;';
+                namesEl.classList.remove('text-blue-400');
+                namesEl.classList.add('text-zinc-500');
+            }
+        }
+
+        const toolEl = el('dash-tool-count');
+        if (toolEl) toolEl.textContent = stats.toolCalls || 0;
+        const subEl = el('dash-subagent-count');
+        if (subEl) subEl.textContent = stats.subagentTasks || 0;
+        const errEl = el('dash-error-count');
+        if (errEl) {
+            errEl.textContent = stats.errors || 0;
+            errEl.className = (stats.errors > 0)
+                ? 'text-2xl font-bold text-red-400 tabular-nums'
+                : 'text-2xl font-bold text-[var(--text-main)] tabular-nums';
+        }
+
+        // Active agent cards
+        const agentList = el('dash-active-agent-list');
+        const agentContainer = el('dash-active-agents');
+        if (agentList && agentContainer) {
+            if (activeCount > 0) {
+                agentContainer.classList.remove('hidden');
+                agentList.innerHTML = '';
+                for (const [id, agent] of Object.entries(active)) {
+                    const elapsed = Math.round((Date.now() - agent.since) / 1000);
+                    const card = document.createElement('div');
+                    card.className = 'flex items-center gap-3 bg-zinc-900/80 border border-zinc-800 rounded-lg px-4 py-2.5';
+                    card.innerHTML = `
+                        <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse-slow shrink-0"></div>
+                        <div class="min-w-0">
+                            <div class="text-xs font-semibold text-[var(--text-main)]">${escapeHtml(agent.name)}</div>
+                            <div class="text-[10px] text-zinc-500 truncate">${escapeHtml(agent.status || 'active')}${agent.model ? ' · ' + escapeHtml(agent.model) : ''} · ${elapsed}s</div>
+                        </div>
+                    `;
+                    agentList.appendChild(card);
+                }
+            } else {
+                agentContainer.classList.add('hidden');
+            }
+        }
+    };
+
+    function formatDuration(ms) {
+        if (ms < 1000) return ms + 'ms';
+        return (ms / 1000).toFixed(1) + 's';
+    }
+
+    // Render a single monitor event
+    window.processMonitorEvent = function(data) {
+        if (!monitorFeed) return;
+        if (emptyState) emptyState.style.display = 'none';
+
+        const item = document.createElement("div");
+        item.className = "monitor-item";
+        const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' });
+
+        if (data.type === "agent_thinking") {
+            const agentName = data.agent_name || data.agent_id || "Sofia";
+            item.className += " flex items-center gap-3 px-4 py-2.5 bg-zinc-950/30 border border-zinc-800/50 rounded-lg";
+            item.innerHTML = `
+                <div class="w-6 h-6 rounded-full bg-sofia/20 text-sofia flex items-center justify-center shrink-0">
+                    <i data-lucide="brain" class="w-3.5 h-3.5"></i>
+                </div>
+                <div class="flex-grow flex items-center justify-between min-w-0">
+                    <span class="text-xs text-zinc-400">
+                        <span class="text-[var(--text-main)] font-medium">${escapeHtml(agentName)}</span>
+                        is thinking...
+                        ${data.model ? '<span class="text-zinc-600 ml-1 font-mono text-[10px]">' + escapeHtml(data.model) + '</span>' : ''}
+                    </span>
+                    <span class="text-[10px] text-zinc-600 font-mono shrink-0 ml-3">${timestamp}</span>
+                </div>
+            `;
+
+        } else if (data.type === "agent_done") {
+            const dur = data.duration_ms ? formatDuration(data.duration_ms) : '';
+            item.className += " flex items-center gap-3 px-4 py-2.5 bg-zinc-950/30 border border-zinc-800/50 rounded-lg";
+            item.innerHTML = `
+                <div class="w-6 h-6 rounded-full bg-green-500/15 text-green-400 flex items-center justify-center shrink-0">
+                    <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                </div>
+                <div class="flex-grow flex items-center justify-between min-w-0">
+                    <span class="text-xs text-zinc-400">
+                        <span class="text-green-400 font-medium">Response ready</span>
+                        ${data.iterations ? ' · ' + data.iterations + ' iteration(s)' : ''}
+                        ${dur ? ' · ' + dur : ''}
+                    </span>
+                    <span class="text-[10px] text-zinc-600 font-mono shrink-0 ml-3">${timestamp}</span>
+                </div>
+            `;
+
+        } else if (data.type === "tool_call_start") {
+            item.className += " flex items-center gap-3 px-4 py-2 bg-zinc-950/20 border border-zinc-800/30 rounded-lg";
+            item.innerHTML = `
+                <div class="w-6 h-6 rounded-full bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0">
+                    <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
+                </div>
+                <div class="flex-grow flex items-center justify-between min-w-0">
+                    <span class="text-xs text-zinc-400">
+                        <span class="text-amber-400 font-mono font-medium">${escapeHtml(data.tool)}</span>
+                        <span class="text-zinc-600 ml-2 font-mono text-[10px] truncate inline-block max-w-[400px] align-bottom">${escapeHtml(data.args || '')}</span>
+                    </span>
+                    <span class="text-[10px] text-zinc-600 font-mono shrink-0 ml-3">${timestamp}</span>
+                </div>
+            `;
+
+        } else if (data.type === "tool_call_end") {
+            const isOk = data.success !== false;
+            const color = isOk ? 'green' : 'red';
+            const icon = isOk ? 'check-circle' : 'x-circle';
+            const dur = data.duration_ms ? formatDuration(data.duration_ms) : '';
+            const preview = data.error || data.result || '';
+            const truncated = preview.length > 120 ? preview.substring(0, 120) + '...' : preview;
+
+            item.className += " flex items-start gap-3 px-4 py-2.5 bg-zinc-950/30 border border-zinc-800/50 rounded-lg";
+            if (!isOk) item.className += " border-red-500/20";
+            item.innerHTML = `
+                <div class="w-6 h-6 rounded-full bg-${color}-500/15 text-${color}-400 flex items-center justify-center shrink-0 mt-0.5">
+                    <i data-lucide="${icon}" class="w-3.5 h-3.5"></i>
+                </div>
+                <div class="flex-grow min-w-0">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-zinc-400">
+                            <span class="text-amber-400 font-mono font-medium">${escapeHtml(data.tool)}</span>
+                            <span class="text-${color}-400 ml-1">${isOk ? 'done' : 'failed'}</span>
+                            ${dur ? '<span class="text-zinc-600 ml-1 font-mono text-[10px]">' + dur + '</span>' : ''}
+                        </span>
+                        <span class="text-[10px] text-zinc-600 font-mono shrink-0 ml-3">${timestamp}</span>
+                    </div>
+                    ${truncated ? '<div class="text-[11px] text-zinc-600 font-mono mt-1 truncate">' + escapeHtml(truncated) + '</div>' : ''}
+                </div>
+            `;
+
+        } else if (data.type === "subagent_task_start") {
+            const agentName = data.agent_name || data.agent_id || "Unknown";
+            item.className += " bg-zinc-950/40 border border-blue-500/20 rounded-xl p-4";
+            item.innerHTML = `
+                <div class="flex items-start gap-4">
+                    <div class="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/30">
+                        <i data-lucide="play-circle" class="w-4 h-4"></i>
+                    </div>
+                    <div class="flex-grow min-w-0">
+                        <div class="flex items-center justify-between gap-4 mb-1">
+                            <h4 class="text-sm font-semibold text-[var(--text-main)] flex items-center gap-2">
+                                Subagent Task
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest bg-blue-500/10 text-blue-400">${escapeHtml(agentName)}</span>
+                            </h4>
+                            <span class="text-[10px] text-zinc-500 font-mono shrink-0">${timestamp}</span>
+                        </div>
+                        <div class="text-xs text-zinc-400 break-words mt-2 p-3 bg-black/40 rounded-lg border border-zinc-800/50 font-mono">
+                            ${escapeHtml(data.task || "")}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+        } else if (data.type === "subagent_task_end") {
+            const agentName = data.agent_name || data.agent_id || "Unknown";
+            const isSuccess = data.success === true;
+            const color = isSuccess ? 'green' : 'red';
+            const icon = isSuccess ? 'check-circle' : 'x-circle';
+            const resultText = isSuccess ? (data.result || "Completed") : (data.error || "Unknown error");
+            const dur = data.duration_ms ? formatDuration(data.duration_ms) : '';
+
+            item.className += ` bg-zinc-950/40 border border-${color}-500/20 rounded-xl p-4`;
+            item.innerHTML = `
+                <div class="flex items-start gap-4">
+                    <div class="w-8 h-8 rounded-full bg-${color}-500/20 text-${color}-400 flex items-center justify-center shrink-0 border border-${color}-500/30">
+                        <i data-lucide="${icon}" class="w-4 h-4"></i>
+                    </div>
+                    <div class="flex-grow min-w-0">
+                        <div class="flex items-center justify-between gap-4 mb-1">
+                            <h4 class="text-sm font-semibold text-[var(--text-main)] flex items-center gap-2">
+                                Subagent ${isSuccess ? 'Done' : 'Failed'}
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest bg-${color}-500/10 text-${color}-400">${escapeHtml(agentName)}</span>
+                                ${dur ? '<span class="text-[10px] text-zinc-500 font-mono ml-1">' + dur + '</span>' : ''}
+                            </h4>
+                            <span class="text-[10px] text-zinc-500 font-mono shrink-0">${timestamp}</span>
+                        </div>
+                        <div class="text-xs ${isSuccess ? 'text-zinc-400' : 'text-red-300'} break-words mt-2 p-3 bg-black/40 rounded-lg border border-zinc-800/50 max-h-40 overflow-y-auto font-mono scrollbar-custom whitespace-pre-wrap">
+                            ${escapeHtml(resultText)}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+        } else if (data.type === "a2a_message") {
+            item.className += " bg-zinc-950/40 border border-purple-500/15 rounded-xl p-4";
+            item.innerHTML = `
+                <div class="flex items-start gap-4">
+                    <div class="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0 border border-purple-500/30">
+                        <i data-lucide="network" class="w-4 h-4"></i>
+                    </div>
+                    <div class="flex-grow min-w-0">
+                        <div class="flex items-center justify-between gap-4 mb-1">
+                            <h4 class="text-sm font-semibold text-[var(--text-main)] flex items-center gap-2">
+                                A2A
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-zinc-800/80 text-zinc-300 border border-zinc-700/50">${escapeHtml(data.from || '?')}</span>
+                                <i data-lucide="arrow-right" class="w-3 h-3 text-zinc-500"></i>
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-zinc-800/80 text-zinc-300 border border-zinc-700/50">${escapeHtml(data.to || 'ALL')}</span>
+                                <span class="text-purple-400 uppercase font-mono tracking-widest text-[10px] bg-purple-400/10 px-1.5 py-0.5 rounded">${escapeHtml(data.msgType || '?')}</span>
+                            </h4>
+                            <span class="text-[10px] text-zinc-500 font-mono shrink-0">${timestamp}</span>
+                        </div>
+                        ${data.subject ? '<div class="text-[11px] text-zinc-500 mt-1">Subject: <span class="text-zinc-300 font-mono">' + escapeHtml(data.subject) + '</span></div>' : ''}
+                        <div class="text-xs text-zinc-400 break-words mt-2 p-3 bg-black/40 rounded-lg border border-zinc-800/50 font-mono max-h-32 overflow-y-auto scrollbar-custom whitespace-pre-wrap">
+                            ${escapeHtml(data.payload || "")}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+        } else if (data.type === "goal_evaluation_start") {
+            item.className += " flex items-center gap-3 px-4 py-2.5 bg-zinc-950/30 border border-sofia/20 rounded-lg";
+            item.innerHTML = `
+                <div class="w-6 h-6 rounded-full bg-sofia/20 text-sofia flex items-center justify-center shrink-0">
+                    <i data-lucide="target" class="w-3.5 h-3.5"></i>
+                </div>
+                <div class="flex-grow flex items-center justify-between min-w-0">
+                    <span class="text-xs text-zinc-400">
+                        <span class="text-sofia font-medium">Evaluating goals</span>
+                        <span class="text-zinc-600 ml-1">${data.goal_count} active goal(s)</span>
+                    </span>
+                    <span class="text-[10px] text-zinc-600 font-mono shrink-0 ml-3">${timestamp}</span>
+                </div>
+            `;
+
+        } else if (data.type === "goal_step_start") {
+            item.className += " bg-zinc-950/40 border border-sofia/20 rounded-xl p-4";
+            item.innerHTML = `
+                <div class="flex items-start gap-4">
+                    <div class="w-8 h-8 rounded-full bg-sofia/20 text-sofia flex items-center justify-center shrink-0 border border-sofia/30">
+                        <i data-lucide="target" class="w-4 h-4"></i>
+                    </div>
+                    <div class="flex-grow min-w-0">
+                        <div class="flex items-center justify-between gap-4 mb-1">
+                            <h4 class="text-sm font-semibold text-[var(--text-main)] flex items-center gap-2">
+                                Goal Step
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest bg-sofia/10 text-sofia">${escapeHtml(data.goal_name || '')}</span>
+                            </h4>
+                            <span class="text-[10px] text-zinc-500 font-mono shrink-0">${timestamp}</span>
+                        </div>
+                        <div class="text-xs text-zinc-400 break-words mt-2 p-3 bg-black/40 rounded-lg border border-zinc-800/50 font-mono">
+                            ${escapeHtml(data.step || '')}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+        } else if (data.type === "goal_step_end") {
+            const isOk = data.success === true;
+            const color = isOk ? 'green' : 'red';
+            const icon = isOk ? 'check-circle' : 'x-circle';
+            const dur = data.duration_ms ? formatDuration(data.duration_ms) : '';
+            const resultText = isOk ? (data.result || 'Completed') : (data.error || 'Failed');
+
+            item.className += ` bg-zinc-950/40 border border-${color}-500/20 rounded-xl p-4`;
+            item.innerHTML = `
+                <div class="flex items-start gap-4">
+                    <div class="w-8 h-8 rounded-full bg-${color}-500/20 text-${color}-400 flex items-center justify-center shrink-0 border border-${color}-500/30">
+                        <i data-lucide="${icon}" class="w-4 h-4"></i>
+                    </div>
+                    <div class="flex-grow min-w-0">
+                        <div class="flex items-center justify-between gap-4 mb-1">
+                            <h4 class="text-sm font-semibold text-[var(--text-main)] flex items-center gap-2">
+                                Goal ${isOk ? 'Step Done' : 'Step Failed'}
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest bg-sofia/10 text-sofia">${escapeHtml(data.goal_name || '')}</span>
+                                ${dur ? '<span class="text-[10px] text-zinc-500 font-mono ml-1">' + dur + '</span>' : ''}
+                            </h4>
+                            <span class="text-[10px] text-zinc-500 font-mono shrink-0">${timestamp}</span>
+                        </div>
+                        <div class="text-xs ${isOk ? 'text-zinc-400' : 'text-red-300'} break-words mt-2 p-3 bg-black/40 rounded-lg border border-zinc-800/50 max-h-40 overflow-y-auto font-mono scrollbar-custom whitespace-pre-wrap">
+                            ${escapeHtml(resultText)}
+                        </div>
+                    </div>
+                </div>
+            `;
+            // Refresh goals list after step completion
+            if (typeof fetchGoals === 'function') fetchGoals();
+
+        } else if (data.type === "goal_completed") {
+            item.className += " flex items-center gap-3 px-4 py-2.5 bg-green-500/5 border border-green-500/20 rounded-lg";
+            item.innerHTML = `
+                <div class="w-6 h-6 rounded-full bg-green-500/15 text-green-400 flex items-center justify-center shrink-0">
+                    <i data-lucide="trophy" class="w-3.5 h-3.5"></i>
+                </div>
+                <div class="flex-grow flex items-center justify-between min-w-0">
+                    <span class="text-xs text-green-400 font-medium">Goal completed!</span>
+                    <span class="text-[10px] text-zinc-600 font-mono shrink-0 ml-3">${timestamp}</span>
+                </div>
+            `;
+            if (typeof fetchGoals === 'function') fetchGoals();
+
+        } else {
+            // Unknown event type — skip silently
+            return;
+        }
+
+        monitorFeed.appendChild(item);
+        lucide.createIcons({ root: item });
+
+        // Maintain limit
+        const items = monitorFeed.querySelectorAll('.monitor-item');
+        if (items.length > MAX_FEED_ITEMS) {
+            items[0].remove();
+        }
+
+        // Auto-scroll if near bottom
+        const atBottom = feedScroll.scrollHeight - feedScroll.clientHeight <= feedScroll.scrollTop + 60;
+        if (atBottom || items.length <= 1) {
+            feedScroll.scrollTop = feedScroll.scrollHeight;
+        }
+    };
+
+    // Flush buffered events from layout.html
+    if (window.monitorEventBuffer && window.monitorEventBuffer.length > 0) {
+        window.monitorEventBuffer.forEach(evt => window.processMonitorEvent(evt));
+        window.monitorEventBuffer = [];
+    }
+
+    // Initial dashboard render
+    if (typeof window.updateMonitorDashboard === 'function') {
+        window.updateMonitorDashboard();
+    }
+
+    // Refresh active agent elapsed times and working banner every second
+    setInterval(() => {
+        if (typeof window.updateMonitorDashboard === 'function') {
+            window.updateMonitorDashboard();
+        }
+
+        // Update working banner
+        const banner = document.getElementById('working-banner');
+        const bannerText = document.getElementById('working-banner-text');
+        const bannerElapsed = document.getElementById('working-banner-elapsed');
+        const active = window.activeAgents || {};
+        const activeCount = Object.keys(active).length;
+
+        if (banner) {
+            if (activeCount > 0) {
+                banner.classList.remove('hidden');
+                const entries = Object.values(active);
+                const lines = entries.map(a => {
+                    const name = a.name || 'Agent';
+                    const status = a.status || 'working';
+                    return name + ': ' + status;
+                });
+                if (bannerText) bannerText.textContent = lines.join(' | ');
+                if (bannerElapsed) {
+                    const oldest = Math.min(...entries.map(a => a.since || Date.now()));
+                    const elapsed = Math.round((Date.now() - oldest) / 1000);
+                    bannerElapsed.textContent = elapsed + 's';
+                }
+            } else {
+                banner.classList.add('hidden');
+            }
+        }
+    }, 1000);
+
+    // --- Goals ---
+    const goalsList = document.getElementById('goals-list');
+    const goalsEmpty = document.getElementById('goals-empty');
+
+    const priorityColors = {
+        high:   { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/20' },
+        medium: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' },
+        low:    { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
+    };
+
+    const statusIcons = {
+        active:    { icon: 'play-circle', color: 'text-green-400' },
+        paused:    { icon: 'pause-circle', color: 'text-amber-400' },
+        completed: { icon: 'check-circle', color: 'text-zinc-500' },
+        failed:    { icon: 'x-circle', color: 'text-red-400' },
+    };
+
+    async function fetchGoals() {
+        try {
+            const res = await fetch('/api/goals');
+            if (!res.ok) return;
+            const goals = await res.json();
+            renderGoals(goals);
+        } catch (e) {
+            // Silently ignore fetch errors
+        }
+    }
+
+    function renderGoals(goals) {
+        if (!goalsList) return;
+
+        // Remove existing goal items (keep empty state element)
+        goalsList.querySelectorAll('.goal-item').forEach(el => el.remove());
+
+        if (!goals || goals.length === 0) {
+            if (goalsEmpty) goalsEmpty.style.display = '';
+            return;
+        }
+        if (goalsEmpty) goalsEmpty.style.display = 'none';
+
+        // Sort: active first, then by priority (high > medium > low), then by updated_at
+        const priorityOrder = { high: 0, medium: 1, low: 2 };
+        const statusOrder = { active: 0, paused: 1, completed: 2, failed: 3 };
+        goals.sort((a, b) => {
+            const sd = (statusOrder[a.status] || 9) - (statusOrder[b.status] || 9);
+            if (sd !== 0) return sd;
+            const pd = (priorityOrder[a.priority] || 9) - (priorityOrder[b.priority] || 9);
+            if (pd !== 0) return pd;
+            return (b.updated_at || '').localeCompare(a.updated_at || '');
+        });
+
+        goals.forEach(goal => {
+            const pc = priorityColors[goal.priority] || priorityColors.medium;
+            const si = statusIcons[goal.status] || statusIcons.active;
+            const isInactive = goal.status === 'completed' || goal.status === 'failed';
+
+            const el = document.createElement('div');
+            el.className = `goal-item flex items-center gap-3 px-4 py-2.5 bg-zinc-950/40 border ${isInactive ? 'border-zinc-800/30 opacity-50' : 'border-zinc-800/60'} rounded-lg transition-all`;
+            el.innerHTML = `
+                <div class="w-5 h-5 flex items-center justify-center shrink-0 ${si.color}">
+                    <i data-lucide="${si.icon}" class="w-4 h-4"></i>
+                </div>
+                <div class="flex-grow min-w-0">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-semibold text-[var(--text-main)] truncate">${escapeHtml(goal.name)}</span>
+                        <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest ${pc.bg} ${pc.text} shrink-0">${escapeHtml(goal.priority || 'medium')}</span>
+                    </div>
+                    ${goal.description ? '<div class="text-[11px] text-zinc-500 truncate mt-0.5">' + escapeHtml(goal.description) + '</div>' : ''}
+                </div>
+                <div class="text-[10px] text-zinc-600 font-mono shrink-0">${escapeHtml(goal.status)}</div>
+            `;
+            goalsList.appendChild(el);
+        });
+
+        lucide.createIcons({ root: goalsList });
+    }
+
+    // Fetch goals on load
+    fetchGoals();
+
+    // Cleanup processMonitorEvent when navigating away
+    // (HTMX will remove this script block, but the function persists on window)
+    // We keep it — layout.html checks typeof before calling.
+</script>

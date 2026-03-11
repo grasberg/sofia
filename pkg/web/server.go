@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/grasberg/sofia/pkg/agent"
+	"github.com/grasberg/sofia/pkg/autonomy"
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/routing"
@@ -29,6 +30,17 @@ var chatHTML []byte
 
 //go:embed templates/agents.html
 var agentsHTML []byte
+
+//go:embed templates/monitor.html
+var monitorHTML []byte
+
+// Dashboard hub for real-time updates
+var dashboardHub = NewDashboardHub()
+
+// GetDashboardHub allows access to the hub from other packages (e.g. agent)
+func GetDashboardHub() *DashboardHub {
+	return dashboardHub
+}
 
 //go:embed templates/settings/models.html
 var settingsModelsHTML []byte
@@ -101,6 +113,10 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(agentsHTML)
 	})
+	mux.HandleFunc("/ui/monitor", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(monitorHTML)
+	})
 	mux.HandleFunc("/ui/settings", func(w http.ResponseWriter, r *http.Request) {
 		// Default settings view is models
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -163,6 +179,12 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/api/update", s.handleUpdate)
 	mux.HandleFunc("/api/sessions", s.handleSessions)
 	mux.HandleFunc("/api/sessions/", s.handleSessionDetail)
+	mux.HandleFunc("/api/goals", s.handleGoals)
+	mux.HandleFunc("/ws/dashboard", func(w http.ResponseWriter, r *http.Request) {
+		s.agentLoop.DashboardHub().RegisterClient(w, r, func() any {
+			return s.agentLoop.GetStartupInfo()
+		})
+	})
 
 	s.mux = mux
 	s.server = &http.Server{
@@ -217,8 +239,11 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
+		s.mu.RLock()
+		cfgCopy := *s.cfg
+		s.mu.RUnlock()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(s.cfg)
+		json.NewEncoder(w).Encode(cfgCopy)
 		return
 	}
 
@@ -813,4 +838,22 @@ func (s *Server) handleSessionDetail(w http.ResponseWriter, r *http.Request) {
 	default:
 		s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func (s *Server) handleGoals(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	agentID := r.URL.Query().Get("agent_id")
+	goals, err := s.agentLoop.ListGoals(agentID)
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if goals == nil {
+		goals = make([]*autonomy.Goal, 0)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(goals)
 }

@@ -201,12 +201,6 @@ After completing the task, provide a clear summary of what was done.`
 
 		sm.mu.Lock()
 		var result *ToolResult
-		defer func() {
-			sm.mu.Unlock()
-			if callback != nil && result != nil {
-				callback(ctx, result)
-			}
-		}()
 
 		if err != nil {
 			task.Status = "failed"
@@ -230,6 +224,7 @@ After completing the task, provide a clear summary of what was done.`
 				Async:   false,
 			}
 		}
+		sm.mu.Unlock()
 
 		if sm.bus != nil {
 			announceContent := fmt.Sprintf("Task '%s' completed.\n\nResult:\n%s", task.Label, task.Result)
@@ -239,6 +234,10 @@ After completing the task, provide a clear summary of what was done.`
 				ChatID:   fmt.Sprintf("%s:%s", task.OriginChannel, task.OriginChatID),
 				Content:  announceContent,
 			})
+		}
+
+		if callback != nil && result != nil {
+			callback(ctx, result)
 		}
 		return
 	}

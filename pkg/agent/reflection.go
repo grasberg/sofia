@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -199,9 +200,7 @@ Do not apologize or explain, just provide the instruction rule.`, res.TaskSummar
 	instruction := strings.TrimSpace(response.Content)
 
 	// Append to SELF_OPTIMIZATION.md in the workspace
-	importOS := true // Note: The file already has OS imported? Wait, let's just use it.
-	_ = importOS
-	optPath := agent.Workspace + "/SELF_OPTIMIZATION.md" // simple joining
+	optPath := filepath.Join(agent.Workspace, "SELF_OPTIMIZATION.md")
 	f, err := os.OpenFile(optPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err == nil {
 		f.WriteString(fmt.Sprintf("\n- %s (Learned from failure on: %s)\n", instruction, time.Now().Format("2006-01-02 15:04")))
