@@ -98,6 +98,13 @@ func (t *ManageGoalsTool) Execute(ctx context.Context, args map[string]interface
 		if parsedArgs.GoalID == 0 || parsedArgs.Status == "" {
 			return ErrorResult("goal_id and status required for 'update_status' action")
 		}
+		// Prevent marking goals as completed without evidence.
+		// The autonomy system handles completion — agents should not self-complete goals.
+		if parsedArgs.Status == "completed" {
+			return ErrorResult("Goals cannot be marked as completed directly. " +
+				"Continue working on the goal — the autonomy system will mark it complete " +
+				"when all steps are verified. Use 'paused' if you need to stop temporarily.")
+		}
 		gAny, err := t.mgr.UpdateGoalStatus(parsedArgs.GoalID, parsedArgs.Status)
 		if err != nil {
 			return ErrorResult(fmt.Sprintf("failed to update goal: %v", err))

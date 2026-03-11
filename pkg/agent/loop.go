@@ -281,6 +281,10 @@ func registerSharedTools(
 			))
 		}
 
+		if cfg.Tools.BraveSearch.Enabled && cfg.Tools.BraveSearch.APIKey != "" {
+			agent.Tools.Register(tools.NewBraveSearchTool(cfg.Tools.BraveSearch.APIKey))
+		}
+
 		// Hardware tools (I2C, SPI) - Linux only, returns error on other platforms
 		agent.Tools.Register(tools.NewI2CTool())
 		agent.Tools.Register(tools.NewSPITool())
@@ -622,6 +626,9 @@ func (al *AgentLoop) startAutonomyServices(provider providers.LLMProvider, pushS
 		)
 		svc.SetDashboardHub(al.dashboardHub)
 		svc.SetTaskRunner(al.runSpawnedTaskAsAgent)
+		if al.state != nil {
+			svc.SetLastChannelFunc(al.state.GetLastChannel)
+		}
 
 		if err := svc.Start(ctx); err == nil {
 			al.autonomyServices[agentID] = svc
@@ -966,6 +973,13 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 		"agent_name": agentName,
 		"model":      agent.Model,
 	})
+	al.dashboardHub.Broadcast(map[string]any{
+		"type":       "message_routed",
+		"agent_id":   agent.ID,
+		"agent_name": agentName,
+		"channel":    msg.Channel,
+		"sender_id":  msg.SenderID,
+	})
 
 	// Use routed session key, but honor pre-set agent-scoped keys (for ProcessDirect/cron)
 	sessionKey := route.SessionKey
@@ -985,9 +999,11 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 
 	// Delegation: first try keyword-based scoring, then fall back to semantic (LLM-based).
 	subagent := al.delegateTo(msg.Content)
+	delegationReason := "keyword_match"
 	if subagent == nil {
 		// Semantic delegation fallback: use an LLM call to determine the best agent
 		subagent = al.semanticDelegateTo(ctx, msg.Content)
+		delegationReason = "semantic_match"
 	}
 	if subagent != nil {
 		score := scoreCandidate(subagent, strings.ToLower(msg.Content))
@@ -1014,6 +1030,13 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 			subagentName = subagent.ID
 		}
 		al.activeStatus.Store(fmt.Sprintf("Delegating to %s...", subagentName))
+		al.dashboardHub.Broadcast(map[string]any{
+			"type":          "agent_delegating",
+			"from_agent_id": agent.ID,
+			"to_agent_id":   subagent.ID,
+			"to_agent_name": subagentName,
+			"reason":        delegationReason,
+		})
 		delegateStart := time.Now()
 		subResult, err := al.runSpawnedTaskAsAgent(ctx, subagent.ID, "", msg.Content, msg.Channel, msg.ChatID)
 		delegateDur := time.Since(delegateStart).Milliseconds()
@@ -1088,6 +1111,13 @@ func (al *AgentLoop) processSystemMessage(ctx context.Context, msg bus.InboundMe
 		content = content[idx+8:] // Extract just the result part
 	}
 
+	al.dashboardHub.Broadcast(map[string]any{
+		"type":           "subagent_result_received",
+		"sender_id":      msg.SenderID,
+		"content_len":    len(content),
+		"origin_channel": originChannel,
+	})
+
 	// Skip internal channels - only log, don't send to user
 	if constants.IsInternalChannel(originChannel) {
 		logger.InfoCF("agent", "Subagent completed (internal channel)",
@@ -1158,14 +1188,7 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 		}
 	}
 
-	// 1b. Signal thinking status to the channel
-	if opts.Channel != "" && opts.ChatID != "" && !constants.IsInternalChannel(opts.Channel) {
-		al.bus.PublishOutbound(bus.OutboundMessage{
-			Channel: opts.Channel,
-			ChatID:  opts.ChatID,
-			Type:    "thinking",
-		})
-	}
+	// 1b. Thinking indicator removed — users prefer only real updates.
 
 	// 2. Build messages (skip history for heartbeat)
 	var history []providers.Message
@@ -1546,7 +1569,14 @@ func (al *AgentLoop) runLLMIteration(
 		}
 
 		// Retry loop for context/token errors
-		al.activeStatus.Store(fmt.Sprintf("Waiting for LLM (iteration %d)...", iteration))
+		statusMsg := fmt.Sprintf("Waiting for LLM (iteration %d)...", iteration)
+		al.activeStatus.Store(statusMsg)
+		al.dashboardHub.Broadcast(map[string]any{
+			"type":      "agent_status",
+			"agent_id":  agent.ID,
+			"status":    statusMsg,
+			"iteration": iteration,
+		})
 		maxRetries := 2
 		for retry := 0; retry <= maxRetries; retry++ {
 			response, err = callLLM()
@@ -1596,8 +1626,60 @@ func (al *AgentLoop) runLLMIteration(
 			return "", iteration, errorCount, fmt.Errorf("LLM call failed after retries: %w", err)
 		}
 
-		// Check if no tool calls - we're done
+		al.dashboardHub.Broadcast(map[string]any{
+			"type":        "llm_response",
+			"agent_id":    agent.ID,
+			"iteration":   iteration,
+			"tool_calls":  len(response.ToolCalls),
+			"content_len": len(response.Content),
+		})
+
+		// Check if no tool calls - we're done (or nudge on first attempt)
 		if len(response.ToolCalls) == 0 {
+			isTask := looksLikeTask(opts.UserMessage)
+			hasSubstantialText := len(response.Content) > 50
+
+			// Nudge: if this is the first LLM response and it looks like a task
+			// but the LLM returned only text (no tool calls), retry once with a
+			// strong prompt to use tools. Allow nudge on iteration 1 or 2
+			// (iteration 2 can happen if reflection checkpoint was injected).
+			if iteration <= 2 && isTask && hasSubstantialText {
+				logger.InfoCF(agentComp, "NUDGE: LLM returned text-only for a task, retrying with tool reminder",
+					map[string]any{
+						"agent_id":     agent.ID,
+						"iteration":    iteration,
+						"response_len": len(response.Content),
+						"user_msg_len": len(opts.UserMessage),
+					})
+
+				al.dashboardHub.Broadcast(map[string]any{
+					"type":      "agent_nudge",
+					"agent_id":  agent.ID,
+					"iteration": iteration,
+					"reason":    "text_only_response",
+				})
+
+				// Append the assistant's text + a nudge as a user message
+				messages = append(messages,
+					providers.Message{Role: "assistant", Content: response.Content},
+					providers.Message{Role: "user", Content: "[SYSTEM] You responded with text but made ZERO tool calls. " +
+						"Nothing was actually done. You MUST call tools RIGHT NOW to execute. " +
+						"Pick the first concrete step and call the appropriate tool (write_file, exec, read_file, edit_file, list_dir, spawn). " +
+						"Do NOT repeat the plan. Do NOT narrate. Just call a tool."},
+				)
+				continue // re-enter the loop for one more try
+			}
+
+			if isTask && hasSubstantialText {
+				logger.WarnCF(agentComp, "LLM returned text-only for a task (nudge already used or skipped)",
+					map[string]any{
+						"agent_id":    agent.ID,
+						"iteration":   iteration,
+						"no_history":  opts.NoHistory,
+						"response_len": len(response.Content),
+					})
+			}
+
 			finalContent = response.Content
 			logger.InfoCF(
 				agentComp,
@@ -2233,6 +2315,35 @@ func (al *AgentLoop) GetStartupInfo() map[string]any {
 	}
 
 	return info
+}
+
+// looksLikeTask checks if a user message appears to be a task/request rather than
+// a simple greeting or question. Used to decide whether to nudge the LLM to use tools.
+func looksLikeTask(msg string) bool {
+	msg = strings.ToLower(strings.TrimSpace(msg))
+	if len(msg) < 10 {
+		return false
+	}
+	// Simple greetings / acknowledgments are not tasks
+	greetings := []string{"hej", "hello", "hi", "tack", "thanks", "ok", "okej", "bra", "good", "nice"}
+	for _, g := range greetings {
+		if msg == g || msg == g+"!" || msg == g+"." {
+			return false
+		}
+	}
+	// Task indicators (Swedish + English)
+	taskWords := []string{
+		"skapa", "skicka", "skriv", "bygg", "fixa", "gör", "kör", "lägg till", "ta bort", "uppdatera", "installera",
+		"create", "build", "write", "fix", "run", "add", "remove", "update", "install", "deploy", "make", "set up",
+		"generate", "implement", "configure", "send", "fetch", "download",
+	}
+	for _, tw := range taskWords {
+		if strings.Contains(msg, tw) {
+			return true
+		}
+	}
+	// If message is long enough, it's likely a task
+	return len(msg) > 80
 }
 
 // formatMessagesForLog formats messages for logging

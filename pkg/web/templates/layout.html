@@ -1242,12 +1242,18 @@
 
                 if (!cfg.tools) cfg.tools = {};
                 if (!cfg.tools.google) cfg.tools.google = {};
+                if (!cfg.tools.brave_search) cfg.tools.brave_search = {};
 
                 cfg.tools.google.enabled = document.getElementById("cfg-google-enabled").checked;
                 cfg.tools.google.binary_path = document.getElementById("cfg-google-binary").value.trim() || "gog";
                 cfg.tools.google.timeout_seconds = parseInt(document.getElementById("cfg-google-timeout").value) || 90;
                 const cmdsStr = document.getElementById("cfg-google-commands").value.trim();
                 cfg.tools.google.allowed_commands = cmdsStr ? cmdsStr.split(",").map(s => s.trim()).filter(Boolean) : ["gmail", "drive", "calendar"];
+
+                const braveEnabled = document.getElementById("cfg-brave-enabled");
+                const braveKey = document.getElementById("cfg-brave-api-key");
+                if (braveEnabled) cfg.tools.brave_search.enabled = braveEnabled.checked;
+                if (braveKey && braveKey.value.trim()) cfg.tools.brave_search.api_key = braveKey.value.trim();
 
                 const saveRes = await fetch("/api/config", {
                     method: "POST",
@@ -1336,6 +1342,14 @@
                     if (googleBinary) googleBinary.value = cfg.tools.google.binary_path || "gog";
                     if (googleTimeout) googleTimeout.value = cfg.tools.google.timeout_seconds || 90;
                     if (googleCommands) googleCommands.value = (cfg.tools.google.allowed_commands || []).join(", ");
+                }
+
+                // Populate Brave Search settings
+                if (cfg.tools && cfg.tools.brave_search) {
+                    const braveEnabled = document.getElementById("cfg-brave-enabled");
+                    const braveKey = document.getElementById("cfg-brave-api-key");
+                    if (braveEnabled) braveEnabled.checked = !!cfg.tools.brave_search.enabled;
+                    if (braveKey && cfg.tools.brave_search.api_key) braveKey.value = cfg.tools.brave_search.api_key;
                 }
 
                 fetchWorkspaceDocs();
@@ -2234,9 +2248,11 @@
                     window.monitorStats.totalEvents++;
                     if (d.type === 'tool_call_end') window.monitorStats.toolCalls++;
                     if (d.type === 'subagent_task_start') window.monitorStats.subagentTasks++;
+                    if (d.type === 'agent_delegating') window.monitorStats.subagentTasks++;
                     if (d.type === 'tool_call_end' && !d.success) window.monitorStats.errors++;
                     if (d.type === 'subagent_task_end' && !d.success) window.monitorStats.errors++;
                     if (d.type === 'goal_step_end' && !d.success) window.monitorStats.errors++;
+                    if (d.type === 'agent_nudge') window.monitorStats.errors++;
 
                     // Track active agent state
                     if (d.type === 'agent_thinking') {
@@ -2257,9 +2273,26 @@
                         };
                     } else if (d.type === 'subagent_task_end') {
                         delete window.activeAgents[d.agent_id];
+                    } else if (d.type === 'agent_status') {
+                        // Real-time status update from the agent loop
+                        if (window.activeAgents[d.agent_id]) {
+                            window.activeAgents[d.agent_id].status = d.status || 'working';
+                        } else {
+                            window.activeAgents[d.agent_id] = {
+                                name: d.agent_name || d.agent_id,
+                                status: d.status || 'working',
+                                since: Date.now(),
+                            };
+                        }
                     } else if (d.type === 'tool_call_start') {
                         if (window.activeAgents[d.agent_id]) {
                             window.activeAgents[d.agent_id].status = 'tool: ' + d.tool;
+                        } else {
+                            window.activeAgents[d.agent_id] = {
+                                name: d.agent_id,
+                                status: 'tool: ' + d.tool,
+                                since: Date.now(),
+                            };
                         }
                     } else if (d.type === 'goal_step_start') {
                         window.activeAgents[d.agent_id || 'autonomy'] = {
@@ -2269,6 +2302,42 @@
                         };
                     } else if (d.type === 'goal_step_end') {
                         delete window.activeAgents[d.agent_id || 'autonomy'];
+                    } else if (d.type === 'message_routed') {
+                        window.activeAgents[d.agent_id] = {
+                            name: d.agent_name || d.agent_id,
+                            status: 'processing message from '
+                                + (d.channel || 'unknown'),
+                            since: Date.now(),
+                        };
+                    } else if (d.type === 'agent_delegating') {
+                        if (window.activeAgents[d.from_agent_id]) {
+                            window.activeAgents[d.from_agent_id].status =
+                                'delegating to '
+                                + (d.to_agent_name || d.to_agent_id);
+                        }
+                        window.activeAgents[d.to_agent_id] = {
+                            name: d.to_agent_name || d.to_agent_id,
+                            status: 'starting delegated task',
+                            since: Date.now(),
+                        };
+                    } else if (d.type === 'subagent_result_received') {
+                        // Brief flash - will be cleared by agent_done
+                    } else if (d.type === 'agent_nudge') {
+                        if (window.activeAgents[d.agent_id]) {
+                            window.activeAgents[d.agent_id].status =
+                                'nudged — retrying with tools';
+                        }
+                    } else if (d.type === 'llm_response') {
+                        if (window.activeAgents[d.agent_id]) {
+                            if (d.tool_calls > 0) {
+                                window.activeAgents[d.agent_id].status =
+                                    'executing ' + d.tool_calls
+                                    + ' tool(s)';
+                            } else {
+                                window.activeAgents[d.agent_id].status =
+                                    'composing response';
+                            }
+                        }
                     }
 
                     // Handle agent status updates for sidebar cards

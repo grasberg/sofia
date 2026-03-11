@@ -19,21 +19,35 @@ var upgrader = websocket.Upgrader{
 // blocking forever on a stuck or slow client.
 const writeTimeout = 5 * time.Second
 
+// sendBufSize is the capacity of each client's outbound channel.
+// If a client falls this far behind, new messages are dropped.
+const sendBufSize = 256
+
+// clientInfo holds per-client state: the underlying WebSocket
+// connection and a buffered channel for outbound messages.
+type clientInfo struct {
+	conn *websocket.Conn
+	send chan []byte
+}
+
+// Hub manages a set of WebSocket clients and broadcasts messages
+// to them without blocking the caller.
 type Hub struct {
-	clients map[*websocket.Conn]bool
+	clients map[*websocket.Conn]*clientInfo
 	mu      sync.Mutex
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		clients: make(map[*websocket.Conn]bool),
+		clients: make(map[*websocket.Conn]*clientInfo),
 	}
 }
 
+// Broadcast marshals msg once and enqueues the payload into every
+// client's send channel. Clients whose channels are full are
+// skipped (the message is dropped for that client) so that a slow
+// consumer never blocks the agent loop.
 func (h *Hub) Broadcast(msg any) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	data, err := json.Marshal(map[string]any{
 		"type": "update",
 		"data": msg,
@@ -42,20 +56,25 @@ func (h *Hub) Broadcast(msg any) {
 		return
 	}
 
-	for client := range h.clients {
-		_ = client.SetWriteDeadline( //nolint:errcheck
-			time.Now().Add(writeTimeout),
-		)
-		if err := client.WriteMessage(
-			websocket.TextMessage, data,
-		); err != nil {
-			// Client is dead or too slow — remove it.
-			_ = client.Close() //nolint:errcheck
-			delete(h.clients, client)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	for _, ci := range h.clients {
+		select {
+		case ci.send <- data:
+		default:
+			logger.ErrorCF("web",
+				"Dashboard client send buffer full, dropping message",
+				map[string]any{
+					"remote": ci.conn.RemoteAddr().String(),
+				})
 		}
 	}
 }
 
+// RegisterClient upgrades the HTTP connection to a WebSocket,
+// sends an initial snapshot, starts a write goroutine, and then
+// blocks on a read loop to detect client disconnect.
 func (h *Hub) RegisterClient(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -91,9 +110,19 @@ func (h *Hub) RegisterClient(
 		}
 	}
 
+	ci := &clientInfo{
+		conn: conn,
+		send: make(chan []byte, sendBufSize),
+	}
+
 	h.mu.Lock()
-	h.clients[conn] = true
+	h.clients[conn] = ci
 	h.mu.Unlock()
+
+	// Write goroutine: drains the send channel and writes to
+	// the WebSocket. Exits when the channel is closed or on a
+	// write error.
+	go h.writePump(ci)
 
 	// Keep connection open — read loop detects disconnect.
 	for {
@@ -104,8 +133,32 @@ func (h *Hub) RegisterClient(
 	}
 }
 
+// writePump reads from the client's send channel and writes each
+// payload to the WebSocket with a deadline. On any write error it
+// closes the connection, which causes the read loop in
+// RegisterClient to exit and trigger cleanup.
+func (h *Hub) writePump(ci *clientInfo) {
+	for data := range ci.send {
+		_ = ci.conn.SetWriteDeadline( //nolint:errcheck
+			time.Now().Add(writeTimeout),
+		)
+		if err := ci.conn.WriteMessage(
+			websocket.TextMessage, data,
+		); err != nil {
+			_ = ci.conn.Close() //nolint:errcheck
+			return
+		}
+	}
+}
+
+// UnregisterClient removes the client from the hub and closes its
+// send channel so the write goroutine exits.
 func (h *Hub) UnregisterClient(conn *websocket.Conn) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	delete(h.clients, conn)
+
+	if ci, ok := h.clients[conn]; ok {
+		close(ci.send)
+		delete(h.clients, conn)
+	}
 }

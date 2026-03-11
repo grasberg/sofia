@@ -18,14 +18,47 @@ var upgrader = websocket.Upgrader{
 // wsWriteTimeout is applied to every WebSocket write.
 const wsWriteTimeout = 5 * time.Second
 
+// wsSendBuffer is the capacity of each client's send channel.
+const wsSendBuffer = 256
+
+// wsClient wraps a WebSocket connection with a buffered send channel.
+type wsClient struct {
+	conn *websocket.Conn
+	send chan []byte
+}
+
+// DashboardHub manages connected dashboard WebSocket clients.
 type DashboardHub struct {
-	clients map[*websocket.Conn]bool
+	clients map[*websocket.Conn]*wsClient
 	mu      sync.Mutex
 }
 
+// NewDashboardHub creates a new hub with no connected clients.
 func NewDashboardHub() *DashboardHub {
 	return &DashboardHub{
-		clients: make(map[*websocket.Conn]bool),
+		clients: make(map[*websocket.Conn]*wsClient),
+	}
+}
+
+// writePump drains the client's send channel and writes messages to the
+// WebSocket connection. It exits on send channel close or write error.
+func (h *DashboardHub) writePump(c *wsClient) {
+	defer func() {
+		h.mu.Lock()
+		delete(h.clients, c.conn)
+		h.mu.Unlock()
+		_ = c.conn.Close() //nolint:errcheck
+	}()
+
+	for msg := range c.send {
+		_ = c.conn.SetWriteDeadline( //nolint:errcheck
+			time.Now().Add(wsWriteTimeout),
+		)
+		if err := c.conn.WriteMessage(
+			websocket.TextMessage, msg,
+		); err != nil {
+			return
+		}
 	}
 }
 
@@ -43,12 +76,6 @@ func (h *DashboardHub) HandleDashboardWS(
 			map[string]any{"error": err.Error()})
 		return
 	}
-	defer func() {
-		h.mu.Lock()
-		delete(h.clients, conn)
-		h.mu.Unlock()
-		_ = conn.Close() //nolint:errcheck
-	}()
 
 	// Send initial snapshot before registering.
 	if getSnapshot != nil {
@@ -63,13 +90,21 @@ func (h *DashboardHub) HandleDashboardWS(
 		if err := conn.WriteMessage(
 			websocket.TextMessage, snapshotData,
 		); err != nil {
+			_ = conn.Close() //nolint:errcheck
 			return
 		}
 	}
 
+	c := &wsClient{
+		conn: conn,
+		send: make(chan []byte, wsSendBuffer),
+	}
+
 	h.mu.Lock()
-	h.clients[conn] = true
+	h.clients[conn] = c
 	h.mu.Unlock()
+
+	go h.writePump(c)
 
 	// Keep connection open — read loop detects disconnect.
 	for {
@@ -78,12 +113,19 @@ func (h *DashboardHub) HandleDashboardWS(
 			break
 		}
 	}
+
+	// Client disconnected: close send channel so writePump exits.
+	h.mu.Lock()
+	if _, ok := h.clients[conn]; ok {
+		close(c.send)
+		delete(h.clients, conn)
+	}
+	h.mu.Unlock()
 }
 
+// Broadcast sends a message to all connected dashboard clients.
+// Sends are non-blocking; slow clients that cannot keep up are dropped.
 func (h *DashboardHub) Broadcast(msg any) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	data, err := json.Marshal(map[string]any{
 		"type": "update",
 		"data": msg,
@@ -92,15 +134,16 @@ func (h *DashboardHub) Broadcast(msg any) {
 		return
 	}
 
-	for client := range h.clients {
-		_ = client.SetWriteDeadline( //nolint:errcheck
-			time.Now().Add(wsWriteTimeout),
-		)
-		if err := client.WriteMessage(
-			websocket.TextMessage, data,
-		); err != nil {
-			_ = client.Close() //nolint:errcheck
-			delete(h.clients, client)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	for _, c := range h.clients {
+		select {
+		case c.send <- data:
+		default:
+			// Client too slow — drop it.
+			close(c.send)
+			delete(h.clients, c.conn)
 		}
 	}
 }

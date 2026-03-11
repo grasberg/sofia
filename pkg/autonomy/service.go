@@ -21,16 +21,20 @@ import (
 // TaskRunner executes a task as a specific agent, returning the result.
 type TaskRunner func(ctx context.Context, agentID, sessionKey, task, originChannel, originChatID string) (string, error)
 
+// LastChannelFunc returns "channel:chatID" for the user's last active channel.
+type LastChannelFunc func() string
+
 // Service configures and runs periodic autonomy operations (Proactive Suggestions, Research, Goal Pursuit).
 type Service struct {
-	cfg        *config.AutonomyConfig
-	memDB      *memory.MemoryDB
-	bus        *bus.MessageBus
-	provider   providers.LLMProvider
-	subMgr     *tools.SubagentManager
-	modelID    string
-	agentID    string
-	workspace  string
+	cfg            *config.AutonomyConfig
+	memDB          *memory.MemoryDB
+	bus            *bus.MessageBus
+	provider       providers.LLMProvider
+	subMgr         *tools.SubagentManager
+	modelID        string
+	agentID        string
+	workspace      string
+	lastChannelFn  LastChannelFunc
 	push       *notifications.PushService
 	hub        *dashboard.Hub
 	taskRunner TaskRunner
@@ -77,6 +81,13 @@ func (s *Service) SetTaskRunner(runner TaskRunner) {
 	s.taskRunner = runner
 }
 
+// SetLastChannelFunc sets the function to resolve the user's last active channel.
+func (s *Service) SetLastChannelFunc(fn LastChannelFunc) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lastChannelFn = fn
+}
+
 // Start spawns the background periodic ticker.
 func (s *Service) Start(ctx context.Context) error {
 	s.mu.Lock()
@@ -94,8 +105,11 @@ func (s *Service) Start(ctx context.Context) error {
 	s.cancelFunc = cancel
 
 	interval := s.cfg.IntervalMinutes
-	if interval < 5 {
-		interval = 60 // Default to 60 if set too low to prevent spam
+	if interval <= 0 {
+		interval = 10 // Default to 10 minutes
+	}
+	if interval < 2 {
+		interval = 2 // Minimum 2 minutes to prevent tight loops
 	}
 
 	go s.runLoop(ctx, time.Duration(interval)*time.Minute)
@@ -148,15 +162,74 @@ func (s *Service) performAutonomyTasks(ctx context.Context) {
 	}
 }
 
-// pursueGoals checks active goals, asks the LLM to plan the next concrete step,
-// then executes it via the agent's tool loop.
+// maxStepsPerCycle limits how many goal steps we execute per autonomy tick
+// to prevent runaway execution while still making meaningful progress.
+const maxStepsPerCycle = 5
+
+// pursueGoals checks active goals and executes multiple steps in a loop
+// until the LLM says NO_ACTION, a step fails, or maxStepsPerCycle is reached.
 func (s *Service) pursueGoals(ctx context.Context) {
 	gm := NewGoalManager(s.memDB)
-	goalsAny, err := gm.ListActiveGoals(s.agentID)
-	if err != nil || len(goalsAny) == 0 {
-		return
-	}
 
+	for step := 0; step < maxStepsPerCycle; step++ {
+		// Check context cancellation between steps
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		// Re-fetch active goals each iteration (status may have changed)
+		goalsAny, err := gm.ListActiveGoals(s.agentID)
+		if err != nil {
+			logger.WarnCF("autonomy", "Failed to list active goals", map[string]any{"error": err.Error()})
+			return
+		}
+		if len(goalsAny) == 0 {
+			if step == 0 {
+				logger.DebugCF("autonomy", "No active goals to pursue", nil)
+			} else {
+				logger.InfoCF("autonomy", fmt.Sprintf("All goals completed after %d step(s)", step), nil)
+			}
+			return
+		}
+
+		if step == 0 {
+			logger.InfoCF("autonomy", fmt.Sprintf("Pursuing %d active goal(s)", len(goalsAny)),
+				map[string]any{"agent_id": s.agentID, "goal_count": len(goalsAny)})
+		}
+
+		result := s.executeOneGoalStep(ctx, gm, goalsAny, step)
+		switch result {
+		case stepResultDone:
+			// LLM said NO_ACTION or GOAL_COMPLETE — re-evaluate on next iteration
+			continue
+		case stepResultSuccess:
+			// Step succeeded — immediately plan and execute the next step
+			logger.InfoCF("autonomy", fmt.Sprintf("Step %d/%d completed, continuing to next step",
+				step+1, maxStepsPerCycle), nil)
+			continue
+		case stepResultFailed, stepResultError:
+			// Step failed — stop this cycle, retry on next interval
+			logger.InfoCF("autonomy", fmt.Sprintf("Stopping after %d step(s) due to failure", step+1), nil)
+			return
+		}
+	}
+	logger.InfoCF("autonomy", fmt.Sprintf("Completed maximum %d steps per cycle, pausing until next interval",
+		maxStepsPerCycle), nil)
+}
+
+type stepOutcome int
+
+const (
+	stepResultSuccess stepOutcome = iota
+	stepResultFailed
+	stepResultDone  // NO_ACTION or GOAL_COMPLETE
+	stepResultError // parse/LLM error
+)
+
+// executeOneGoalStep plans and executes a single goal step. Returns the outcome.
+func (s *Service) executeOneGoalStep(ctx context.Context, gm *GoalManager, goalsAny []any, stepNum int) stepOutcome {
 	// Build a goals summary for the planner
 	var goalsSummary strings.Builder
 	type goalRef struct {
@@ -181,19 +254,16 @@ func (s *Service) pursueGoals(ctx context.Context) {
 	}
 
 	if len(refs) == 0 {
-		return
+		return stepResultDone
 	}
 
-	logger.InfoCF("autonomy", "Evaluating active goals for autonomous work", map[string]any{
-		"agent_id":   s.agentID,
-		"goal_count": len(refs),
-	})
-
-	s.broadcast(map[string]any{
-		"type":       "goal_evaluation_start",
-		"agent_id":   s.agentID,
-		"goal_count": len(refs),
-	})
+	if stepNum == 0 {
+		s.broadcast(map[string]any{
+			"type":       "goal_evaluation_start",
+			"agent_id":   s.agentID,
+			"goal_count": len(refs),
+		})
+	}
 
 	// Ask the LLM which goal to work on and what the next concrete step is
 	prompt := fmt.Sprintf(`You are an autonomous AI agent. You have the following active goals:
@@ -225,7 +295,7 @@ Or respond with NO_ACTION if nothing to do.`, goalsSummary.String())
 	})
 	if err != nil || len(resp.Content) == 0 {
 		logger.WarnCF("autonomy", "Goal planner LLM call failed", map[string]any{"error": fmt.Sprintf("%v", err)})
-		return
+		return stepResultError
 	}
 
 	content := strings.TrimSpace(resp.Content)
@@ -242,14 +312,15 @@ Or respond with NO_ACTION if nothing to do.`, goalsSummary.String())
 					"type":    "goal_completed",
 					"goal_id": goalID,
 				})
+				s.notifyUser(fmt.Sprintf("🏁 Mål slutfört: *%s*", idStr))
 			}
 		}
-		return
+		return stepResultDone
 	}
 
 	if content == "NO_ACTION" || content == "" {
 		logger.DebugCF("autonomy", "Goal planner: no action needed", nil)
-		return
+		return stepResultDone
 	}
 
 	// Parse the JSON response
@@ -271,11 +342,11 @@ Or respond with NO_ACTION if nothing to do.`, goalsSummary.String())
 			"error":   err.Error(),
 			"content": content,
 		})
-		return
+		return stepResultError
 	}
 
 	if plan.Step == "" {
-		return
+		return stepResultDone
 	}
 
 	logger.InfoCF("autonomy", "Goal step planned", map[string]any{
@@ -283,6 +354,7 @@ Or respond with NO_ACTION if nothing to do.`, goalsSummary.String())
 		"goal_id":   plan.GoalID,
 		"goal_name": plan.GoalName,
 		"step":      plan.Step,
+		"step_num":  stepNum + 1,
 	})
 
 	s.broadcast(map[string]any{
@@ -293,13 +365,19 @@ Or respond with NO_ACTION if nothing to do.`, goalsSummary.String())
 		"step":      plan.Step,
 	})
 
+	s.notifyUser(fmt.Sprintf("🎯 *%s* (steg %d)\nArbetar på: %s", plan.GoalName, stepNum+1, plan.Step))
+
 	// Execute the step
 	taskPrompt := fmt.Sprintf(`You are working toward goal: "%s"
 
 Your next step: %s
 
-Execute this step using your available tools. Be thorough and complete the step fully.
-When done, summarize what you accomplished.`, plan.GoalName, plan.Step)
+CRITICAL RULES:
+- You MUST use tool calls (read_file, write_file, exec, list_dir, etc.) to do real work.
+- Do NOT just describe what you would do. Actually do it with tools.
+- Do NOT roleplay or narrate. No stage directions. No fictional progress.
+- Every response must contain at least one tool call unless the step is purely informational.
+- When done, summarize what you actually accomplished (files created, commands run, results).`, plan.GoalName, plan.Step)
 
 	s.mu.Lock()
 	runner := s.taskRunner
@@ -347,7 +425,9 @@ When done, summarize what you accomplished.`, plan.GoalName, plan.Step)
 			"error":       taskErr.Error(),
 			"duration_ms": dur,
 		})
-		return
+		s.notifyUser(fmt.Sprintf("❌ *%s*\nMisslyckades: %s\n\nFel: %s",
+			plan.GoalName, plan.Step, truncate(taskErr.Error(), 200)))
+		return stepResultFailed
 	}
 
 	logger.InfoCF("autonomy", "Goal step completed", map[string]any{
@@ -369,13 +449,43 @@ When done, summarize what you accomplished.`, plan.GoalName, plan.Step)
 		"duration_ms": dur,
 	})
 
-	// Notify user if push is available
+	// Notify user via their active channel
+	s.notifyUser(fmt.Sprintf("✅ *%s* (steg %d)\nKlart: %s\n\nResultat: %s",
+		plan.GoalName, stepNum+1, plan.Step, truncate(result, 300)))
+
 	if s.push != nil {
 		_ = s.push.Send(
 			fmt.Sprintf("Sofia: Goal Progress — %s", plan.GoalName),
 			fmt.Sprintf("Completed step: %s", truncate(plan.Step, 100)),
 		)
 	}
+
+	return stepResultSuccess
+}
+
+// notifyUser sends a message to the user's last active channel (e.g. Telegram).
+func (s *Service) notifyUser(message string) {
+	s.mu.Lock()
+	fn := s.lastChannelFn
+	msgBus := s.bus
+	s.mu.Unlock()
+
+	if fn == nil || msgBus == nil {
+		return
+	}
+	lastChannel := fn()
+	if lastChannel == "" {
+		return
+	}
+	parts := strings.SplitN(lastChannel, ":", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return
+	}
+	msgBus.PublishOutbound(bus.OutboundMessage{
+		Channel: parts[0],
+		ChatID:  parts[1],
+		Content: message,
+	})
 }
 
 func (s *Service) broadcast(data map[string]any) {

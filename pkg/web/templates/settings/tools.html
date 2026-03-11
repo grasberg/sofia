@@ -62,6 +62,46 @@
 						</div>
 					</div>
 
+					<!-- Brave Search Tool -->
+					<div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
+						<div class="flex items-center justify-between mb-4">
+							<div class="flex items-center gap-3">
+								<div class="w-9 h-9 rounded-xl bg-orange-500/10 flex items-center justify-center">
+									<i data-lucide="search" class="w-5 h-5 text-orange-400"></i>
+								</div>
+								<div>
+									<h3 class="text-sm font-bold text-[var(--text-main)]">Brave Search</h3>
+									<p class="text-[10px] text-zinc-500">Web search via Brave Search API</p>
+								</div>
+							</div>
+							<label class="relative inline-flex items-center cursor-pointer">
+								<input type="checkbox" id="cfg-brave-enabled" class="sr-only peer" onchange="saveToolsConfig()">
+								<div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+							</label>
+						</div>
+
+						<div id="brave-tool-config" class="space-y-3 mb-4">
+							<div>
+								<label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">API Key</label>
+								<input type="password" id="cfg-brave-api-key" placeholder="BSA..."
+									class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+							</div>
+							<button onclick="saveToolsConfig()" class="px-4 py-2 rounded-lg bg-sofia hover:bg-sofia-hover text-white text-xs font-bold transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+								<i data-lucide="save" class="w-3 h-3"></i> Save Brave Search Settings
+							</button>
+						</div>
+
+						<div class="mt-3 p-3 rounded-xl bg-[var(--bg-main)] border border-[var(--border-color)]">
+							<h4 class="text-[10px] uppercase tracking-widest text-zinc-500 mb-2 font-bold">Setup Instructions</h4>
+							<ol class="text-[11px] text-zinc-400 leading-relaxed space-y-1.5 list-decimal list-inside">
+								<li>Go to <a href="https://brave.com/search/api/" target="_blank" class="text-sofia hover:underline">brave.com/search/api</a> and create an account</li>
+								<li>Get your API key from the <a href="https://api-dashboard.search.brave.com/" target="_blank" class="text-sofia hover:underline">API Dashboard</a></li>
+								<li>Paste the API key above, enable the toggle, and save. Restart Sofia.</li>
+								<li>Sofia can now search the web using <code class="px-1 py-0.5 rounded bg-zinc-800 text-sofia text-[10px]">brave_search</code></li>
+							</ol>
+						</div>
+					</div>
+
 					<!-- GitHub CLI Tool -->
 					<div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
 						<div class="flex items-center justify-between mb-4">
