@@ -12,7 +12,7 @@ import (
 const Logo = "🪲"
 
 var (
-	version   = "v0.0.101"
+	version   = "v0.0.102"
 	gitCommit string
 	buildTime string
 	goVersion string
