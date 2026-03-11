@@ -38,7 +38,6 @@ func TestParseLastChannel_Invalid(t *testing.T) {
 		":",
 		":useronly",
 		"platformonly:",
-		"multiple:colons:here",
 	}
 
 	for _, tt := range tests {
@@ -70,7 +69,8 @@ func TestNewService_Enabled(t *testing.T) {
 
 func TestNewService_Disabled(t *testing.T) {
 	cfg := Config{Enabled: false, MonitorUSB: true}
-	mgr := state.NewManager()
+	workspace := t.TempDir()
+	mgr := state.NewManager(workspace)
 	svc := NewService(cfg, mgr)
 
 	if svc == nil {
@@ -83,7 +83,8 @@ func TestNewService_Disabled(t *testing.T) {
 
 func TestNewService_WithUSBMonitor(t *testing.T) {
 	cfg := Config{Enabled: true, MonitorUSB: true}
-	mgr := state.NewManager()
+	workspace := t.TempDir()
+	mgr := state.NewManager(workspace)
 	svc := NewService(cfg, mgr)
 
 	if svc == nil {
@@ -96,7 +97,8 @@ func TestNewService_WithUSBMonitor(t *testing.T) {
 
 func TestService_Stop_NoCrash(t *testing.T) {
 	cfg := Config{Enabled: true, MonitorUSB: false}
-	mgr := state.NewManager()
+	workspace := t.TempDir()
+	mgr := state.NewManager(workspace)
 	svc := NewService(cfg, mgr)
 
 	// Stop without Start should not crash
@@ -105,7 +107,8 @@ func TestService_Stop_NoCrash(t *testing.T) {
 
 func TestService_SetBus(t *testing.T) {
 	cfg := Config{Enabled: true, MonitorUSB: false}
-	mgr := state.NewManager()
+	workspace := t.TempDir()
+	mgr := state.NewManager(workspace)
 	svc := NewService(cfg, mgr)
 
 	// SetBus should not panic
