@@ -40,14 +40,12 @@
                                         class="shrink-0 w-9 h-9 flex items-center justify-center border border-[var(--border-color)] text-zinc-500 hover:text-sofia hover:border-sofia/40 transition-colors">
                                         <i data-lucide="paperclip" class="w-4 h-4"></i>
                                     </button>
-                                    <div class="relative flex-grow flex items-center">
-                                        <input type="text" id="chat-input" placeholder="ENTER COMMAND..." 
-                                            class="w-full bg-black border border-[var(--border-color)] rounded-none pl-4 pr-24 py-4 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white placeholder:text-zinc-700">
-                                        <div class="absolute right-3">
-                                            <button onclick="sendChat()" class="btn-brutalist px-6 py-2 text-[10px]">
-                                                EXECUTE
-                                            </button>
-                                        </div>
+                                    <div class="flex-grow flex items-center gap-0">
+                                        <input type="text" id="chat-input" placeholder="ENTER COMMAND..."
+                                            class="flex-grow min-w-0 bg-black border border-[var(--border-color)] border-r-0 rounded-none pl-4 py-4 text-xs font-mono focus:outline-none focus:border-sofia/50 transition-all text-white placeholder:text-zinc-700">
+                                        <button onclick="sendChat()" class="btn-brutalist shrink-0 px-6 py-4 text-[10px] border border-[var(--border-color)] border-l-0">
+                                            EXECUTE
+                                        </button>
                                     </div>
                                 </div>
                                 <div class="mt-2 px-1 flex justify-between">

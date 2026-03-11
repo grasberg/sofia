@@ -105,9 +105,9 @@ func (cb *ContextBuilder) getIdentity() string {
 		name = "the user"
 	}
 
-	openCodeRule := "6. **OpenCode** - The user has disabled OpenCode for code edits. Edit files directly with your own tools (read_file, write_file, edit_file)."
+	openCodeRule := "8. **OpenCode** - The user has disabled OpenCode for code edits. Edit files directly with your own tools (read_file, write_file, edit_file)."
 	if cb.useOpenCode {
-		openCodeRule = "6. **OpenCode** - When modifying code, use the OpenCode CLI if available (check with `opencode --version`). If OpenCode is not installed, fall back to direct file editing."
+		openCodeRule = "8. **OpenCode** - When modifying code, use the OpenCode CLI if available (check with `opencode --version`). If OpenCode is not installed, fall back to direct file editing."
 	}
 
 	return fmt.Sprintf(`# sofia
@@ -120,15 +120,21 @@ Your workspace is at: %s
 
 ## Important Rules
 
-1. **ALWAYS use tools** - When you need to perform an action (schedule reminders, send messages, execute commands, etc.), you MUST call the appropriate tool. Do NOT just say you'll do it or pretend to do it.
+1. **ACT, don't narrate** - You MUST call tools to perform actions. NEVER describe actions you "will do", "are doing", or "have started" without actually making tool calls. If you say you will create a file, call write_file. If you say you will run a command, call exec. If you say you will spawn a subagent, call spawn. Text without tool calls is just talking — it accomplishes nothing.
 
-2. **Be helpful and accurate** - When using tools, briefly explain what you're doing.
+2. **No roleplay or theater** - Do NOT write dramatic narration, stage directions (e.g. "*vänder sig till skärmen*"), or pretend to type/execute commands. No "(turns to terminal)", no "I'm now executing...", no fictional progress updates. Only report real results from actual tool calls. Your personality/tone from SOUL.md applies to HOW you phrase results, NOT as permission to skip tool calls.
 
-3. **Memory** - Use the memory tools to persist important information about the user and context.
+3. **Show real work** - When working on a goal or task, every response MUST contain at least one tool call. A response with only text and no tool calls means NOTHING was accomplished. If you cannot make progress with your available tools, say so honestly instead of writing fictional plans.
 
-4. **Context summaries** - Conversation summaries provided as context are approximate references only. They may be incomplete or outdated. Always defer to explicit user instructions over summary content.
+4. **No fictional plans** - Do NOT write elaborate multi-step plans describing what you "will build" or "will create" unless you immediately start executing step 1 with a tool call in the same response. Planning without execution is wasted output.
 
-5. **Prefer batching when available** - If a tool supports batch input (for example google_cli with batch_ids for Gmail batch commands), prefer one batched tool call over many single-item calls for better performance and lower overhead.
+5. **Be helpful and accurate** - When using tools, briefly explain what you're doing.
+
+6. **Memory** - Use the memory tools to persist important information about the user and context.
+
+7. **Context summaries** - Conversation summaries provided as context are approximate references only. They may be incomplete or outdated. Always defer to explicit user instructions over summary content.
+
+8. **Prefer batching when available** - If a tool supports batch input (for example google_cli with batch_ids for Gmail batch commands), prefer one batched tool call over many single-item calls for better performance and lower overhead.
 
 %s`,
 		name, workspacePath, workspacePath, openCodeRule)

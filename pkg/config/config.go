@@ -498,13 +498,20 @@ type MCPServerConfig struct {
 	Env     map[string]string `json:"env,omitempty"`
 }
 
+// BraveSearchConfig configures the Brave Search web search tool.
+type BraveSearchConfig struct {
+	Enabled bool   `json:"enabled" env:"SOFIA_TOOLS_BRAVE_SEARCH_ENABLED"`
+	APIKey  string `json:"api_key" env:"SOFIA_TOOLS_BRAVE_SEARCH_API_KEY"`
+}
+
 type ToolsConfig struct {
-	Web    WebToolsConfig             `json:"web"`
-	Cron   CronToolsConfig            `json:"cron"`
-	Exec   ExecConfig                 `json:"exec"`
-	Google GoogleToolsConfig          `json:"google"`
-	Skills SkillsToolsConfig          `json:"skills"`
-	MCP    map[string]MCPServerConfig `json:"mcp,omitempty"`
+	Web         WebToolsConfig             `json:"web"`
+	Cron        CronToolsConfig            `json:"cron"`
+	Exec        ExecConfig                 `json:"exec"`
+	Google      GoogleToolsConfig          `json:"google"`
+	BraveSearch BraveSearchConfig          `json:"brave_search"`
+	Skills      SkillsToolsConfig          `json:"skills"`
+	MCP         map[string]MCPServerConfig `json:"mcp,omitempty"`
 }
 
 type SkillsToolsConfig struct {
