@@ -1,6 +1,6 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.114-blue)
+![Version](https://img.shields.io/badge/version-v0.0.115-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
@@ -246,15 +246,15 @@ Sofias webbgränssnitt är byggt med **HTMX** och **Go Templates** och har ett u
 *   **Agenter:** Hantera och konfigurera flera agenter med egna modeller, prompts och verktyg.
 *   **Monitor:** Realtidsövervakning av agentaktivitet, verktygsanrop, systemstatus och pågående mål (Activity Monitor).
 *   **System:** Alla inställningar och systemfunktioner samlade i vänstermenyn:
-    *   **Integrations** — Aktivera och konfigurera externa integrationer (Porkbun, cPanel, GitHub, Google m.fl.)
+    *   **Identity** — Redigera IDENTITY.md och SOUL.md
+    *   **Heartbeat** — Schemaläggning av bakgrundsagenten
     *   **Models** — Hantera AI-leverantörer och modeller
-    *   **Channels** — Konfigurera Telegram, Discord m.m.
+    *   **Comms** — Konfigurera Telegram, Discord m.m.
+    *   **Integrations** — Aktivera och konfigurera externa integrationer (Porkbun, cPanel, GitHub, Google m.fl.)
     *   **Tools** — Lista över tillgängliga verktyg och deras beskrivningar
     *   **Skills** — Hantera installerade skills
-    *   **Security** — Workspace-restriktioner och guardrails
-    *   **Heartbeat** — Schemaläggning av bakgrundsagenten
-    *   **Prompts** — Redigera IDENTITY.md och SOUL.md
     *   **Logs** — Realtidsloggar
+    *   **Security** — Workspace-restriktioner och guardrails
 
 ## 🔄 AI-leverantörer
 
