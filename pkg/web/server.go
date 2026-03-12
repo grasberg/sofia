@@ -51,6 +51,9 @@ var settingsChannelsHTML []byte
 //go:embed templates/settings/tools.html
 var settingsToolsHTML []byte
 
+//go:embed templates/settings/integrations.html
+var settingsIntegrationsHTML []byte
+
 //go:embed templates/settings/skills.html
 var settingsSkillsHTML []byte
 
@@ -140,6 +143,10 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/ui/settings/tools", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(settingsToolsHTML)
+	})
+	mux.HandleFunc("/ui/settings/integrations", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsIntegrationsHTML)
 	})
 	mux.HandleFunc("/ui/settings/skills", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

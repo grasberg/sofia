@@ -281,8 +281,29 @@ func registerSharedTools(
 			))
 		}
 
+		if cfg.Tools.GitHub.Enabled {
+			agent.Tools.Register(tools.NewGitHubCLITool(
+				cfg.Tools.GitHub.BinaryPath,
+				cfg.Tools.GitHub.TimeoutSeconds,
+				cfg.Tools.GitHub.AllowedCommands,
+			))
+		}
+
 		if cfg.Tools.BraveSearch.Enabled && cfg.Tools.BraveSearch.APIKey != "" {
 			agent.Tools.Register(tools.NewBraveSearchTool(cfg.Tools.BraveSearch.APIKey))
+		}
+
+		if cfg.Tools.Porkbun.Enabled && cfg.Tools.Porkbun.APIKey != "" && cfg.Tools.Porkbun.SecretAPIKey != "" {
+			agent.Tools.Register(tools.NewPorkbunTool(cfg.Tools.Porkbun.APIKey, cfg.Tools.Porkbun.SecretAPIKey))
+		}
+
+		if cfg.Tools.Cpanel.Enabled && cfg.Tools.Cpanel.Host != "" && cfg.Tools.Cpanel.APIToken != "" {
+			agent.Tools.Register(tools.NewCpanelTool(
+				cfg.Tools.Cpanel.Host,
+				cfg.Tools.Cpanel.Port,
+				cfg.Tools.Cpanel.Username,
+				cfg.Tools.Cpanel.APIToken,
+			))
 		}
 
 		// Hardware tools (I2C, SPI) - Linux only, returns error on other platforms

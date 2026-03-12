@@ -155,6 +155,9 @@
                     <button hx-get="/ui/settings/channels" hx-target="#subtab-content"
                         onclick="setActiveSettingsTab(this)" id="settings-tab-channels"
                         class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Comms</button>
+                    <button hx-get="/ui/settings/integrations" hx-target="#subtab-content" onclick="setActiveSettingsTab(this)"
+                        id="settings-tab-integrations"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Integrations</button>
                     <button hx-get="/ui/settings/tools" hx-target="#subtab-content" onclick="setActiveSettingsTab(this)"
                         id="settings-tab-tools"
                         class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Tools</button>
@@ -1243,6 +1246,9 @@
                 if (!cfg.tools) cfg.tools = {};
                 if (!cfg.tools.google) cfg.tools.google = {};
                 if (!cfg.tools.brave_search) cfg.tools.brave_search = {};
+                if (!cfg.tools.porkbun) cfg.tools.porkbun = {};
+                if (!cfg.tools.github) cfg.tools.github = {};
+                if (!cfg.tools.cpanel) cfg.tools.cpanel = {};
 
                 cfg.tools.google.enabled = document.getElementById("cfg-google-enabled").checked;
                 cfg.tools.google.binary_path = document.getElementById("cfg-google-binary").value.trim() || "gog";
@@ -1255,6 +1261,36 @@
                 if (braveEnabled) cfg.tools.brave_search.enabled = braveEnabled.checked;
                 if (braveKey && braveKey.value.trim()) cfg.tools.brave_search.api_key = braveKey.value.trim();
 
+                const porkbunEnabled = document.getElementById("cfg-porkbun-enabled");
+                const porkbunKey = document.getElementById("cfg-porkbun-api-key");
+                const porkbunSecret = document.getElementById("cfg-porkbun-secret-key");
+                if (porkbunEnabled) cfg.tools.porkbun.enabled = porkbunEnabled.checked;
+                if (porkbunKey && porkbunKey.value.trim()) cfg.tools.porkbun.api_key = porkbunKey.value.trim();
+                if (porkbunSecret && porkbunSecret.value.trim()) cfg.tools.porkbun.secret_api_key = porkbunSecret.value.trim();
+
+                const ghEnabled = document.getElementById("cfg-github-enabled");
+                const ghBinary = document.getElementById("cfg-github-binary");
+                const ghTimeout = document.getElementById("cfg-github-timeout");
+                const ghCommands = document.getElementById("cfg-github-commands");
+                if (ghEnabled) cfg.tools.github.enabled = ghEnabled.checked;
+                if (ghBinary) cfg.tools.github.binary_path = ghBinary.value.trim() || "gh";
+                if (ghTimeout) cfg.tools.github.timeout_seconds = parseInt(ghTimeout.value) || 60;
+                if (ghCommands) {
+                    const cmds = ghCommands.value.trim();
+                    cfg.tools.github.allowed_commands = cmds ? cmds.split(",").map(s => s.trim()).filter(Boolean) : [];
+                }
+
+                const cpEnabled = document.getElementById("cfg-cpanel-enabled");
+                const cpHost = document.getElementById("cfg-cpanel-host");
+                const cpPort = document.getElementById("cfg-cpanel-port");
+                const cpUser = document.getElementById("cfg-cpanel-username");
+                const cpToken = document.getElementById("cfg-cpanel-token");
+                if (cpEnabled) cfg.tools.cpanel.enabled = cpEnabled.checked;
+                if (cpHost && cpHost.value.trim()) cfg.tools.cpanel.host = cpHost.value.trim();
+                if (cpPort) cfg.tools.cpanel.port = parseInt(cpPort.value) || 2083;
+                if (cpUser && cpUser.value.trim()) cfg.tools.cpanel.username = cpUser.value.trim();
+                if (cpToken && cpToken.value.trim()) cfg.tools.cpanel.api_token = cpToken.value.trim();
+
                 const saveRes = await fetch("/api/config", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -1263,7 +1299,7 @@
 
                 if (saveRes.ok) {
                     currentConfig = cfg;
-                    alert("Google tool settings saved! Restart Sofia to apply changes.");
+                    alert("Integration settings saved! Restart Sofia to apply changes.");
                 } else {
                     alert("Could not save settings.");
                 }
@@ -1350,6 +1386,42 @@
                     const braveKey = document.getElementById("cfg-brave-api-key");
                     if (braveEnabled) braveEnabled.checked = !!cfg.tools.brave_search.enabled;
                     if (braveKey && cfg.tools.brave_search.api_key) braveKey.value = cfg.tools.brave_search.api_key;
+                }
+
+                // Populate Porkbun settings
+                if (cfg.tools && cfg.tools.porkbun) {
+                    const porkbunEnabled = document.getElementById("cfg-porkbun-enabled");
+                    const porkbunKey = document.getElementById("cfg-porkbun-api-key");
+                    const porkbunSecret = document.getElementById("cfg-porkbun-secret-key");
+                    if (porkbunEnabled) porkbunEnabled.checked = !!cfg.tools.porkbun.enabled;
+                    if (porkbunKey && cfg.tools.porkbun.api_key) porkbunKey.value = cfg.tools.porkbun.api_key;
+                    if (porkbunSecret && cfg.tools.porkbun.secret_api_key) porkbunSecret.value = cfg.tools.porkbun.secret_api_key;
+                }
+
+                // Populate GitHub settings
+                if (cfg.tools && cfg.tools.github) {
+                    const ghEnabled = document.getElementById("cfg-github-enabled");
+                    const ghBinary = document.getElementById("cfg-github-binary");
+                    const ghTimeout = document.getElementById("cfg-github-timeout");
+                    const ghCommands = document.getElementById("cfg-github-commands");
+                    if (ghEnabled) ghEnabled.checked = !!cfg.tools.github.enabled;
+                    if (ghBinary) ghBinary.value = cfg.tools.github.binary_path || "gh";
+                    if (ghTimeout) ghTimeout.value = cfg.tools.github.timeout_seconds || 60;
+                    if (ghCommands) ghCommands.value = (cfg.tools.github.allowed_commands || []).join(", ");
+                }
+
+                // Populate cPanel settings
+                if (cfg.tools && cfg.tools.cpanel) {
+                    const cpEnabled = document.getElementById("cfg-cpanel-enabled");
+                    const cpHost = document.getElementById("cfg-cpanel-host");
+                    const cpPort = document.getElementById("cfg-cpanel-port");
+                    const cpUser = document.getElementById("cfg-cpanel-username");
+                    const cpToken = document.getElementById("cfg-cpanel-token");
+                    if (cpEnabled) cpEnabled.checked = !!cfg.tools.cpanel.enabled;
+                    if (cpHost && cfg.tools.cpanel.host) cpHost.value = cfg.tools.cpanel.host;
+                    if (cpPort) cpPort.value = cfg.tools.cpanel.port || 2083;
+                    if (cpUser && cfg.tools.cpanel.username) cpUser.value = cfg.tools.cpanel.username;
+                    if (cpToken && cfg.tools.cpanel.api_token) cpToken.value = cfg.tools.cpanel.api_token;
                 }
 
                 fetchWorkspaceDocs();

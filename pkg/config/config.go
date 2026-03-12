@@ -504,12 +504,39 @@ type BraveSearchConfig struct {
 	APIKey  string `json:"api_key" env:"SOFIA_TOOLS_BRAVE_SEARCH_API_KEY"`
 }
 
+// GitHubCLIConfig configures the GitHub CLI (gh) tool.
+type GitHubCLIConfig struct {
+	Enabled         bool     `json:"enabled"          env:"SOFIA_TOOLS_GITHUB_ENABLED"`
+	BinaryPath      string   `json:"binary_path"      env:"SOFIA_TOOLS_GITHUB_BINARY_PATH"`
+	TimeoutSeconds  int      `json:"timeout_seconds"  env:"SOFIA_TOOLS_GITHUB_TIMEOUT_SECONDS"`
+	AllowedCommands []string `json:"allowed_commands" env:"SOFIA_TOOLS_GITHUB_ALLOWED_COMMANDS"`
+}
+
+// CpanelConfig configures the cPanel hosting management tool.
+type CpanelConfig struct {
+	Enabled  bool   `json:"enabled"   env:"SOFIA_TOOLS_CPANEL_ENABLED"`
+	Host     string `json:"host"      env:"SOFIA_TOOLS_CPANEL_HOST"`
+	Port     int    `json:"port"      env:"SOFIA_TOOLS_CPANEL_PORT"`
+	Username string `json:"username"  env:"SOFIA_TOOLS_CPANEL_USERNAME"`
+	APIToken string `json:"api_token" env:"SOFIA_TOOLS_CPANEL_API_TOKEN"`
+}
+
+// PorkbunConfig configures the Porkbun domain management tool.
+type PorkbunConfig struct {
+	Enabled      bool   `json:"enabled"        env:"SOFIA_TOOLS_PORKBUN_ENABLED"`
+	APIKey       string `json:"api_key"        env:"SOFIA_TOOLS_PORKBUN_API_KEY"`
+	SecretAPIKey string `json:"secret_api_key" env:"SOFIA_TOOLS_PORKBUN_SECRET_API_KEY"`
+}
+
 type ToolsConfig struct {
 	Web         WebToolsConfig             `json:"web"`
 	Cron        CronToolsConfig            `json:"cron"`
 	Exec        ExecConfig                 `json:"exec"`
 	Google      GoogleToolsConfig          `json:"google"`
+	GitHub      GitHubCLIConfig            `json:"github"`
 	BraveSearch BraveSearchConfig          `json:"brave_search"`
+	Porkbun     PorkbunConfig              `json:"porkbun"`
+	Cpanel      CpanelConfig               `json:"cpanel"`
 	Skills      SkillsToolsConfig          `json:"skills"`
 	MCP         map[string]MCPServerConfig `json:"mcp,omitempty"`
 }
