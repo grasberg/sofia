@@ -110,9 +110,25 @@ func buildParams(
 	var system []anthropic.TextBlockParam
 	var anthropicMessages []anthropic.MessageParam
 
+	// Collect tool result blocks so consecutive tool messages can be merged
+	// into a single user message (Anthropic requires all tool_result blocks
+	// from one assistant turn in a single user message).
+	var pendingToolResults []anthropic.ContentBlockParamUnion
+
+	flushToolResults := func() {
+		if len(pendingToolResults) == 0 {
+			return
+		}
+		anthropicMessages = append(anthropicMessages,
+			anthropic.NewUserMessage(pendingToolResults...),
+		)
+		pendingToolResults = nil
+	}
+
 	for _, msg := range messages {
 		switch msg.Role {
 		case "system":
+			flushToolResults()
 			// Prefer structured SystemParts for per-block cache_control.
 			// This enables LLM-side KV cache reuse: the static block's prefix
 			// hash stays stable across requests while dynamic parts change freely.
@@ -129,15 +145,18 @@ func buildParams(
 			}
 		case "user":
 			if msg.ToolCallID != "" {
-				anthropicMessages = append(anthropicMessages,
-					anthropic.NewUserMessage(anthropic.NewToolResultBlock(msg.ToolCallID, msg.Content, false)),
+				// Tool result stored as user role — accumulate with other tool results
+				pendingToolResults = append(pendingToolResults,
+					anthropic.NewToolResultBlock(msg.ToolCallID, msg.Content, false),
 				)
 			} else {
+				flushToolResults()
 				anthropicMessages = append(anthropicMessages,
 					anthropic.NewUserMessage(anthropic.NewTextBlock(msg.Content)),
 				)
 			}
 		case "assistant":
+			flushToolResults()
 			if len(msg.ToolCalls) > 0 {
 				var blocks []anthropic.ContentBlockParamUnion
 				if msg.Content != "" {
@@ -153,11 +172,13 @@ func buildParams(
 				)
 			}
 		case "tool":
-			anthropicMessages = append(anthropicMessages,
-				anthropic.NewUserMessage(anthropic.NewToolResultBlock(msg.ToolCallID, msg.Content, false)),
+			// Accumulate — will be flushed as a single user message
+			pendingToolResults = append(pendingToolResults,
+				anthropic.NewToolResultBlock(msg.ToolCallID, msg.Content, false),
 			)
 		}
 	}
+	flushToolResults()
 
 	maxTokens := int64(4096)
 	if mt, ok := options["max_tokens"].(int); ok {

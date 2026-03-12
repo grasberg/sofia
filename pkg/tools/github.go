@@ -90,8 +90,11 @@ func (t *GitHubCLITool) Execute(ctx context.Context, args map[string]any) *ToolR
 		return ErrorResult("args must start with a gh top-level command (e.g. pr, issue, repo, run, api, release, gist)")
 	}
 
-	// Block dangerous commands
-	blocked := map[string]bool{"auth": true, "config": true, "ssh-key": true, "gpg-key": true, "secret": true}
+	// Block dangerous commands that could leak credentials or modify auth
+	blocked := map[string]bool{
+		"auth": true, "config": true, "ssh-key": true, "gpg-key": true,
+		"secret": true, "variable": true, "environment": true,
+	}
 	if blocked[topLevel] {
 		return ErrorResult(fmt.Sprintf("command %q is blocked for security reasons", topLevel))
 	}

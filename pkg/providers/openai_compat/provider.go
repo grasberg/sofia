@@ -358,10 +358,12 @@ func (p *Provider) Embeddings(
 // Content can be a plain string OR an array of content parts for vision (image_url).
 // We use json.RawMessage so we can emit either format depending on context.
 type openaiMessage struct {
-	Role       string     `json:"role"`
-	Content    any        `json:"content"` // string OR []openaiContentPart for vision
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string     `json:"tool_call_id,omitempty"`
+	Role             string     `json:"role"`
+	Content          any        `json:"content"`                     // string OR []openaiContentPart for vision
+	ReasoningContent string     `json:"reasoning_content,omitempty"` // DeepSeek thinking mode
+	Name             string     `json:"name,omitempty"`              // function name for tool result messages (required by Gemini)
+	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID       string     `json:"tool_call_id,omitempty"`
 }
 
 type openaiContentPart struct {
@@ -394,17 +396,21 @@ func stripSystemParts(messages []Message) []openaiMessage {
 				})
 			}
 			out[i] = openaiMessage{
-				Role:       m.Role,
-				Content:    parts,
-				ToolCalls:  m.ToolCalls,
-				ToolCallID: m.ToolCallID,
+				Role:             m.Role,
+				Content:          parts,
+				ReasoningContent: m.ReasoningContent,
+				Name:             m.ToolName,
+				ToolCalls:        m.ToolCalls,
+				ToolCallID:       m.ToolCallID,
 			}
 		} else {
 			out[i] = openaiMessage{
-				Role:       m.Role,
-				Content:    m.Content,
-				ToolCalls:  m.ToolCalls,
-				ToolCallID: m.ToolCallID,
+				Role:             m.Role,
+				Content:          m.Content,
+				ReasoningContent: m.ReasoningContent,
+				Name:             m.ToolName,
+				ToolCalls:        m.ToolCalls,
+				ToolCallID:       m.ToolCallID,
 			}
 		}
 	}

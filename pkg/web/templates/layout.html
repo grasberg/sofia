@@ -1249,6 +1249,7 @@
                 if (!cfg.tools.porkbun) cfg.tools.porkbun = {};
                 if (!cfg.tools.github) cfg.tools.github = {};
                 if (!cfg.tools.cpanel) cfg.tools.cpanel = {};
+                if (!cfg.tools.bitcoin) cfg.tools.bitcoin = {};
 
                 cfg.tools.google.enabled = document.getElementById("cfg-google-enabled").checked;
                 cfg.tools.google.binary_path = document.getElementById("cfg-google-binary").value.trim() || "gog";
@@ -1290,6 +1291,15 @@
                 if (cpPort) cfg.tools.cpanel.port = parseInt(cpPort.value) || 2083;
                 if (cpUser && cpUser.value.trim()) cfg.tools.cpanel.username = cpUser.value.trim();
                 if (cpToken && cpToken.value.trim()) cfg.tools.cpanel.api_token = cpToken.value.trim();
+
+                const btcEnabled = document.getElementById("cfg-bitcoin-enabled");
+                const btcNetwork = document.getElementById("cfg-bitcoin-network");
+                const btcWalletPath = document.getElementById("cfg-bitcoin-wallet-path");
+                const btcPassphrase = document.getElementById("cfg-bitcoin-passphrase");
+                if (btcEnabled) cfg.tools.bitcoin.enabled = btcEnabled.checked;
+                if (btcNetwork) cfg.tools.bitcoin.network = btcNetwork.value;
+                if (btcWalletPath && btcWalletPath.value.trim()) cfg.tools.bitcoin.wallet_path = btcWalletPath.value.trim();
+                if (btcPassphrase && btcPassphrase.value.trim()) cfg.tools.bitcoin.passphrase = btcPassphrase.value.trim();
 
                 const saveRes = await fetch("/api/config", {
                     method: "POST",
@@ -1358,6 +1368,8 @@
                     if (cfg.heartbeat) {
                         heartbeatEnabled.checked = !!cfg.heartbeat.enabled;
                         document.getElementById("cfg-heartbeat-interval").value = cfg.heartbeat.interval || 30;
+                        const hbModelEl = document.getElementById("cfg-heartbeat-model");
+                        if (hbModelEl) hbModelEl.value = cfg.heartbeat.model || "";
                         document.getElementById("cfg-heartbeat-hours").value = cfg.heartbeat.active_hours || "";
                         renderHeartbeatDays(cfg.heartbeat.active_days || []);
                     } else {
@@ -1422,6 +1434,17 @@
                     if (cpPort) cpPort.value = cfg.tools.cpanel.port || 2083;
                     if (cpUser && cfg.tools.cpanel.username) cpUser.value = cfg.tools.cpanel.username;
                     if (cpToken && cfg.tools.cpanel.api_token) cpToken.value = cfg.tools.cpanel.api_token;
+                }
+
+                if (cfg.tools && cfg.tools.bitcoin) {
+                    const btcEnabled = document.getElementById("cfg-bitcoin-enabled");
+                    const btcNetwork = document.getElementById("cfg-bitcoin-network");
+                    const btcWalletPath = document.getElementById("cfg-bitcoin-wallet-path");
+                    const btcPassphrase = document.getElementById("cfg-bitcoin-passphrase");
+                    if (btcEnabled) btcEnabled.checked = !!cfg.tools.bitcoin.enabled;
+                    if (btcNetwork && cfg.tools.bitcoin.network) btcNetwork.value = cfg.tools.bitcoin.network;
+                    if (btcWalletPath && cfg.tools.bitcoin.wallet_path) btcWalletPath.value = cfg.tools.bitcoin.wallet_path;
+                    if (btcPassphrase && cfg.tools.bitcoin.passphrase) btcPassphrase.value = cfg.tools.bitcoin.passphrase;
                 }
 
                 fetchWorkspaceDocs();
@@ -2164,6 +2187,8 @@
                     if (!cfg.heartbeat) cfg.heartbeat = {};
                     cfg.heartbeat.enabled = heartbeatEnabledEl.checked;
                     cfg.heartbeat.interval = parseInt(heartbeatIntervalEl.value, 10) || 30;
+                    const hbModelSaveEl = document.getElementById("cfg-heartbeat-model");
+                    cfg.heartbeat.model = hbModelSaveEl ? hbModelSaveEl.value.trim() : "";
                     cfg.heartbeat.active_hours = heartbeatHoursEl.value.trim();
                     cfg.heartbeat.active_days = getCheckedHeartbeatDays();
                 }

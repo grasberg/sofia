@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -126,6 +127,15 @@ func (t *PorkbunTool) authBody() map[string]any {
 	}
 }
 
+func porkbunPath(parts ...string) string {
+	var b strings.Builder
+	for _, p := range parts {
+		b.WriteString("/")
+		b.WriteString(url.PathEscape(p))
+	}
+	return b.String()
+}
+
 func (t *PorkbunTool) post(ctx context.Context, path string, body map[string]any) (map[string]any, error) {
 	data, err := json.Marshal(body)
 	if err != nil {
@@ -164,7 +174,7 @@ func (t *PorkbunTool) checkDomain(ctx context.Context, domain string) *ToolResul
 		return ErrorResult("domain is required for check action")
 	}
 
-	result, err := t.post(ctx, "/domain/checkDomain/"+domain, t.authBody())
+	result, err := t.post(ctx, "/domain/checkDomain"+porkbunPath(domain), t.authBody())
 	if err != nil {
 		return RetryableError(fmt.Sprintf("Porkbun check failed: %v", err), "Check network or try again")
 	}
@@ -204,7 +214,7 @@ func (t *PorkbunTool) registerDomain(ctx context.Context, domain string) *ToolRe
 
 	body := t.authBody()
 
-	result, err := t.post(ctx, "/domain/create/"+domain, body)
+	result, err := t.post(ctx, "/domain/create"+porkbunPath(domain), body)
 	if err != nil {
 		return RetryableError(fmt.Sprintf("Porkbun register failed: %v", err), "Check network or try again")
 	}
@@ -305,7 +315,7 @@ func (t *PorkbunTool) dnsListRecords(ctx context.Context, domain string) *ToolRe
 		return ErrorResult("domain is required for dns_list action")
 	}
 
-	result, err := t.post(ctx, "/dns/retrieve/"+domain, t.authBody())
+	result, err := t.post(ctx, "/dns/retrieve"+porkbunPath(domain), t.authBody())
 	if err != nil {
 		return RetryableError(fmt.Sprintf("DNS list failed: %v", err), "Check network or try again")
 	}
@@ -378,7 +388,7 @@ func (t *PorkbunTool) dnsCreateRecord(ctx context.Context, domain string, args m
 		body["prio"] = fmt.Sprintf("%d", int(prio))
 	}
 
-	result, err := t.post(ctx, "/dns/create/"+domain, body)
+	result, err := t.post(ctx, "/dns/create"+porkbunPath(domain), body)
 	if err != nil {
 		return RetryableError(fmt.Sprintf("DNS create failed: %v", err), "Check network or try again")
 	}
@@ -402,7 +412,7 @@ func (t *PorkbunTool) dnsDeleteRecord(ctx context.Context, domain string, args m
 		return ErrorResult("record_id is required for dns_delete")
 	}
 
-	result, err := t.post(ctx, "/dns/delete/"+domain+"/"+recordID, t.authBody())
+	result, err := t.post(ctx, "/dns/delete"+porkbunPath(domain, recordID), t.authBody())
 	if err != nil {
 		return RetryableError(fmt.Sprintf("DNS delete failed: %v", err), "Check network or try again")
 	}
@@ -421,7 +431,7 @@ func (t *PorkbunTool) getNameservers(ctx context.Context, domain string) *ToolRe
 		return ErrorResult("domain is required for get_nameservers action")
 	}
 
-	result, err := t.post(ctx, "/domain/getNs/"+domain, t.authBody())
+	result, err := t.post(ctx, "/domain/getNs"+porkbunPath(domain), t.authBody())
 	if err != nil {
 		return RetryableError(fmt.Sprintf("Get nameservers failed: %v", err), "Check network or try again")
 	}
@@ -461,9 +471,12 @@ func (t *PorkbunTool) updateNameservers(ctx context.Context, domain string, args
 			ns = append(ns, s)
 		}
 	}
+	if len(ns) == 0 {
+		return ErrorResult("no valid nameservers provided")
+	}
 	body["ns"] = ns
 
-	result, err := t.post(ctx, "/domain/updateNs/"+domain, body)
+	result, err := t.post(ctx, "/domain/updateNs"+porkbunPath(domain), body)
 	if err != nil {
 		return RetryableError(fmt.Sprintf("Update nameservers failed: %v", err), "Check network or try again")
 	}

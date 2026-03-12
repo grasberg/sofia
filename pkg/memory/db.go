@@ -14,7 +14,7 @@ import (
 	"github.com/grasberg/sofia/pkg/providers"
 )
 
-const schemaVersion = 8
+const schemaVersion = 9
 
 // MemoryDB is a shared SQLite database for session history and memory notes.
 // It is opened once at AgentLoop startup and shared across all AgentInstances.
@@ -158,6 +158,12 @@ func (m *MemoryDB) migrate() error {
 		}
 	}
 
+	if current < 9 {
+		if err = m.applyV9(); err != nil {
+			return err
+		}
+	}
+
 	// Upsert schema version.
 	_, err = m.db.Exec(`DELETE FROM schema_version`)
 	if err != nil {
@@ -261,15 +267,15 @@ func (m *MemoryDB) AppendMessage(key string, msg providers.Message) error {
 
 	_, err = m.db.Exec(
 		`INSERT INTO messages
-		    (session_key, position, role, content, tool_calls, tool_call_id, images, reasoning_content, created_at)
+		    (session_key, position, role, content, tool_calls, tool_call_id, tool_name, images, reasoning_content, created_at)
 		 VALUES (
 		    ?,
 		    (SELECT COALESCE(MAX(position), -1) + 1 FROM messages WHERE session_key = ?),
-		    ?, ?, ?, ?, ?, ?,
+		    ?, ?, ?, ?, ?, ?, ?,
 		    datetime('now')
 		 )`,
 		key, key,
-		msg.Role, msg.Content, string(toolCallsJSON), msg.ToolCallID,
+		msg.Role, msg.Content, string(toolCallsJSON), msg.ToolCallID, msg.ToolName,
 		string(imagesJSON), msg.ReasoningContent,
 	)
 	if err != nil {
@@ -283,7 +289,7 @@ func (m *MemoryDB) AppendMessage(key string, msg providers.Message) error {
 // GetMessages returns all messages for a session, ordered by position.
 func (m *MemoryDB) GetMessages(key string) ([]providers.Message, error) {
 	rows, err := m.db.Query(
-		`SELECT role, content, tool_calls, tool_call_id, images, reasoning_content
+		`SELECT role, content, tool_calls, tool_call_id, tool_name, images, reasoning_content
 		 FROM messages WHERE session_key = ? ORDER BY position ASC`,
 		key,
 	)
@@ -297,7 +303,7 @@ func (m *MemoryDB) GetMessages(key string) ([]providers.Message, error) {
 		var msg providers.Message
 		var toolCallsJSON, imagesJSON string
 		if err = rows.Scan(
-			&msg.Role, &msg.Content, &toolCallsJSON, &msg.ToolCallID,
+			&msg.Role, &msg.Content, &toolCallsJSON, &msg.ToolCallID, &msg.ToolName,
 			&imagesJSON, &msg.ReasoningContent,
 		); err != nil {
 			return nil, fmt.Errorf("memory: scan message: %w", err)
@@ -333,10 +339,10 @@ func (m *MemoryDB) SetMessages(key string, msgs []providers.Message) error {
 		imagesJSON, _ := json.Marshal(msg.Images)
 		_, err = tx.Exec(
 			`INSERT INTO messages
-			    (session_key, position, role, content, tool_calls, tool_call_id, images, reasoning_content, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+			    (session_key, position, role, content, tool_calls, tool_call_id, tool_name, images, reasoning_content, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
 			key, i,
-			msg.Role, msg.Content, string(toolCallsJSON), msg.ToolCallID,
+			msg.Role, msg.Content, string(toolCallsJSON), msg.ToolCallID, msg.ToolName,
 			string(imagesJSON), msg.ReasoningContent,
 		)
 		if err != nil {
@@ -1678,5 +1684,12 @@ CREATE INDEX IF NOT EXISTS idx_reputation_created
     ON agent_reputation(created_at DESC);
 `
 	_, err := m.db.Exec(ddl)
+	return err
+}
+
+// Schema migration v9: add tool_name column to messages for Gemini compatibility.
+// Gemini requires function_response.name to be non-empty.
+func (m *MemoryDB) applyV9() error {
+	_, err := m.db.Exec(`ALTER TABLE messages ADD COLUMN tool_name TEXT NOT NULL DEFAULT ''`)
 	return err
 }

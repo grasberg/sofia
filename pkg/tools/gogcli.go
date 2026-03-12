@@ -48,7 +48,14 @@ func (t *GoogleCLITool) Name() string {
 }
 
 func (t *GoogleCLITool) Description() string {
-	return "Run gogcli commands for Google services like Gmail, Drive, and Calendar. For gmail batch modify/delete over many message IDs, prefer one call using batch_ids to reduce subprocess overhead."
+	return "Run gog CLI commands for Google services. " +
+		"Gmail commands: gmail search <query>, gmail get <msgId>, gmail send --to <email> --subject <s> --body <b>, " +
+		"gmail thread get <threadId>, gmail thread modify <threadId> --read/--unread/--archive/--star/--unstar, " +
+		"gmail labels list, gmail messages list. " +
+		"Drive commands: drive list, drive upload <path>, drive download <fileId>. " +
+		"Calendar commands: calendar list, calendar events list. " +
+		"IMPORTANT: modify/read operations use 'gmail thread modify <id>', NOT 'gmail modify'. " +
+		"For batch modify/delete over many message IDs, prefer one call using batch_ids to reduce subprocess overhead."
 }
 
 func (t *GoogleCLITool) Parameters() map[string]any {

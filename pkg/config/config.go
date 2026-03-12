@@ -300,6 +300,7 @@ type DiscordConfig struct {
 type HeartbeatConfig struct {
 	Enabled     bool     `json:"enabled"      env:"SOFIA_HEARTBEAT_ENABLED"`
 	Interval    int      `json:"interval"     env:"SOFIA_HEARTBEAT_INTERVAL"`     // minutes, min 5
+	Model       string   `json:"model"        env:"SOFIA_HEARTBEAT_MODEL"`        // optional: use a specific model (e.g. cheaper/faster) instead of default
 	ActiveHours string   `json:"active_hours" env:"SOFIA_HEARTBEAT_ACTIVE_HOURS"` // e.g. "09:00-17:00"
 	ActiveDays  []string `json:"active_days"  env:"SOFIA_HEARTBEAT_ACTIVE_DAYS"`  // e.g. ["Monday", "Tuesday"]
 }
@@ -521,6 +522,14 @@ type CpanelConfig struct {
 	APIToken string `json:"api_token" env:"SOFIA_TOOLS_CPANEL_API_TOKEN"`
 }
 
+// BitcoinConfig configures the Bitcoin wallet and blockchain tool.
+type BitcoinConfig struct {
+	Enabled    bool   `json:"enabled"      env:"SOFIA_TOOLS_BITCOIN_ENABLED"`
+	Network    string `json:"network"      env:"SOFIA_TOOLS_BITCOIN_NETWORK"`    // mainnet, testnet, signet
+	WalletPath string `json:"wallet_path"  env:"SOFIA_TOOLS_BITCOIN_WALLET_PATH"` // path to encrypted wallet file
+	Passphrase string `json:"passphrase"   env:"SOFIA_TOOLS_BITCOIN_PASSPHRASE"` // wallet encryption passphrase
+}
+
 // PorkbunConfig configures the Porkbun domain management tool.
 type PorkbunConfig struct {
 	Enabled      bool   `json:"enabled"        env:"SOFIA_TOOLS_PORKBUN_ENABLED"`
@@ -537,6 +546,7 @@ type ToolsConfig struct {
 	BraveSearch BraveSearchConfig          `json:"brave_search"`
 	Porkbun     PorkbunConfig              `json:"porkbun"`
 	Cpanel      CpanelConfig               `json:"cpanel"`
+	Bitcoin     BitcoinConfig              `json:"bitcoin"`
 	Skills      SkillsToolsConfig          `json:"skills"`
 	MCP         map[string]MCPServerConfig `json:"mcp,omitempty"`
 }

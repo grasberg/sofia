@@ -272,6 +272,16 @@ func getStr(args map[string]any, key string) string {
 	return strings.TrimSpace(s)
 }
 
+func validateRemotePath(path string) error {
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("path must not contain '..'")
+	}
+	if !strings.HasPrefix(path, "/") {
+		return fmt.Errorf("path must be absolute (start with /)")
+	}
+	return nil
+}
+
 // ── File management ──────────────────────────────────────────────────
 
 func (t *CpanelTool) fileUpload(ctx context.Context, args map[string]any) *ToolResult {
@@ -283,6 +293,9 @@ func (t *CpanelTool) fileUpload(ctx context.Context, args map[string]any) *ToolR
 	if remotePath == "" {
 		remotePath = "/public_html"
 	}
+	if err := validateRemotePath(remotePath); err != nil {
+		return ErrorResult(fmt.Sprintf("invalid path: %v", err))
+	}
 
 	f, err := os.Open(localFile)
 	if err != nil {
@@ -292,7 +305,9 @@ func (t *CpanelTool) fileUpload(ctx context.Context, args map[string]any) *ToolR
 
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
-	_ = writer.WriteField("dir", remotePath)
+	if err := writer.WriteField("dir", remotePath); err != nil {
+		return ErrorResult(fmt.Sprintf("write form field: %v", err))
+	}
 
 	part, err := writer.CreateFormFile("file-0", filepath.Base(localFile))
 	if err != nil {
@@ -301,7 +316,9 @@ func (t *CpanelTool) fileUpload(ctx context.Context, args map[string]any) *ToolR
 	if _, err := io.Copy(part, f); err != nil {
 		return ErrorResult(fmt.Sprintf("copy file data: %v", err))
 	}
-	writer.Close()
+	if err := writer.Close(); err != nil {
+		return ErrorResult(fmt.Sprintf("finalize upload: %v", err))
+	}
 
 	reqURL := t.uapiURL("Fileman", "upload_files")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, &buf)
@@ -317,7 +334,10 @@ func (t *CpanelTool) fileUpload(ctx context.Context, args map[string]any) *ToolR
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512*1024))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 512*1024))
+	if err != nil {
+		return ErrorResult(fmt.Sprintf("read upload response: %v", err))
+	}
 
 	var result map[string]any
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -338,6 +358,9 @@ func (t *CpanelTool) fileList(ctx context.Context, args map[string]any) *ToolRes
 	dir := getStr(args, "path")
 	if dir == "" {
 		dir = "/public_html"
+	}
+	if err := validateRemotePath(dir); err != nil {
+		return ErrorResult(fmt.Sprintf("invalid path: %v", err))
 	}
 
 	params := url.Values{}
@@ -395,6 +418,9 @@ func (t *CpanelTool) fileDelete(ctx context.Context, args map[string]any) *ToolR
 	if path == "" {
 		return ErrorResult("path is required for file_delete")
 	}
+	if err := validateRemotePath(path); err != nil {
+		return ErrorResult(fmt.Sprintf("invalid path: %v", err))
+	}
 
 	dir := filepath.Dir(path)
 	file := filepath.Base(path)
@@ -419,6 +445,9 @@ func (t *CpanelTool) fileCreateDir(ctx context.Context, args map[string]any) *To
 	path := getStr(args, "path")
 	if path == "" {
 		return ErrorResult("path is required for file_create_dir")
+	}
+	if err := validateRemotePath(path); err != nil {
+		return ErrorResult(fmt.Sprintf("invalid path: %v", err))
 	}
 
 	dir := filepath.Dir(path)
