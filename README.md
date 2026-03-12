@@ -1,11 +1,11 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.110-blue)
+![Version](https://img.shields.io/badge/version-v0.0.111-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
 
-*   🛠️ **Autonom Verktygsanvändning:** Kan läsa/redigera filer, köra bash-kommandon, interagera med Google CLI (Gmail/Calendar), hantera domäner (Porkbun) och webbhotell (cPanel).
+*   🛠️ **Autonom Verktygsanvändning:** Kan registrera domännamn, publicera webbsidor, läsa/redigera filer, köra bash-kommandon och hantera Google Services (Gmail/Kalender).
 *   🧠 **Avancerat Minne:** Lager av minne — korttids-, långtids-, episodiskt och semantiskt (kunskapsgraf). Automatisk konsolidering och strategisk glömska håller minnet effektivt.
 *   🤖 **Multi-Agent Orkestrering:** Delegera komplexa uppgifter till parallella agenter med beroendegraf, A2A-protokoll för inter-agent-kommunikation, och automatisk agentval.
 *   🌐 **Brett AI-stöd:** Inbyggt stöd för 20+ AI-leverantörer inkl. OpenAI, Anthropic (Claude 4.5), Gemini, DeepSeek, Grok, MiniMax, Moonshot, Qwen, Zai, GitHub Copilot och fler.
@@ -291,36 +291,21 @@ Sofia använder `gogcli` för att interagera med Google Services.
     ```bash
     gog login din.email@gmail.com
     ```
-3.  **Aktivera i Sofia:** Lägg till följande i din `~/.sofia/config.json`:
-    ```json
-    {
-      "tools": {
-        "google": {
-          "enabled": true,
-          "binary_path": "gog",
-          "allowed_commands": ["gmail", "calendar", "drive"]
-        }
-      }
-    }
-    ```
+3.  **Aktivera i Sofia:**
+    -   Öppna Sofias Web UI -> **System** -> **Integrations**.
+    -   Aktivera **Google CLI** och ange sökvägen till `gog`.
+    -   Konfigurera tillåtna kommandon (gmail, calendar, drive).
+    -   Spara inställningarna.
 
 ### 🐙 GitHub
 
 För att Sofia ska kunna hantera repon, skapa PRs och pusha kod behöver hon en åtkomsttoken.
 
 1.  **Skapa en Personal Access Token (PAT):** Gå till GitHub Settings -> Developer Settings -> Personal Access Tokens (Fine-grained rekommenderas). Ge behörighet för `contents`, `pull requests` och `metadata`.
-2.  **Konfigurera i Sofia:** Du kan antingen sätta en miljövariabel i din `.env`-fil:
-    ```bash
-    GITHUB_TOKEN=your_token_here
-    ```
-    Eller lägga till det i `config.json` under `env_vars`:
-    ```json
-    {
-      "env_vars": {
-        "GITHUB_TOKEN": "your_token_here"
-      }
-    }
-    ```
+2.  **Konfigurera i Sofia:**
+    -   Öppna Sofias Web UI -> **System** -> **Integrations**.
+    -   Leta upp **GitHub CLI** och klistra in din token i fältet för `GITHUB_TOKEN`.
+    -   Alternativt kan du sätta en miljövariabel `GITHUB_TOKEN` i din `.env`-fil.
 3.  **Git-identitet:** Se till att din lokala git är konfigurerad så att Sofia kan committa i ditt namn:
     ```bash
     git config --global user.name "Ditt Namn"
@@ -366,37 +351,20 @@ Sofia kan även vara aktiv i Discord-servrar och DM:s.
 Sofia kan kontrollera tillgänglighet, registrera domäner och hantera DNS-poster via Porkbun API.
 
 1.  **Hämta API-nycklar:** Logga in på [Porkbun](https://porkbun.com/account/api) och generera en "API Key" och "Secret API Key".
-2.  **Konfigurera i Sofia:** Lägg till i `config.json` under `tools`:
-    ```json
-    {
-      "tools": {
-        "domain_name": {
-          "enabled": true,
-          "api_key": "pk1_...",
-          "secret_api_key": "sk1_..."
-        }
-      }
-    }
-    ```
+2.  **Konfigurera i Sofia:**
+    -   Öppna Sofias Web UI -> **System** -> **Integrations**.
+    -   Aktivera **Porkbun** och klistra in din `API Key` och `Secret API Key`.
+    -   Spara inställningarna.
 
 ### 📦 cPanel (Webbhotell)
 
 Sofia kan hantera ditt webbhotellskonto via cPanel UAPI: ladda upp filer, skapa databaser och hantera domäner.
 
 1.  **Skapa API-token:** Logga in i cPanel -> **Security** -> **Manage API Tokens**. Skapa en ny token med de behörigheter du vill att Sofia ska ha.
-2.  **Konfigurera i Sofia:** Lägg till i `config.json` under `tools`:
-    ```json
-    {
-      "tools": {
-        "cpanel": {
-          "enabled": true,
-          "host": "server.ditt-webbhotell.com",
-          "username": "ditt_anv_namn",
-          "api_token": "ABC123XYZ..."
-        }
-      }
-    }
-    ```
+2.  **Konfigurera i Sofia:**
+    -   Öppna Sofias Web UI -> **System** -> **Integrations**.
+    -   Aktivera **cPanel** och fyll i host, användarnamn och din API-token.
+    -   Spara inställningarna.
 
 
 ## 🛠️ Komplett verktygslista
