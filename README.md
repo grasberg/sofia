@@ -1,6 +1,6 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.111-blue)
+![Version](https://img.shields.io/badge/version-v0.0.112-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
@@ -299,14 +299,21 @@ Sofia använder `gogcli` för att interagera med Google Services.
 
 ### 🐙 GitHub
 
-För att Sofia ska kunna hantera repon, skapa PRs och pusha kod behöver hon en åtkomsttoken.
+Sofia använder GitHub CLI (`gh`) för att hantera repon, PRs och kod.
 
-1.  **Skapa en Personal Access Token (PAT):** Gå till GitHub Settings -> Developer Settings -> Personal Access Tokens (Fine-grained rekommenderas). Ge behörighet för `contents`, `pull requests` och `metadata`.
-2.  **Konfigurera i Sofia:**
+1.  **Installera GitHub CLI:** `brew install gh` (macOS) eller besök [cli.github.com](https://cli.github.com).
+2.  **Autentisera:** Kör följande i terminalen och följ instruktionerna:
+    ```bash
+    gh auth login
+    ```
+3.  **Aktivera i Sofia:**
     -   Öppna Sofias Web UI -> **System** -> **Integrations**.
-    -   Leta upp **GitHub CLI** och klistra in din token i fältet för `GITHUB_TOKEN`.
-    -   Alternativt kan du sätta en miljövariabel `GITHUB_TOKEN` i din `.env`-fil.
-3.  **Git-identitet:** Se till att din lokala git är konfigurerad så att Sofia kan committa i ditt namn:
+    -   Aktivera **GitHub CLI**-switchen och klicka på **Save settings**.
+    -   **Starta om Sofia** efter att du har sparat.
+
+Sofia kan nu hantera PRs, issues, repon, workflows och mer via verktyget `github_cli`.
+
+4.  **Git-identitet:** Se till att din lokala git är konfigurerad så att Sofia kan committa i ditt namn:
     ```bash
     git config --global user.name "Ditt Namn"
     git config --global user.email "din.email@example.com"
