@@ -1,6 +1,6 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
-![Version](https://img.shields.io/badge/version-v0.0.113-blue)
+![Version](https://img.shields.io/badge/version-v0.0.114-blue)
 Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
 
 ## ✨ Huvudfunktioner
@@ -189,7 +189,7 @@ Sofia har ett fullständigt säkerhetssystem med flera lager:
 *   **Audit Trail:** Alla självmodifieringar loggas med tidsstämpel i `self_modifications.log`.
 
 **Via Web UI:**
-1.  Öppna Sofias Web UI → **Settings**.
+1.  Öppna Sofias Web UI → **System**.
 2.  Klicka på fliken **Security**.
 3.  Aktivera **Restrict to Workspace** och konfigurera guardrails.
 4.  Inställningarna sparas automatiskt.
@@ -199,7 +199,7 @@ Sofia har ett fullständigt säkerhetssystem med flera lager:
 Sofia kan automatiskt utföra uppgifter i bakgrunden enligt ett schema.
 
 **Via Web UI:**
-1.  Öppna Sofias Web UI → **Settings**.
+1.  Öppna Sofias Web UI → **System**.
 2.  Klicka på fliken **Heartbeat**.
 3.  Aktivera **Enable Heartbeat** och ange hur ofta agenten ska köra (i minuter).
 4.  Ange **Active Hours** i formatet `09:00-17:00` — lämna tomt för 24/7.
@@ -212,8 +212,8 @@ Sofias beteende, ton och personlighet styrs av två filer: **IDENTITY.md** och *
 
 1.  **Starta Sofia:** `sofia gateway`
 2.  **Öppna webbläsaren:** Surfa till `http://127.0.0.1:18795`
-3.  **Gå till Settings** i vänstermenyn.
-4.  Redigera **IDENTITY.md** (vem Sofia är) och **SOUL.md** (hur Sofia beter sig) direkt i textrutorna.
+3.  **Gå till System** i vänstermenyn.
+4.  Redigera **IDENTITY.md** (vem Sofia är) och **SOUL.md** (hur Sofia beter sig) direkt i textrutorna under fliken **Prompts**.
 5.  Klicka **Save prompt files** — ändringarna träder i kraft omedelbart utan omstart.
 
 ### `IDENTITY.md` — Vem är Sofia?
@@ -244,18 +244,17 @@ Sofias webbgränssnitt är byggt med **HTMX** och **Go Templates** och har ett u
 *   **Chatt:** Realtidskonversation med streaming, markdown-rendering och filuppladdning (inkl. bilduppladdning för vision-modeller).
 *   **Chatthistorik:** Sök, bläddra och återuppta tidigare konversationer med full sessionshantering.
 *   **Agenter:** Hantera och konfigurera flera agenter med egna modeller, prompts och verktyg.
-*   **Settings-flikar:** Alla inställningar samlade under en enhetlig Settings-vy:
+*   **Monitor:** Realtidsövervakning av agentaktivitet, verktygsanrop, systemstatus och pågående mål (Activity Monitor).
+*   **System:** Alla inställningar och systemfunktioner samlade i vänstermenyn:
+    *   **Integrations** — Aktivera och konfigurera externa integrationer (Porkbun, cPanel, GitHub, Google m.fl.)
     *   **Models** — Hantera AI-leverantörer och modeller
     *   **Channels** — Konfigurera Telegram, Discord m.m.
     *   **Tools** — Lista över tillgängliga verktyg och deras beskrivningar
     *   **Skills** — Hantera installerade skills
-    *   **Security** — Workspace-restriktioner
+    *   **Security** — Workspace-restriktioner och guardrails
     *   **Heartbeat** — Schemaläggning av bakgrundsagenten
     *   **Prompts** — Redigera IDENTITY.md och SOUL.md
     *   **Logs** — Realtidsloggar
-*   **System:**
-    *   **Integrations** — Aktivera och konfigurera externa integrationer (Porkbun, cPanel, GitHub, Google m.fl.)
-    *   **Dashboard** — Systemstatus och resursövervakning
 
 ## 🔄 AI-leverantörer
 
