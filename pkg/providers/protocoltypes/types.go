@@ -61,6 +61,7 @@ type Message struct {
 	SystemParts      []ContentBlock `json:"system_parts,omitempty"` // structured system blocks for cache-aware adapters
 	ToolCalls        []ToolCall     `json:"tool_calls,omitempty"`
 	ToolCallID       string         `json:"tool_call_id,omitempty"`
+	ToolName         string         `json:"tool_name,omitempty"` // function name for tool result messages (required by Gemini)
 }
 
 type ToolDefinition struct {

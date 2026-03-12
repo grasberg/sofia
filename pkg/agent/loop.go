@@ -86,6 +86,7 @@ type processOptions struct {
 	EnableSummary   bool     // Whether to trigger summarization
 	SendResponse    bool     // Whether to send response via bus
 	NoHistory       bool     // If true, don't load session history (for heartbeat)
+	ModelOverride   string   // If set, use this model alias instead of the agent's default
 }
 
 const defaultResponse = "I've completed processing but have no response to give. Increase `max_tool_iterations` in config.json."
@@ -303,6 +304,14 @@ func registerSharedTools(
 				cfg.Tools.Cpanel.Port,
 				cfg.Tools.Cpanel.Username,
 				cfg.Tools.Cpanel.APIToken,
+			))
+		}
+
+		if cfg.Tools.Bitcoin.Enabled {
+			agent.Tools.Register(tools.NewBitcoinTool(
+				cfg.Tools.Bitcoin.Network,
+				cfg.Tools.Bitcoin.WalletPath,
+				cfg.Tools.Bitcoin.Passphrase,
 			))
 		}
 
@@ -864,7 +873,8 @@ func (al *AgentLoop) ProcessHeartbeat(ctx context.Context, content, channel, cha
 		DefaultResponse: defaultResponse,
 		EnableSummary:   false,
 		SendResponse:    false,
-		NoHistory:       true, // Don't load session history for heartbeat
+		NoHistory:       true,                    // Don't load session history for heartbeat
+		ModelOverride:   al.cfg.Heartbeat.Model,  // Use dedicated heartbeat model if configured
 	})
 }
 
@@ -1172,6 +1182,20 @@ func (al *AgentLoop) processSystemMessage(ctx context.Context, msg bus.InboundMe
 
 // runAgentLoop is the core message processing logic.
 func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opts processOptions) (string, error) {
+	// Apply model override (e.g. heartbeat using a cheaper model).
+	// Shallow-copy the agent so the shared instance isn't mutated.
+	if opts.ModelOverride != "" {
+		overrideID := resolveAgentModelID(opts.ModelOverride, al.cfg)
+		if overrideID != "" {
+			copy := *agent
+			copy.Model = opts.ModelOverride
+			copy.ModelID = overrideID
+			agent = &copy
+			logger.InfoCF(fmt.Sprintf("agent:%s", agent.ID),
+				fmt.Sprintf("Model override applied: %s (%s)", opts.ModelOverride, overrideID), nil)
+		}
+	}
+
 	agentComp := fmt.Sprintf("agent:%s", agent.ID)
 
 	// Guard: if no provider is configured, return a friendly message
@@ -1887,6 +1911,7 @@ func (al *AgentLoop) runLLMIteration(
 					Role:       "tool",
 					Content:    contentForLLM,
 					ToolCallID: tc.ID,
+					ToolName:   tc.Name,
 					Images:     toolResult.Images,
 				},
 			}
@@ -2087,6 +2112,8 @@ func (al *AgentLoop) maybeSummarize(agent *AgentInstance, sessionKey, channel, c
 
 // forceCompression aggressively reduces context when the limit is hit.
 // It drops the oldest 50% of messages (keeping system prompt and last user message).
+// The cut point is adjusted to a safe message boundary so that tool-result
+// messages are never orphaned from their preceding assistant tool-call message.
 func (al *AgentLoop) forceCompression(agent *AgentInstance, sessionKey string) {
 	history := agent.Sessions.GetHistory(sessionKey)
 	if len(history) <= 4 {
@@ -2101,13 +2128,11 @@ func (al *AgentLoop) forceCompression(agent *AgentInstance, sessionKey string) {
 		return
 	}
 
-	// Helper to find the mid-point of the conversation
+	// Find the mid-point, then adjust forward to a safe boundary.
+	// A "safe" cut means the kept portion doesn't start with a tool
+	// result or an assistant message whose tool results would be dropped.
 	mid := len(conversation) / 2
-
-	// New history structure:
-	// 1. System Prompt (with compression note appended)
-	// 2. Second half of conversation
-	// 3. Last message
+	mid = safeCutPoint(conversation, mid)
 
 	droppedCount := mid
 	keptConversation := conversation[mid:]
@@ -2136,6 +2161,29 @@ func (al *AgentLoop) forceCompression(agent *AgentInstance, sessionKey string) {
 		"dropped_msgs": droppedCount,
 		"new_count":    len(newHistory),
 	})
+}
+
+// safeCutPoint adjusts a cut index forward so the kept messages don't start
+// with an orphaned tool result or sit between an assistant tool-call and its
+// results. It returns the adjusted index.
+func safeCutPoint(msgs []providers.Message, idx int) int {
+	if idx >= len(msgs) {
+		return len(msgs)
+	}
+	// Walk forward past any tool-result messages — they belong to a preceding
+	// assistant tool-call that would be dropped.
+	for idx < len(msgs) && msgs[idx].Role == "tool" {
+		idx++
+	}
+	// If we landed on an assistant message with tool calls, its tool results
+	// follow it — skip the entire group so we don't split mid-exchange.
+	if idx < len(msgs) && msgs[idx].Role == "assistant" && len(msgs[idx].ToolCalls) > 0 {
+		idx++ // skip the assistant message
+		for idx < len(msgs) && msgs[idx].Role == "tool" {
+			idx++ // skip its tool results
+		}
+	}
+	return idx
 }
 
 // correctionPatterns detects user messages that contain corrections or preferences.
@@ -2495,9 +2543,33 @@ func (al *AgentLoop) summarizeSession(agent *AgentInstance, sessionKey string) {
 
 	if finalSummary != "" {
 		agent.Sessions.SetSummary(sessionKey, finalSummary)
-		agent.Sessions.TruncateHistory(sessionKey, 4)
+
+		// Determine how many messages to keep. We want at least 4, but the
+		// cut point must be at a safe boundary so tool-result messages aren't
+		// orphaned from their preceding assistant tool-call message.
+		keepLast := safeKeepCount(history, 4)
+		agent.Sessions.TruncateHistory(sessionKey, keepLast)
 		agent.Sessions.Save(sessionKey)
 	}
+}
+
+// safeKeepCount returns the number of trailing messages to keep such that the
+// kept portion doesn't start with orphaned tool-result messages. It walks
+// backward from the end to find a safe starting point >= minKeep.
+func safeKeepCount(msgs []providers.Message, minKeep int) int {
+	if len(msgs) <= minKeep {
+		return len(msgs)
+	}
+	keep := minKeep
+	startIdx := len(msgs) - keep
+
+	// If the kept portion starts with tool messages, expand backward to include
+	// the assistant message that produced them.
+	for startIdx > 0 && msgs[startIdx].Role == "tool" {
+		startIdx--
+		keep++
+	}
+	return keep
 }
 
 // summarizeBatch summarizes a batch of messages.
