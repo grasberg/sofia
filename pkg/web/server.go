@@ -187,6 +187,7 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/api/sessions", s.handleSessions)
 	mux.HandleFunc("/api/sessions/", s.handleSessionDetail)
 	mux.HandleFunc("/api/goals", s.handleGoals)
+	mux.HandleFunc("/api/reset", s.handleReset)
 	mux.HandleFunc("/ws/dashboard", func(w http.ResponseWriter, r *http.Request) {
 		s.agentLoop.DashboardHub().RegisterClient(w, r, func() any {
 			return s.agentLoop.GetStartupInfo()
@@ -863,4 +864,15 @@ func (s *Server) handleGoals(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(goals)
+}
+
+// handleReset handles POST /api/reset — cancels in-flight work, clears sessions, and resets goals.
+func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	result := s.agentLoop.Reset()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
 }

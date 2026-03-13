@@ -48,7 +48,7 @@ func (t *CpanelTool) Description() string {
 		"Actions: file_upload, file_list, file_delete, file_create_dir, " +
 		"domain_list, domain_add_addon, domain_add_sub, domain_remove, domain_redirects, " +
 		"db_list, db_create, db_delete, db_create_user, db_set_privileges, db_list_users, " +
-		"ssl_list, ssl_install"
+		"ssl_list, ssl_install, uapi (call any UAPI module/function directly)"
 }
 
 func (t *CpanelTool) Parameters() map[string]any {
@@ -62,9 +62,10 @@ func (t *CpanelTool) Parameters() map[string]any {
 					"file_upload", "file_list", "file_delete", "file_create_dir",
 					"domain_list", "domain_add_addon", "domain_add_sub", "domain_remove", "domain_redirects",
 					"db_list", "db_create", "db_delete", "db_create_user", "db_set_privileges", "db_list_users",
-					"ssl_list", "ssl_install"
+					"ssl_list", "ssl_install",
+					"uapi"
 				],
-				"description": "Action to perform"
+				"description": "Action to perform. Use 'uapi' to call any cPanel UAPI module/function directly."
 			},
 			"path": {
 				"type": "string",
@@ -117,6 +118,24 @@ func (t *CpanelTool) Parameters() map[string]any {
 			"redirect_url": {
 				"type": "string",
 				"description": "Target URL for domain redirect"
+			},
+			"module": {
+				"type": "string",
+				"description": "UAPI module name (for uapi action, e.g. 'Email', 'Ftp', 'Backup', 'CacheBuster')"
+			},
+			"function": {
+				"type": "string",
+				"description": "UAPI function name (for uapi action, e.g. 'list_pops', 'add_pop', 'fullbackup_to_homedir')"
+			},
+			"method": {
+				"type": "string",
+				"enum": ["GET", "POST"],
+				"description": "HTTP method for uapi action (default: GET). Use POST for actions that modify state."
+			},
+			"params": {
+				"type": "object",
+				"description": "Key-value parameters to pass to the UAPI function (for uapi action). All values should be strings.",
+				"additionalProperties": {"type": "string"}
 			}
 		},
 		"required": ["action"]
@@ -166,6 +185,9 @@ func (t *CpanelTool) Execute(ctx context.Context, args map[string]any) *ToolResu
 		return t.sslList(ctx)
 	case "ssl_install":
 		return t.sslInstall(ctx, args)
+	// Generic UAPI
+	case "uapi":
+		return t.uapiGeneric(ctx, args)
 	default:
 		return ErrorResult(fmt.Sprintf("unknown action %q", action))
 	}
@@ -909,4 +931,57 @@ func (t *CpanelTool) sslInstall(ctx context.Context, args map[string]any) *ToolR
 	}
 
 	return NewToolResult(fmt.Sprintf("**SSL installed** for %s", domain))
+}
+
+// ── Generic UAPI ─────────────────────────────────────────────────────
+
+func (t *CpanelTool) uapiGeneric(ctx context.Context, args map[string]any) *ToolResult {
+	module := getStr(args, "module")
+	function := getStr(args, "function")
+	if module == "" {
+		return ErrorResult("module is required for uapi action (e.g. 'Email', 'Ftp', 'Backup')")
+	}
+	if function == "" {
+		return ErrorResult("function is required for uapi action (e.g. 'list_pops', 'add_pop')")
+	}
+
+	params := url.Values{}
+	if p, ok := args["params"].(map[string]any); ok {
+		for k, v := range p {
+			if s, ok := v.(string); ok {
+				params.Set(k, s)
+			} else {
+				// Handle non-string values from JSON (numbers, booleans)
+				params.Set(k, fmt.Sprintf("%v", v))
+			}
+		}
+	}
+
+	method := getStr(args, "method")
+
+	var result map[string]any
+	var err error
+	if strings.EqualFold(method, "POST") {
+		result, err = t.doPost(ctx, module, function, params)
+	} else {
+		result, err = t.doGet(ctx, module, function, params)
+	}
+	if err != nil {
+		return RetryableError(
+			fmt.Sprintf("UAPI %s/%s failed: %v", module, function, err),
+			"Check cPanel connection or parameters",
+		)
+	}
+
+	data, uErr := uapiOK(result)
+	if uErr != nil {
+		return ErrorResult(fmt.Sprintf("UAPI %s/%s: %v", module, function, uErr))
+	}
+
+	out, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return ErrorResult(fmt.Sprintf("marshal response: %v", err))
+	}
+
+	return NewToolResult(fmt.Sprintf("**UAPI %s/%s** response:\n```json\n%s\n```", module, function, string(out)))
 }

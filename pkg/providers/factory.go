@@ -241,6 +241,16 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 	// Fallback: infer provider from model and configured keys.
 	if sel.apiKey == "" && sel.apiBase == "" {
 		switch {
+		// OpenRouter model suffixes (e.g. :free, :extended) take priority
+		// over provider-prefix matching so nvidia/foo:free routes to OpenRouter, not NVIDIA.
+		case isOpenRouterModel(model) && cfg.Providers.OpenRouter.APIKey != "":
+			sel.apiKey = cfg.Providers.OpenRouter.APIKey
+			sel.proxy = cfg.Providers.OpenRouter.Proxy
+			if cfg.Providers.OpenRouter.APIBase != "" {
+				sel.apiBase = cfg.Providers.OpenRouter.APIBase
+			} else {
+				sel.apiBase = "https://openrouter.ai/api/v1"
+			}
 		case (strings.Contains(lowerModel, "kimi") || strings.Contains(lowerModel, "moonshot") || strings.HasPrefix(model, "moonshot/")) && cfg.Providers.Moonshot.APIKey != "":
 			sel.apiKey = cfg.Providers.Moonshot.APIKey
 			sel.apiBase = cfg.Providers.Moonshot.APIBase
@@ -365,4 +375,10 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 	}
 
 	return sel, nil
+}
+
+// isOpenRouterModel returns true if the model ID uses an OpenRouter-specific
+// suffix such as ":free" or ":extended".
+func isOpenRouterModel(model string) bool {
+	return strings.HasSuffix(model, ":free") || strings.HasSuffix(model, ":extended")
 }
