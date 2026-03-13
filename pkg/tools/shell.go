@@ -83,7 +83,7 @@ var defaultDenyPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\bchown\b`),
 	regexp.MustCompile(`\bpkill\b`),
 	regexp.MustCompile(`\bkillall\b`),
-	regexp.MustCompile(`\bkill\s+-[9]\b`),
+	regexp.MustCompile(`\bkill\b`),
 	regexp.MustCompile(`\bcurl\b.*\|\s*(sh|bash)`),
 	regexp.MustCompile(`\bwget\b.*\|\s*(sh|bash)`),
 	regexp.MustCompile(`\bnpm\s+install\s+-g\b`),

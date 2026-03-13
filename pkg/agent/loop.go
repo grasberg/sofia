@@ -73,6 +73,10 @@ type AgentLoop struct {
 	autonomyServices map[string]*autonomy.Service
 	pushService      *notifications.PushService
 	dashboardHub     *dashboard.Hub
+
+	// processCancelMu protects processCancel
+	processCancelMu sync.Mutex
+	processCancel   context.CancelFunc // cancels the current in-flight LLM processing
 }
 
 // processOptions configures how a message is processed
@@ -521,7 +525,17 @@ func (al *AgentLoop) Run(ctx context.Context) error {
 				continue
 			}
 
-			response, err := al.processMessage(ctx, msg)
+			procCtx, procCancel := context.WithCancel(ctx)
+			al.processCancelMu.Lock()
+			al.processCancel = procCancel
+			al.processCancelMu.Unlock()
+
+			response, err := al.processMessage(procCtx, msg)
+
+			al.processCancelMu.Lock()
+			al.processCancel = nil
+			al.processCancelMu.Unlock()
+			procCancel() // ensure cleanup
 			if err != nil {
 				response = fmt.Sprintf("Error processing message: %v", err)
 			}
@@ -556,6 +570,70 @@ func (al *AgentLoop) Run(ctx context.Context) error {
 func (al *AgentLoop) Stop() {
 	al.running.Store(false)
 	al.stopAutonomyServices()
+}
+
+// Reset cancels any in-flight processing, clears all sessions, and resets all goals.
+// The agent loop continues running and is ready for new messages.
+func (al *AgentLoop) Reset() map[string]any {
+	result := map[string]any{}
+
+	// 1. Cancel in-flight processing
+	al.processCancelMu.Lock()
+	if al.processCancel != nil {
+		al.processCancel()
+		al.processCancel = nil
+	}
+	al.processCancelMu.Unlock()
+	result["processing_cancelled"] = true
+	logger.InfoCF("agent", "Reset: cancelled in-flight processing", nil)
+
+	// 2. Clear all sessions for all agents
+	sessionsCleared := 0
+	for _, agentID := range al.getRegistry().ListAgentIDs() {
+		if agent, ok := al.getRegistry().GetAgent(agentID); ok && agent.Sessions != nil {
+			for _, meta := range agent.Sessions.ListSessions() {
+				if err := agent.Sessions.DeleteSession(meta.Key); err == nil {
+					sessionsCleared++
+				}
+			}
+		}
+	}
+	result["sessions_cleared"] = sessionsCleared
+	logger.InfoCF("agent", fmt.Sprintf("Reset: cleared %d sessions", sessionsCleared), nil)
+
+	// 3. Reset all active goals
+	goalsReset := 0
+	if al.memDB != nil {
+		gm := autonomy.NewGoalManager(al.memDB)
+		for _, agentID := range al.getRegistry().ListAgentIDs() {
+			goals, err := gm.ListAllGoals(agentID)
+			if err != nil {
+				continue
+			}
+			for _, g := range goals {
+				if g.Status == autonomy.GoalStatusActive || g.Status == autonomy.GoalStatusPaused {
+					if _, err := gm.UpdateGoalStatus(g.ID, autonomy.GoalStatusCompleted); err == nil {
+						goalsReset++
+					}
+				}
+			}
+		}
+	}
+	result["goals_reset"] = goalsReset
+	logger.InfoCF("agent", fmt.Sprintf("Reset: reset %d goals", goalsReset), nil)
+
+	// 4. Clear active plan
+	if al.planManager != nil {
+		al.planManager.ClearPlan()
+	}
+	result["plan_cleared"] = true
+
+	// 5. Reset status
+	al.activeStatus.Store("Idle")
+	al.activeAgentID.Store("")
+
+	logger.InfoCF("agent", "Reset: complete", result)
+	return result
 }
 
 // getRegistry returns the current agent registry with proper synchronization.
@@ -1184,15 +1262,35 @@ func (al *AgentLoop) processSystemMessage(ctx context.Context, msg bus.InboundMe
 func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opts processOptions) (string, error) {
 	// Apply model override (e.g. heartbeat using a cheaper model).
 	// Shallow-copy the agent so the shared instance isn't mutated.
+	// If the override model has its own provider config in model_list,
+	// create a dedicated provider so the correct API endpoint and model ID are used.
 	if opts.ModelOverride != "" {
-		overrideID := resolveAgentModelID(opts.ModelOverride, al.cfg)
-		if overrideID != "" {
-			copy := *agent
-			copy.Model = opts.ModelOverride
-			copy.ModelID = overrideID
-			agent = &copy
-			logger.InfoCF(fmt.Sprintf("agent:%s", agent.ID),
-				fmt.Sprintf("Model override applied: %s (%s)", opts.ModelOverride, overrideID), nil)
+		copy := *agent
+		mc, mcErr := al.cfg.GetModelConfig(opts.ModelOverride)
+		if mcErr == nil && mc != nil {
+			// Model found in model_list — create a provider from its config
+			prov, modelID, provErr := providers.CreateProviderFromConfig(mc)
+			if provErr == nil {
+				copy.Model = opts.ModelOverride
+				copy.ModelID = modelID
+				copy.Provider = prov
+				agent = &copy
+				logger.InfoCF(fmt.Sprintf("agent:%s", agent.ID),
+					fmt.Sprintf("Model override applied: %s (%s) with dedicated provider", opts.ModelOverride, modelID), nil)
+			} else {
+				logger.WarnCF(fmt.Sprintf("agent:%s", agent.ID),
+					fmt.Sprintf("Failed to create provider for override model %s: %v", opts.ModelOverride, provErr), nil)
+			}
+		} else {
+			// Not in model_list — resolve as a raw model ID on the existing provider
+			overrideID := resolveAgentModelID(opts.ModelOverride, al.cfg)
+			if overrideID != "" {
+				copy.Model = opts.ModelOverride
+				copy.ModelID = overrideID
+				agent = &copy
+				logger.InfoCF(fmt.Sprintf("agent:%s", agent.ID),
+					fmt.Sprintf("Model override applied: %s (%s)", opts.ModelOverride, overrideID), nil)
+			}
 		}
 	}
 
@@ -2026,6 +2124,31 @@ func (al *AgentLoop) runLLMIteration(
 		if confirmationNeeded {
 			finalContent = "Waiting for user confirmation before proceeding."
 			break
+		}
+	}
+
+	// If we exhausted iterations without a final text response, make one last
+	// LLM call with no tools so the model is forced to summarize its work.
+	if finalContent == "" && iteration >= agent.MaxIterations {
+		logger.InfoCF(agentComp, "Max iterations reached — making final wrap-up LLM call without tools",
+			map[string]any{"agent_id": agent.ID, "iterations": iteration})
+
+		messages = append(messages, providers.Message{
+			Role: "user",
+			Content: "[SYSTEM] You have reached the maximum number of tool iterations. " +
+				"Summarize what you accomplished and provide your final response to the user. " +
+				"Do NOT call any tools.",
+		})
+
+		wrapResp, wrapErr := agent.Provider.Chat(ctx, messages, nil, agent.ModelID, map[string]any{
+			"max_tokens":       agent.MaxTokens,
+			"temperature":      0.7,
+			"prompt_cache_key": agent.ID,
+		})
+		if wrapErr == nil && wrapResp != nil && wrapResp.Content != "" {
+			finalContent = wrapResp.Content
+			logger.InfoCF(agentComp, "Wrap-up response received",
+				map[string]any{"agent_id": agent.ID, "content_len": len(finalContent)})
 		}
 	}
 

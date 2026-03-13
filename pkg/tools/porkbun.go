@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"math"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -185,22 +187,41 @@ func (t *PorkbunTool) checkDomain(ctx context.Context, domain string) *ToolResul
 		return ErrorResult(fmt.Sprintf("Porkbun error: %s", msg))
 	}
 
-	avail, _ := result["avail"].(bool)
-	price, _ := result["pricing"].(map[string]any)
+	// Response data is nested under "response" key
+	resp, _ := result["response"].(map[string]any)
+	if resp == nil {
+		// Fallback: some endpoints may return fields at top level
+		resp = result
+	}
+
+	// "avail" is a string ("yes"/"no"), not a boolean
+	availStr, _ := resp["avail"].(string)
+	avail := strings.EqualFold(availStr, "yes")
 
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("**Domain:** %s\n", domain))
 	if avail {
-		sb.WriteString("**Available:** Yes ✓\n")
+		sb.WriteString("**Available:** Yes\n")
 	} else {
-		sb.WriteString("**Available:** No ✗\n")
+		sb.WriteString("**Available:** No\n")
 	}
-	if price != nil {
-		if reg, ok := price["registration"].(string); ok {
-			sb.WriteString(fmt.Sprintf("**Registration:** $%s\n", reg))
-		}
-		if renew, ok := price["renewal"].(string); ok {
-			sb.WriteString(fmt.Sprintf("**Renewal:** $%s/yr\n", renew))
+
+	if price, ok := resp["price"].(string); ok {
+		sb.WriteString(fmt.Sprintf("**Registration price:** $%s\n", price))
+	}
+	if regularPrice, ok := resp["regularPrice"].(string); ok {
+		sb.WriteString(fmt.Sprintf("**Regular price:** $%s\n", regularPrice))
+	}
+	if promo, ok := resp["firstYearPromo"].(string); ok && strings.EqualFold(promo, "yes") {
+		sb.WriteString("**First year promo:** Yes\n")
+	}
+
+	// Renewal/transfer info under "additional"
+	if additional, ok := resp["additional"].(map[string]any); ok {
+		if renewal, ok := additional["renewal"].(map[string]any); ok {
+			if renewPrice, ok := renewal["price"].(string); ok {
+				sb.WriteString(fmt.Sprintf("**Renewal:** $%s/yr\n", renewPrice))
+			}
 		}
 	}
 
@@ -212,7 +233,45 @@ func (t *PorkbunTool) registerDomain(ctx context.Context, domain string) *ToolRe
 		return ErrorResult("domain is required for register action")
 	}
 
+	// Step 1: Check availability and get the price
+	checkResult, err := t.post(ctx, "/domain/checkDomain"+porkbunPath(domain), t.authBody())
+	if err != nil {
+		return RetryableError(fmt.Sprintf("Porkbun price check failed: %v", err), "Check network or try again")
+	}
+
+	checkStatus, _ := checkResult["status"].(string)
+	if checkStatus != "SUCCESS" {
+		msg, _ := checkResult["message"].(string)
+		return ErrorResult(fmt.Sprintf("Price check failed: %s", msg))
+	}
+
+	resp, _ := checkResult["response"].(map[string]any)
+	if resp == nil {
+		resp = checkResult
+	}
+
+	availStr, _ := resp["avail"].(string)
+	if !strings.EqualFold(availStr, "yes") {
+		return ErrorResult(fmt.Sprintf("Domain %s is not available for registration.", domain))
+	}
+
+	priceStr, _ := resp["price"].(string)
+	if priceStr == "" {
+		return ErrorResult("Could not determine registration price for " + domain)
+	}
+
+	// Convert price from dollars (string, e.g. "9.73") to pennies (int, e.g. 973).
+	// The Porkbun API returns price as a dollar string but expects cost as pennies integer.
+	priceDollars, err := strconv.ParseFloat(priceStr, 64)
+	if err != nil {
+		return ErrorResult(fmt.Sprintf("Invalid price %q from Porkbun: %v", priceStr, err))
+	}
+	costPennies := int(math.Round(priceDollars * 100))
+
+	// Step 2: Register with required cost (pennies) and agreeToTerms fields
 	body := t.authBody()
+	body["cost"] = costPennies
+	body["agreeToTerms"] = "yes"
 
 	result, err := t.post(ctx, "/domain/create"+porkbunPath(domain), body)
 	if err != nil {
@@ -225,7 +284,9 @@ func (t *PorkbunTool) registerDomain(ctx context.Context, domain string) *ToolRe
 		return ErrorResult(fmt.Sprintf("Registration failed: %s", msg))
 	}
 
-	return NewToolResult(fmt.Sprintf("**Domain registered:** %s\nRegistration successful!", domain))
+	return NewToolResult(fmt.Sprintf(
+		"**Domain registered:** %s\nPrice: $%s\nRegistration successful!", domain, priceStr,
+	))
 }
 
 func (t *PorkbunTool) listDomains(ctx context.Context) *ToolResult {

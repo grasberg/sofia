@@ -175,6 +175,10 @@
             <div class="flex items-center gap-4">
 
                 <div class="flex items-center gap-2">
+                    <button onclick="resetSofia()" title="Reset: stop all work, clear sessions &amp; goals"
+                        class="p-2 text-zinc-500 hover:text-red-400 transition-colors">
+                        <i data-lucide="octagon" class="w-4 h-4"></i>
+                    </button>
                     <button onclick="updateSofia()" title="Update"
                         class="p-2 text-zinc-500 hover:text-sofia transition-colors">
                         <i data-lucide="download-cloud" class="w-4 h-4"></i>
@@ -622,6 +626,22 @@
                 }
             } catch (err) {
                 alert("Error calling update: " + err);
+            }
+        }
+
+        async function resetSofia() {
+            if (!confirm("Reset Sofia?\n\nThis will:\n- Cancel all in-flight processing\n- Clear all chat sessions\n- Reset all active goals\n- Clear active plans")) return;
+            try {
+                const res = await fetch("/api/reset", { method: "POST" });
+                if (res.ok) {
+                    const result = await res.json();
+                    alert(`Reset complete.\n\nSessions cleared: ${result.sessions_cleared}\nGoals reset: ${result.goals_reset}`);
+                    window.location.reload();
+                } else {
+                    alert("Failed to reset");
+                }
+            } catch (err) {
+                alert("Error calling reset: " + err);
             }
         }
 
@@ -1369,7 +1389,17 @@
                         heartbeatEnabled.checked = !!cfg.heartbeat.enabled;
                         document.getElementById("cfg-heartbeat-interval").value = cfg.heartbeat.interval || 30;
                         const hbModelEl = document.getElementById("cfg-heartbeat-model");
-                        if (hbModelEl) hbModelEl.value = cfg.heartbeat.model || "";
+                        if (hbModelEl) {
+                            // Clear existing options except the default
+                            hbModelEl.innerHTML = '<option value="">Default agent model</option>';
+                            for (const m of configuredModels) {
+                                const opt = document.createElement("option");
+                                opt.value = m.model_name;
+                                opt.textContent = m.model_name;
+                                hbModelEl.appendChild(opt);
+                            }
+                            hbModelEl.value = cfg.heartbeat.model || "";
+                        }
                         document.getElementById("cfg-heartbeat-hours").value = cfg.heartbeat.active_hours || "";
                         renderHeartbeatDays(cfg.heartbeat.active_days || []);
                     } else {

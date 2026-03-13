@@ -21,8 +21,10 @@
                                     </div>
                                     <div>
                                         <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Model</label>
-                                        <input type="text" id="cfg-heartbeat-model" placeholder="Default agent model" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)] transition-colors focus:border-sofia focus:ring-1 focus:ring-sofia/20" onchange="saveConfig()">
-                                        <p class="text-[9px] text-zinc-600 mt-0.5">Use a cheaper/faster model for heartbeat. Leave empty for default.</p>
+                                        <select id="cfg-heartbeat-model" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)] transition-colors focus:border-sofia focus:ring-1 focus:ring-sofia/20" onchange="saveConfig()">
+                                            <option value="">Default agent model</option>
+                                        </select>
+                                        <p class="text-[9px] text-zinc-600 mt-0.5">Use a cheaper/faster model for heartbeat.</p>
                                     </div>
                                     <div>
                                         <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Active Hours</label>

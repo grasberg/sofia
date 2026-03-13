@@ -148,6 +148,13 @@ func (pm *PlanManager) GetActivePlan() *Plan {
 	return nil
 }
 
+// ClearPlan removes all plans.
+func (pm *PlanManager) ClearPlan() {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.plans = make(map[string]*Plan)
+}
+
 // GetPlan returns a specific plan by ID.
 func (pm *PlanManager) GetPlan(planID string) *Plan {
 	pm.mu.RLock()

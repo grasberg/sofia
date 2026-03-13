@@ -423,7 +423,8 @@ func normalizeModel(model, apiBase string) string {
 		return model
 	}
 
-	if strings.Contains(strings.ToLower(apiBase), "openrouter.ai") {
+	if strings.Contains(strings.ToLower(apiBase), "openrouter.ai") ||
+		strings.HasSuffix(model, ":free") || strings.HasSuffix(model, ":extended") {
 		return model
 	}
 
