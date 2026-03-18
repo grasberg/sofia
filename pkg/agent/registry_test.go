@@ -214,3 +214,34 @@ func TestAgentInstance_FallbackExplicitEmpty(t *testing.T) {
 		t.Errorf("expected 0 fallbacks (explicit empty), got %d: %v", len(agent.Fallbacks), agent.Fallbacks)
 	}
 }
+
+func TestAgentRegistry_RemoveAgent(t *testing.T) {
+	cfg := testCfg([]config.AgentConfig{
+		{ID: "ephemeral", Default: true, Name: "Ephemeral Agent"},
+	})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
+
+	// Verify agent exists before removal.
+	_, ok := registry.GetAgent("ephemeral")
+	if !ok {
+		t.Fatal("expected 'ephemeral' agent to exist before removal")
+	}
+
+	// Remove the agent.
+	err := registry.RemoveAgent("ephemeral")
+	if err != nil {
+		t.Fatalf("RemoveAgent returned unexpected error: %v", err)
+	}
+
+	// Verify agent no longer exists.
+	_, ok = registry.GetAgent("ephemeral")
+	if ok {
+		t.Error("expected GetAgent to return false after removal")
+	}
+
+	// Removing an unknown agent should return an error.
+	err = registry.RemoveAgent("nonexistent")
+	if err == nil {
+		t.Error("expected error when removing unknown agent")
+	}
+}
