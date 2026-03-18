@@ -2,6 +2,7 @@ package reputation
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -302,6 +303,47 @@ func TestComputeReputationLowConfidence(t *testing.T) {
 	// With only 1 task, confidence is low → score stays near 0.5.
 	r := computeReputation(1, 1, 0, nil)
 	assert.InDelta(t, 0.5, r, 0.15)
+}
+
+func TestGetAgentStatsSince(t *testing.T) {
+	db := newTestDB(t)
+	mgr := NewManager(db)
+
+	// Insert an "old" outcome by writing directly with an old timestamp.
+	_, err := db.Exec(
+		`INSERT INTO agent_reputation
+		 (agent_id, category, task, success, score, latency_ms, tokens_in, tokens_out, error, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"coder", "coding", "old task", 1, nil, 100, 10, 20, "",
+		time.Now().Add(-48*time.Hour),
+	)
+	require.NoError(t, err)
+
+	// Insert a "recent" outcome via RecordOutcome (uses current time).
+	_, err = mgr.RecordOutcome(TaskOutcome{
+		AgentID:   "coder",
+		Category:  "coding",
+		Task:      "recent task",
+		Success:   true,
+		LatencyMs: 200,
+		TokensIn:  50,
+		TokensOut: 80,
+	})
+	require.NoError(t, err)
+
+	// Query since 24 hours ago — should only see the recent outcome.
+	since := time.Now().Add(-24 * time.Hour)
+	stats, err := mgr.GetAgentStatsSince("coder", since)
+	require.NoError(t, err)
+	assert.Equal(t, 1, stats.TotalTasks)
+	assert.Equal(t, 1, stats.Successes)
+	assert.Equal(t, 0, stats.Failures)
+
+	// Query since 72 hours ago — should see both outcomes.
+	sinceOld := time.Now().Add(-72 * time.Hour)
+	statsAll, err := mgr.GetAgentStatsSince("coder", sinceOld)
+	require.NoError(t, err)
+	assert.Equal(t, 2, statsAll.TotalTasks)
 }
 
 func TestTruncate(t *testing.T) {
