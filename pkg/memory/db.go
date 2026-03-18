@@ -14,7 +14,7 @@ import (
 	"github.com/grasberg/sofia/pkg/providers"
 )
 
-const schemaVersion = 9
+const schemaVersion = 10
 
 // MemoryDB is a shared SQLite database for session history and memory notes.
 // It is opened once at AgentLoop startup and shared across all AgentInstances.
@@ -160,6 +160,12 @@ func (m *MemoryDB) migrate() error {
 
 	if current < 9 {
 		if err = m.applyV9(); err != nil {
+			return err
+		}
+	}
+
+	if current < 10 {
+		if err = m.applyV10(); err != nil {
 			return err
 		}
 	}
@@ -433,6 +439,45 @@ ORDER BY s.updated_at DESC`
 	return result, rows.Err()
 }
 
+// SearchMessageRow holds a single message result from SearchMessages.
+type SearchMessageRow struct {
+	SessionKey string
+	Role       string
+	Content    string
+	CreatedAt  string
+}
+
+// SearchMessages returns user and assistant messages whose content contains the query substring
+// (case-insensitive). Results are ordered by recency. Pass limit <= 0 for no limit.
+func (m *MemoryDB) SearchMessages(query string, limit int) ([]SearchMessageRow, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	q := `SELECT m.session_key, m.role, m.content, m.created_at
+	      FROM messages m
+	      WHERE m.role IN ('user', 'assistant')
+	        AND m.content != ''
+	        AND LOWER(m.content) LIKE '%' || LOWER(?) || '%'
+	      ORDER BY m.created_at DESC
+	      LIMIT ?`
+
+	rows, err := m.db.Query(q, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("memory: search messages: %w", err)
+	}
+	defer rows.Close()
+
+	var result []SearchMessageRow
+	for rows.Next() {
+		var r SearchMessageRow
+		if err = rows.Scan(&r.SessionKey, &r.Role, &r.Content, &r.CreatedAt); err != nil {
+			return nil, fmt.Errorf("memory: scan search row: %w", err)
+		}
+		result = append(result, r)
+	}
+	return result, rows.Err()
+}
+
 // ---------------------------------------------------------------------------
 // Memory notes CRUD
 // ---------------------------------------------------------------------------
@@ -458,6 +503,38 @@ func (m *MemoryDB) SetNote(agentID, kind, dateKey, content string) error {
 		agentID, kind, dateKey, content, now,
 	)
 	return err
+}
+
+// NoteRow holds the fields returned by ListNotes.
+type NoteRow struct {
+	AgentID   string
+	Kind      string
+	DateKey   string
+	Content   string
+	UpdatedAt time.Time
+}
+
+// ListNotes returns all memory notes, ordered by agent_id, kind, date_key.
+func (m *MemoryDB) ListNotes() ([]NoteRow, error) {
+	const q = `SELECT agent_id, kind, date_key, content, updated_at
+	           FROM memory_notes ORDER BY agent_id, kind, date_key`
+	rows, err := m.db.Query(q)
+	if err != nil {
+		return nil, fmt.Errorf("memory: list notes: %w", err)
+	}
+	defer rows.Close()
+
+	var result []NoteRow
+	for rows.Next() {
+		var r NoteRow
+		var updatedStr string
+		if err = rows.Scan(&r.AgentID, &r.Kind, &r.DateKey, &r.Content, &updatedStr); err != nil {
+			return nil, fmt.Errorf("memory: scan note row: %w", err)
+		}
+		r.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr)
+		result = append(result, r)
+	}
+	return result, rows.Err()
 }
 
 // ---------------------------------------------------------------------------
@@ -717,8 +794,9 @@ func (m *MemoryDB) DeleteNodes(nodeIDs []int64) error {
 }
 
 // TouchNode increments access_count and updates last_accessed.
+// Errors are intentionally ignored — this is a best-effort update.
 func (m *MemoryDB) TouchNode(nodeID int64) {
-	_, _ = m.db.Exec(
+	_, _ = m.db.Exec( //nolint:errcheck // best-effort
 		`UPDATE semantic_nodes SET access_count = access_count + 1, last_accessed = ? WHERE id = ?`,
 		time.Now().UTC(), nodeID,
 	)
@@ -797,8 +875,9 @@ func (m *MemoryDB) GetEdges(agentID string, nodeID int64) ([]SemanticEdge, error
 }
 
 // ReinforceEdge increases an edge's weight by delta (capped at 1.0).
+// Errors are intentionally ignored — this is a best-effort update.
 func (m *MemoryDB) ReinforceEdge(edgeID int64, delta float64) {
-	_, _ = m.db.Exec(
+	_, _ = m.db.Exec( //nolint:errcheck // best-effort
 		`UPDATE semantic_edges SET weight = MIN(1.0, weight + ?), updated_at = ? WHERE id = ?`,
 		delta, time.Now().UTC(), edgeID,
 	)
@@ -1691,5 +1770,34 @@ CREATE INDEX IF NOT EXISTS idx_reputation_created
 // Gemini requires function_response.name to be non-empty.
 func (m *MemoryDB) applyV9() error {
 	_, err := m.db.Exec(`ALTER TABLE messages ADD COLUMN tool_name TEXT NOT NULL DEFAULT ''`)
+	return err
+}
+
+func (m *MemoryDB) applyV10() error {
+	const ddl = `
+CREATE TABLE IF NOT EXISTS evolution_agents (
+    id          TEXT PRIMARY KEY,
+    agent_id    TEXT NOT NULL,
+    parent_id   TEXT NOT NULL DEFAULT '',
+    reason      TEXT NOT NULL DEFAULT '',
+    config_json TEXT NOT NULL DEFAULT '{}',
+    status      TEXT NOT NULL DEFAULT 'active',
+    created_at  DATETIME NOT NULL DEFAULT (datetime('now')),
+    retired_at  DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_evolution_agents_status ON evolution_agents(status);
+
+CREATE TABLE IF NOT EXISTS evolution_changelog (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id   TEXT NOT NULL DEFAULT '',
+    action     TEXT NOT NULL,
+    detail     TEXT NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_evolution_changelog_agent ON evolution_changelog(agent_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_reputation_agent_created ON agent_reputation(agent_id, created_at);
+`
+	_, err := m.db.Exec(ddl)
 	return err
 }
