@@ -59,11 +59,41 @@ type Config struct {
 	Triggers   TriggersConfig   `json:"triggers,omitempty"`
 	Heartbeat  HeartbeatConfig  `json:"heartbeat"`
 	Autonomy   AutonomyConfig   `json:"autonomy,omitempty"`
+	Evolution  EvolutionConfig  `json:"evolution,omitempty"`
 	Devices    DevicesConfig    `json:"devices"`
-	WebUI      WebUIConfig      `json:"webui"`
-	Guardrails GuardrailsConfig `json:"guardrails,omitempty"`
+	WebUI        WebUIConfig        `json:"webui"`
+	TTS          TTSConfig          `json:"tts"`
+	RemoteAccess RemoteAccessConfig `json:"remote_access,omitempty"`
+	Guardrails   GuardrailsConfig     `json:"guardrails,omitempty"`
+	Webhooks     []WebhookNotifyConfig `json:"webhooks,omitempty"`
+	Digests      []DigestConfig        `json:"digests,omitempty"`
 	UserName   string           `json:"user_name"           env:"SOFIA_USER_NAME"`
 	MemoryDB   string           `json:"memory_db"           env:"SOFIA_MEMORY_DB"` // Path to SQLite memory database (default: ~/.sofia/memory.db)
+}
+
+// WebhookNotifyConfig configures an outbound notification webhook.
+type WebhookNotifyConfig struct {
+	URL     string   `json:"url"`
+	Secret  string   `json:"secret,omitempty"`  // HMAC-SHA256 signing secret
+	Events  []string `json:"events"`            // event types to deliver
+	Enabled bool     `json:"enabled"`
+}
+
+// DigestConfig configures a scheduled digest report.
+type DigestConfig struct {
+	Period        string `json:"period"`                    // "daily", "weekly"
+	Channel       string `json:"channel"`                   // target channel for delivery
+	ChatID        string `json:"chat_id"`                   // target chat
+	AgentID       string `json:"agent_id"`                  // which agent generates
+	IncludeMemory bool   `json:"include_memory,omitempty"`
+	IncludeUsage  bool   `json:"include_usage,omitempty"`
+}
+
+// RemoteAccessConfig configures remote access via Tailscale or similar providers.
+type RemoteAccessConfig struct {
+	Enabled  bool   `json:"enabled"`            // Whether remote access is enabled
+	Provider string `json:"provider,omitempty"` // Provider name: "tailscale" (default)
+	Port     int    `json:"port,omitempty"`     // Local port to expose, default 3000
 }
 
 // GuardrailsConfig configures safety and trust features.
@@ -73,6 +103,23 @@ type GuardrailsConfig struct {
 	RateLimiting    RateLimitingConfig    `json:"rate_limiting,omitempty"`
 	SandboxedExec   SandboxedExecConfig   `json:"sandboxed_exec,omitempty"`
 	PromptInjection PromptInjectionConfig `json:"prompt_injection,omitempty"`
+	PIIDetection    PIIDetectionConfig    `json:"pii_detection,omitempty"`
+	Approval        ApprovalConfig        `json:"approval,omitempty"`
+}
+
+// ApprovalConfig defines which tool calls require human-in-the-loop approval.
+type ApprovalConfig struct {
+	Enabled       bool     `json:"enabled"`
+	RequireFor    []string `json:"require_for"`    // tool names requiring approval
+	PatternMatch  []string `json:"pattern_match"`  // regex patterns on tool args
+	TimeoutSec    int      `json:"timeout_sec"`    // how long to wait (default 300)
+	DefaultAction string   `json:"default_action"` // "deny" or "allow" on timeout
+}
+
+// PIIDetectionConfig configures automatic PII detection on inbound messages.
+type PIIDetectionConfig struct {
+	Enabled bool   `json:"enabled" env:"SOFIA_GUARDRAILS_PII_ENABLED"`
+	Action  string `json:"action"  env:"SOFIA_GUARDRAILS_PII_ACTION"` // "warn" (default), "redact", or "block"
 }
 
 type InputValidationConfig struct {
@@ -138,6 +185,14 @@ type WebUIConfig struct {
 	Enabled bool   `json:"enabled" env:"SOFIA_WEBUI_ENABLED"`
 	Host    string `json:"host"    env:"SOFIA_WEBUI_HOST"`
 	Port    int    `json:"port"    env:"SOFIA_WEBUI_PORT"`
+}
+
+// TTSConfig configures text-to-speech synthesis.
+type TTSConfig struct {
+	Enabled  bool   `json:"enabled"           env:"SOFIA_TTS_ENABLED"`
+	Provider string `json:"provider"          env:"SOFIA_TTS_PROVIDER"` // "elevenlabs" or "system"
+	APIKey   string `json:"api_key,omitempty" env:"SOFIA_TTS_API_KEY"`
+	Voice    string `json:"voice,omitempty"   env:"SOFIA_TTS_VOICE"`
 }
 
 // MarshalJSON implements custom JSON marshaling for Config
@@ -209,6 +264,12 @@ func (m AgentModelConfig) MarshalJSON() ([]byte, error) {
 	return json.Marshal(raw{Primary: m.Primary, Fallbacks: m.Fallbacks})
 }
 
+// BudgetConfig defines spending limits for an agent over a recurring period.
+type BudgetConfig struct {
+	MaxCostUSD float64 `json:"max_cost_usd"`
+	Period     string  `json:"period"` // "daily", "weekly", or "monthly"
+}
+
 type AgentConfig struct {
 	ID                 string            `json:"id"`
 	Default            bool              `json:"default,omitempty"`
@@ -219,6 +280,7 @@ type AgentConfig struct {
 	Model              *AgentModelConfig `json:"model,omitempty"`
 	Skills             []string          `json:"skills,omitempty"`
 	Subagents          *SubagentsConfig  `json:"subagents,omitempty"`
+	Budget             *BudgetConfig     `json:"budget,omitempty"`
 }
 
 type SubagentsConfig struct {
@@ -250,23 +312,33 @@ type SessionConfig struct {
 }
 
 type AgentDefaults struct {
-	Workspace           string   `json:"workspace"                       env:"SOFIA_AGENTS_DEFAULTS_WORKSPACE"`
-	RestrictToWorkspace bool     `json:"restrict_to_workspace"           env:"SOFIA_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE"`
-	UseOpenCode         bool     `json:"use_opencode"                    env:"SOFIA_AGENTS_DEFAULTS_USE_OPENCODE"`
-	Provider            string   `json:"provider"                        env:"SOFIA_AGENTS_DEFAULTS_PROVIDER"`
-	ModelName           string   `json:"model_name,omitempty"            env:"SOFIA_AGENTS_DEFAULTS_MODEL_NAME"`
-	Model               string   `json:"model,omitempty"                 env:"SOFIA_AGENTS_DEFAULTS_MODEL"` // Deprecated: use model_name instead
-	ModelFallbacks      []string `json:"model_fallbacks,omitempty"`
-	ImageModel          string   `json:"image_model,omitempty"           env:"SOFIA_AGENTS_DEFAULTS_IMAGE_MODEL"`
-	ImageModelFallbacks []string `json:"image_model_fallbacks,omitempty"`
-	MaxTokens           int      `json:"max_tokens"                      env:"SOFIA_AGENTS_DEFAULTS_MAX_TOKENS"`
-	Temperature         *float64 `json:"temperature,omitempty"           env:"SOFIA_AGENTS_DEFAULTS_TEMPERATURE"`
-	MaxToolIterations   int      `json:"max_tool_iterations"             env:"SOFIA_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS"`
-	ReflectionInterval  int      `json:"reflection_interval,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_REFLECTION_INTERVAL"`
-	LearnFromFeedback   bool     `json:"learn_from_feedback,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_LEARN_FROM_FEEDBACK"`
-	ParallelToolCalls   bool     `json:"parallel_tool_calls,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_PARALLEL_TOOL_CALLS"`
-	PostTaskReflection  bool     `json:"post_task_reflection,omitempty"  env:"SOFIA_AGENTS_DEFAULTS_POST_TASK_REFLECTION"`
-	PerformanceScoring  bool     `json:"performance_scoring,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_PERFORMANCE_SCORING"`
+	Workspace           string                    `json:"workspace"                       env:"SOFIA_AGENTS_DEFAULTS_WORKSPACE"`
+	RestrictToWorkspace bool                      `json:"restrict_to_workspace"           env:"SOFIA_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE"`
+	UseOpenCode         bool                      `json:"use_opencode"                    env:"SOFIA_AGENTS_DEFAULTS_USE_OPENCODE"`
+	Provider            string                    `json:"provider"                        env:"SOFIA_AGENTS_DEFAULTS_PROVIDER"`
+	ModelName           string                    `json:"model_name,omitempty"            env:"SOFIA_AGENTS_DEFAULTS_MODEL_NAME"`
+	Model               string                    `json:"model,omitempty"                 env:"SOFIA_AGENTS_DEFAULTS_MODEL"` // Deprecated: use model_name instead
+	ModelFallbacks      []string                  `json:"model_fallbacks,omitempty"`
+	ImageModel          string                    `json:"image_model,omitempty"           env:"SOFIA_AGENTS_DEFAULTS_IMAGE_MODEL"`
+	ImageModelFallbacks []string                  `json:"image_model_fallbacks,omitempty"`
+	MaxTokens           int                       `json:"max_tokens"                      env:"SOFIA_AGENTS_DEFAULTS_MAX_TOKENS"`
+	Temperature         *float64                  `json:"temperature,omitempty"           env:"SOFIA_AGENTS_DEFAULTS_TEMPERATURE"`
+	MaxToolIterations   int                       `json:"max_tool_iterations"             env:"SOFIA_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS"`
+	ReflectionInterval  int                       `json:"reflection_interval,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_REFLECTION_INTERVAL"`
+	LearnFromFeedback   bool                      `json:"learn_from_feedback,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_LEARN_FROM_FEEDBACK"`
+	ParallelToolCalls   bool                      `json:"parallel_tool_calls,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_PARALLEL_TOOL_CALLS"`
+	PostTaskReflection  bool                      `json:"post_task_reflection,omitempty"  env:"SOFIA_AGENTS_DEFAULTS_POST_TASK_REFLECTION"`
+	PerformanceScoring  bool                      `json:"performance_scoring,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_PERFORMANCE_SCORING"`
+	Personas            map[string]PersonaConfig  `json:"personas,omitempty"`
+	Budget              *BudgetConfig             `json:"budget,omitempty"`
+}
+
+// PersonaConfig defines a switchable persona in the config file.
+type PersonaConfig struct {
+	SystemPrompt string   `json:"system_prompt"`
+	Model        string   `json:"model,omitempty"`
+	AllowedTools []string `json:"allowed_tools,omitempty"`
+	Description  string   `json:"description,omitempty"`
 }
 
 // GetModelName returns the effective model name for the agent defaults.
@@ -281,20 +353,34 @@ func (d *AgentDefaults) GetModelName() string {
 type ChannelsConfig struct {
 	Telegram TelegramConfig `json:"telegram"`
 	Discord  DiscordConfig  `json:"discord"`
+	Email    EmailConfig    `json:"email"`
+}
+
+// EmailConfig holds email channel configuration.
+type EmailConfig struct {
+	Enabled      bool     `json:"enabled"            env:"SOFIA_CHANNELS_EMAIL_ENABLED"`
+	IMAPServer   string   `json:"imap_server"        env:"SOFIA_CHANNELS_EMAIL_IMAP_SERVER"`
+	SMTPServer   string   `json:"smtp_server"        env:"SOFIA_CHANNELS_EMAIL_SMTP_SERVER"`
+	Username     string   `json:"username"            env:"SOFIA_CHANNELS_EMAIL_USERNAME"`
+	Password     string   `json:"password"            env:"SOFIA_CHANNELS_EMAIL_PASSWORD"`
+	PollInterval int      `json:"poll_interval_sec"  env:"SOFIA_CHANNELS_EMAIL_POLL_INTERVAL"`
+	AllowFrom    []string `json:"allow_from,omitempty"`
 }
 
 type TelegramConfig struct {
-	Enabled   bool                `json:"enabled"    env:"SOFIA_CHANNELS_TELEGRAM_ENABLED"`
-	Token     string              `json:"token"      env:"SOFIA_CHANNELS_TELEGRAM_TOKEN"`
-	Proxy     string              `json:"proxy"      env:"SOFIA_CHANNELS_TELEGRAM_PROXY"`
-	AllowFrom FlexibleStringSlice `json:"allow_from" env:"SOFIA_CHANNELS_TELEGRAM_ALLOW_FROM"`
+	Enabled   bool                `json:"enabled"              env:"SOFIA_CHANNELS_TELEGRAM_ENABLED"`
+	Token     string              `json:"token"                env:"SOFIA_CHANNELS_TELEGRAM_TOKEN"`
+	Proxy     string              `json:"proxy"                env:"SOFIA_CHANNELS_TELEGRAM_PROXY"`
+	AllowFrom FlexibleStringSlice `json:"allow_from"           env:"SOFIA_CHANNELS_TELEGRAM_ALLOW_FROM"`
+	DMPolicy  string              `json:"dm_policy,omitempty"  env:"SOFIA_CHANNELS_TELEGRAM_DM_POLICY"`
 }
 
 type DiscordConfig struct {
-	Enabled     bool                `json:"enabled"      env:"SOFIA_CHANNELS_DISCORD_ENABLED"`
-	Token       string              `json:"token"        env:"SOFIA_CHANNELS_DISCORD_TOKEN"`
-	AllowFrom   FlexibleStringSlice `json:"allow_from"   env:"SOFIA_CHANNELS_DISCORD_ALLOW_FROM"`
-	MentionOnly bool                `json:"mention_only" env:"SOFIA_CHANNELS_DISCORD_MENTION_ONLY"`
+	Enabled     bool                `json:"enabled"              env:"SOFIA_CHANNELS_DISCORD_ENABLED"`
+	Token       string              `json:"token"                env:"SOFIA_CHANNELS_DISCORD_TOKEN"`
+	AllowFrom   FlexibleStringSlice `json:"allow_from"           env:"SOFIA_CHANNELS_DISCORD_ALLOW_FROM"`
+	MentionOnly bool                `json:"mention_only"         env:"SOFIA_CHANNELS_DISCORD_MENTION_ONLY"`
+	DMPolicy    string              `json:"dm_policy,omitempty"  env:"SOFIA_CHANNELS_DISCORD_DM_POLICY"`
 }
 
 type HeartbeatConfig struct {
@@ -313,6 +399,23 @@ type AutonomyConfig struct {
 	Research        bool `json:"research"         env:"SOFIA_AUTONOMY_RESEARCH"`
 	ContextTriggers bool `json:"context_triggers" env:"SOFIA_AUTONOMY_CONTEXT_TRIGGERS"`
 	IntervalMinutes int  `json:"interval_minutes" env:"SOFIA_AUTONOMY_INTERVAL"`
+}
+
+// EvolutionConfig configures the self-improving evolution engine.
+type EvolutionConfig struct {
+	Enabled                bool     `json:"enabled"                env:"SOFIA_EVOLUTION_ENABLED"`
+	IntervalMinutes        int      `json:"interval_minutes"       env:"SOFIA_EVOLUTION_INTERVAL"`
+	MaxCostPerDay          float64  `json:"max_cost_per_day"       env:"SOFIA_EVOLUTION_MAX_COST"`
+	DailySummary           bool     `json:"daily_summary"          env:"SOFIA_EVOLUTION_DAILY_SUMMARY"`
+	DailySummaryTime       string   `json:"daily_summary_time"     env:"SOFIA_EVOLUTION_SUMMARY_TIME"`
+	DailySummaryChannel    string   `json:"daily_summary_channel"  env:"SOFIA_EVOLUTION_SUMMARY_CHANNEL"`
+	DailySummaryChatID     string   `json:"daily_summary_chat_id"  env:"SOFIA_EVOLUTION_SUMMARY_CHAT_ID"`
+	RetirementThreshold    float64  `json:"retirement_threshold"`
+	RetirementMinTasks     int      `json:"retirement_min_tasks"`
+	RetirementInactiveDays int      `json:"retirement_inactive_days"`
+	SelfModifyEnabled      bool     `json:"self_modify_enabled"`
+	ImmutableFiles         []string `json:"immutable_files,omitempty"`
+	MaxAgents              int      `json:"max_agents"`
 }
 
 type DevicesConfig struct {
@@ -628,6 +731,11 @@ func LoadConfig(path string) (*Config, error) {
 	// Validate model_list for uniqueness and required fields
 	if err := cfg.ValidateModelList(); err != nil {
 		return nil, err
+	}
+
+	// Validate overall config structure
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("config validation: %w", err)
 	}
 
 	return cfg, nil
