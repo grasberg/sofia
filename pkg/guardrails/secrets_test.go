@@ -158,6 +158,6 @@ func TestScrubSecretsWithPatterns_EmptyMaskFallback(t *testing.T) {
 	scrubbed, found := ScrubSecretsWithPatterns(input, custom)
 
 	assert.Contains(t, found, "No Mask")
-	assert.Contains(t, scrubbed, "[REDACTED]")
+	assert.Contains(t, scrubbed, "[REDACTED:No Mask]")
 	assert.NotContains(t, scrubbed, "SECRET_12345678")
 }
