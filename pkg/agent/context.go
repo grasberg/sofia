@@ -29,11 +29,13 @@ type ContextBuilder struct {
 	purposeInstructions string
 
 	// Cache for system prompt to avoid rebuilding on every call.
-	// This fixes issue #607: repeated reprocessing of the entire context.
 	// The cache auto-invalidates when workspace source files change (mtime check).
+	// TTL prevents expensive stat/walk on every message — re-validate every 10 seconds.
 	systemPromptMutex  sync.RWMutex
 	cachedSystemPrompt string
 	cachedAt           time.Time // max observed mtime across tracked paths at cache build time
+	lastCacheCheck     time.Time // when we last validated source files
+	cacheTTL           time.Duration // 0 = check every time (test-safe). Set > 0 at runtime for performance.
 
 	// existedAtCache tracks which source file paths existed the last time the
 	// cache was built. This lets sourceFilesChanged detect files that are newly
@@ -183,12 +185,16 @@ When delegating to subagents, tell them which skills to use: "Read workspace/ski
 // and source files haven't changed, otherwise builds and caches it.
 // Source file changes are detected via mtime checks (cheap stat calls).
 func (cb *ContextBuilder) BuildSystemPromptWithCache() string {
-	// Try read lock first — fast path when cache is valid
+	// Fast path under read lock: if cache exists and either TTL hasn't expired
+	// or source files haven't changed, return cached prompt.
 	cb.systemPromptMutex.RLock()
-	if cb.cachedSystemPrompt != "" && !cb.sourceFilesChangedLocked() {
-		result := cb.cachedSystemPrompt
-		cb.systemPromptMutex.RUnlock()
-		return result
+	if cb.cachedSystemPrompt != "" {
+		ttl := cb.cacheTTL
+		if (ttl > 0 && time.Since(cb.lastCacheCheck) < ttl) || !cb.sourceFilesChangedLocked() {
+			result := cb.cachedSystemPrompt
+			cb.systemPromptMutex.RUnlock()
+			return result
+		}
 	}
 	cb.systemPromptMutex.RUnlock()
 
@@ -198,6 +204,7 @@ func (cb *ContextBuilder) BuildSystemPromptWithCache() string {
 
 	// Double-check: another goroutine may have rebuilt while we waited
 	if cb.cachedSystemPrompt != "" && !cb.sourceFilesChangedLocked() {
+		cb.lastCacheCheck = time.Now()
 		return cb.cachedSystemPrompt
 	}
 
@@ -212,6 +219,7 @@ func (cb *ContextBuilder) BuildSystemPromptWithCache() string {
 	cb.cachedSystemPrompt = prompt
 	cb.cachedAt = baseline.maxMtime
 	cb.existedAtCache = baseline.existed
+	cb.lastCacheCheck = time.Now()
 
 	logger.DebugCF("agent", "System prompt cached",
 		map[string]any{

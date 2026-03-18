@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/logger"
@@ -94,6 +95,7 @@ func NewAgentInstance(
 	}
 
 	contextBuilder := NewContextBuilder(workspace, cfg.UserName, memDB, agentID)
+	contextBuilder.cacheTTL = 10 * time.Second // Skip file-system checks within TTL for performance
 	contextBuilder.SetUseOpenCode(defaults.UseOpenCode)
 
 	if agentCfg != nil {
