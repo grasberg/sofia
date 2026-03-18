@@ -54,19 +54,26 @@ func WithRequestTimeout(timeout time.Duration) Option {
 }
 
 func NewProvider(apiKey, apiBase, proxy string, opts ...Option) *Provider {
-	client := &http.Client{
-		Timeout: defaultRequestTimeout,
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		MaxConnsPerHost:     20,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
 	}
 
 	if proxy != "" {
 		parsed, err := url.Parse(proxy)
 		if err == nil {
-			client.Transport = &http.Transport{
-				Proxy: http.ProxyURL(parsed),
-			}
+			transport.Proxy = http.ProxyURL(parsed)
 		} else {
 			log.Printf("openai_compat: invalid proxy URL %q: %v", proxy, err)
 		}
+	}
+
+	client := &http.Client{
+		Timeout:   defaultRequestTimeout,
+		Transport: transport,
 	}
 
 	p := &Provider{

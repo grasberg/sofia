@@ -29,9 +29,11 @@ func (ts *ToolStats) CalculateDerived() {
 
 // ToolTracker tracks execution metrics across all tools.
 type ToolTracker struct {
-	stats map[string]*ToolStats
-	mu    sync.RWMutex
-	path  string
+	stats      map[string]*ToolStats
+	mu         sync.RWMutex
+	path       string
+	dirtyCount int
+	lastSave   time.Time
 }
 
 // NewToolTracker creates a new tracker, loading from persistence if available.
@@ -63,7 +65,24 @@ func (t *ToolTracker) Record(name string, duration time.Duration, isError bool) 
 		stat.SuccessCount++
 	}
 
-	t.saveNoLock()
+	// Batch disk writes: save every 50 calls or 30 seconds
+	t.dirtyCount++
+	if t.dirtyCount >= 50 || time.Since(t.lastSave) > 30*time.Second {
+		t.saveNoLock()
+		t.dirtyCount = 0
+		t.lastSave = time.Now()
+	}
+}
+
+// Flush forces an immediate save of pending stats to disk.
+func (t *ToolTracker) Flush() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.dirtyCount > 0 {
+		t.saveNoLock()
+		t.dirtyCount = 0
+		t.lastSave = time.Now()
+	}
 }
 
 // GetStats returns copies of all current tool stats.

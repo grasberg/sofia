@@ -33,6 +33,10 @@ func (al *AgentLoop) runLLMIteration(
 	reflectionInterval := al.cfg.Agents.Defaults.ReflectionInterval
 	parallelTools := al.cfg.Agents.Defaults.ParallelToolCalls
 
+	// Cache tool definitions across iterations — user intent doesn't change,
+	// only tool results do, so re-filtering is wasted work.
+	var cachedToolDefs []providers.ToolDefinition
+
 	for iteration < agent.MaxIterations {
 		iteration++
 
@@ -81,54 +85,54 @@ func (al *AgentLoop) runLLMIteration(
 				"max":       agent.MaxIterations,
 			})
 
-		// Build tool definitions
+		// Build tool definitions — cached across iterations since user intent is constant
 		var providerToolDefs []providers.ToolDefinition
-		var activeTools []tools.Tool
-
-		// Feature: Semantic Tool Matching
-		// If the semantic matcher is active and there are enough tools, filter them via embeddings
-		allToolNames := agent.Tools.List()
-		semanticTopK := 10 // Example top K, could be config-driven
-		if al.semanticMatcher != nil && len(allToolNames) > semanticTopK {
-			var intent string
-			for i := len(messages) - 1; i >= 0; i-- {
-				if messages[i].Role == "user" {
-					intent = messages[i].Content
-					break
-				}
-			}
-
-			var toolsList []tools.Tool
-			for _, name := range allToolNames {
-				if t, ok := agent.Tools.Get(name); ok {
-					toolsList = append(toolsList, t)
-				}
-			}
-			activeTools = al.semanticMatcher.MatchTools(ctx, intent, toolsList, semanticTopK)
+		if cachedToolDefs != nil {
+			providerToolDefs = cachedToolDefs
 		} else {
-			for _, name := range allToolNames {
-				if t, ok := agent.Tools.Get(name); ok {
-					activeTools = append(activeTools, t)
+			var activeTools []tools.Tool
+			allToolNames := agent.Tools.List()
+			semanticTopK := 10
+			if al.semanticMatcher != nil && len(allToolNames) > semanticTopK {
+				var intent string
+				for i := len(messages) - 1; i >= 0; i-- {
+					if messages[i].Role == "user" {
+						intent = messages[i].Content
+						break
+					}
+				}
+				var toolsList []tools.Tool
+				for _, name := range allToolNames {
+					if t, ok := agent.Tools.Get(name); ok {
+						toolsList = append(toolsList, t)
+					}
+				}
+				activeTools = al.semanticMatcher.MatchTools(ctx, intent, toolsList, semanticTopK)
+			} else {
+				for _, name := range allToolNames {
+					if t, ok := agent.Tools.Get(name); ok {
+						activeTools = append(activeTools, t)
+					}
 				}
 			}
-		}
 
-		for _, t := range activeTools {
-			schema := tools.ToolToSchema(t)
-			if fn, ok := schema["function"].(map[string]any); ok {
-				name, _ := fn["name"].(string)
-				desc, _ := fn["description"].(string)
-				params, _ := fn["parameters"].(map[string]any)
-
-				providerToolDefs = append(providerToolDefs, providers.ToolDefinition{
-					Type: "function",
-					Function: providers.ToolFunctionDefinition{
-						Name:        name,
-						Description: desc,
-						Parameters:  params,
-					},
-				})
+			for _, t := range activeTools {
+				schema := tools.ToolToSchema(t)
+				if fn, ok := schema["function"].(map[string]any); ok {
+					name, _ := fn["name"].(string)
+					desc, _ := fn["description"].(string)
+					params, _ := fn["parameters"].(map[string]any)
+					providerToolDefs = append(providerToolDefs, providers.ToolDefinition{
+						Type: "function",
+						Function: providers.ToolFunctionDefinition{
+							Name:        name,
+							Description: desc,
+							Parameters:  params,
+						},
+					})
+				}
 			}
+			cachedToolDefs = providerToolDefs
 		}
 
 		// Log LLM request details

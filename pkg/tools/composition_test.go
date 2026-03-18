@@ -40,6 +40,9 @@ func TestToolTracker(t *testing.T) {
 		t.Errorf("expected TotalTimeMs 300, got %d", stats.TotalTimeMs)
 	}
 
+	// Flush pending writes before testing persistence
+	tracker.Flush()
+
 	// Test persistence
 	tracker2 := NewToolTracker(statsPath)
 	stats2, ok := tracker2.GetStat("test_tool")
