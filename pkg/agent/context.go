@@ -162,7 +162,9 @@ func (cb *ContextBuilder) BuildSystemPrompt() string {
 	if skillsSummary != "" {
 		parts = append(parts, fmt.Sprintf(`# Skills
 
-The following skills extend your capabilities. To use a skill, read its SKILL.md file using the read_file tool.
+These skills are your existing expertise. ALWAYS check this list before attempting a task — if a skill matches, read its SKILL.md with read_file and follow it. Do NOT create new skills or reinvent patterns when one already exists.
+
+When delegating to subagents, tell them which skills to use: "Read workspace/skills/{name}/SKILL.md for instructions."
 
 %s`, skillsSummary))
 	}
