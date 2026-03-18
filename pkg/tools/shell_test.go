@@ -133,6 +133,83 @@ func TestShellTool_DangerousCommand(t *testing.T) {
 	}
 }
 
+// TestShellTool_BypassAttempts verifies that various obfuscation techniques
+// cannot bypass the deny patterns.
+func TestShellTool_BypassAttempts(t *testing.T) {
+	tool := NewExecTool("", false)
+	ctx := context.Background()
+
+	tests := []struct {
+		name    string
+		command string
+	}{
+		// Backslash-newline continuation: shell treats "rm \<newline>-rf /" as "rm -rf /"
+		{"backslash-newline rm", "rm \\\n-rf /"},
+		{"backslash-newline sudo", "su\\\ndo rm /tmp/x"},
+
+		// Single-quote splitting: shell treats 'r'm as rm
+		{"single-quote split rm", "'r'm -rf /"},
+		{"single-quote split sudo", "'su'do rm /tmp/x"},
+		{"single-quote split kill", "'ki'll -9 1"},
+
+		// Double-quote splitting: shell treats r"m" as rm
+		{"double-quote split rm", "r\"m\" -rf /"},
+		{"double-quote split sudo", "su\"do\" rm /tmp/x"},
+		{"double-quote split shutdown", "shut\"down\" now"},
+
+		// Bare $variable references (not caught by $() or ${} patterns)
+		{"bare dollar-var exec", "a=rm; $a -rf /"},
+
+		// Heredoc with non-EOF delimiter
+		{"heredoc DELIM", "cat << DELIM\nrm -rf /\nDELIM"},
+		{"heredoc END", "cat << END\nrm -rf /\nEND"},
+		{"heredoc quoted DELIM", "cat << 'DELIM'\nrm -rf /\nDELIM"},
+		{"heredoc indented", "cat <<-INDENT\nrm -rf /\nINDENT"},
+
+		// Tabs between command and args
+		{"tab-separated rm", "rm\t-rf /"},
+		// Multiple spaces
+		{"multi-space rm", "rm   -rf /"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tool.Execute(ctx, map[string]any{"command": tt.command})
+			if !result.IsError {
+				t.Errorf("Expected bypass attempt %q to be blocked, but it was allowed", tt.command)
+			}
+			if !strings.Contains(result.ForLLM, "blocked") {
+				t.Errorf("Expected 'blocked' in error for %q, got: %s", tt.command, result.ForLLM)
+			}
+		})
+	}
+}
+
+// TestShellTool_NormalizeCommand verifies the normalizeCommand helper.
+func TestShellTool_NormalizeCommand(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"rm \\\n-rf /", "rm -rf /"},
+		{"'r'm -rf /", "rm -rf /"},
+		{"r\"m\" -rf /", "rm -rf /"},
+		{"rm   -rf   /", "rm -rf /"},
+		{"rm\t-rf\t/", "rm -rf /"},
+		{"  rm -rf /  ", "rm -rf /"},
+		{"echo hello", "echo hello"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := normalizeCommand(tt.input)
+			if result != tt.expected {
+				t.Errorf("normalizeCommand(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
 // TestShellTool_MissingCommand verifies error handling for missing command
 func TestShellTool_MissingCommand(t *testing.T) {
 	tool := NewExecTool("", false)

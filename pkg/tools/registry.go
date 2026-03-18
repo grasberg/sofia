@@ -12,9 +12,10 @@ import (
 )
 
 type ToolRegistry struct {
-	tools   map[string]Tool
-	tracker *ToolTracker
-	mu      sync.RWMutex
+	tools          map[string]Tool
+	tracker        *ToolTracker
+	circuitBreaker *CircuitBreaker
+	mu             sync.RWMutex
 }
 
 func NewToolRegistry() *ToolRegistry {
@@ -28,6 +29,14 @@ func (r *ToolRegistry) SetTracker(t *ToolTracker) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.tracker = t
+}
+
+// SetCircuitBreaker attaches a CircuitBreaker to the registry. When set, tool
+// execution is gated by circuit state and failures/successes are recorded.
+func (r *ToolRegistry) SetCircuitBreaker(cb *CircuitBreaker) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.circuitBreaker = cb
 }
 
 func (r *ToolRegistry) Register(tool Tool) {
@@ -79,6 +88,17 @@ func (r *ToolRegistry) ExecuteWithContext(
 		return ErrorResult(fmt.Sprintf("tool %q not found", name)).WithError(fmt.Errorf("tool not found"))
 	}
 
+	// Circuit breaker gate: reject execution if the circuit is open.
+	r.mu.RLock()
+	cb := r.circuitBreaker
+	r.mu.RUnlock()
+	if cb != nil && !cb.AllowExecution(name) {
+		msg := circuitBreakerError(name)
+		return ErrorResult(msg).
+			WithRetryHint("The tool is temporarily disabled. Try again later or use an alternative.").
+			WithError(fmt.Errorf("circuit breaker open for tool %q", name))
+	}
+
 	// If tool implements ContextualTool, set context
 	if contextualTool, ok := tool.(ContextualTool); ok && channel != "" && chatID != "" {
 		contextualTool.SetContext(channel, chatID)
@@ -103,6 +123,15 @@ func (r *ToolRegistry) ExecuteWithContext(
 	r.mu.RUnlock()
 	if tracker != nil {
 		tracker.Record(name, duration, result.IsError)
+	}
+
+	// Record circuit breaker outcome
+	if cb != nil {
+		if result.IsError {
+			cb.RecordFailure(name)
+		} else {
+			cb.RecordSuccess(name)
+		}
 	}
 
 	// Log based on result type
