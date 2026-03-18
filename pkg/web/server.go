@@ -9,16 +9,19 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/grasberg/sofia/pkg/agent"
+	"github.com/grasberg/sofia/pkg/audit"
 	"github.com/grasberg/sofia/pkg/autonomy"
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/routing"
+	"github.com/grasberg/sofia/pkg/search"
 	"github.com/grasberg/sofia/pkg/skills"
 )
 
@@ -33,14 +36,6 @@ var agentsHTML []byte
 
 //go:embed templates/monitor.html
 var monitorHTML []byte
-
-// Dashboard hub for real-time updates
-var dashboardHub = NewDashboardHub()
-
-// GetDashboardHub allows access to the hub from other packages (e.g. agent)
-func GetDashboardHub() *DashboardHub {
-	return dashboardHub
-}
 
 //go:embed templates/settings/models.html
 var settingsModelsHTML []byte
@@ -80,6 +75,7 @@ type Server struct {
 	mux            *http.ServeMux
 	mu             sync.RWMutex
 	skillInstaller *skills.SkillInstaller
+	auditLogger    *audit.AuditLogger
 }
 
 // WebhookRegistrar is an interface for registering webhook HTTP handlers.
@@ -188,6 +184,13 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/api/sessions/", s.handleSessionDetail)
 	mux.HandleFunc("/api/goals", s.handleGoals)
 	mux.HandleFunc("/api/reset", s.handleReset)
+	mux.HandleFunc("GET /api/search", s.handleSearch)
+	mux.HandleFunc("GET /api/presence", s.handlePresence)
+	mux.HandleFunc("GET /api/audit", s.handleAudit)
+	mux.HandleFunc("GET /api/approvals", s.handleApprovals)
+	mux.HandleFunc("/api/approvals/", s.handleApprovalAction)
+	mux.HandleFunc("GET /api/evolution/status", s.handleEvolutionStatus)
+	mux.HandleFunc("GET /api/evolution/changelog", s.handleEvolutionChangelog)
 	mux.HandleFunc("/ws/dashboard", func(w http.ResponseWriter, r *http.Request) {
 		s.agentLoop.DashboardHub().RegisterClient(w, r, func() any {
 			return s.agentLoop.GetStartupInfo()
@@ -875,4 +878,192 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	result := s.agentLoop.Reset()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
+}
+
+// handlePresence returns the current agent presence state as JSON.
+func (s *Server) handlePresence(w http.ResponseWriter, r *http.Request) {
+	presence := s.agentLoop.DashboardHub().GetPresence()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(presence)
+}
+
+// SetAuditLogger assigns the audit logger used by the /api/audit endpoint.
+func (s *Server) SetAuditLogger(al *audit.AuditLogger) {
+	s.auditLogger = al
+}
+
+// handleAudit returns recent audit entries as JSON with optional query params:
+// action, agent_id, limit, offset.
+func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
+	if s.auditLogger == nil {
+		s.sendJSONError(w, "Audit logging is not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	q := r.URL.Query()
+	opts := audit.QueryOpts{
+		AgentID: q.Get("agent_id"),
+		Action:  q.Get("action"),
+	}
+
+	if v := q.Get("limit"); v != "" {
+		fmt.Sscanf(v, "%d", &opts.Limit)
+	}
+	if v := q.Get("offset"); v != "" {
+		fmt.Sscanf(v, "%d", &opts.Offset)
+	}
+
+	entries, err := s.auditLogger.Query(opts)
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if entries == nil {
+		entries = []audit.AuditEntry{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(entries)
+}
+
+// handleApprovals returns pending approval requests as JSON.
+func (s *Server) handleApprovals(w http.ResponseWriter, _ *http.Request) {
+	gate := s.agentLoop.GetApprovalGate()
+	if gate == nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]any{})
+		return
+	}
+	pending := gate.ListPending()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(pending)
+}
+
+// handleApprovalAction handles POST /api/approvals/{id}/approve and
+// POST /api/approvals/{id}/deny.
+func (s *Server) handleApprovalAction(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	gate := s.agentLoop.GetApprovalGate()
+	if gate == nil {
+		s.sendJSONError(w, "Approval gates not enabled", http.StatusNotFound)
+		return
+	}
+
+	path := strings.TrimPrefix(r.URL.Path, "/api/approvals/")
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) != 2 || parts[0] == "" {
+		s.sendJSONError(
+			w,
+			"Invalid path: expected /api/approvals/{id}/{action}",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	requestID := parts[0]
+	action := parts[1]
+
+	var err error
+	switch action {
+	case "approve":
+		err = gate.Approve(requestID)
+	case "deny":
+		err = gate.Deny(requestID)
+	default:
+		s.sendJSONError(
+			w, "Invalid action: must be 'approve' or 'deny'",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"ok"}`))
+}
+
+// handleSearch handles GET /api/search?q=<query>&limit=10 — searches conversation history.
+func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if strings.TrimSpace(query) == "" {
+		s.sendJSONError(w, "query parameter 'q' is required", http.StatusBadRequest)
+		return
+	}
+
+	limit := 10
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	memDB := s.agentLoop.GetMemoryDB()
+	if memDB == nil {
+		s.sendJSONError(w, "memory database not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	dbRows, err := memDB.SearchMessages(query, limit*5)
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Convert to search entries and run keyword ranking
+	entries := make([]search.MessageEntry, len(dbRows))
+	for i, row := range dbRows {
+		entries[i] = search.MessageEntry{
+			SessionKey: row.SessionKey,
+			Content:    row.Content,
+			Role:       row.Role,
+			Timestamp:  row.CreatedAt,
+		}
+	}
+
+	results := search.KeywordSearch(query, entries, limit)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
+}
+
+// handleEvolutionStatus returns the evolution engine's current status as JSON.
+func (s *Server) handleEvolutionStatus(w http.ResponseWriter, _ *http.Request) {
+	engine := s.agentLoop.GetEvolutionEngine()
+	if engine == nil {
+		http.Error(w, `{"error":"evolution engine not enabled"}`, http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"status": engine.FormatStatus(),
+	})
+}
+
+// handleEvolutionChangelog returns recent evolution changelog entries as JSON.
+func (s *Server) handleEvolutionChangelog(w http.ResponseWriter, r *http.Request) {
+	engine := s.agentLoop.GetEvolutionEngine()
+	if engine == nil {
+		http.Error(w, `{"error":"evolution engine not enabled"}`, http.StatusNotFound)
+		return
+	}
+	limit := 20
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	entries, err := engine.RecentHistory(limit)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(entries)
 }
