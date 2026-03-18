@@ -517,10 +517,19 @@ func (e *EvolutionEngine) actModifyWorkspace(ctx context.Context, action Evoluti
 
 // logAction writes a changelog entry for the given action.
 func (e *EvolutionEngine) logAction(action EvolutionAction, summary string) {
+	var metricBefore float64
+	if action.AgentID != "" {
+		perf, err := e.tracker.GetAgentPerformance(action.AgentID)
+		if err == nil {
+			metricBefore = perf.SuccessRate24h
+		}
+	}
+
 	entry := &ChangelogEntry{
-		Timestamp: time.Now().UTC(),
-		Action:    string(action.Type),
-		Summary:   summary,
+		Timestamp:    time.Now().UTC(),
+		Action:       string(action.Type),
+		Summary:      summary,
+		MetricBefore: metricBefore,
 		Details: map[string]any{
 			"agent_id": action.AgentID,
 			"params":   action.Params,
