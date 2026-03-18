@@ -155,7 +155,10 @@ func (ag *ApprovalGate) Approve(requestID string) error {
 		return fmt.Errorf("approval request %q not found or already resolved", requestID)
 	}
 
-	entry.ResultCh <- true
+	select {
+	case entry.ResultCh <- true:
+	default:
+	}
 	return nil
 }
 
@@ -169,7 +172,10 @@ func (ag *ApprovalGate) Deny(requestID string) error {
 		return fmt.Errorf("approval request %q not found or already resolved", requestID)
 	}
 
-	entry.ResultCh <- false
+	select {
+	case entry.ResultCh <- false:
+	default:
+	}
 	return nil
 }
 

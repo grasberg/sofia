@@ -14,6 +14,7 @@ import (
 	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/reputation"
+	"github.com/grasberg/sofia/pkg/utils"
 )
 
 // mockToolStats implements ToolStatsProvider for testing.
@@ -334,7 +335,7 @@ func TestEvolutionEngine_CleanJSONResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := cleanJSONResponse(tt.input)
+			result := utils.CleanJSONFences(tt.input)
 			var parsed map[string]string
 			err := json.Unmarshal([]byte(result), &parsed)
 			require.NoError(t, err)

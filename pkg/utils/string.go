@@ -1,5 +1,16 @@
 package utils
 
+import "strings"
+
+// CleanJSONFences strips markdown code fences from LLM JSON responses.
+func CleanJSONFences(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "```json")
+	s = strings.TrimPrefix(s, "```")
+	s = strings.TrimSuffix(s, "```")
+	return strings.TrimSpace(s)
+}
+
 // Truncate returns a truncated version of s with at most maxLen runes.
 // Handles multi-byte Unicode characters properly.
 // If the string is truncated, "..." is appended to indicate truncation.

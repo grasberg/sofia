@@ -42,6 +42,7 @@ type toolCircuit struct {
 	OpenedAt      time.Time    `json:"opened_at"`
 	TotalCalls    int          `json:"total_calls"`
 	TotalFailures int          `json:"total_failures"`
+	ProbeInFlight bool         `json:"probe_in_flight"`
 }
 
 // CircuitBreaker tracks failure counts per tool and disables tools that exceed a
@@ -120,6 +121,10 @@ func (cb *CircuitBreaker) AllowExecution(toolName string) bool {
 		return false
 
 	case CircuitHalfOpen:
+		if tc.ProbeInFlight {
+			return false // Only one probe at a time
+		}
+		tc.ProbeInFlight = true
 		return true
 
 	default:
@@ -136,6 +141,7 @@ func (cb *CircuitBreaker) RecordSuccess(toolName string) {
 	tc := cb.getOrCreate(toolName)
 	tc.TotalCalls++
 
+	tc.ProbeInFlight = false
 	if tc.State == CircuitHalfOpen {
 		tc.State = CircuitClosed
 		tc.Failures = 0
@@ -159,6 +165,7 @@ func (cb *CircuitBreaker) RecordFailure(toolName string) {
 	tc.TotalFailures++
 	tc.Failures++
 	tc.LastFailure = cb.now()
+	tc.ProbeInFlight = false
 
 	switch tc.State {
 	case CircuitClosed:

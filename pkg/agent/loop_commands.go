@@ -556,7 +556,11 @@ func (al *AgentLoop) handleEvolveCommand(args []string, _ string) (string, bool)
 		}
 		return sb.String(), true
 	case "run":
-		go al.evolutionEngine.RunNow(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		go func() {
+			defer cancel()
+			al.evolutionEngine.RunNow(ctx)
+		}()
 		return "Evolution cycle triggered.", true
 	case "pause":
 		al.evolutionEngine.Pause()

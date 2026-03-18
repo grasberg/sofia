@@ -1,5 +1,7 @@
 package agent
 
+import "strings"
+
 // ModelPricing holds per-million-token costs in USD.
 type ModelPricing struct {
 	InputPer1M  float64
@@ -41,7 +43,7 @@ func GetPricing(model string) ModelPricing {
 	var best ModelPricing
 	bestLen := 0
 	for key, p := range pricingTable {
-		if len(key) > bestLen && containsSubstring(model, key) {
+		if len(key) > bestLen && strings.Contains(model, key) {
 			best = p
 			bestLen = len(key)
 		}
@@ -60,15 +62,3 @@ func EstimateCost(usage *SessionUsage, model string) float64 {
 	return inputCost + outputCost
 }
 
-func containsSubstring(s, substr string) bool {
-	return len(s) >= len(substr) && findSubstring(s, substr)
-}
-
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
