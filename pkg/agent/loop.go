@@ -23,10 +23,12 @@ import (
 	"github.com/grasberg/sofia/pkg/checkpoint"
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/dashboard"
+	"github.com/grasberg/sofia/pkg/evolution"
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/notifications"
 	"github.com/grasberg/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/reputation"
 	"github.com/grasberg/sofia/pkg/session"
 	"github.com/grasberg/sofia/pkg/state"
 	"github.com/grasberg/sofia/pkg/tools"
@@ -62,6 +64,7 @@ type AgentLoop struct {
 	pushService      *notifications.PushService
 	dashboardHub     *dashboard.Hub
 	toolTracker      *tools.ToolTracker
+	evolutionEngine  *evolution.EvolutionEngine
 	usageTracker     *UsageTracker
 	verboseMode      sync.Map // sessionKey -> bool
 	thinkingLevel    sync.Map // sessionKey -> ThinkingLevel
@@ -234,11 +237,66 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 
 	al.activeAgentID.Store("")
 	al.activeStatus.Store("Idle")
+
+	// Evolution: restore dynamic agents from store
+	agentStore := evolution.NewAgentStore(memDB)
+	if retiredIDs, err := agentStore.ListRetired(); err == nil {
+		for _, id := range retiredIDs {
+			_ = registry.RemoveAgent(id)
+		}
+	}
+	if activeAgents, err := agentStore.ListActive(); err == nil {
+		for _, aCfg := range activeAgents {
+			inst := newAgentInstanceFromEvolution(aCfg, cfg, provider, memDB)
+			if inst != nil {
+				if err := registry.RegisterAgent(inst); err != nil {
+					logger.WarnCF("agent", "Failed to restore evolution agent",
+						map[string]any{"agent_id": aCfg.ID, "error": err.Error()})
+				}
+			}
+		}
+	}
+
+	// Start evolution engine if enabled
+	if cfg.Evolution.Enabled {
+		repMgr := reputation.NewManager(memDB)
+		changelogWriter := evolution.NewChangelogWriter(memDB)
+		perfTracker := evolution.NewPerformanceTracker(repMgr, &cfg.Evolution)
+
+		historyDir := filepath.Join(filepath.Dir(memDBPath), "evolution", "history")
+		safeModifier := evolution.NewSafeModifier(
+			historyDir, cfg.Evolution.ImmutableFiles, provider,
+		)
+
+		architect := evolution.NewAgentArchitect(
+			provider, registry, a2aRouter, agentStore, memDB,
+			cfg.Agents.Defaults.Workspace,
+		)
+
+		var toolStats evolution.ToolStatsProvider
+		if al.toolTracker != nil {
+			toolStats = &toolStatsAdapter{tracker: al.toolTracker}
+		}
+
+		al.evolutionEngine = evolution.NewEvolutionEngine(
+			provider, memDB, registry, a2aRouter, toolStats,
+			repMgr, agentStore, changelogWriter, perfTracker, architect,
+			safeModifier, &cfg.Evolution, msgBus,
+		)
+	}
+
 	return al
 }
 
 func (al *AgentLoop) Run(ctx context.Context) error {
 	al.running.Store(true)
+
+	if al.evolutionEngine != nil {
+		if err := al.evolutionEngine.Start(ctx); err != nil {
+			logger.WarnCF("agent", "Failed to start evolution engine",
+				map[string]any{"error": err.Error()})
+		}
+	}
 
 	for al.running.Load() {
 		select {
@@ -295,6 +353,9 @@ func (al *AgentLoop) Run(ctx context.Context) error {
 
 func (al *AgentLoop) Stop() {
 	al.running.Store(false)
+	if al.evolutionEngine != nil {
+		al.evolutionEngine.Stop()
+	}
 	al.stopAutonomyServices()
 }
 
@@ -429,4 +490,46 @@ func (al *AgentLoop) ReloadAgents() {
 	al.startAutonomyServices(provider, al.pushService)
 
 	logger.InfoCF("agent", "Agents reloaded successfully", nil)
+}
+
+// GetEvolutionEngine returns the evolution engine instance (may be nil).
+func (al *AgentLoop) GetEvolutionEngine() *evolution.EvolutionEngine {
+	return al.evolutionEngine
+}
+
+// toolStatsAdapter wraps *tools.ToolTracker to satisfy evolution.ToolStatsProvider.
+// The evolution interface expects map[string]any so it stays decoupled from tools.
+type toolStatsAdapter struct {
+	tracker *tools.ToolTracker
+}
+
+func (a *toolStatsAdapter) GetStats() map[string]any {
+	raw := a.tracker.GetStats()
+	result := make(map[string]any, len(raw))
+	for name, stat := range raw {
+		result[name] = stat.ErrorCount
+	}
+	return result
+}
+
+// newAgentInstanceFromEvolution creates a minimal AgentInstance from an
+// EvolutionAgentConfig. This is used to restore dynamically created agents
+// on startup without requiring the full NewAgentInstance setup path.
+func newAgentInstanceFromEvolution(
+	aCfg evolution.EvolutionAgentConfig,
+	cfg *config.Config,
+	provider providers.LLMProvider,
+	memDB *memory.MemoryDB,
+) *AgentInstance {
+	agentCfg := config.AgentConfig{
+		ID:     aCfg.ID,
+		Name:   aCfg.Name,
+		Skills: aCfg.Skills,
+	}
+	if aCfg.Model != nil {
+		agentCfg.Model = aCfg.Model
+	} else if aCfg.ModelID != "" {
+		agentCfg.Model = &config.AgentModelConfig{Primary: aCfg.ModelID}
+	}
+	return NewAgentInstance(&agentCfg, &cfg.Agents.Defaults, cfg, provider, memDB, nil)
 }
