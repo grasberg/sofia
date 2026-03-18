@@ -144,6 +144,53 @@ func (m *Manager) GetAgentStats(agentID string) (*AgentStats, error) {
 	return s, nil
 }
 
+// GetAgentStatsSince returns aggregate stats for an agent since the given time.
+func (m *Manager) GetAgentStatsSince(agentID string, since time.Time) (*AgentStats, error) {
+	row := m.db.QueryRow(`
+		SELECT
+			COUNT(*) as total,
+			SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successes,
+			AVG(latency_ms) as avg_latency,
+			AVG(tokens_out) as avg_tokens_out
+		FROM agent_reputation
+		WHERE agent_id = ? AND created_at >= ?`, agentID, since)
+
+	s := &AgentStats{AgentID: agentID}
+	var avgLatency, avgTokens *float64
+	if err := row.Scan(
+		&s.TotalTasks, &s.Successes,
+		&avgLatency, &avgTokens,
+	); err != nil {
+		return nil, err
+	}
+
+	s.Failures = s.TotalTasks - s.Successes
+	if s.TotalTasks > 0 {
+		s.SuccessRate = float64(s.Successes) / float64(s.TotalTasks)
+	}
+	if avgLatency != nil {
+		s.AvgLatencyMs = *avgLatency
+	}
+	if avgTokens != nil {
+		s.AvgTokensOut = *avgTokens
+	}
+
+	// Score stats (only scored outcomes since the given time).
+	scoreRow := m.db.QueryRow(`
+		SELECT COUNT(*), AVG(score)
+		FROM agent_reputation
+		WHERE agent_id = ? AND score IS NOT NULL AND created_at >= ?`, agentID, since)
+
+	var avgScore *float64
+	if err := scoreRow.Scan(&s.ScoredCount, &avgScore); err == nil {
+		if avgScore != nil {
+			s.AvgScore = *avgScore
+		}
+	}
+
+	return s, nil
+}
+
 // GetAllAgentStats returns stats for all agents that have outcomes.
 func (m *Manager) GetAllAgentStats() ([]AgentStats, error) {
 	rows, err := m.db.Query(`
