@@ -84,13 +84,14 @@ func ScrubSecretsWithPatterns(text string, patterns []SecretPattern) (string, []
 	var found []string
 
 	for _, sp := range patterns {
-		if sp.Pattern.MatchString(scrubbed) {
+		mask := sp.Mask
+		if mask == "" {
+			mask = "[REDACTED:" + sp.Name + "]"
+		}
+		replaced := sp.Pattern.ReplaceAllString(scrubbed, mask)
+		if replaced != scrubbed {
 			found = append(found, sp.Name)
-			mask := sp.Mask
-			if mask == "" {
-				mask = "[REDACTED]"
-			}
-			scrubbed = sp.Pattern.ReplaceAllString(scrubbed, mask)
+			scrubbed = replaced
 		}
 	}
 

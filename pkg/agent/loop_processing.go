@@ -315,8 +315,8 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 		}
 		switch piiAction {
 		case "block":
-			if guardrails.ContainsPII(msg.Content) {
-				piiMatches := guardrails.DetectPII(msg.Content)
+			piiMatches := guardrails.DetectPII(msg.Content)
+			if len(piiMatches) > 0 {
 				piiTypes := make([]string, 0, len(piiMatches))
 				for _, m := range piiMatches {
 					piiTypes = append(piiTypes, string(m.Type))
@@ -334,8 +334,8 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 				return "Error: message blocked — personal information detected.", nil
 			}
 		case "redact":
-			if guardrails.ContainsPII(msg.Content) {
-				redacted, piiMatches := guardrails.RedactPII(msg.Content)
+			redacted, piiMatches := guardrails.RedactPII(msg.Content)
+			if len(piiMatches) > 0 {
 				piiTypes := make([]string, 0, len(piiMatches))
 				for _, m := range piiMatches {
 					piiTypes = append(piiTypes, string(m.Type))
@@ -353,8 +353,8 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 				msg.Content = redacted
 			}
 		default: // "warn"
-			if guardrails.ContainsPII(msg.Content) {
-				piiMatches := guardrails.DetectPII(msg.Content)
+			piiMatches := guardrails.DetectPII(msg.Content)
+			if len(piiMatches) > 0 {
 				piiTypes := make([]string, 0, len(piiMatches))
 				for _, m := range piiMatches {
 					piiTypes = append(piiTypes, string(m.Type))

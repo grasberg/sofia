@@ -476,7 +476,6 @@ func (al *AgentLoop) runLLMIteration(
 
 		executeSingleTool := func(idx int, tc providers.ToolCall) toolCallResult {
 			al.activeStatus.Store(fmt.Sprintf("Executing tool: %s", tc.Name))
-			al.broadcastPresence(agent.ID, "processing")
 			argsJSON, _ := json.Marshal(tc.Arguments)
 			argsPreview := utils.Truncate(string(argsJSON), 200)
 			logger.InfoCF(agentComp, fmt.Sprintf("TOOL: started %s", tc.Name),

@@ -46,6 +46,7 @@ type WebhookPayload struct {
 type WebhookDispatcher struct {
 	webhooks []WebhookConfig
 	client   *http.Client
+	sem      chan struct{} // concurrency limiter
 }
 
 // NewWebhookDispatcher creates a dispatcher for the given webhook configs.
@@ -55,6 +56,7 @@ func NewWebhookDispatcher(webhooks []WebhookConfig) *WebhookDispatcher {
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
+		sem: make(chan struct{}, 10), // max 10 concurrent webhook deliveries
 	}
 }
 
@@ -75,17 +77,27 @@ func (wd *WebhookDispatcher) Dispatch(event string, agentID, channel string, dat
 		if !eventMatches(wh.Events, event) {
 			continue
 		}
-		go func(wh WebhookConfig) {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			if err := wd.dispatchSingle(ctx, wh, payload); err != nil {
-				logger.WarnCF("webhooks", "Webhook dispatch failed", map[string]any{
-					"url":   wh.URL,
-					"event": event,
-					"error": err.Error(),
-				})
-			}
-		}(wh)
+		select {
+		case wd.sem <- struct{}{}:
+			go func(wh WebhookConfig, payload WebhookPayload) {
+				defer func() { <-wd.sem }()
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if err := wd.dispatchSingle(ctx, wh, payload); err != nil {
+					logger.WarnCF("webhooks", "Webhook dispatch failed", map[string]any{
+						"url":   wh.URL,
+						"event": event,
+						"error": err.Error(),
+					})
+				}
+			}(wh, payload)
+		default:
+			// at capacity, drop this notification
+			logger.WarnCF("notifications", "Webhook dispatch queue full, dropping event", map[string]any{
+				"event": event,
+				"url":   wh.URL,
+			})
+		}
 	}
 }
 
