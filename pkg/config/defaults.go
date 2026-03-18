@@ -139,6 +139,18 @@ func DefaultConfig() *Config {
 			Host:    "0.0.0.0",
 			Port:    18795,
 		},
+		Evolution: EvolutionConfig{
+			Enabled:                false, // default to disabled
+			IntervalMinutes:        30,
+			MaxCostPerDay:          5.0,
+			DailySummary:           true,
+			DailySummaryTime:       "08:00",
+			RetirementThreshold:    0.30,
+			RetirementMinTasks:     5,
+			RetirementInactiveDays: 7,
+			SelfModifyEnabled:      true,
+			MaxAgents:              20,
+		},
 		UserName: "User",
 	}
 }
