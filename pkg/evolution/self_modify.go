@@ -97,14 +97,15 @@ func (sm *SafeModifier) ModifyFile(ctx context.Context, path, newContent string)
 		}
 	}
 
-	// Semantic safety check via LLM (best-effort).
+	// Semantic safety check via LLM (fail-closed).
 	if sm.provider != nil {
 		blocked, err := sm.checkSafety(ctx, newContent)
 		if err != nil {
-			logger.WarnCF("evolution", "safety check failed, proceeding", map[string]any{
+			logger.WarnCF("evolution", "Safety validation LLM call failed, blocking write as precaution", map[string]any{
 				"path":  path,
 				"error": err.Error(),
 			})
+			return fmt.Errorf("safety validation unavailable, write blocked: %w", err)
 		} else if blocked {
 			return fmt.Errorf("blocked_by_safety: content for %q was flagged as unsafe", path)
 		}

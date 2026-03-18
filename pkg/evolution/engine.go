@@ -17,6 +17,7 @@ import (
 	"github.com/grasberg/sofia/pkg/providers"
 	pt "github.com/grasberg/sofia/pkg/providers/protocoltypes"
 	"github.com/grasberg/sofia/pkg/reputation"
+	"github.com/grasberg/sofia/pkg/utils"
 )
 
 // EvolutionEngine implements the 5-phase observe-diagnose-plan-act-verify loop
@@ -287,7 +288,13 @@ func (e *EvolutionEngine) diagnose(ctx context.Context, report ObservationReport
 		return Diagnosis{}, fmt.Errorf("diagnosis LLM call: %w", err)
 	}
 
-	content := cleanJSONResponse(resp.Content)
+	// Estimate cost from response tokens (rough: $0.003 per 1K tokens for typical models)
+	if resp.Usage != nil {
+		estimatedCost := float64(resp.Usage.TotalTokens) / 1000.0 * 0.003
+		e.budgetSpent += estimatedCost
+	}
+
+	content := utils.CleanJSONFences(resp.Content)
 
 	var diagnosis Diagnosis
 	if err := json.Unmarshal([]byte(content), &diagnosis); err != nil {
@@ -337,7 +344,13 @@ func (e *EvolutionEngine) plan(ctx context.Context, diagnosis Diagnosis) ([]Evol
 		return nil, fmt.Errorf("planning LLM call: %w", err)
 	}
 
-	content := cleanJSONResponse(resp.Content)
+	// Estimate cost from response tokens (rough: $0.003 per 1K tokens for typical models)
+	if resp.Usage != nil {
+		estimatedCost := float64(resp.Usage.TotalTokens) / 1000.0 * 0.003
+		e.budgetSpent += estimatedCost
+	}
+
+	content := utils.CleanJSONFences(resp.Content)
 
 	var actions []EvolutionAction
 	if err := json.Unmarshal([]byte(content), &actions); err != nil {
@@ -474,6 +487,14 @@ func (e *EvolutionEngine) actCreateSkill(ctx context.Context, action EvolutionAc
 		return
 	}
 
+	// Validate skill ID is a safe slug (no path traversal)
+	if strings.Contains(skillID, "/") || strings.Contains(skillID, "\\") || strings.Contains(skillID, "..") {
+		logger.WarnCF("evolution", "Invalid skill ID blocked", map[string]any{
+			"skill_id": skillID,
+		})
+		return
+	}
+
 	if skillContent == "" {
 		skillContent = action.Reason
 	}
@@ -501,6 +522,17 @@ func (e *EvolutionEngine) actModifyWorkspace(ctx context.Context, action Evoluti
 
 	if filePath == "" || newContent == "" {
 		logger.WarnCF("evolution", "modify_workspace action missing path or content", nil)
+		return
+	}
+
+	// Validate path is within workspace
+	absPath, _ := filepath.Abs(filePath)
+	absWorkspace, _ := filepath.Abs(e.architect.workspace)
+	if !strings.HasPrefix(absPath, absWorkspace) {
+		logger.WarnCF("evolution", "Path traversal blocked", map[string]any{
+			"path":      filePath,
+			"workspace": e.architect.workspace,
+		})
 		return
 	}
 
@@ -770,15 +802,6 @@ func (e *EvolutionEngine) sendDailySummary(_ context.Context) {
 		"channel": channel,
 		"entries": len(entries),
 	})
-}
-
-// cleanJSONResponse strips markdown code fences from an LLM response.
-func cleanJSONResponse(s string) string {
-	s = strings.TrimSpace(s)
-	s = strings.TrimPrefix(s, "```json")
-	s = strings.TrimPrefix(s, "```")
-	s = strings.TrimSuffix(s, "```")
-	return strings.TrimSpace(s)
 }
 
 // abs returns the absolute value of an integer.

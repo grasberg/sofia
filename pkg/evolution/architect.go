@@ -7,13 +7,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
 	pt "github.com/grasberg/sofia/pkg/providers/protocoltypes"
+	"github.com/grasberg/sofia/pkg/utils"
 )
 
 // slugPattern validates agent IDs: lowercase letters, digits, and hyphens.
@@ -84,12 +84,7 @@ func (a *AgentArchitect) DesignAgent(ctx context.Context, gapDescription string)
 		return nil, fmt.Errorf("evolution/architect: LLM call failed: %w", err)
 	}
 
-	content := strings.TrimSpace(resp.Content)
-	// Strip markdown code fences if the LLM wraps them anyway.
-	content = strings.TrimPrefix(content, "```json")
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	content = strings.TrimSpace(content)
+	content := utils.CleanJSONFences(resp.Content)
 
 	var bp agentBlueprint
 	if err := json.Unmarshal([]byte(content), &bp); err != nil {
