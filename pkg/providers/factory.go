@@ -8,8 +8,6 @@ import (
 	"github.com/grasberg/sofia/pkg/config"
 )
 
-const defaultAnthropicAPIBase = "https://api.anthropic.com/v1"
-
 var getCredential = auth.GetCredential
 
 type providerType int
@@ -54,17 +52,17 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.apiBase = cfg.Providers.Groq.APIBase
 				sel.proxy = cfg.Providers.Groq.Proxy
 				if sel.apiBase == "" {
-					sel.apiBase = "https://api.groq.com/openai/v1"
+					sel.apiBase = DefaultGroqAPIBase
 				}
 			}
 		case "openai", "gpt":
 			if cfg.Providers.OpenAI.APIKey != "" || cfg.Providers.OpenAI.AuthMethod != "" {
 				sel.enableWebSearch = cfg.Providers.OpenAI.WebSearch
-				if cfg.Providers.OpenAI.AuthMethod == "codex-cli" {
+				if cfg.Providers.OpenAI.AuthMethod == AuthMethodCodexCLI {
 					sel.providerType = providerTypeCodexCLIToken
 					return sel, nil
 				}
-				if cfg.Providers.OpenAI.AuthMethod == "oauth" || cfg.Providers.OpenAI.AuthMethod == "token" {
+				if cfg.Providers.OpenAI.AuthMethod == AuthMethodOAuth || cfg.Providers.OpenAI.AuthMethod == AuthMethodToken {
 					sel.providerType = providerTypeCodexAuth
 					return sel, nil
 				}
@@ -72,15 +70,15 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.apiBase = cfg.Providers.OpenAI.APIBase
 				sel.proxy = cfg.Providers.OpenAI.Proxy
 				if sel.apiBase == "" {
-					sel.apiBase = "https://api.openai.com/v1"
+					sel.apiBase = DefaultOpenAIAPIBase
 				}
 			}
 		case "anthropic", "claude":
 			if cfg.Providers.Anthropic.APIKey != "" || cfg.Providers.Anthropic.AuthMethod != "" {
-				if cfg.Providers.Anthropic.AuthMethod == "oauth" || cfg.Providers.Anthropic.AuthMethod == "token" {
+				if cfg.Providers.Anthropic.AuthMethod == AuthMethodOAuth || cfg.Providers.Anthropic.AuthMethod == AuthMethodToken {
 					sel.apiBase = cfg.Providers.Anthropic.APIBase
 					if sel.apiBase == "" {
-						sel.apiBase = defaultAnthropicAPIBase
+						sel.apiBase = DefaultAnthropicAPIBase
 					}
 					sel.providerType = providerTypeClaudeAuth
 					return sel, nil
@@ -89,7 +87,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.apiBase = cfg.Providers.Anthropic.APIBase
 				sel.proxy = cfg.Providers.Anthropic.Proxy
 				if sel.apiBase == "" {
-					sel.apiBase = defaultAnthropicAPIBase
+					sel.apiBase = DefaultAnthropicAPIBase
 				}
 			}
 		case "openrouter":
@@ -99,7 +97,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				if cfg.Providers.OpenRouter.APIBase != "" {
 					sel.apiBase = cfg.Providers.OpenRouter.APIBase
 				} else {
-					sel.apiBase = "https://openrouter.ai/api/v1"
+					sel.apiBase = DefaultOpenRouterAPIBase
 				}
 			}
 		case "zhipu", "glm":
@@ -108,7 +106,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.apiBase = cfg.Providers.Zhipu.APIBase
 				sel.proxy = cfg.Providers.Zhipu.Proxy
 				if sel.apiBase == "" {
-					sel.apiBase = "https://open.bigmodel.cn/api/paas/v4"
+					sel.apiBase = DefaultZhipuAPIBase
 				}
 			}
 		case "gemini", "google":
@@ -117,7 +115,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.apiBase = cfg.Providers.Gemini.APIBase
 				sel.proxy = cfg.Providers.Gemini.Proxy
 				if sel.apiBase == "" || sel.apiBase == "https://generativelanguage.googleapis.com/v1beta" {
-					sel.apiBase = "https://generativelanguage.googleapis.com/v1beta/openai"
+					sel.apiBase = DefaultGeminiAPIBase
 				}
 			}
 		case "vllm":
@@ -132,7 +130,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.apiBase = cfg.Providers.ShengSuanYun.APIBase
 				sel.proxy = cfg.Providers.ShengSuanYun.Proxy
 				if sel.apiBase == "" {
-					sel.apiBase = "https://router.shengsuanyun.com/api/v1"
+					sel.apiBase = DefaultShengSuanYunAPIBase
 				}
 			}
 		case "nvidia":
@@ -141,7 +139,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.apiBase = cfg.Providers.Nvidia.APIBase
 				sel.proxy = cfg.Providers.Nvidia.Proxy
 				if sel.apiBase == "" {
-					sel.apiBase = "https://integrate.api.nvidia.com/v1"
+					sel.apiBase = DefaultNvidiaAPIBase
 				}
 			}
 		case "moonshot":
@@ -150,7 +148,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.apiBase = cfg.Providers.Moonshot.APIBase
 				sel.proxy = cfg.Providers.Moonshot.Proxy
 				if sel.apiBase == "" {
-					sel.apiBase = "https://api.moonshot.cn/v1"
+					sel.apiBase = DefaultMoonshotAPIBase
 				}
 			}
 		case "qwen":
@@ -159,7 +157,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.apiBase = cfg.Providers.Qwen.APIBase
 				sel.proxy = cfg.Providers.Qwen.Proxy
 				if sel.apiBase == "" {
-					sel.apiBase = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+					sel.apiBase = DefaultQwenAPIBase
 				}
 			}
 		case "minimax":
@@ -168,7 +166,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.apiBase = cfg.Providers.MiniMax.APIBase
 				sel.proxy = cfg.Providers.MiniMax.Proxy
 				if sel.apiBase == "" {
-					sel.apiBase = "https://api.minimax.io/v1"
+					sel.apiBase = DefaultMiniMaxAPIBase
 				}
 			}
 		case "zai":
@@ -177,7 +175,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.apiBase = cfg.Providers.Zai.APIBase
 				sel.proxy = cfg.Providers.Zai.Proxy
 				if sel.apiBase == "" {
-					sel.apiBase = "https://api.z.ai/api/paas/v4"
+					sel.apiBase = DefaultZaiAPIBase
 				}
 			}
 		case "grok", "xai":
@@ -186,7 +184,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.apiBase = cfg.Providers.Grok.APIBase
 				sel.proxy = cfg.Providers.Grok.Proxy
 				if sel.apiBase == "" {
-					sel.apiBase = "https://api.x.ai/v1"
+					sel.apiBase = DefaultGrokAPIBase
 				}
 			}
 		case "claude-cli", "claude-code", "claudecode":
@@ -211,7 +209,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.apiBase = cfg.Providers.DeepSeek.APIBase
 				sel.proxy = cfg.Providers.DeepSeek.Proxy
 				if sel.apiBase == "" {
-					sel.apiBase = "https://api.deepseek.com/v1"
+					sel.apiBase = DefaultDeepSeekAPIBase
 				}
 				if model != "deepseek-chat" && model != "deepseek-reasoner" {
 					sel.model = "deepseek-chat"
@@ -223,7 +221,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.apiBase = cfg.Providers.Mistral.APIBase
 				sel.proxy = cfg.Providers.Mistral.Proxy
 				if sel.apiBase == "" {
-					sel.apiBase = "https://api.mistral.ai/v1"
+					sel.apiBase = DefaultMistralAPIBase
 				}
 			}
 		case "github_copilot", "copilot":
@@ -231,7 +229,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 			if cfg.Providers.GitHubCopilot.APIBase != "" {
 				sel.apiBase = cfg.Providers.GitHubCopilot.APIBase
 			} else {
-				sel.apiBase = "localhost:4321"
+				sel.apiBase = DefaultGitHubCopilotAPIBase
 			}
 			sel.connectMode = cfg.Providers.GitHubCopilot.ConnectMode
 			return sel, nil
@@ -249,14 +247,14 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 			if cfg.Providers.OpenRouter.APIBase != "" {
 				sel.apiBase = cfg.Providers.OpenRouter.APIBase
 			} else {
-				sel.apiBase = "https://openrouter.ai/api/v1"
+				sel.apiBase = DefaultOpenRouterAPIBase
 			}
 		case (strings.Contains(lowerModel, "kimi") || strings.Contains(lowerModel, "moonshot") || strings.HasPrefix(model, "moonshot/")) && cfg.Providers.Moonshot.APIKey != "":
 			sel.apiKey = cfg.Providers.Moonshot.APIKey
 			sel.apiBase = cfg.Providers.Moonshot.APIBase
 			sel.proxy = cfg.Providers.Moonshot.Proxy
 			if sel.apiBase == "" {
-				sel.apiBase = "https://api.moonshot.cn/v1"
+				sel.apiBase = DefaultMoonshotAPIBase
 			}
 		case strings.HasPrefix(model, "openrouter/") ||
 			strings.HasPrefix(model, "anthropic/") ||
@@ -269,14 +267,14 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 			if cfg.Providers.OpenRouter.APIBase != "" {
 				sel.apiBase = cfg.Providers.OpenRouter.APIBase
 			} else {
-				sel.apiBase = "https://openrouter.ai/api/v1"
+				sel.apiBase = DefaultOpenRouterAPIBase
 			}
 		case (strings.Contains(lowerModel, "claude") || strings.HasPrefix(model, "anthropic/")) &&
 			(cfg.Providers.Anthropic.APIKey != "" || cfg.Providers.Anthropic.AuthMethod != ""):
-			if cfg.Providers.Anthropic.AuthMethod == "oauth" || cfg.Providers.Anthropic.AuthMethod == "token" {
+			if cfg.Providers.Anthropic.AuthMethod == AuthMethodOAuth || cfg.Providers.Anthropic.AuthMethod == AuthMethodToken {
 				sel.apiBase = cfg.Providers.Anthropic.APIBase
 				if sel.apiBase == "" {
-					sel.apiBase = defaultAnthropicAPIBase
+					sel.apiBase = DefaultAnthropicAPIBase
 				}
 				sel.providerType = providerTypeClaudeAuth
 				return sel, nil
@@ -285,16 +283,16 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 			sel.apiBase = cfg.Providers.Anthropic.APIBase
 			sel.proxy = cfg.Providers.Anthropic.Proxy
 			if sel.apiBase == "" {
-				sel.apiBase = defaultAnthropicAPIBase
+				sel.apiBase = DefaultAnthropicAPIBase
 			}
 		case (strings.Contains(lowerModel, "gpt") || strings.HasPrefix(model, "openai/")) &&
 			(cfg.Providers.OpenAI.APIKey != "" || cfg.Providers.OpenAI.AuthMethod != ""):
 			sel.enableWebSearch = cfg.Providers.OpenAI.WebSearch
-			if cfg.Providers.OpenAI.AuthMethod == "codex-cli" {
+			if cfg.Providers.OpenAI.AuthMethod == AuthMethodCodexCLI {
 				sel.providerType = providerTypeCodexCLIToken
 				return sel, nil
 			}
-			if cfg.Providers.OpenAI.AuthMethod == "oauth" || cfg.Providers.OpenAI.AuthMethod == "token" {
+			if cfg.Providers.OpenAI.AuthMethod == AuthMethodOAuth || cfg.Providers.OpenAI.AuthMethod == AuthMethodToken {
 				sel.providerType = providerTypeCodexAuth
 				return sel, nil
 			}
@@ -302,35 +300,35 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 			sel.apiBase = cfg.Providers.OpenAI.APIBase
 			sel.proxy = cfg.Providers.OpenAI.Proxy
 			if sel.apiBase == "" {
-				sel.apiBase = "https://api.openai.com/v1"
+				sel.apiBase = DefaultOpenAIAPIBase
 			}
 		case (strings.Contains(lowerModel, "gemini") || strings.HasPrefix(model, "google/")) && cfg.Providers.Gemini.APIKey != "":
 			sel.apiKey = cfg.Providers.Gemini.APIKey
 			sel.apiBase = cfg.Providers.Gemini.APIBase
 			sel.proxy = cfg.Providers.Gemini.Proxy
 			if sel.apiBase == "" || sel.apiBase == "https://generativelanguage.googleapis.com/v1beta" {
-				sel.apiBase = "https://generativelanguage.googleapis.com/v1beta/openai"
+				sel.apiBase = DefaultGeminiAPIBase
 			}
 		case (strings.Contains(lowerModel, "glm") || strings.Contains(lowerModel, "zhipu") || strings.Contains(lowerModel, "zai")) && cfg.Providers.Zhipu.APIKey != "":
 			sel.apiKey = cfg.Providers.Zhipu.APIKey
 			sel.apiBase = cfg.Providers.Zhipu.APIBase
 			sel.proxy = cfg.Providers.Zhipu.Proxy
 			if sel.apiBase == "" {
-				sel.apiBase = "https://open.bigmodel.cn/api/paas/v4"
+				sel.apiBase = DefaultZhipuAPIBase
 			}
 		case (strings.Contains(lowerModel, "groq") || strings.HasPrefix(model, "groq/")) && cfg.Providers.Groq.APIKey != "":
 			sel.apiKey = cfg.Providers.Groq.APIKey
 			sel.apiBase = cfg.Providers.Groq.APIBase
 			sel.proxy = cfg.Providers.Groq.Proxy
 			if sel.apiBase == "" {
-				sel.apiBase = "https://api.groq.com/openai/v1"
+				sel.apiBase = DefaultGroqAPIBase
 			}
 		case (strings.Contains(lowerModel, "nvidia") || strings.HasPrefix(model, "nvidia/")) && cfg.Providers.Nvidia.APIKey != "":
 			sel.apiKey = cfg.Providers.Nvidia.APIKey
 			sel.apiBase = cfg.Providers.Nvidia.APIBase
 			sel.proxy = cfg.Providers.Nvidia.Proxy
 			if sel.apiBase == "" {
-				sel.apiBase = "https://integrate.api.nvidia.com/v1"
+				sel.apiBase = DefaultNvidiaAPIBase
 			}
 		case (strings.Contains(lowerModel, "ollama") || strings.HasPrefix(model, "ollama/")) && cfg.Providers.Ollama.APIKey != "":
 			sel.apiKey = cfg.Providers.Ollama.APIKey
@@ -344,7 +342,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 			sel.apiBase = cfg.Providers.Mistral.APIBase
 			sel.proxy = cfg.Providers.Mistral.Proxy
 			if sel.apiBase == "" {
-				sel.apiBase = "https://api.mistral.ai/v1"
+				sel.apiBase = DefaultMistralAPIBase
 			}
 		case cfg.Providers.VLLM.APIBase != "":
 			sel.apiKey = cfg.Providers.VLLM.APIKey
@@ -357,7 +355,7 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				if cfg.Providers.OpenRouter.APIBase != "" {
 					sel.apiBase = cfg.Providers.OpenRouter.APIBase
 				} else {
-					sel.apiBase = "https://openrouter.ai/api/v1"
+					sel.apiBase = DefaultOpenRouterAPIBase
 				}
 			} else {
 				return providerSelection{}, fmt.Errorf("no API key configured for model: %s", model)

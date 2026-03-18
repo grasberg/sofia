@@ -71,6 +71,7 @@ func NewAgentInstance(
 	toolsRegistry.Register(tools.NewEditFileTool(workspace, restrict))
 	toolsRegistry.Register(tools.NewAppendFileTool(workspace, restrict))
 	toolsRegistry.Register(tools.NewImageAnalyzeTool(workspace, restrict))
+	toolsRegistry.Register(tools.NewSearchHistoryTool(memDB))
 
 	if mcpManager != nil {
 		for _, srv := range mcpManager.GetServers() {

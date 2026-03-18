@@ -30,17 +30,51 @@ type clientInfo struct {
 	send chan []byte
 }
 
+// PresenceInfo holds the current presence state of the agent loop.
+type PresenceInfo struct {
+	AgentID string `json:"agent_id"`
+	Status  string `json:"status"`
+	Since   int64  `json:"since"`
+}
+
 // Hub manages a set of WebSocket clients and broadcasts messages
 // to them without blocking the caller.
 type Hub struct {
-	clients map[*websocket.Conn]*clientInfo
-	mu      sync.Mutex
+	clients       map[*websocket.Conn]*clientInfo
+	mu            sync.Mutex
+	presenceMu    sync.RWMutex
+	presenceState map[string]PresenceInfo
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		clients: make(map[*websocket.Conn]*clientInfo),
+		clients:       make(map[*websocket.Conn]*clientInfo),
+		presenceState: make(map[string]PresenceInfo),
 	}
+}
+
+// UpdatePresence updates the internal presence state. When status is
+// "idle", the entry is stored under the empty-string key so callers
+// can always find the current state.
+func (h *Hub) UpdatePresence(agentID, status string) {
+	h.presenceMu.Lock()
+	defer h.presenceMu.Unlock()
+	h.presenceState["current"] = PresenceInfo{
+		AgentID: agentID,
+		Status:  status,
+		Since:   time.Now().Unix(),
+	}
+}
+
+// GetPresence returns a copy of the current presence state map.
+func (h *Hub) GetPresence() map[string]PresenceInfo {
+	h.presenceMu.RLock()
+	defer h.presenceMu.RUnlock()
+	result := make(map[string]PresenceInfo, len(h.presenceState))
+	for k, v := range h.presenceState {
+		result[k] = v
+	}
+	return result
 }
 
 // Broadcast marshals msg once and enqueues the payload into every
@@ -96,6 +130,10 @@ func (h *Hub) RegisterClient(
 	// before any broadcast messages.
 	if getSnapshot != nil {
 		snapshot := getSnapshot()
+		// Inject current presence state into the snapshot.
+		if m, ok := snapshot.(map[string]any); ok {
+			m["presence"] = h.GetPresence()
+		}
 		snapshotData, _ := json.Marshal(map[string]any{ //nolint:errcheck
 			"type": "snapshot",
 			"data": snapshot,

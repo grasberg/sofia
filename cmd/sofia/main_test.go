@@ -35,9 +35,15 @@ func TestNewSofiaCommand(t *testing.T) {
 	allowedCommands := []string{
 		"agent",
 		"cron",
+		"daemon",
+		"data",
+		"doctor",
+		"eval",
 		"gateway",
 		"mcp-server",
 		"onboard",
+		"pairing",
+		"remote",
 		"version",
 	}
 

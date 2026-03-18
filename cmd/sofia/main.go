@@ -15,9 +15,15 @@ import (
 	"github.com/grasberg/sofia/cmd/sofia/internal"
 	"github.com/grasberg/sofia/cmd/sofia/internal/agent"
 	"github.com/grasberg/sofia/cmd/sofia/internal/cron"
+	"github.com/grasberg/sofia/cmd/sofia/internal/daemon"
+	"github.com/grasberg/sofia/cmd/sofia/internal/doctor"
+	"github.com/grasberg/sofia/cmd/sofia/internal/eval"
+	"github.com/grasberg/sofia/cmd/sofia/internal/export"
 	"github.com/grasberg/sofia/cmd/sofia/internal/gateway"
 	"github.com/grasberg/sofia/cmd/sofia/internal/mcpserver"
 	"github.com/grasberg/sofia/cmd/sofia/internal/onboard"
+	"github.com/grasberg/sofia/cmd/sofia/internal/pairing"
+	"github.com/grasberg/sofia/cmd/sofia/internal/remote"
 	"github.com/grasberg/sofia/cmd/sofia/internal/version"
 )
 
@@ -35,7 +41,13 @@ func NewSofiaCommand() *cobra.Command {
 		agent.NewAgentCommand(),
 		gateway.NewGatewayCommand(),
 		cron.NewCronCommand(),
+		daemon.NewDaemonCommand(),
+		eval.NewEvalCommand(),
+		export.NewDataCommand(),
+		pairing.NewPairingCommand(),
 		mcpserver.NewMCPServerCommand(),
+		remote.NewRemoteCommand(),
+		doctor.NewDoctorCommand(),
 		version.NewVersionCommand(),
 	)
 

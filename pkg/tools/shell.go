@@ -50,22 +50,26 @@ type ExecTool struct {
 	allowPatterns       []*regexp.Regexp
 	confirmPatterns     []*regexp.Regexp
 	restrictToWorkspace bool
+	elevated            bool
 	mu                  sync.Mutex
 	pendingTokens       map[string]time.Time
 	sandboxConfig       *config.SandboxedExecConfig
 }
 
-var defaultDenyPatterns = []*regexp.Regexp{
+// destructiveDenyPatterns are ALWAYS enforced, even in elevated mode.
+// These protect against catastrophic system damage.
+var destructiveDenyPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\brm\s+-[rf]{1,2}\b`),
 	regexp.MustCompile(`\bdel\s+/[fq]\b`),
 	regexp.MustCompile(`\brmdir\s+/s\b`),
-	regexp.MustCompile(`\b(format|mkfs|diskpart)\b\s`), // Match disk wiping commands (must be followed by space/args)
+	regexp.MustCompile(`\b(format|mkfs|diskpart)\b\s`),
 	regexp.MustCompile(`\bdd\s+if=`),
-	regexp.MustCompile(`>\s*/dev/sd[a-z]\b`), // Block writes to disk devices (but allow /dev/null)
+	regexp.MustCompile(`>\s*/dev/sd[a-z]\b`),
 	regexp.MustCompile(`\b(shutdown|reboot|poweroff)\b`),
 	regexp.MustCompile(`:\(\)\s*\{.*\};\s*:`),
 	regexp.MustCompile(`\$\([^)]+\)`),
 	regexp.MustCompile(`\$\{[^}]+\}`),
+	regexp.MustCompile(`\$[A-Za-z_]\w*`),
 	regexp.MustCompile("`[^`]+`"),
 	regexp.MustCompile(`\|\s*sh\b`),
 	regexp.MustCompile(`\|\s*bash\b`),
@@ -73,19 +77,26 @@ var defaultDenyPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`&&\s*rm\s+-[rf]`),
 	regexp.MustCompile(`\|\|\s*rm\s+-[rf]`),
 	regexp.MustCompile(`>\s*/dev/null\s*>&?\s*\d?`),
-	regexp.MustCompile(`<<\s*EOF`),
+	regexp.MustCompile(`<<-?\s*'?\w+'?`),
 	regexp.MustCompile(`\$\(\s*cat\s+`),
 	regexp.MustCompile(`\$\(\s*curl\s+`),
 	regexp.MustCompile(`\$\(\s*wget\s+`),
 	regexp.MustCompile(`\$\(\s*which\s+`),
 	regexp.MustCompile(`\bsudo\b`),
-	regexp.MustCompile(`\bchmod\s+[0-7]{3,4}\b`),
-	regexp.MustCompile(`\bchown\b`),
 	regexp.MustCompile(`\bpkill\b`),
 	regexp.MustCompile(`\bkillall\b`),
 	regexp.MustCompile(`\bkill\b`),
 	regexp.MustCompile(`\bcurl\b.*\|\s*(sh|bash)`),
 	regexp.MustCompile(`\bwget\b.*\|\s*(sh|bash)`),
+	regexp.MustCompile(`\beval\b`),
+	regexp.MustCompile(`\bsource\s+.*\.sh\b`),
+}
+
+// cautionDenyPatterns are skipped when elevated mode is active.
+// These block package managers, docker, git push, chmod/chown, ssh, etc.
+var cautionDenyPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`\bchmod\s+[0-7]{3,4}\b`),
+	regexp.MustCompile(`\bchown\b`),
 	regexp.MustCompile(`\bnpm\s+install\s+-g\b`),
 	regexp.MustCompile(`\bpip\s+install\s+--user\b`),
 	regexp.MustCompile(`\bapt\s+(install|remove|purge)\b`),
@@ -96,9 +107,13 @@ var defaultDenyPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\bgit\s+push\b`),
 	regexp.MustCompile(`\bgit\s+force\b`),
 	regexp.MustCompile(`\bssh\b.*@`),
-	regexp.MustCompile(`\beval\b`),
-	regexp.MustCompile(`\bsource\s+.*\.sh\b`),
 }
+
+// defaultDenyPatterns is the combined list used when not elevated.
+var defaultDenyPatterns = append(
+	append([]*regexp.Regexp{}, destructiveDenyPatterns...),
+	cautionDenyPatterns...,
+)
 
 func NewExecTool(workingDir string, restrict bool) *ExecTool {
 	return NewExecToolWithConfig(workingDir, restrict, nil)
@@ -487,19 +502,60 @@ var shellMetacharPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\bbase64\b.*\|\s*(sh|bash)`),  // base64 decode to shell
 }
 
+// pathPatternRe is pre-compiled to avoid recompilation on every guardCommand call.
+var pathPatternRe = regexp.MustCompile(`[A-Za-z]:\\[^\\"']+|/[^\s"']+`)
+
+// normalizeCommand prepares a command string for deny-pattern matching by removing
+// shell constructs that could bypass simple regex patterns:
+//   - Strips backslash-newline continuations (shell line continuation)
+//   - Removes single and double quotes used to split/obfuscate command names
+//   - Collapses runs of whitespace into a single space
+func normalizeCommand(cmd string) string {
+	// Remove backslash-newline continuations (shell line continuation).
+	// In sh -c, a backslash followed by a newline joins the two lines.
+	cmd = strings.ReplaceAll(cmd, "\\\n", "")
+
+	// Remove single and double quotes that can be used to obfuscate commands.
+	// e.g. 'r'm becomes rm, r"m" becomes rm.
+	cmd = strings.ReplaceAll(cmd, "'", "")
+	cmd = strings.ReplaceAll(cmd, "\"", "")
+
+	// Collapse all whitespace runs (spaces, tabs, etc.) into a single space.
+	fields := strings.Fields(cmd)
+	cmd = strings.Join(fields, " ")
+
+	return cmd
+}
+
 func (t *ExecTool) guardCommand(command, cwd string) string {
 	cmd := strings.TrimSpace(command)
-	lower := strings.ToLower(cmd)
 
-	for _, pattern := range t.denyPatterns {
-		if pattern.MatchString(lower) {
+	// Normalize the command to defeat obfuscation: strip backslash-newline
+	// continuations, remove shell quotes, and collapse whitespace.
+	normalized := normalizeCommand(cmd)
+	lower := strings.ToLower(normalized)
+
+	// Also check the raw (un-normalized) lowercase form so that patterns
+	// looking for literal quote/escape constructs still work.
+	rawLower := strings.ToLower(cmd)
+
+	// When elevated, only check destructive patterns from the configured deny list.
+	// When not elevated, check the full deny list.
+	patternsToCheck := t.denyPatterns
+	if t.elevated && len(t.denyPatterns) > 0 {
+		patternsToCheck = destructiveDenyPatterns
+	}
+
+	for _, pattern := range patternsToCheck {
+		if pattern.MatchString(lower) || pattern.MatchString(rawLower) {
 			return "Command blocked by safety guard (dangerous pattern detected)"
 		}
 	}
 
-	// Check shell metacharacter bypass patterns
+	// Check shell metacharacter bypass patterns against the raw form
+	// (normalization strips quotes that these patterns may look for).
 	for _, pattern := range shellMetacharPatterns {
-		if pattern.MatchString(lower) {
+		if pattern.MatchString(rawLower) || pattern.MatchString(lower) {
 			return "Command blocked by safety guard (shell metacharacter bypass detected)"
 		}
 	}
@@ -527,8 +583,7 @@ func (t *ExecTool) guardCommand(command, cwd string) string {
 			return ""
 		}
 
-		pathPattern := regexp.MustCompile(`[A-Za-z]:\\[^\\\"']+|/[^\s\"']+`)
-		matches := pathPattern.FindAllString(cmd, -1)
+		matches := pathPatternRe.FindAllString(cmd, -1)
 
 		for _, raw := range matches {
 			p, err := filepath.Abs(raw)
@@ -568,4 +623,11 @@ func (t *ExecTool) SetAllowPatterns(patterns []string) error {
 		t.allowPatterns = append(t.allowPatterns, re)
 	}
 	return nil
+}
+
+// SetElevated sets the elevated flag. When true, only destructive deny patterns
+// are enforced; caution patterns (package managers, docker, git push, etc.) are
+// allowed through.
+func (t *ExecTool) SetElevated(v bool) {
+	t.elevated = v
 }
