@@ -151,6 +151,19 @@ func (r *AgentRegistry) RegisterAgent(instance *AgentInstance) error {
 	return nil
 }
 
+// RemoveAgent removes an agent from the registry by ID.
+// Returns an error if the agent is not found.
+func (r *AgentRegistry) RemoveAgent(agentID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	id := routing.NormalizeAgentID(agentID)
+	if _, exists := r.agents[id]; !exists {
+		return fmt.Errorf("agent %q not found", id)
+	}
+	delete(r.agents, id)
+	return nil
+}
+
 // GetDefaultAgent returns the default agent instance.
 func (r *AgentRegistry) GetDefaultAgent() *AgentInstance {
 	r.mu.RLock()
