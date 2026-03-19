@@ -1,0 +1,48 @@
+{
+  "hero": {
+    "variant": "left", // "left", "right", "centered"
+    "title": "Transform Your Workflow with Our Platform",
+    "subtitle": "The all-in-one solution for productivity, collaboration, and growth. Join thousands of teams already using our platform.",
+    "primary_cta": {
+      "text": "Start Free Trial",
+      "href": "/signup",
+      "target": "_self"
+    },
+    "secondary_cta": {
+      "text": "Watch Demo",
+      "href": "/demo",
+      "target": "_self"
+    },
+    "trust_indicators": [
+      {
+        "type": "logo",
+        "src": "/logos/company1.svg",
+        "alt": "Company 1"
+      },
+      {
+        "type": "logo",
+        "src": "/logos/company2.svg",
+        "alt": "Company 2"
+      },
+      {
+        "type": "rating",
+        "stars": 5,
+        "text": "Rated 4.9/5"
+      },
+      {
+        "type": "text",
+        "text": "10,000+ users"
+      }
+    ],
+    "trust_label": "Trusted by industry leaders",
+    "media": {
+      "type": "image",
+      "src": "/hero-image.png",
+      "alt": "Platform dashboard screenshot"
+    },
+    "background": {
+      "color": "#4f46e5",
+      "gradient": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+    }
+  }
+}

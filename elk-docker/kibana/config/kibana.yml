@@ -1,0 +1,25 @@
+# Kibana Configuration
+# Development settings
+
+server.name: kibana
+server.host: "0.0.0.0"
+server.port: 5601
+
+# Elasticsearch connection
+elasticsearch.hosts: [ "http://elasticsearch:9200" ]
+
+# Monitoring
+monitoring.ui.container.elasticsearch.enabled: false
+
+# Security (disabled for development)
+xpack.security.enabled: false
+xpack.encryptedSavedObjects.encryptionKey: 'something_at_least_32_characters_long_for_dev'
+
+# Telemetry
+telemetry.enabled: false
+
+# Default route
+kibana.defaultRoute: "/app/discover"
+
+# Internationalization
+i18n.locale: "en"

@@ -1,0 +1,11 @@
+{
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "regions": ["arn1"],
+  "env": {
+    "NEXT_PUBLIC_APP_ENV": "production"
+  }
+}

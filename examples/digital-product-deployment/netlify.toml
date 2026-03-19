@@ -1,0 +1,75 @@
+# Netlify-konfiguration för statisk deployment av digital produkt
+
+# Exempel: En enkel landningssida med Stripe Checkout för en digital produkt
+
+# Netlify-konfiguration
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+# Omdirigeringar för Stripe Checkout-success/cancel
+[[redirects]]
+  from = "/purchase-success"
+  to = "/success.html"
+  status = 200
+
+[[redirects]]
+  from = "/purchase-cancel"
+  to = "/cancel.html"
+  status = 200
+
+# Särskilda headers för säkerhet
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Environment variables för Stripe
+[context.production.environment]
+  STRIPE_PUBLIC_KEY = "pk_live_********"
+  STRIPE_SECRET_KEY = "sk_live_********"
+  PRODUCT_PRICE_ID = "price_********"
+
+[context.deploy-preview.environment]
+  STRIPE_PUBLIC_KEY = "pk_test_********"
+  STRIPE_SECRET_KEY = "sk_test_********"
+  PRODUCT_PRICE_ID = "price_********"
+
+# Inställningar för formulärhantering
+[context.production]
+  [context.production.environment]
+    FORM_SUBMISSION_ENDPOINT = "https://api.example.com/submit"
+
+# Build plugins
+[[plugins]]
+  package = "@netlify/plugin-lighthouse"
+
+# Funktioner för serverless
+[functions]
+  directory = "functions"
+
+# Exempel på en enkel serverless-funktion för Stripe webhook
+[[functions]]
+  path = "/.netlify/functions/stripe-webhook"
+  method = "POST"
+
+# Cacheinställningar
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

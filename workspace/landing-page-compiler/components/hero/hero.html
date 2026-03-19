@@ -1,0 +1,57 @@
+<!-- Hero Component Template -->
+<section class="lp-hero">
+  <div class="lp-hero__container">
+    <div class="lp-hero__content">
+      <h1 class="lp-hero__title">{{title}}</h1>
+      <p class="lp-hero__subtitle">{{subtitle}}</p>
+      
+      <div class="lp-hero__cta">
+        {{#if primary_cta}}
+        <a href="{{primary_cta.href}}" class="lp-button lp-button--primary lp-button--large lp-hero__cta-primary" {{#if primary_cta.target}}target="{{primary_cta.target}}"{{/if}}>
+          {{primary_cta.text}}
+        </a>
+        {{/if}}
+        
+        {{#if secondary_cta}}
+        <a href="{{secondary_cta.href}}" class="lp-button lp-button--secondary lp-button--large lp-hero__cta-secondary" {{#if secondary_cta.target}}target="{{secondary_cta.target}}"{{/if}}>
+          {{secondary_cta.text}}
+        </a>
+        {{/if}}
+      </div>
+
+      {{#if trust_indicators}}
+      <div class="lp-hero__trust">
+        <p class="lp-hero__trust-label">{{trust_label}}</p>
+        <div class="lp-hero__trust-items">
+          {{#each trust_indicators}}
+          <div class="lp-hero__trust-item">
+            {{#if type '===' 'logo'}}
+              <img src="{{src}}" alt="{{alt}}" class="lp-hero__trust-logo">
+            {{else if type '===' 'rating'}}
+              <div class="lp-hero__trust-rating">
+                {{stars}} ★
+                <span class="lp-hero__trust-text">{{text}}</span>
+              </div>
+            {{else}}
+              <span class="lp-hero__trust-text">{{text}}</span>
+            {{/if}}
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+    </div>
+
+    {{#if media}}
+    <div class="lp-hero__media">
+      {{#if media.type '===' 'image'}}
+        <img src="{{media.src}}" alt="{{media.alt}}" class="lp-hero__image">
+      {{else if media.type '===' 'video'}}
+        <video class="lp-hero__video" autoplay muted loop>
+          <source src="{{media.src}}" type="video/mp4">
+        </video>
+      {{/if}}
+    </div>
+    {{/if}}
+  </div>
+</section>

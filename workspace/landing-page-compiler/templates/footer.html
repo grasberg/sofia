@@ -1,0 +1,73 @@
+<!-- Footer Component Template -->
+<footer class="lp-footer">
+  <div class="lp-container">
+    <div class="lp-footer__inner">
+      <!-- Brand Column -->
+      <div class="lp-footer__brand">
+        {{#if logo.src}}
+        <img src="{{logo.src}}" alt="{{logo.alt}}" class="lp-footer__logo">
+        {{else}}
+        <div class="lp-footer__logo-text">{{logo.text}}</div>
+        {{/if}}
+        
+        <p class="lp-footer__description">{{description}}</p>
+        
+        {{#if socialLinks}}
+        <div class="lp-footer__social">
+          {{#each socialLinks}}
+          <a href="{{url}}" class="lp-footer__social-link" aria-label="{{platform}}">
+            <svg class="lp-footer__social-icon" viewBox="0 0 24 24">
+              <!-- Icon placeholder - would be replaced with actual SVG -->
+              <use xlink:href="#icon-{{platform}}"></use>
+            </svg>
+          </a>
+          {{/each}}
+        </div>
+        {{/if}}
+      </div>
+
+      <!-- Link Columns -->
+      {{#each linkColumns}}
+      <div class="lp-footer__column">
+        <h4 class="lp-footer__column-title">{{title}}</h4>
+        <ul class="lp-footer__links">
+          {{#each links}}
+          <li class="lp-footer__link-item">
+            <a href="{{href}}" class="lp-footer__link">{{label}}</a>
+          </li>
+          {{/each}}
+        </ul>
+      </div>
+      {{/each}}
+
+      <!-- Newsletter -->
+      {{#if newsletter.enabled}}
+      <div class="lp-footer__newsletter">
+        <h4 class="lp-footer__newsletter-title">{{newsletter.title}}</h4>
+        <p class="lp-footer__newsletter-description">{{newsletter.description}}</p>
+        
+        <form class="lp-footer__form">
+          <input type="email" class="lp-footer__input" placeholder="{{newsletter.placeholder}}" required>
+          <button type="submit" class="lp-button lp-button--primary">{{newsletter.buttonText}}</button>
+        </form>
+        
+        <p class="lp-footer__privacy">{{newsletter.privacyText}}</p>
+      </div>
+      {{/if}}
+    </div>
+
+    <!-- Bottom Bar -->
+    <div class="lp-footer__bottom">
+      <p class="lp-footer__copyright">{{copyright}}</p>
+      
+      {{#if legalLinks}}
+      <div class="lp-footer__legal">
+        {{#each legalLinks}}
+        <a href="{{href}}" class="lp-footer__legal-link">{{label}}</a>
+        {{#unless @last}}<span class="lp-footer__legal-separator">•</span>{{/unless}}
+        {{/each}}
+      </div>
+      {{/if}}
+    </div>
+  </div>
+</footer>

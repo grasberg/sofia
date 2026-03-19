@@ -1,0 +1,64 @@
+[build]
+  publish = "."
+  command = "echo 'Static site - no build step required'"
+
+# Environment variables (if needed)
+# [build.environment]
+#   NODE_VERSION = "18"
+
+# Redirect all traffic to index.html for SPA-style routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Cache static assets for better performance
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Basic security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Enable CORS for fonts and other assets (optional)
+[[headers]]
+  for = "/*.woff2"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+
+# Optional: For single page applications, always serve index.html for 404s
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 404
+  force = false
+  conditions = {Status = "404"}
+
+# Optional: Basic auth for staging (if needed)
+# [[redirects]]
+#   from = "/*"
+#   to = "https://user:pass@staging.example.com/:splat"
+#   status = 200
+#   force = true
+#   conditions = {Environment = "staging"}

@@ -44,3 +44,6 @@ tasks/
 
 # Added by goreleaser init:
 dist/
+
+# Local Netlify folder
+.netlify

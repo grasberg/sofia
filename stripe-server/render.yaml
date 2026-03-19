@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: stripe-server
+    env: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      # User must add STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, FRONTEND_URL via Render dashboard

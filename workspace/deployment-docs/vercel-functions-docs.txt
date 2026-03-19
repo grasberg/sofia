@@ -1,0 +1,1 @@
+Vercel Functions documentation fetched from https://vercel.com/docs/functions

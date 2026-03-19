@@ -20,6 +20,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.20.0
 	modernc.org/sqlite v1.46.1
+	github.com/rs/zerolog v1.33.0
 )
 
 require (

@@ -1,0 +1,61 @@
+# Minimal Landing Page Configuration
+# For simple digital products with basic requirements
+
+product_id: "simple-ebook"
+product_name: "Simple E-book"
+product_slug: "simple-ebook"
+product_type: "digital_download"
+category: "E-books"
+tags:
+  - ebook
+  - guide
+language: "en"
+status: "published"
+
+currency: "USD"
+base_price: 9.99
+payment_type: "one_time"
+
+short_description: "A simple e-book about a specific topic."
+long_description: |
+  # Simple E-book
+  
+  This is a simple e-book that provides value on a specific topic.
+  
+  ## What's Included
+  - Chapter 1: Introduction
+  - Chapter 2: Main content
+  - Chapter 3: Conclusion
+  
+  ## Format
+  PDF format, delivered instantly.
+
+benefits:
+  - "Instant download"
+  - "PDF format"
+  - "30-day money-back guarantee"
+
+delivery_method: "digital_download"
+delivery_format: "PDF"
+delivery_instant: true
+access_duration: "lifetime"
+updates_included: false
+license_type: "personal"
+
+media:
+  hero_image: "/images/hero.jpg"
+  product_images:
+    - "/images/preview-1.jpg"
+
+sections:
+  - section_id: "hero"
+    section_type: "hero"
+    title: "Simple E-book"
+    order: 1
+    visible: true
+  
+  - section_id: "pricing"
+    section_type: "pricing"
+    title: "Get Your Copy"
+    order: 2
+    visible: true

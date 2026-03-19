@@ -1,0 +1,110 @@
+{
+  "name": "Niche Selection Toolkit",
+  "description": "A comprehensive toolkit to help entrepreneurs, content creators, and businesses identify profitable niches, validate ideas, and launch successfully.",
+  "currency": "usd",
+  "tiers": [
+    {
+      "id": "starter",
+      "name": "Starter",
+      "description": "Essential tools for niche selection and validation",
+      "price": 4700,
+      "price_display": "$47",
+      "billing_interval": "one_time",
+      "features": [
+        "Niche Selection Checklist (PDF)",
+        "Market Validation Worksheet",
+        "5 Niche Idea Templates",
+        "Basic Competitor Analysis Guide",
+        "Email support (72h response)"
+      ],
+      "metadata": {
+        "delivery_method": "digital",
+        "support_level": "email",
+        "response_time_hours": 72,
+        "updates_included": "1_year",
+        "whitelabel_rights": false,
+        "community_access": false,
+        "consultation_included": false
+      },
+      "stripe_product_metadata": {
+        "tier": "starter",
+        "product_type": "digital_toolkit",
+        "category": "business_tools"
+      }
+    },
+    {
+      "id": "professional",
+      "name": "Professional",
+      "description": "Advanced tools for serious entrepreneurs with community access",
+      "price": 9700,
+      "price_display": "$97",
+      "billing_interval": "one_time",
+      "features": [
+        "All Starter features",
+        "Advanced Niche Scoring Calculator (Excel/Google Sheets)",
+        "Video Tutorial: 'How to Validate a Niche in 48 Hours'",
+        "10 Additional Niche Templates",
+        "SWOT Analysis Framework",
+        "Community Access (Discord)",
+        "Priority email support (24h response)"
+      ],
+      "metadata": {
+        "delivery_method": "digital",
+        "support_level": "priority_email",
+        "response_time_hours": 24,
+        "updates_included": "1_year",
+        "whitelabel_rights": false,
+        "community_access": true,
+        "consultation_included": false
+      },
+      "stripe_product_metadata": {
+        "tier": "professional",
+        "product_type": "digital_toolkit",
+        "category": "business_tools"
+      }
+    },
+    {
+      "id": "agency",
+      "name": "Agency",
+      "description": "Complete package with whitelabel rights and direct support",
+      "price": 29700,
+      "price_display": "$297",
+      "billing_interval": "one_time",
+      "features": [
+        "All Professional features",
+        "Whitelabel Rights (resell to clients)",
+        "Custom Niche Research Template",
+        "1-hour Strategy Consultation Call",
+        "Masterclass: 'Scaling Niche Businesses'",
+        "Lifetime Updates",
+        "Direct Slack support"
+      ],
+      "metadata": {
+        "delivery_method": "digital",
+        "support_level": "direct_slack",
+        "response_time_hours": 1,
+        "updates_included": "lifetime",
+        "whitelabel_rights": true,
+        "community_access": true,
+        "consultation_included": true,
+        "consultation_duration_hours": 1
+      },
+      "stripe_product_metadata": {
+        "tier": "agency",
+        "product_type": "digital_toolkit",
+        "category": "business_tools",
+        "whitelabel": true
+      }
+    }
+  ],
+  "metadata": {
+    "created_at": "2026-03-19",
+    "version": "1.0",
+    "author": "Your Name",
+    "license": "proprietary",
+    "delivery_methods": ["digital_download", "email"],
+    "refund_policy_days": 30,
+    "file_formats": ["pdf", "mp4", "xlsx", "docx"]
+  },
+  "usage_notes": "This configuration file can be used to automate Stripe product creation, generate marketing pages, or populate a database. Prices are in cents (USD)."
+}
