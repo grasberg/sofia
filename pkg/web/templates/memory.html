@@ -1,0 +1,659 @@
+<!-- MEMORY EXPLORER TAB (HTMX Partial) -->
+<div id="tab-memory" class="flex flex-col flex-grow min-h-0 animate-fade-in relative z-10 w-full h-full">
+    <!-- Header -->
+    <div class="px-6 py-5 border-b border-[var(--border-color)] bg-[var(--bg-main)]/50 backdrop-blur shrink-0 flex items-center justify-between sticky top-0 z-20">
+        <div>
+            <h2 class="text-xl font-bold tracking-tight text-[var(--text-main)] flex items-center gap-2">
+                <i data-lucide="brain" class="w-5 h-5 text-sofia"></i>
+                Memory Explorer
+            </h2>
+            <p class="text-xs text-zinc-500 mt-1">Knowledge graph, memory notes, goals, reflections, and triggers.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <select id="mem-agent-select" onchange="fetchMemoryData()"
+                class="bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-1.5 text-xs text-[var(--text-main)]">
+                <option value="sofia">sofia</option>
+            </select>
+            <button onclick="fetchMemoryData()" class="px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-zinc-800 text-zinc-400 hover:text-[var(--text-main)] transition-colors border border-transparent hover:border-zinc-700 flex items-center gap-1">
+                <i data-lucide="refresh-cw" class="w-3 h-3"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="px-6 pt-3 shrink-0 flex items-center gap-1 border-b border-[var(--border-color)]">
+        <button onclick="setMemTab('graph')" id="mem-tab-graph"
+            class="px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-b-2 border-sofia text-sofia transition-all">Knowledge Graph</button>
+        <button onclick="setMemTab('notes')" id="mem-tab-notes"
+            class="px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-b-2 border-transparent text-zinc-500 hover:text-zinc-300 transition-all">Memory Notes</button>
+        <button onclick="setMemTab('goals')" id="mem-tab-goals"
+            class="px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-b-2 border-transparent text-zinc-500 hover:text-zinc-300 transition-all">Goals</button>
+        <button onclick="setMemTab('reflections')" id="mem-tab-reflections"
+            class="px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-b-2 border-transparent text-zinc-500 hover:text-zinc-300 transition-all">Reflections</button>
+    </div>
+
+    <!-- Content -->
+    <div class="flex-grow overflow-y-auto">
+        <!-- GRAPH TAB -->
+        <div id="mem-panel-graph" class="h-full flex flex-col">
+            <!-- Stats bar -->
+            <div class="px-6 py-3 flex items-center gap-6 border-b border-[var(--border-color)] shrink-0">
+                <div class="flex items-center gap-2 text-[11px]">
+                    <span class="text-zinc-500">Nodes:</span>
+                    <span id="mem-node-count" class="text-[var(--text-main)] font-mono font-bold">0</span>
+                </div>
+                <div class="flex items-center gap-2 text-[11px]">
+                    <span class="text-zinc-500">Edges:</span>
+                    <span id="mem-edge-count" class="text-[var(--text-main)] font-mono font-bold">0</span>
+                </div>
+                <div class="flex items-center gap-4 ml-auto text-[10px]">
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-blue-400"></span> Goal</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> Trigger</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-purple-400"></span> Person</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-green-400"></span> Other</span>
+                </div>
+            </div>
+
+            <div class="flex flex-grow min-h-0">
+                <!-- Canvas -->
+                <div class="flex-grow relative">
+                    <canvas id="mem-canvas" class="w-full h-full" style="cursor:grab"></canvas>
+                    <div id="mem-canvas-empty" class="absolute inset-0 flex flex-col items-center justify-center opacity-50 pointer-events-none">
+                        <i data-lucide="network" class="w-16 h-16 text-zinc-700 mb-3"></i>
+                        <p class="text-sm text-zinc-500">No knowledge graph data yet.</p>
+                        <p class="text-xs text-zinc-600 mt-1">Sofia builds this graph as she learns about users, goals, and context.</p>
+                    </div>
+                </div>
+                <!-- Detail Sidebar -->
+                <div id="mem-detail" class="w-80 border-l border-[var(--border-color)] bg-[var(--bg-sidebar)] overflow-y-auto hidden">
+                    <div class="p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 id="mem-detail-title" class="text-sm font-bold text-[var(--text-main)]"></h3>
+                            <button onclick="closeMemDetail()" class="p-1 text-zinc-500 hover:text-[var(--text-main)]">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                        <div id="mem-detail-label" class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2"></div>
+                        <div id="mem-detail-props" class="space-y-2 text-xs text-zinc-400"></div>
+                        <div id="mem-detail-edges" class="mt-4 space-y-1"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NOTES TAB -->
+        <div id="mem-panel-notes" class="hidden p-6 max-w-5xl mx-auto space-y-4">
+            <div class="flex items-center gap-4 mb-2">
+                <div class="flex items-center gap-2 text-[11px]">
+                    <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-purple-500/10 text-purple-400">Longterm</span>
+                    Persistent memories across sessions
+                </div>
+                <div class="flex items-center gap-2 text-[11px]">
+                    <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-cyan-500/10 text-cyan-400">Daily</span>
+                    Daily observations and learnings
+                </div>
+            </div>
+            <div id="mem-notes-list" class="space-y-3">
+                <div id="mem-notes-empty" class="text-xs text-zinc-600 font-mono py-8 text-center">Loading...</div>
+            </div>
+        </div>
+
+        <!-- GOALS TAB -->
+        <div id="mem-panel-goals" class="hidden p-6 max-w-5xl mx-auto space-y-4">
+            <div id="mem-goals-list" class="space-y-3">
+                <div id="mem-goals-empty" class="text-xs text-zinc-600 font-mono py-8 text-center">Loading...</div>
+            </div>
+        </div>
+
+        <!-- REFLECTIONS TAB -->
+        <div id="mem-panel-reflections" class="hidden p-6 max-w-5xl mx-auto space-y-4">
+            <!-- Stats -->
+            <div id="mem-ref-stats" class="grid grid-cols-4 gap-3">
+            </div>
+            <div id="mem-ref-list" class="space-y-3">
+                <div id="mem-ref-empty" class="text-xs text-zinc-600 font-mono py-8 text-center">Loading...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    lucide.createIcons();
+
+    let memCurrentTab = 'graph';
+    let memGraphData = { nodes: [], edges: [], agent_ids: [] };
+    let memNotesData = [];
+    let memGoalsData = [];
+    let memReflectionsData = { reflections: [], stats: {} };
+
+    // Graph rendering state
+    let memNodePositions = {}; // id -> {x, y}
+    let memSelectedNode = null;
+    let memCanvasDrag = null;
+    let memPanOffset = { x: 0, y: 0 };
+    let memZoom = 1;
+
+    const LABEL_COLORS = {
+        'Goal':           { fill: 'rgba(96,165,250,0.25)',  stroke: '#60a5fa', text: '#93c5fd' },
+        'ContextTrigger': { fill: 'rgba(251,191,36,0.25)',  stroke: '#fbbf24', text: '#fcd34d' },
+        'Person':         { fill: 'rgba(192,132,252,0.25)', stroke: '#c084fc', text: '#d8b4fe' },
+    };
+    const DEFAULT_COLOR = { fill: 'rgba(74,222,128,0.25)', stroke: '#4ade80', text: '#86efac' };
+
+    function getNodeColor(label) { return LABEL_COLORS[label] || DEFAULT_COLOR; }
+
+    // Tab switching
+    function setMemTab(tab) {
+        memCurrentTab = tab;
+        ['graph', 'notes', 'goals', 'reflections'].forEach(function(t) {
+            document.getElementById('mem-panel-' + t).classList.toggle('hidden', t !== tab);
+            const btn = document.getElementById('mem-tab-' + t);
+            if (t === tab) {
+                btn.classList.add('border-sofia', 'text-sofia');
+                btn.classList.remove('border-transparent', 'text-zinc-500');
+            } else {
+                btn.classList.remove('border-sofia', 'text-sofia');
+                btn.classList.add('border-transparent', 'text-zinc-500');
+            }
+        });
+        if (tab === 'graph') resizeCanvas();
+    }
+
+    // Fetch all memory data
+    async function fetchMemoryData() {
+        const agentID = document.getElementById('mem-agent-select').value;
+        try {
+            const [graphRes, notesRes, goalsRes, refRes] = await Promise.all([
+                fetch('/api/memory/graph?agent_id=' + encodeURIComponent(agentID) + '&limit=150'),
+                fetch('/api/memory/notes'),
+                fetch('/api/goals?agent_id=' + encodeURIComponent(agentID)),
+                fetch('/api/memory/reflections?agent_id=' + encodeURIComponent(agentID) + '&limit=30'),
+            ]);
+            if (graphRes.ok) {
+                memGraphData = await graphRes.json();
+                // Populate agent selector
+                const sel = document.getElementById('mem-agent-select');
+                const currentVal = sel.value;
+                const ids = memGraphData.agent_ids || [];
+                if (ids.length > 0) {
+                    sel.innerHTML = '';
+                    ids.forEach(function(id) {
+                        const opt = document.createElement('option');
+                        opt.value = id; opt.textContent = id;
+                        sel.appendChild(opt);
+                    });
+                    sel.value = ids.includes(currentVal) ? currentVal : ids[0];
+                }
+            }
+            if (notesRes.ok) memNotesData = await notesRes.json() || [];
+            if (goalsRes.ok) memGoalsData = await goalsRes.json() || [];
+            if (refRes.ok) memReflectionsData = await refRes.json() || {};
+        } catch (e) {
+            console.error('Memory fetch failed:', e);
+        }
+        renderAll();
+    }
+
+    function renderAll() {
+        layoutGraph();
+        renderGraph();
+        renderNotes();
+        renderGoals();
+        renderReflections();
+    }
+
+    // --- KNOWLEDGE GRAPH ---
+    function layoutGraph() {
+        const nodes = memGraphData.nodes || [];
+        const edges = memGraphData.edges || [];
+        if (nodes.length === 0) return;
+
+        // Force-directed layout (simple spring model)
+        const W = 800, H = 600;
+        memNodePositions = {};
+        nodes.forEach(function(n, i) {
+            // Initial: spread in circle
+            const angle = (2 * Math.PI * i) / nodes.length;
+            const r = Math.min(W, H) * 0.35;
+            memNodePositions[n.id] = { x: W/2 + r * Math.cos(angle), y: H/2 + r * Math.sin(angle) };
+        });
+
+        // Run 80 iterations of force simulation
+        const nodeMap = {};
+        nodes.forEach(function(n) { nodeMap[n.id] = n; });
+
+        for (let iter = 0; iter < 80; iter++) {
+            // Repulsion between all nodes
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const a = memNodePositions[nodes[i].id];
+                    const b = memNodePositions[nodes[j].id];
+                    let dx = b.x - a.x, dy = b.y - a.y;
+                    let dist = Math.sqrt(dx*dx + dy*dy) || 1;
+                    const force = 5000 / (dist * dist);
+                    const fx = (dx / dist) * force;
+                    const fy = (dy / dist) * force;
+                    a.x -= fx; a.y -= fy;
+                    b.x += fx; b.y += fy;
+                }
+            }
+            // Attraction along edges
+            edges.forEach(function(e) {
+                const a = memNodePositions[e.source_id];
+                const b = memNodePositions[e.target_id];
+                if (!a || !b) return;
+                let dx = b.x - a.x, dy = b.y - a.y;
+                let dist = Math.sqrt(dx*dx + dy*dy) || 1;
+                const force = (dist - 120) * 0.05 * (e.weight || 0.5);
+                const fx = (dx / dist) * force;
+                const fy = (dy / dist) * force;
+                a.x += fx; a.y += fy;
+                b.x -= fx; b.y -= fy;
+            });
+            // Center gravity
+            nodes.forEach(function(n) {
+                const p = memNodePositions[n.id];
+                p.x += (W/2 - p.x) * 0.01;
+                p.y += (H/2 - p.y) * 0.01;
+            });
+        }
+
+        // Normalize positions
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        nodes.forEach(function(n) {
+            const p = memNodePositions[n.id];
+            minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+        });
+        const pad = 60;
+        const scaleX = maxX > minX ? (W - 2*pad) / (maxX - minX) : 1;
+        const scaleY = maxY > minY ? (H - 2*pad) / (maxY - minY) : 1;
+        const scale = Math.min(scaleX, scaleY);
+        nodes.forEach(function(n) {
+            const p = memNodePositions[n.id];
+            p.x = pad + (p.x - minX) * scale;
+            p.y = pad + (p.y - minY) * scale;
+        });
+    }
+
+    function resizeCanvas() {
+        const canvas = document.getElementById('mem-canvas');
+        if (!canvas) return;
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width * window.devicePixelRatio;
+        canvas.height = rect.height * window.devicePixelRatio;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        renderGraph();
+    }
+
+    function renderGraph() {
+        const canvas = document.getElementById('mem-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+
+        const nodes = memGraphData.nodes || [];
+        const edges = memGraphData.edges || [];
+        const empty = document.getElementById('mem-canvas-empty');
+
+        document.getElementById('mem-node-count').textContent = nodes.length;
+        document.getElementById('mem-edge-count').textContent = edges.length;
+
+        if (nodes.length === 0) {
+            if (empty) empty.style.display = '';
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        const W = canvas.width / dpr, H = canvas.height / dpr;
+        ctx.save();
+        ctx.translate(memPanOffset.x, memPanOffset.y);
+        ctx.scale(memZoom, memZoom);
+
+        // Draw edges
+        edges.forEach(function(e) {
+            const a = memNodePositions[e.source_id];
+            const b = memNodePositions[e.target_id];
+            if (!a || !b) return;
+            const alpha = 0.15 + (e.weight || 0) * 0.4;
+            ctx.strokeStyle = 'rgba(255,255,255,' + alpha + ')';
+            ctx.lineWidth = 0.5 + (e.weight || 0) * 2;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+
+            // Edge label
+            if (e.relation) {
+                const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+                ctx.fillStyle = 'rgba(161,161,170,0.6)';
+                ctx.font = '8px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(e.relation, mx, my - 3);
+            }
+        });
+
+        // Draw nodes
+        nodes.forEach(function(n) {
+            const p = memNodePositions[n.id];
+            if (!p) return;
+            const color = getNodeColor(n.label);
+            const r = 14 + Math.min(n.access_count || 0, 20) * 0.8;
+            const isSelected = memSelectedNode && memSelectedNode.id === n.id;
+
+            // Glow for selected
+            if (isSelected) {
+                ctx.shadowColor = color.stroke;
+                ctx.shadowBlur = 15;
+            }
+
+            ctx.fillStyle = color.fill;
+            ctx.strokeStyle = isSelected ? '#fff' : color.stroke;
+            ctx.lineWidth = isSelected ? 2 : 1;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Label
+            ctx.fillStyle = color.text;
+            ctx.font = 'bold 9px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const name = n.name.length > 16 ? n.name.substring(0, 14) + '..' : n.name;
+            ctx.fillText(name, p.x, p.y);
+
+            // Type label below
+            ctx.fillStyle = 'rgba(161,161,170,0.5)';
+            ctx.font = '7px monospace';
+            ctx.fillText(n.label, p.x, p.y + r + 8);
+        });
+
+        ctx.restore();
+    }
+
+    // Canvas interaction
+    function setupCanvasEvents() {
+        const canvas = document.getElementById('mem-canvas');
+        if (!canvas) return;
+
+        canvas.addEventListener('mousedown', function(e) {
+            const pos = canvasPos(e);
+            const hit = hitTestNode(pos);
+            if (hit) {
+                memSelectedNode = hit;
+                showNodeDetail(hit);
+                renderGraph();
+            } else {
+                memCanvasDrag = { x: e.clientX - memPanOffset.x, y: e.clientY - memPanOffset.y };
+                canvas.style.cursor = 'grabbing';
+            }
+        });
+        canvas.addEventListener('mousemove', function(e) {
+            if (memCanvasDrag) {
+                memPanOffset.x = e.clientX - memCanvasDrag.x;
+                memPanOffset.y = e.clientY - memCanvasDrag.y;
+                renderGraph();
+            }
+        });
+        canvas.addEventListener('mouseup', function() {
+            memCanvasDrag = null;
+            canvas.style.cursor = 'grab';
+        });
+        canvas.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            memZoom = Math.max(0.3, Math.min(3, memZoom * delta));
+            renderGraph();
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+    }
+
+    function canvasPos(e) {
+        const canvas = document.getElementById('mem-canvas');
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: (e.clientX - rect.left - memPanOffset.x) / memZoom,
+            y: (e.clientY - rect.top - memPanOffset.y) / memZoom
+        };
+    }
+
+    function hitTestNode(pos) {
+        const nodes = memGraphData.nodes || [];
+        for (let i = nodes.length - 1; i >= 0; i--) {
+            const n = nodes[i];
+            const p = memNodePositions[n.id];
+            if (!p) continue;
+            const r = 14 + Math.min(n.access_count || 0, 20) * 0.8;
+            const dx = pos.x - p.x, dy = pos.y - p.y;
+            if (dx*dx + dy*dy <= r*r) return n;
+        }
+        return null;
+    }
+
+    function showNodeDetail(node) {
+        const panel = document.getElementById('mem-detail');
+        panel.classList.remove('hidden');
+        document.getElementById('mem-detail-title').textContent = node.name;
+        document.getElementById('mem-detail-label').textContent = node.label;
+
+        const propsEl = document.getElementById('mem-detail-props');
+        propsEl.innerHTML = '';
+        if (node.properties) {
+            try {
+                const props = JSON.parse(node.properties);
+                for (const [k, v] of Object.entries(props)) {
+                    const row = document.createElement('div');
+                    row.className = 'p-2 bg-black/30 rounded border border-[var(--border-color)]';
+                    row.innerHTML = '<div class="text-[10px] font-bold uppercase tracking-widest text-zinc-600">' + escapeHtml(k) + '</div>' +
+                        '<div class="text-xs text-zinc-300 mt-1 whitespace-pre-wrap break-words">' + escapeHtml(String(v)) + '</div>';
+                    propsEl.appendChild(row);
+                }
+            } catch (_) {
+                propsEl.innerHTML = '<div class="text-xs text-zinc-500 font-mono whitespace-pre-wrap">' + escapeHtml(node.properties) + '</div>';
+            }
+        }
+
+        // Show connected edges
+        const edgesEl = document.getElementById('mem-detail-edges');
+        edgesEl.innerHTML = '<div class="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">Connections</div>';
+        const edges = (memGraphData.edges || []).filter(function(e) { return e.source_id === node.id || e.target_id === node.id; });
+        if (edges.length === 0) {
+            edgesEl.innerHTML += '<div class="text-[11px] text-zinc-600">No connections</div>';
+        } else {
+            edges.forEach(function(e) {
+                const isSource = e.source_id === node.id;
+                const other = isSource ? e.target_name : e.source_name;
+                const otherLabel = isSource ? e.target_label : e.source_label;
+                const direction = isSource ? '→' : '←';
+                const row = document.createElement('div');
+                row.className = 'flex items-center gap-2 px-2 py-1.5 rounded bg-black/20 border border-[var(--border-color)] cursor-pointer hover:border-zinc-600 transition';
+                row.innerHTML =
+                    '<span class="text-[11px] text-zinc-500">' + direction + '</span>' +
+                    '<span class="text-[10px] font-mono text-amber-400">' + escapeHtml(e.relation) + '</span>' +
+                    '<span class="text-[11px] text-[var(--text-main)] truncate">' + escapeHtml(other) + '</span>' +
+                    '<span class="text-[9px] text-zinc-600 ml-auto shrink-0">' + escapeHtml(otherLabel) + '</span>';
+                row.onclick = function() {
+                    const target = (memGraphData.nodes || []).find(function(n) { return n.name === other; });
+                    if (target) { memSelectedNode = target; showNodeDetail(target); renderGraph(); }
+                };
+                edgesEl.appendChild(row);
+            });
+        }
+
+        // Access stats
+        const statsHtml = '<div class="mt-3 text-[10px] text-zinc-600">' +
+            'Accessed ' + (node.access_count || 0) + ' times · Created ' + (node.created_at || '').substring(0, 10) +
+            '</div>';
+        edgesEl.innerHTML += statsHtml;
+
+        resizeCanvas();
+    }
+
+    function closeMemDetail() {
+        document.getElementById('mem-detail').classList.add('hidden');
+        memSelectedNode = null;
+        resizeCanvas();
+    }
+
+    // --- NOTES ---
+    function renderNotes() {
+        const list = document.getElementById('mem-notes-list');
+        const empty = document.getElementById('mem-notes-empty');
+        list.querySelectorAll('.mem-note-item').forEach(function(el) { el.remove(); });
+
+        const agentID = document.getElementById('mem-agent-select').value;
+        const filtered = memNotesData.filter(function(n) { return n.AgentID === agentID; });
+
+        if (filtered.length === 0) {
+            if (empty) { empty.style.display = ''; empty.textContent = 'No memory notes for this agent.'; }
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        // Sort: longterm first, then daily by date desc
+        filtered.sort(function(a, b) {
+            if (a.Kind !== b.Kind) return a.Kind === 'longterm' ? -1 : 1;
+            return (b.DateKey || '').localeCompare(a.DateKey || '');
+        });
+
+        filtered.forEach(function(note) {
+            const el = document.createElement('div');
+            el.className = 'mem-note-item glass-panel p-4 rounded-xl border border-[var(--border-color)] transition-colors duration-300';
+            const isLongterm = note.Kind === 'longterm';
+            const badge = isLongterm
+                ? '<span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-purple-500/10 text-purple-400">Longterm</span>'
+                : '<span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-cyan-500/10 text-cyan-400">' + escapeHtml(note.DateKey || 'Daily') + '</span>';
+            const updated = note.UpdatedAt ? new Date(note.UpdatedAt).toLocaleString() : '';
+
+            el.innerHTML =
+                '<div class="flex items-center gap-2 mb-2">' +
+                badge +
+                '<span class="text-[10px] text-zinc-600 ml-auto">' + escapeHtml(updated) + '</span>' +
+                '</div>' +
+                '<div class="text-xs text-zinc-300 whitespace-pre-wrap font-mono leading-relaxed max-h-60 overflow-y-auto scrollbar-custom">' + escapeHtml(note.Content || '') + '</div>';
+            list.appendChild(el);
+        });
+    }
+
+    // --- GOALS ---
+    function renderGoals() {
+        const list = document.getElementById('mem-goals-list');
+        const empty = document.getElementById('mem-goals-empty');
+        list.querySelectorAll('.mem-goal-item').forEach(function(el) { el.remove(); });
+
+        if (!memGoalsData || memGoalsData.length === 0) {
+            if (empty) { empty.style.display = ''; empty.textContent = 'No goals for this agent.'; }
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        const priorityColors = { high: 'text-red-400 bg-red-500/10', medium: 'text-amber-400 bg-amber-500/10', low: 'text-blue-400 bg-blue-500/10' };
+        const statusIcons = { active: 'play-circle', paused: 'pause-circle', completed: 'check-circle', failed: 'x-circle' };
+        const statusColors = { active: 'text-green-400', paused: 'text-amber-400', completed: 'text-zinc-500', failed: 'text-red-400' };
+
+        memGoalsData.forEach(function(g) {
+            const el = document.createElement('div');
+            const isInactive = g.status === 'completed' || g.status === 'failed';
+            el.className = 'mem-goal-item flex items-center gap-4 p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)]' + (isInactive ? ' opacity-50' : '');
+            el.innerHTML =
+                '<div class="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center shrink-0 ' + (statusColors[g.status] || 'text-zinc-400') + '">' +
+                '  <i data-lucide="' + (statusIcons[g.status] || 'circle') + '" class="w-5 h-5"></i>' +
+                '</div>' +
+                '<div class="flex-grow min-w-0">' +
+                '  <div class="flex items-center gap-2">' +
+                '    <span class="text-sm font-semibold text-[var(--text-main)]">' + escapeHtml(g.name) + '</span>' +
+                '    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest ' + (priorityColors[g.priority] || '') + '">' + escapeHtml(g.priority || 'medium') + '</span>' +
+                '    <span class="text-[10px] text-zinc-600 uppercase">' + escapeHtml(g.status) + '</span>' +
+                '  </div>' +
+                (g.description ? '<div class="text-[11px] text-zinc-500 mt-0.5 truncate">' + escapeHtml(g.description) + '</div>' : '') +
+                '</div>';
+            list.appendChild(el);
+        });
+        lucide.createIcons({ root: list });
+    }
+
+    // --- REFLECTIONS ---
+    function renderReflections() {
+        const statsEl = document.getElementById('mem-ref-stats');
+        const list = document.getElementById('mem-ref-list');
+        const empty = document.getElementById('mem-ref-empty');
+        list.querySelectorAll('.mem-ref-item').forEach(function(el) { el.remove(); });
+        statsEl.innerHTML = '';
+
+        const stats = memReflectionsData.stats || {};
+        const reflections = memReflectionsData.reflections || [];
+
+        // Stats cards
+        if (stats.TotalReflections > 0) {
+            const cards = [
+                { label: 'Reflections', value: stats.TotalReflections, icon: 'brain', color: 'text-sofia' },
+                { label: 'Avg Score', value: (stats.AvgScore || 0).toFixed(2), icon: 'star', color: 'text-amber-400' },
+                { label: 'Avg Tools', value: (stats.AvgToolCount || 0).toFixed(1), icon: 'wrench', color: 'text-blue-400' },
+                { label: 'Avg Errors', value: (stats.AvgErrorCount || 0).toFixed(1), icon: 'alert-triangle', color: 'text-red-400' },
+            ];
+            cards.forEach(function(c) {
+                const card = document.createElement('div');
+                card.className = 'bg-zinc-950/60 border border-[var(--border-color)] rounded-xl p-4';
+                card.innerHTML =
+                    '<div class="flex items-center gap-2 mb-1">' +
+                    '  <i data-lucide="' + c.icon + '" class="w-4 h-4 ' + c.color + '"></i>' +
+                    '  <span class="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">' + c.label + '</span>' +
+                    '</div>' +
+                    '<div class="text-2xl font-bold text-[var(--text-main)] tabular-nums">' + c.value + '</div>';
+                statsEl.appendChild(card);
+            });
+            lucide.createIcons({ root: statsEl });
+        }
+
+        if (reflections.length === 0) {
+            if (empty) { empty.style.display = ''; empty.textContent = 'No reflections yet. Sofia creates these after completing tasks.'; }
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        reflections.forEach(function(r) {
+            const el = document.createElement('div');
+            el.className = 'mem-ref-item glass-panel p-4 rounded-xl border border-[var(--border-color)]';
+            const scoreColor = r.Score >= 0.7 ? 'text-green-400' : r.Score >= 0.4 ? 'text-amber-400' : 'text-red-400';
+            const scoreBg = r.Score >= 0.7 ? 'bg-green-500/10' : r.Score >= 0.4 ? 'bg-amber-500/10' : 'bg-red-500/10';
+            const date = r.CreatedAt ? new Date(r.CreatedAt).toLocaleString() : '';
+
+            el.innerHTML =
+                '<div class="flex items-center gap-3 mb-3">' +
+                '  <div class="px-2 py-1 rounded text-xs font-bold ' + scoreColor + ' ' + scoreBg + '">' + (r.Score || 0).toFixed(2) + '</div>' +
+                '  <span class="text-sm font-semibold text-[var(--text-main)] truncate flex-grow">' + escapeHtml(r.TaskSummary || 'Unnamed task') + '</span>' +
+                '  <span class="text-[10px] text-zinc-600 shrink-0">' + escapeHtml(date) + '</span>' +
+                '</div>' +
+                '<div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">' +
+                '  <div class="p-2 bg-green-500/5 border border-green-500/20 rounded-lg">' +
+                '    <div class="text-[9px] font-bold uppercase tracking-widest text-green-500 mb-1">What Worked</div>' +
+                '    <div class="text-zinc-400 whitespace-pre-wrap">' + escapeHtml(r.WhatWorked || '—') + '</div>' +
+                '  </div>' +
+                '  <div class="p-2 bg-red-500/5 border border-red-500/20 rounded-lg">' +
+                '    <div class="text-[9px] font-bold uppercase tracking-widest text-red-400 mb-1">What Failed</div>' +
+                '    <div class="text-zinc-400 whitespace-pre-wrap">' + escapeHtml(r.WhatFailed || '—') + '</div>' +
+                '  </div>' +
+                '  <div class="p-2 bg-blue-500/5 border border-blue-500/20 rounded-lg">' +
+                '    <div class="text-[9px] font-bold uppercase tracking-widest text-blue-400 mb-1">Lessons</div>' +
+                '    <div class="text-zinc-400 whitespace-pre-wrap">' + escapeHtml(r.Lessons || '—') + '</div>' +
+                '  </div>' +
+                '</div>' +
+                '<div class="flex gap-4 mt-2 text-[10px] text-zinc-600">' +
+                '  <span>Tools: ' + (r.ToolCount || 0) + '</span>' +
+                '  <span>Errors: ' + (r.ErrorCount || 0) + '</span>' +
+                '  <span>Duration: ' + ((r.DurationMs || 0) / 1000).toFixed(1) + 's</span>' +
+                '</div>';
+            list.appendChild(el);
+        });
+    }
+
+    setupCanvasEvents();
+    fetchMemoryData();
+    setTimeout(resizeCanvas, 100);
+</script>

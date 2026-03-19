@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -27,6 +28,7 @@ type PlanStep struct {
 	Status      PlanStatus `json:"status"`
 	Result      string     `json:"result,omitempty"`
 	SubPlanID   string     `json:"sub_plan_id,omitempty"` // Links to a child plan
+	AssignedTo  string     `json:"assigned_to,omitempty"` // Agent ID working on this step
 }
 
 // CostBenefit holds a trade-off assessment for a plan.
@@ -123,9 +125,10 @@ func (p *Plan) FormatStatusHierarchical(mgr *PlanManager) string {
 
 // PlanManager manages active plans.
 type PlanManager struct {
-	plans  map[string]*Plan
-	mu     sync.RWMutex
-	nextID int
+	plans       map[string]*Plan
+	mu          sync.RWMutex
+	nextID      int
+	persistPath string // if set, auto-saves after mutations
 }
 
 // NewPlanManager creates a new PlanManager.
@@ -134,6 +137,64 @@ func NewPlanManager() *PlanManager {
 		plans:  make(map[string]*Plan),
 		nextID: 1,
 	}
+}
+
+// SetPersistPath sets a file path for auto-saving. Call Load() first to restore.
+func (pm *PlanManager) SetPersistPath(path string) {
+	pm.persistPath = path
+}
+
+// autoSave saves to persistPath if set. Safe to call while lock is held —
+// it spawns the save in a goroutine to avoid deadlock with Save's RLock.
+func (pm *PlanManager) autoSave() {
+	if pm.persistPath != "" {
+		path := pm.persistPath
+		go func() { _ = pm.Save(path) }()
+	}
+}
+
+// planPersistState is the JSON-serializable snapshot of the PlanManager.
+type planPersistState struct {
+	Plans  map[string]*Plan `json:"plans"`
+	NextID int              `json:"next_id"`
+}
+
+// Save persists all plans to the given file path.
+func (pm *PlanManager) Save(path string) error {
+	pm.mu.RLock()
+	state := planPersistState{Plans: pm.plans, NextID: pm.nextID}
+	pm.mu.RUnlock()
+
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return fmt.Errorf("plan: marshal: %w", err)
+	}
+	return os.WriteFile(path, data, 0o600)
+}
+
+// Load restores plans from the given file path. Missing file is not an error.
+func (pm *PlanManager) Load(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("plan: read: %w", err)
+	}
+	var state planPersistState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return fmt.Errorf("plan: unmarshal: %w", err)
+	}
+
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	if state.Plans != nil {
+		pm.plans = state.Plans
+	}
+	if state.NextID > pm.nextID {
+		pm.nextID = state.NextID
+	}
+	return nil
 }
 
 // GetActivePlan returns the currently active (non-completed) plan, if any.
@@ -151,8 +212,83 @@ func (pm *PlanManager) GetActivePlan() *Plan {
 // ClearPlan removes all plans.
 func (pm *PlanManager) ClearPlan() {
 	pm.mu.Lock()
-	defer pm.mu.Unlock()
 	pm.plans = make(map[string]*Plan)
+	pm.mu.Unlock()
+	pm.autoSave()
+}
+
+// ClaimPendingStep atomically finds and claims the next pending step for an agent.
+// Returns the plan ID, step index, and step description, or empty if nothing available.
+func (pm *PlanManager) ClaimPendingStep(agentID string) (planID string, stepIdx int, description string, ok bool) {
+	pm.mu.Lock()
+	for _, plan := range pm.plans {
+		if plan.Status != PlanStatusPending && plan.Status != PlanStatusInProgress {
+			continue
+		}
+		for i := range plan.Steps {
+			if plan.Steps[i].Status == PlanStatusPending && plan.Steps[i].AssignedTo == "" {
+				plan.Steps[i].Status = PlanStatusInProgress
+				plan.Steps[i].AssignedTo = agentID
+				plan.Status = PlanStatusInProgress
+				pm.mu.Unlock()
+				pm.autoSave()
+				return plan.ID, i, plan.Steps[i].Description, true
+			}
+		}
+	}
+	pm.mu.Unlock()
+	return "", 0, "", false
+}
+
+// CompleteStep marks a step as completed (or failed) with a result, and updates the plan status.
+func (pm *PlanManager) CompleteStep(planID string, stepIdx int, success bool, result string) {
+	pm.mu.Lock()
+	plan, exists := pm.plans[planID]
+	if !exists || stepIdx < 0 || stepIdx >= len(plan.Steps) {
+		pm.mu.Unlock()
+		return
+	}
+	if success {
+		plan.Steps[stepIdx].Status = PlanStatusCompleted
+	} else {
+		plan.Steps[stepIdx].Status = PlanStatusFailed
+	}
+	plan.Steps[stepIdx].Result = result
+
+	allCompleted := true
+	anyFailed := false
+	for _, s := range plan.Steps {
+		if s.Status != PlanStatusCompleted {
+			allCompleted = false
+		}
+		if s.Status == PlanStatusFailed {
+			anyFailed = true
+		}
+	}
+	if allCompleted {
+		plan.Status = PlanStatusCompleted
+	} else if anyFailed {
+		plan.Status = PlanStatusFailed
+	}
+	pm.mu.Unlock()
+	pm.autoSave()
+}
+
+// HasPendingSteps returns true if any plan has unclaimed pending steps.
+func (pm *PlanManager) HasPendingSteps() bool {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	for _, plan := range pm.plans {
+		if plan.Status != PlanStatusPending && plan.Status != PlanStatusInProgress {
+			continue
+		}
+		for _, s := range plan.Steps {
+			if s.Status == PlanStatusPending && s.AssignedTo == "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // GetPlan returns a specific plan by ID.
@@ -489,6 +625,7 @@ func (t *PlanTool) create(args map[string]any) *ToolResult {
 	}
 	t.manager.plans[planID] = plan
 	t.manager.mu.Unlock()
+	t.manager.autoSave()
 
 	return SilentResult(plan.FormatStatus())
 }
@@ -512,15 +649,16 @@ func (t *PlanTool) updateStep(args map[string]any) *ToolResult {
 	result, _ := args["result"].(string)
 
 	t.manager.mu.Lock()
-	defer t.manager.mu.Unlock()
 
 	plan, ok := t.manager.plans[planID]
 	if !ok {
+		t.manager.mu.Unlock()
 		return ErrorResult(fmt.Sprintf("plan %q not found", planID))
 	}
 
 	idx := int(stepIdx)
 	if idx < 0 || idx >= len(plan.Steps) {
+		t.manager.mu.Unlock()
 		return ErrorResult(fmt.Sprintf("step_index %d out of range (0-%d)", idx, len(plan.Steps)-1))
 	}
 
@@ -529,7 +667,6 @@ func (t *PlanTool) updateStep(args map[string]any) *ToolResult {
 		plan.Steps[idx].Result = result
 	}
 
-	// Update plan status based on steps
 	allCompleted := true
 	anyFailed := false
 	for _, s := range plan.Steps {
@@ -547,7 +684,11 @@ func (t *PlanTool) updateStep(args map[string]any) *ToolResult {
 		plan.Status = PlanStatusFailed
 	}
 
-	return SilentResult(plan.FormatStatus())
+	formatted := plan.FormatStatus()
+	t.manager.mu.Unlock()
+	t.manager.autoSave()
+
+	return SilentResult(formatted)
 }
 
 func (t *PlanTool) getStatus(args map[string]any) *ToolResult {

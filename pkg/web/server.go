@@ -1,6 +1,7 @@
 package web
 
 import (
+	"archive/zip"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -19,6 +20,7 @@ import (
 	"github.com/grasberg/sofia/pkg/audit"
 	"github.com/grasberg/sofia/pkg/autonomy"
 	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/cron"
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/routing"
 	"github.com/grasberg/sofia/pkg/search"
@@ -64,6 +66,45 @@ var settingsPromptsHTML []byte
 //go:embed templates/settings/logs.html
 var settingsLogsHTML []byte
 
+//go:embed templates/settings/evolution.html
+var settingsEvolutionHTML []byte
+
+//go:embed templates/settings/autonomy.html
+var settingsAutonomyHTML []byte
+
+//go:embed templates/settings/budget.html
+var settingsBudgetHTML []byte
+
+//go:embed templates/settings/tts.html
+var settingsTTSHTML []byte
+
+//go:embed templates/settings/webhooks.html
+var settingsWebhooksHTML []byte
+
+//go:embed templates/settings/triggers.html
+var settingsTriggersHTML []byte
+
+//go:embed templates/settings/remote.html
+var settingsRemoteHTML []byte
+
+//go:embed templates/settings/cron.html
+var settingsCronHTML []byte
+
+//go:embed templates/settings/personas.html
+var settingsPersonasHTML []byte
+
+//go:embed templates/calendar.html
+var calendarHTML []byte
+
+//go:embed templates/memory.html
+var memoryHTML []byte
+
+//go:embed templates/pixels.html
+var pixelsHTML []byte
+
+//go:embed templates/goals.html
+var goalsHTML []byte
+
 //go:embed templates/history.html
 var historyHTML []byte
 
@@ -76,6 +117,7 @@ type Server struct {
 	mu             sync.RWMutex
 	skillInstaller *skills.SkillInstaller
 	auditLogger    *audit.AuditLogger
+	cronService    *cron.CronService
 }
 
 // WebhookRegistrar is an interface for registering webhook HTTP handlers.
@@ -164,6 +206,58 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(settingsLogsHTML)
 	})
+	mux.HandleFunc("/ui/settings/evolution", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsEvolutionHTML)
+	})
+	mux.HandleFunc("/ui/settings/autonomy", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsAutonomyHTML)
+	})
+	mux.HandleFunc("/ui/settings/budget", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsBudgetHTML)
+	})
+	mux.HandleFunc("/ui/settings/tts", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsTTSHTML)
+	})
+	mux.HandleFunc("/ui/settings/webhooks", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsWebhooksHTML)
+	})
+	mux.HandleFunc("/ui/settings/triggers", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsTriggersHTML)
+	})
+	mux.HandleFunc("/ui/settings/remote", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsRemoteHTML)
+	})
+	mux.HandleFunc("/ui/settings/cron", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsCronHTML)
+	})
+	mux.HandleFunc("/ui/settings/personas", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsPersonasHTML)
+	})
+	mux.HandleFunc("/ui/calendar", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(calendarHTML)
+	})
+	mux.HandleFunc("/ui/memory", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(memoryHTML)
+	})
+	mux.HandleFunc("/ui/pixels", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(pixelsHTML)
+	})
+	mux.HandleFunc("/ui/goals", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(goalsHTML)
+	})
 	mux.HandleFunc("/ui/history", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(historyHTML)
@@ -189,6 +283,13 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("GET /api/audit", s.handleAudit)
 	mux.HandleFunc("GET /api/approvals", s.handleApprovals)
 	mux.HandleFunc("/api/approvals/", s.handleApprovalAction)
+	mux.HandleFunc("/api/cron", s.handleCron)
+	mux.HandleFunc("/api/cron/toggle", s.handleCronToggle)
+	mux.HandleFunc("GET /api/memory/notes", s.handleMemoryNotes)
+	mux.HandleFunc("GET /api/memory/graph", s.handleMemoryGraph)
+	mux.HandleFunc("GET /api/memory/reflections", s.handleMemoryReflections)
+	mux.HandleFunc("GET /api/plan", s.handlePlan)
+	mux.HandleFunc("GET /api/backup", s.handleBackupExport)
 	mux.HandleFunc("GET /api/evolution/status", s.handleEvolutionStatus)
 	mux.HandleFunc("GET /api/evolution/changelog", s.handleEvolutionChangelog)
 	mux.HandleFunc("/ws/dashboard", func(w http.ResponseWriter, r *http.Request) {
@@ -869,6 +970,17 @@ func (s *Server) handleGoals(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(goals)
 }
 
+// handlePlan returns the active plan status as JSON.
+func (s *Server) handlePlan(w http.ResponseWriter, _ *http.Request) {
+	plan := s.agentLoop.GetActivePlan()
+	w.Header().Set("Content-Type", "application/json")
+	if plan == nil {
+		w.Write([]byte("null"))
+		return
+	}
+	json.NewEncoder(w).Encode(plan)
+}
+
 // handleReset handles POST /api/reset — cancels in-flight work, clears sessions, and resets goals.
 func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -890,6 +1002,11 @@ func (s *Server) handlePresence(w http.ResponseWriter, r *http.Request) {
 // SetAuditLogger assigns the audit logger used by the /api/audit endpoint.
 func (s *Server) SetAuditLogger(al *audit.AuditLogger) {
 	s.auditLogger = al
+}
+
+// SetCronService assigns the cron service used by the /api/cron endpoint.
+func (s *Server) SetCronService(cs *cron.CronService) {
+	s.cronService = cs
 }
 
 // handleAudit returns recent audit entries as JSON with optional query params:
@@ -1066,4 +1183,300 @@ func (s *Server) handleEvolutionChangelog(w http.ResponseWriter, r *http.Request
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(entries)
+}
+
+// handleCron handles GET /api/cron (list jobs), POST /api/cron (add job),
+// and DELETE /api/cron?name=<name> (remove job).
+func (s *Server) handleCron(w http.ResponseWriter, r *http.Request) {
+	if s.cronService == nil {
+		s.sendJSONError(w, "Cron service not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		jobs := s.cronService.ListJobs(true)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(jobs)
+
+	case http.MethodPost:
+		var req struct {
+			Name     string `json:"name"`
+			Schedule string `json:"schedule"`
+			Message  string `json:"message"`
+			AgentID  string `json:"agent_id"`
+			Enabled  bool   `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			s.sendJSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if req.Name == "" || req.Schedule == "" || req.Message == "" {
+			s.sendJSONError(
+				w,
+				"name, schedule, and message are required",
+				http.StatusBadRequest,
+			)
+			return
+		}
+		schedule := cron.CronSchedule{Kind: "cron", Expr: req.Schedule}
+		job, err := s.cronService.AddJob(req.Name, schedule, req.Message, false, "", "")
+		if err != nil {
+			s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(job)
+
+	case http.MethodDelete:
+		name := r.URL.Query().Get("name")
+		if name == "" {
+			s.sendJSONError(w, "name parameter is required", http.StatusBadRequest)
+			return
+		}
+		jobs := s.cronService.ListJobs(true)
+		removed := false
+		for _, j := range jobs {
+			if j.Name == name {
+				removed = s.cronService.RemoveJob(j.ID)
+				break
+			}
+		}
+		if !removed {
+			s.sendJSONError(w, "job not found", http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+
+	default:
+		s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleCronToggle handles POST /api/cron/toggle — enables or disables a cron job.
+func (s *Server) handleCronToggle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.cronService == nil {
+		s.sendJSONError(w, "Cron service not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req struct {
+		Name    string `json:"name"`
+		Enabled bool   `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	jobs := s.cronService.ListJobs(true)
+	for _, j := range jobs {
+		if j.Name == req.Name {
+			s.cronService.EnableJob(j.ID, req.Enabled)
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+			return
+		}
+	}
+	s.sendJSONError(w, "job not found", http.StatusNotFound)
+}
+
+// handleBackupExport creates a ZIP archive of Sofia's config, memory database,
+// workspace files, cron jobs, and plans — and streams it as a download.
+func (s *Server) handleBackupExport(w http.ResponseWriter, _ *http.Request) {
+	home, _ := os.UserHomeDir()
+	sofiaDir := filepath.Join(home, ".sofia")
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition",
+		fmt.Sprintf("attachment; filename=sofia-backup-%s.zip", time.Now().Format("20060102-150405")))
+
+	zw := zip.NewWriter(w)
+	defer zw.Close()
+
+	// Add files from ~/.sofia/ (config, memory.db, cron jobs, plans, skills)
+	addFileToZip := func(zw *zip.Writer, fsPath, zipPath string) {
+		data, err := os.ReadFile(fsPath)
+		if err != nil {
+			return
+		}
+		f, err := zw.Create(zipPath)
+		if err != nil {
+			return
+		}
+		f.Write(data)
+	}
+
+	// Config
+	addFileToZip(zw, filepath.Join(sofiaDir, "config.json"), "config.json")
+
+	// Memory database
+	addFileToZip(zw, filepath.Join(sofiaDir, "memory.db"), "memory.db")
+
+	// Workspace files
+	workspace := s.cfg.WorkspacePath()
+	walkFiles := []string{"plans.json", "AGENT.md", "USER.md", "IDENTITY.md", "SOUL.md", "HEARTBEAT.md"}
+	for _, name := range walkFiles {
+		addFileToZip(zw, filepath.Join(workspace, name), "workspace/"+name)
+	}
+
+	// Cron jobs
+	addFileToZip(zw, filepath.Join(workspace, "cron", "jobs.json"), "cron/jobs.json")
+
+	// Skills directory
+	skillsDir := filepath.Join(workspace, "skills")
+	if entries, err := os.ReadDir(skillsDir); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() {
+				skillFile := filepath.Join(skillsDir, entry.Name(), "SKILL.md")
+				addFileToZip(zw, skillFile, "skills/"+entry.Name()+"/SKILL.md")
+			}
+		}
+	}
+
+	// Write the current config as a separate JSON for easy reading
+	cfgData, err := json.MarshalIndent(s.cfg, "", "  ")
+	if err == nil {
+		if f, err := zw.Create("config-current.json"); err == nil {
+			f.Write(cfgData)
+		}
+	}
+}
+
+// handleMemoryNotes returns all memory notes as JSON.
+func (s *Server) handleMemoryNotes(w http.ResponseWriter, _ *http.Request) {
+	memDB := s.agentLoop.GetMemoryDB()
+	if memDB == nil {
+		s.sendJSONError(w, "memory database not available", http.StatusServiceUnavailable)
+		return
+	}
+	notes, err := memDB.ListNotes()
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if notes == nil {
+		w.Write([]byte("[]"))
+		return
+	}
+	json.NewEncoder(w).Encode(notes)
+}
+
+// handleMemoryGraph returns semantic nodes and edges for visualization.
+func (s *Server) handleMemoryGraph(w http.ResponseWriter, r *http.Request) {
+	memDB := s.agentLoop.GetMemoryDB()
+	if memDB == nil {
+		s.sendJSONError(w, "memory database not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	agentID := r.URL.Query().Get("agent_id")
+	if agentID == "" {
+		agentID = "sofia"
+	}
+
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	nodes, err := memDB.FindNodes(agentID, "", "%", limit)
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	edges, err := memDB.ListEdges(agentID, limit*5)
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	type graphNode struct {
+		ID          int64  `json:"id"`
+		Label       string `json:"label"`
+		Name        string `json:"name"`
+		Properties  string `json:"properties"`
+		AccessCount int    `json:"access_count"`
+		CreatedAt   string `json:"created_at"`
+	}
+	type graphEdge struct {
+		SourceID    int64   `json:"source_id"`
+		TargetID    int64   `json:"target_id"`
+		Relation    string  `json:"relation"`
+		Weight      float64 `json:"weight"`
+		SourceName  string  `json:"source_name"`
+		SourceLabel string  `json:"source_label"`
+		TargetName  string  `json:"target_name"`
+		TargetLabel string  `json:"target_label"`
+	}
+
+	gNodes := make([]graphNode, len(nodes))
+	for i, n := range nodes {
+		gNodes[i] = graphNode{
+			ID: n.ID, Label: n.Label, Name: n.Name,
+			Properties: n.Properties, AccessCount: n.AccessCount,
+			CreatedAt: n.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		}
+	}
+	gEdges := make([]graphEdge, 0, len(edges))
+	for _, e := range edges {
+		gEdges = append(gEdges, graphEdge{
+			SourceID: e.SourceID, TargetID: e.TargetID,
+			Relation: e.Relation, Weight: e.Weight,
+			SourceName: e.SourceName, SourceLabel: e.SourceLabel,
+			TargetName: e.TargetName, TargetLabel: e.TargetLabel,
+		})
+	}
+
+	// Also collect agent IDs that have nodes
+	agentIDs := s.agentLoop.ListAgentIDs()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"nodes":     gNodes,
+		"edges":     gEdges,
+		"agent_ids": agentIDs,
+	})
+}
+
+// handleMemoryReflections returns recent reflections as JSON.
+func (s *Server) handleMemoryReflections(w http.ResponseWriter, r *http.Request) {
+	memDB := s.agentLoop.GetMemoryDB()
+	if memDB == nil {
+		s.sendJSONError(w, "memory database not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	agentID := r.URL.Query().Get("agent_id")
+	if agentID == "" {
+		agentID = "sofia"
+	}
+	limit := 20
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	reflections, err := memDB.GetRecentReflections(agentID, limit)
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	stats, _ := memDB.GetReflectionStats(agentID, 30)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"reflections": reflections,
+		"stats":       stats,
+	})
 }

@@ -1,39 +1,208 @@
 <div id="settings-subtab-security" class="h-full flex flex-col">
-                        <div class="flex-grow min-h-0 overflow-y-auto pr-2">
-                            <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
-                                <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Workspace Security</h3>
+    <div class="flex-grow min-h-0 overflow-y-auto pr-2 space-y-4">
+        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Workspace Security</h3>
 
-                                <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
-                                    <div class="flex items-start justify-between">
-                                        <div class="space-y-1 pr-6">
-                                            <h4 class="text-sm font-semibold text-[var(--text-main)]">Restrict to Workspace</h4>
-                                            <p class="text-[11px] leading-relaxed text-zinc-500">
-                                                When enabled, Sofia's file and command tools are strictly sandboxed to the configured workspace path.
-                                                This prevents accidental modification of system files or parent directories.
-                                            </p>
-                                        </div>
-                                        <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-                                            <input type="checkbox" id="cfg-restrict-workspace" class="sr-only peer" onchange="saveConfig()">
-                                            <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)] mt-3">
-                                    <div class="flex items-start justify-between">
-                                        <div class="space-y-1 pr-6">
-                                            <h4 class="text-sm font-semibold text-[var(--text-main)]">Use OpenCode for Code Edits</h4>
-                                            <p class="text-[11px] leading-relaxed text-zinc-500">
-                                                When enabled, Sofia will delegate code modifications to the OpenCode CLI if it is installed.
-                                                Disable this to have Sofia edit files directly with her own tools instead.
-                                            </p>
-                                        </div>
-                                        <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-                                            <input type="checkbox" id="cfg-use-opencode" class="sr-only peer" onchange="saveConfig()">
-                                            <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+            <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                <div class="flex items-start justify-between">
+                    <div class="space-y-1 pr-6">
+                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Restrict to Workspace</h4>
+                        <p class="text-[11px] leading-relaxed text-zinc-500">
+                            When enabled, Sofia's file and command tools are strictly sandboxed to the configured workspace path.
+                        </p>
                     </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                        <input type="checkbox" id="cfg-restrict-workspace" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)] mt-3">
+                <div class="flex items-start justify-between">
+                    <div class="space-y-1 pr-6">
+                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Use OpenCode for Code Edits</h4>
+                        <p class="text-[11px] leading-relaxed text-zinc-500">
+                            When enabled, Sofia will delegate code modifications to the OpenCode CLI if it is installed.
+                        </p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                        <input type="checkbox" id="cfg-use-opencode" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- PII Detection -->
+        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">PII Detection</h3>
+            <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable PII Detection</h4>
+                        <p class="text-[11px] text-zinc-500">Detect personally identifiable information in messages.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="cfg-pii-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Action</label>
+                    <select id="cfg-pii-action"
+                        class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                        <option value="warn">Warn</option>
+                        <option value="redact">Redact</option>
+                        <option value="block">Block</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Approval Gates -->
+        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Approval Gates</h3>
+            <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable Approval Gates</h4>
+                        <p class="text-[11px] text-zinc-500">Require human approval for specific tool calls.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="cfg-approval-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Require Approval For (one tool per line)</label>
+                    <textarea id="cfg-approval-require-for" rows="3" placeholder="exec&#10;shell&#10;write_file"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)] font-mono"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Timeout (seconds)</label>
+                        <input type="number" id="cfg-approval-timeout" min="10" placeholder="300"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Default Action on Timeout</label>
+                        <select id="cfg-approval-default"
+                            class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                            <option value="deny">Deny</option>
+                            <option value="allow">Allow</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Validation -->
+        <details class="text-sm bg-black/5 border border-[var(--border-color)] rounded-xl group">
+            <summary class="text-[11px] font-bold uppercase tracking-widest text-zinc-500 cursor-pointer p-4 flex justify-between group-open:border-b group-open:border-[var(--border-color)]">
+                Input Validation
+                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform group-open:rotate-180"></i>
+            </summary>
+            <div class="p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-[var(--text-main)]">Enable input validation</span>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="cfg-input-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Max Message Length</label>
+                    <input type="number" id="cfg-input-max-length" min="0" placeholder="10000"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Deny Patterns (one regex per line)</label>
+                    <textarea id="cfg-input-deny" rows="3" placeholder="Pattern regexes to block"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)] font-mono"></textarea>
+                </div>
+            </div>
+        </details>
+
+        <!-- Output Filtering -->
+        <details class="text-sm bg-black/5 border border-[var(--border-color)] rounded-xl group">
+            <summary class="text-[11px] font-bold uppercase tracking-widest text-zinc-500 cursor-pointer p-4 flex justify-between group-open:border-b group-open:border-[var(--border-color)]">
+                Output Filtering
+                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform group-open:rotate-180"></i>
+            </summary>
+            <div class="p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-[var(--text-main)]">Enable output filtering</span>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="cfg-output-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Redact Patterns (one regex per line)</label>
+                    <textarea id="cfg-output-redact" rows="3" placeholder="Patterns to redact from output"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)] font-mono"></textarea>
+                </div>
+            </div>
+        </details>
+
+        <!-- Rate Limiting -->
+        <details class="text-sm bg-black/5 border border-[var(--border-color)] rounded-xl group">
+            <summary class="text-[11px] font-bold uppercase tracking-widest text-zinc-500 cursor-pointer p-4 flex justify-between group-open:border-b group-open:border-[var(--border-color)]">
+                Rate Limiting
+                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform group-open:rotate-180"></i>
+            </summary>
+            <div class="p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-[var(--text-main)]">Enable rate limiting</span>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="cfg-ratelimit-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Max Requests/Minute</label>
+                        <input type="number" id="cfg-ratelimit-rpm" min="1" placeholder="60"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Max Tokens/Hour</label>
+                        <input type="number" id="cfg-ratelimit-tokens" min="1" placeholder="100000"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <!-- Prompt Injection -->
+        <details class="text-sm bg-black/5 border border-[var(--border-color)] rounded-xl group">
+            <summary class="text-[11px] font-bold uppercase tracking-widest text-zinc-500 cursor-pointer p-4 flex justify-between group-open:border-b group-open:border-[var(--border-color)]">
+                Prompt Injection Detection
+                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform group-open:rotate-180"></i>
+            </summary>
+            <div class="p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-[var(--text-main)]">Enable prompt injection detection</span>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="cfg-injection-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Action</label>
+                    <select id="cfg-injection-action"
+                        class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                        <option value="block">Block</option>
+                        <option value="warn">Warn</option>
+                    </select>
+                </div>
+            </div>
+        </details>
+
+        <button onclick="saveConfig()" class="mt-2 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            Save changes
+        </button>
+    </div>
+</div>

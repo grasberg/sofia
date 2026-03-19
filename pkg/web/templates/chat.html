@@ -16,6 +16,32 @@
                                 </button>
                             </div>
 
+                            <!-- Goal & Plan Tracker -->
+                            <div id="chat-goal-panel" class="hidden border-b border-[var(--border-color)] bg-black/20">
+                                <!-- Active Goal -->
+                                <div id="chat-goal-bar" class="hidden px-4 py-2 flex items-center gap-3 border-b border-[var(--border-color)]/50">
+                                    <i data-lucide="target" class="w-3.5 h-3.5 text-sofia shrink-0"></i>
+                                    <div class="flex-grow min-w-0">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Goal</span>
+                                            <span id="chat-goal-name" class="text-[10px] font-semibold text-[var(--text-main)] truncate"></span>
+                                            <span id="chat-goal-priority" class="px-1 py-0 rounded text-[8px] font-bold uppercase"></span>
+                                        </div>
+                                        <div id="chat-goal-desc" class="text-[9px] text-zinc-500 truncate mt-0.5"></div>
+                                    </div>
+                                </div>
+                                <!-- Active Plan -->
+                                <div id="chat-plan-bar" class="hidden px-4 py-2">
+                                    <div class="flex items-center gap-2 mb-1.5">
+                                        <i data-lucide="list-checks" class="w-3.5 h-3.5 text-blue-400 shrink-0"></i>
+                                        <span class="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Plan</span>
+                                        <span id="chat-plan-goal" class="text-[10px] text-zinc-400 font-mono truncate"></span>
+                                        <span id="chat-plan-progress" class="text-[9px] font-mono text-zinc-500 ml-auto shrink-0"></span>
+                                    </div>
+                                    <div id="chat-plan-steps" class="space-y-0.5 max-h-32 overflow-y-auto scrollbar-custom"></div>
+                                </div>
+                            </div>
+
                             <div id="chat-history" class="flex-grow-fix overflow-y-auto p-4 lg:p-6 space-y-6">
                                 <div class="flex gap-4 animate-fade-in">
                                     <div class="w-8 h-8 bg-sofia/10 border border-sofia/20 flex items-center justify-center shrink-0">
@@ -27,6 +53,10 @@
                                 </div>
                             </div>
                             
+                            <!-- Quick Reply Suggestions -->
+                            <div id="chat-suggestions" class="hidden px-4 py-2 bg-black/20 border-t border-[var(--border-color)] flex flex-wrap gap-2">
+                            </div>
+
                             <!-- Input Area -->
                             <div class="p-4 bg-black/40 border-t border-[var(--border-color)]">
                                 <!-- File preview strip -->
@@ -50,7 +80,10 @@
                                 </div>
                                 <div class="mt-2 px-1 flex justify-between">
                                     <span class="text-[9px] text-zinc-700 font-bold uppercase">Ready for input</span>
-                                    <span id="typing-indicator" class="text-[9px] text-sofia font-bold uppercase hidden animate-pulse">Sofia is thinking...</span>
+                                    <div class="flex items-center gap-3">
+                                        <span id="chat-token-usage" class="text-[9px] text-zinc-700 font-mono hidden"></span>
+                                        <span id="typing-indicator" class="text-[9px] text-sofia font-bold uppercase hidden animate-pulse">Sofia is thinking...</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -121,6 +154,197 @@
         }
         document.getElementById('chat-input').focus();
     }
+
+    // Quick reply suggestions handler
+    window.showChatSuggestions = function(suggestions) {
+        const container = document.getElementById('chat-suggestions');
+        if (!container) return;
+        
+        // Ensure suggestions is an array of strings
+        let items = suggestions;
+        if (!items) {
+            items = [];
+        } else if (typeof items === 'object' && !Array.isArray(items)) {
+            // If it's an object, try to extract string values
+            items = Object.values(items).filter(v => typeof v === 'string');
+        } else if (typeof items === 'string') {
+            items = [items];
+        }
+        
+        if (items.length === 0) {
+            container.classList.add('hidden');
+            container.innerHTML = '';
+            return;
+        }
+        container.classList.remove('hidden');
+        container.innerHTML = '';
+        items.forEach(function(s) {
+            if (typeof s !== 'string') return;
+            const btn = document.createElement('button');
+            btn.className = 'px-3 py-1.5 text-[10px] font-bold border border-[var(--border-color)] text-zinc-400 hover:border-sofia hover:text-sofia transition-all rounded-lg';
+            btn.textContent = s;
+            btn.onclick = function() {
+                document.getElementById('chat-input').value = s;
+                sendChat();
+                container.classList.add('hidden');
+            };
+            container.appendChild(btn);
+        });
+    };
+
+    // Token usage display handler
+    window.showTokenUsage = function(tokens) {
+        const el = document.getElementById('chat-token-usage');
+        if (!el) return;
+        if (!tokens || typeof tokens !== 'object') { el.classList.add('hidden'); return; }
+        const parts = [];
+        const n = function(v) { return typeof v === 'number' ? v : 0; };
+        if (n(tokens.prompt_tokens)) parts.push(n(tokens.prompt_tokens) + ' in');
+        if (n(tokens.completion_tokens)) parts.push(n(tokens.completion_tokens) + ' out');
+        if (n(tokens.total_tokens)) parts.push(n(tokens.total_tokens) + ' total');
+        if (parts.length === 0) { el.classList.add('hidden'); return; }
+        el.classList.remove('hidden');
+        el.textContent = parts.join(' / ');
+    };
+
+    // ===== PASTE IMAGE SUPPORT =====
+    // Allow pasting images (Ctrl+V / Cmd+V) into the chat input area
+    function setupPasteHandler() {
+        const inputArea = document.getElementById('chat-input');
+        if (!inputArea || inputArea.dataset.pastebound) return;
+        inputArea.dataset.pastebound = '1';
+
+        // Listen on the input itself and also on the whole chat panel
+        // so paste works even if focus is slightly off
+        const chatPanel = inputArea.closest('.glass-panel') || inputArea.parentElement;
+
+        function handlePaste(e) {
+            const items = e.clipboardData && e.clipboardData.items;
+            if (!items) return;
+
+            let hasImage = false;
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                if (item.type.startsWith('image/')) {
+                    hasImage = true;
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    if (!file) continue;
+
+                    const reader = new FileReader();
+                    reader.onload = function(ev) {
+                        // Generate a name from timestamp
+                        const ext = file.type.split('/')[1] || 'png';
+                        const name = 'pasted-' + new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19) + '.' + ext;
+
+                        // Build the same attachment format as handleFileAttach
+                        if (typeof attachedFiles !== 'undefined') {
+                            attachedFiles.push({
+                                name: name,
+                                type: file.type,
+                                isText: false,
+                                isImage: true,
+                                content: btoa(ev.target.result),
+                                previewURL: URL.createObjectURL(file),
+                            });
+                            if (typeof renderFilePreview === 'function') renderFilePreview();
+                        }
+                    };
+                    reader.readAsBinaryString(file);
+                }
+            }
+
+            // Flash the input border to indicate paste was captured
+            if (hasImage) {
+                inputArea.classList.add('border-sofia');
+                setTimeout(function() { inputArea.classList.remove('border-sofia'); }, 500);
+            }
+        }
+
+        inputArea.addEventListener('paste', handlePaste);
+        if (chatPanel && chatPanel !== inputArea) {
+            chatPanel.addEventListener('paste', handlePaste);
+        }
+    }
+    setupPasteHandler();
+
+    // ===== GOAL & PLAN TRACKER =====
+    function fetchGoalAndPlan() {
+        Promise.all([
+            fetch('/api/goals?agent_id=sofia').then(function(r){return r.ok?r.json():[];}),
+            fetch('/api/plan').then(function(r){return r.ok?r.json():null;})
+        ]).then(function(results) {
+            renderGoalPanel(results[0], results[1]);
+        }).catch(function(){});
+    }
+
+    function renderGoalPanel(goals, plan) {
+        const panel = document.getElementById('chat-goal-panel');
+        const goalBar = document.getElementById('chat-goal-bar');
+        const planBar = document.getElementById('chat-plan-bar');
+        if (!panel) return;
+
+        let hasContent = false;
+
+        // Find the highest-priority active goal
+        var activeGoal = null;
+        if (goals && goals.length > 0) {
+            var priorityOrder = {high:0, medium:1, low:2};
+            var active = goals.filter(function(g){return g.status==='active';});
+            active.sort(function(a,b){return (priorityOrder[a.priority]||9)-(priorityOrder[b.priority]||9);});
+            if (active.length > 0) activeGoal = active[0];
+        }
+
+        if (activeGoal && goalBar) {
+            goalBar.classList.remove('hidden');
+            document.getElementById('chat-goal-name').textContent = activeGoal.name || '';
+            document.getElementById('chat-goal-desc').textContent = activeGoal.description || '';
+            var prioEl = document.getElementById('chat-goal-priority');
+            var prioColors = {high:'bg-red-500/15 text-red-400',medium:'bg-amber-500/15 text-amber-400',low:'bg-blue-500/15 text-blue-400'};
+            prioEl.className = 'px-1 py-0 rounded text-[8px] font-bold uppercase ' + (prioColors[activeGoal.priority]||'');
+            prioEl.textContent = activeGoal.priority || '';
+            hasContent = true;
+        } else if (goalBar) {
+            goalBar.classList.add('hidden');
+        }
+
+        if (plan && planBar) {
+            planBar.classList.remove('hidden');
+            document.getElementById('chat-plan-goal').textContent = plan.goal || '';
+            var steps = plan.steps || [];
+            var completed = steps.filter(function(s){return s.status==='completed';}).length;
+            document.getElementById('chat-plan-progress').textContent = completed + '/' + steps.length;
+
+            var stepsEl = document.getElementById('chat-plan-steps');
+            stepsEl.innerHTML = '';
+            steps.forEach(function(s) {
+                var icon, color;
+                if (s.status === 'completed') { icon = '\u2714'; color = 'text-green-400'; }
+                else if (s.status === 'in_progress') { icon = '\u25B6'; color = 'text-amber-400'; }
+                else if (s.status === 'failed') { icon = '\u2718'; color = 'text-red-400'; }
+                else { icon = '\u25CB'; color = 'text-zinc-600'; }
+
+                var row = document.createElement('div');
+                row.className = 'flex items-start gap-2 px-1 py-0.5';
+                row.innerHTML =
+                    '<span class="' + color + ' text-[10px] shrink-0 w-3 text-center">' + icon + '</span>' +
+                    '<span class="text-[10px] ' + (s.status==='completed'?'text-zinc-600 line-through':'text-zinc-400') + ' leading-tight">' +
+                    escapeHtml(s.description || '') + '</span>' +
+                    (s.result ? '<span class="text-[8px] text-zinc-600 ml-auto shrink-0 font-mono">' + escapeHtml(s.result.substring(0,30)) + '</span>' : '');
+                stepsEl.appendChild(row);
+            });
+            hasContent = true;
+        } else if (planBar) {
+            planBar.classList.add('hidden');
+        }
+
+        panel.classList.toggle('hidden', !hasContent);
+    }
+
+    // Poll goal & plan periodically and on WS events
+    window._chatGoalPlanRefresh = function() { fetchGoalAndPlan(); };
+    fetchGoalAndPlan();
+    setInterval(fetchGoalAndPlan, 5000);
 
     function updateSessionLabel() {
         const label = document.getElementById('chat-session-label');

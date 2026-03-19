@@ -191,6 +191,7 @@ func gatewayCmd(debug bool) error {
 
 	if cfg.WebUI.Enabled {
 		webServer := web.NewServer(cfg, agentLoop, internal.GetVersion())
+		webServer.SetCronService(cronService)
 		go func() {
 			if err := webServer.Start(ctx); err != nil {
 				logger.ErrorCF("web", "Web UI error", map[string]any{"error": err.Error()})

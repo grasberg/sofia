@@ -1,0 +1,48 @@
+<div id="settings-subtab-tts" class="h-full flex flex-col">
+    <div class="flex-grow min-h-0 overflow-y-auto pr-2 space-y-4">
+        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-4">Text-to-Speech</h3>
+
+            <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                <div class="flex items-start justify-between">
+                    <div class="space-y-1 pr-6">
+                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable TTS</h4>
+                        <p class="text-[11px] leading-relaxed text-zinc-500">
+                            Convert Sofia's responses to speech. Requires a TTS provider.
+                        </p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                        <input type="checkbox" id="cfg-tts-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="space-y-4 mt-4">
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Provider</label>
+                    <select id="cfg-tts-provider"
+                        class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                        <option value="elevenlabs">ElevenLabs</option>
+                        <option value="system">System (macOS say / espeak)</option>
+                    </select>
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">API Key</label>
+                    <input type="password" id="cfg-tts-api-key" placeholder="ElevenLabs API key (not needed for system)"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Voice</label>
+                    <input type="text" id="cfg-tts-voice" placeholder="e.g. Rachel, Bella, or system voice name"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                </div>
+            </div>
+        </div>
+
+        <button onclick="saveConfig()" class="mt-2 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            Save changes
+        </button>
+    </div>
+</div>
