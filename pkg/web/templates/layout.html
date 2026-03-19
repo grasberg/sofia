@@ -92,6 +92,11 @@
                 <i data-lucide="message-square" class="w-5 h-5"></i>
                 <span class="hidden lg:inline">Terminal</span>
             </a>
+            <a href="#" hx-get="/ui/goals" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-goals"
+                class="nav-item">
+                <i data-lucide="target" class="w-5 h-5"></i>
+                <span class="hidden lg:inline">Goals</span>
+            </a>
             <a href="#" hx-get="/ui/agents" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-agents"
                 class="nav-item">
                 <i data-lucide="users" class="w-5 h-5"></i>
@@ -101,6 +106,21 @@
                 class="nav-item">
                 <i data-lucide="clock" class="w-5 h-5"></i>
                 <span class="hidden lg:inline">History</span>
+            </a>
+            <a href="#" hx-get="/ui/memory" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-memory"
+                class="nav-item">
+                <i data-lucide="brain" class="w-5 h-5"></i>
+                <span class="hidden lg:inline">Memory</span>
+            </a>
+            <a href="#" hx-get="/ui/calendar" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-calendar"
+                class="nav-item">
+                <i data-lucide="calendar" class="w-5 h-5"></i>
+                <span class="hidden lg:inline">Calendar</span>
+            </a>
+            <a href="#" hx-get="/ui/pixels" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-pixels"
+                class="nav-item">
+                <i data-lucide="gamepad-2" class="w-5 h-5"></i>
+                <span class="hidden lg:inline">Pixels</span>
             </a>
             <a href="#" hx-get="/ui/monitor" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-monitor"
                 class="nav-item">
@@ -170,15 +190,64 @@
                     <button hx-get="/ui/settings/security" hx-target="#subtab-content"
                         onclick="setActiveSettingsTab(this)" id="settings-tab-security"
                         class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Security</button>
+                    <button hx-get="/ui/settings/evolution" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-evolution"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Evolution</button>
+                    <button hx-get="/ui/settings/autonomy" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-autonomy"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Autonomy</button>
+                    <button hx-get="/ui/settings/budget" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-budget"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Budget</button>
+                    <button hx-get="/ui/settings/tts" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-tts"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">TTS</button>
+                    <button hx-get="/ui/settings/webhooks" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-webhooks"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Webhooks</button>
+                    <button hx-get="/ui/settings/triggers" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-triggers"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Triggers</button>
+                    <button hx-get="/ui/settings/remote" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-remote"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Remote</button>
+                    <button hx-get="/ui/settings/cron" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-cron"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Cron</button>
+                    <button hx-get="/ui/settings/personas" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-personas"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Personas</button>
                 </div>
             </div>
             <div class="flex items-center gap-4">
 
                 <div class="flex items-center gap-2">
+                    <!-- Notification bell -->
+                    <div class="relative">
+                        <button id="notif-bell-btn" onclick="toggleNotifPanel(event)" title="Notifications" class="p-2 text-zinc-500 hover:text-sofia transition-colors relative">
+                            <i data-lucide="bell" class="w-4 h-4"></i>
+                            <span id="notif-badge" class="hidden absolute -top-0.5 -right-0.5 w-4 h-4 bg-sofia text-white text-[8px] font-bold rounded-full flex items-center justify-center">0</span>
+                        </button>
+                        <!-- Notification dropdown -->
+                        <div id="notif-panel" class="hidden absolute right-0 top-full mt-2 w-80 max-h-96 bg-[var(--bg-sidebar)] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden z-50">
+                            <div class="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between bg-black/30">
+                                <span class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Notifications</span>
+                                <button onclick="clearNotifs()" class="text-[9px] text-zinc-600 hover:text-zinc-400 transition-colors">Clear all</button>
+                            </div>
+                            <div id="notif-list" class="overflow-y-auto max-h-80 p-2 space-y-2">
+                                <div id="notif-empty" class="text-xs text-zinc-600 text-center py-6">No notifications</div>
+                            </div>
+                        </div>
+                    </div>
+
                     <button onclick="resetSofia()" title="Reset: stop all work, clear sessions &amp; goals"
                         class="p-2 text-zinc-500 hover:text-red-400 transition-colors">
                         <i data-lucide="octagon" class="w-4 h-4"></i>
                     </button>
+                    <a href="/api/backup" title="Download backup (ZIP)" download
+                        class="p-2 text-zinc-500 hover:text-sofia transition-colors inline-block">
+                        <i data-lucide="archive" class="w-4 h-4"></i>
+                    </a>
                     <button onclick="updateSofia()" title="Update"
                         class="p-2 text-zinc-500 hover:text-sofia transition-colors">
                         <i data-lucide="download-cloud" class="w-4 h-4"></i>
@@ -292,6 +361,7 @@
                 { label: "GLM-4.5 Air", model_id: "zai/glm-4.5-air", api_base: "https://api.z.ai/api/paas/v4" },
             ],
             "MiniMax": [
+                { label: "MiniMax M2.7", model_id: "minimax/MiniMax-M2.7", api_base: "https://api.minimax.io/v1" },
                 { label: "MiniMax M2.5", model_id: "minimax/MiniMax-M2.5", api_base: "https://api.minimax.io/v1" },
                 { label: "MiniMax M1 80k", model_id: "minimax/MiniMax-M1-80k", api_base: "https://api.minimax.io/v1" },
                 { label: "abab7", model_id: "minimax/abab7", api_base: "https://api.minimax.io/v1" },
@@ -629,6 +699,158 @@
             }
         }
 
+        // ===== NOTIFICATION INBOX =====
+        let notifItems = JSON.parse(localStorage.getItem('sofia_notifs') || '[]');
+
+        function saveNotifs() {
+            // Keep max 50 notifications
+            if (notifItems.length > 50) notifItems = notifItems.slice(-50);
+            localStorage.setItem('sofia_notifs', JSON.stringify(notifItems));
+        }
+
+        function addNotif(item) {
+            notifItems.push(item);
+            saveNotifs();
+            renderNotifs();
+        }
+
+        function renderNotifs() {
+            const list = document.getElementById('notif-list');
+            const badge = document.getElementById('notif-badge');
+            const empty = document.getElementById('notif-empty');
+            if (!list) return;
+
+            const pending = notifItems.filter(function(n) { return !n.dismissed; });
+            if (badge) {
+                if (pending.length > 0) {
+                    badge.classList.remove('hidden');
+                    badge.textContent = pending.length > 9 ? '9+' : pending.length;
+                } else {
+                    badge.classList.add('hidden');
+                }
+            }
+
+            list.innerHTML = '';
+            if (notifItems.length === 0) {
+                list.innerHTML = '<div class="text-xs text-zinc-600 text-center py-6">No notifications</div>';
+                return;
+            }
+
+            // Show newest first
+            var items = notifItems.slice().reverse();
+            items.forEach(function(n, revIdx) {
+                var idx = notifItems.length - 1 - revIdx;
+                var el = document.createElement('div');
+                el.className = 'p-3 rounded-lg border transition-all ' +
+                    (n.dismissed ? 'border-[var(--border-color)] bg-black/10 opacity-40' : 'border-sofia/20 bg-sofia/[0.03]');
+
+                var timeStr = n.time ? new Date(n.time).toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'}) : '';
+                var typeIcon, typeColor;
+                if (n.type === 'proactive_suggestion') { typeIcon = 'lightbulb'; typeColor = 'text-amber-400'; }
+                else if (n.type === 'approval_needed') { typeIcon = 'shield-alert'; typeColor = 'text-amber-400'; }
+                else if (n.type === 'goal_completed') { typeIcon = 'trophy'; typeColor = 'text-green-400'; }
+                else { typeIcon = 'bell'; typeColor = 'text-sofia'; }
+
+                el.innerHTML =
+                    '<div class="flex items-start gap-2">' +
+                    '  <i data-lucide="' + typeIcon + '" class="w-4 h-4 ' + typeColor + ' shrink-0 mt-0.5"></i>' +
+                    '  <div class="flex-grow min-w-0">' +
+                    '    <div class="flex items-center gap-2">' +
+                    '      <span class="text-[9px] font-bold uppercase tracking-widest text-zinc-500">' + escapeHtml(n.title || 'Notification') + '</span>' +
+                    '      <span class="text-[8px] text-zinc-600 ml-auto">' + timeStr + '</span>' +
+                    '    </div>' +
+                    '    <p class="text-[11px] text-zinc-300 mt-1 whitespace-pre-wrap leading-relaxed">' + escapeHtml(n.content || '') + '</p>' +
+                    (n.dismissed ? '' :
+                    '    <div class="flex gap-2 mt-2">' +
+                    '      <button onclick="approveNotif(' + idx + ')" class="px-2.5 py-1 text-[9px] font-bold bg-sofia/10 text-sofia border border-sofia/30 rounded-lg hover:bg-sofia/20 transition">Approve</button>' +
+                    '      <button onclick="dismissNotif(' + idx + ')" class="px-2.5 py-1 text-[9px] font-bold bg-zinc-800 text-zinc-400 border border-zinc-700 rounded-lg hover:bg-zinc-700 transition">Dismiss</button>' +
+                    '    </div>') +
+                    '  </div>' +
+                    '</div>';
+                list.appendChild(el);
+            });
+            refreshIcons();
+        }
+
+        function toggleNotifPanel(e) {
+            if (e) e.stopPropagation(); // prevent document click handler from immediately closing
+            var panel = document.getElementById('notif-panel');
+            if (!panel) return;
+            panel.classList.toggle('hidden');
+            renderNotifs();
+        }
+
+        // Close panel when clicking outside
+        document.addEventListener('click', function(e) {
+            var panel = document.getElementById('notif-panel');
+            if (panel && !panel.classList.contains('hidden')) {
+                if (!e.target.closest('#notif-panel') && !e.target.closest('#notif-bell-btn')) {
+                    panel.classList.add('hidden');
+                }
+            }
+        });
+
+        function approveNotif(idx) {
+            var n = notifItems[idx];
+            if (!n) return;
+            n.dismissed = true;
+            saveNotifs();
+            renderNotifs();
+            // Send the suggestion content to Sofia as a chat message
+            var msg = n.command || n.content || '';
+            if (msg) {
+                fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        message: 'I approve this suggestion. Please proceed:\n\n' + msg,
+                        session_key: 'notif:' + Date.now()
+                    })
+                }).then(function() {
+                    // Navigate to chat
+                    var chatNav = document.getElementById('nav-chat');
+                    if (chatNav) chatNav.click();
+                }).catch(function(){});
+            }
+        }
+
+        function dismissNotif(idx) {
+            notifItems[idx].dismissed = true;
+            saveNotifs();
+            renderNotifs();
+        }
+
+        function clearNotifs() {
+            notifItems = [];
+            saveNotifs();
+            renderNotifs();
+        }
+
+        // Handle incoming notification events from WebSocket
+        window._handleNotifEvent = function(d) {
+            if (d.type === 'proactive_suggestion') {
+                addNotif({
+                    type: 'proactive_suggestion',
+                    title: 'Proactive Suggestion',
+                    content: d.content || '',
+                    command: d.content || '',
+                    time: Date.now(),
+                    dismissed: false,
+                });
+            } else if (d.type === 'goal_completed') {
+                addNotif({
+                    type: 'goal_completed',
+                    title: 'Goal Completed',
+                    content: 'Goal completed: ' + (d.goal_name || ''),
+                    time: Date.now(),
+                    dismissed: true, // auto-dismiss informational
+                });
+            }
+        };
+
+        // Initial render from localStorage
+        renderNotifs();
+
         async function resetSofia() {
             if (!confirm("Reset Sofia?\n\nThis will:\n- Cancel all in-flight processing\n- Clear all chat sessions\n- Reset all active goals\n- Clear active plans")) return;
             try {
@@ -696,8 +918,12 @@
             clickedEl.classList.add('active');
             const tabById = {
                 'nav-chat': 'chat',
+                'nav-goals': 'goals',
                 'nav-agents': 'agents',
                 'nav-history': 'history',
+                'nav-pixels': 'pixels',
+                'nav-memory': 'memory',
+                'nav-calendar': 'calendar',
                 'nav-settings': 'settings',
             };
             currentTab = tabById[clickedEl.id] || 'chat';
@@ -715,8 +941,12 @@
             // Title updates (could be done via hx-swap-oob but keeping simple for now)
             const titles = {
                 'nav-chat': 'Direct Chat',
+                'nav-goals': 'Goals & Plan',
                 'nav-agents': 'Agent Management',
                 'nav-history': 'Chat History',
+                'nav-pixels': 'Pixel Agents',
+                'nav-memory': 'Memory Explorer',
+                'nav-calendar': 'Schedule',
                 'nav-settings': 'System Settings'
             };
             document.getElementById('view-title').innerText = titles[clickedEl.id] || 'Sofia';
@@ -761,8 +991,10 @@
 
                 // Build agent metadata map for use in Agent Monitor cards
                 if (data.agents && data.agents.list) {
+                    if (!window._agentDescCache) window._agentDescCache = {};
                     data.agents.list.forEach(function (a) {
                         agentMeta[a.id] = { name: a.name || a.id, model: a.model || "", role: a.role || "subagent" };
+                        if (a.description) window._agentDescCache[a.id] = a.description;
                     });
                 }
 
@@ -992,8 +1224,16 @@
                         '<div>' +
                         '<div class="font-bold text-zinc-200">' + escapeHtml(a.name || a.id) + '</div>' +
                         '<div class="text-[10px] font-mono text-zinc-600 uppercase tracking-tighter mt-0.5">' + escapeHtml(a.id) + '</div>' +
-                        (templateName ? '<div class="mt-2 text-[10px] text-sofia/80 font-medium">Purpose: ' + escapeHtml(templateName) + '</div>' : '') +
-                        (skillCount > 0 ? '<div class="mt-1 text-[10px] text-zinc-500 flex items-center gap-1"><i data-lucide=\"zap\" class=\"w-2.5 h-2.5\"></i> ' + skillCount + ' custom skill' + (skillCount !== 1 ? 's' : '') + '</div>' : '') +
+                        (templateName ? '<div class="mt-2 text-[10px] text-sofia/80 font-medium">Role: ' + escapeHtml(templateName) + '</div>' : '') +
+                        (function() {
+                            // Look up description from status API cache
+                            var desc = '';
+                            if (window._agentDescCache && window._agentDescCache[a.id]) desc = window._agentDescCache[a.id];
+                            return desc ? '<div class="mt-1 text-[9px] text-zinc-500 leading-relaxed">' + escapeHtml(desc) + '</div>' : '';
+                        })() +
+                        (skillCount > 0 ? '<div class="mt-2 flex flex-wrap gap-1">' + (a.skills||[]).map(function(s) {
+                            return '<span class="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">' + escapeHtml(s) + '</span>';
+                        }).join('') + '</div>' : '') +
                         '<div class="mt-4 pt-4 border-t border-zinc-800/50 flex items-center justify-between">' +
                         '<div class="text-[10px] text-zinc-500 font-medium flex items-center gap-1.5"><i data-lucide="cpu" class="w-3 h-3"></i> ' + escapeHtml(modelName || 'Default') + '</div>' +
                         '<span class="w-2 h-2 rounded-full ' + (isActive ? 'bg-green-500 animate-pulse' : 'bg-zinc-700') + '"></span>' +
@@ -1268,6 +1508,7 @@
                 if (!cfg.tools.brave_search) cfg.tools.brave_search = {};
                 if (!cfg.tools.porkbun) cfg.tools.porkbun = {};
                 if (!cfg.tools.github) cfg.tools.github = {};
+                if (!cfg.tools.vercel) cfg.tools.vercel = {};
                 if (!cfg.tools.cpanel) cfg.tools.cpanel = {};
                 if (!cfg.tools.bitcoin) cfg.tools.bitcoin = {};
 
@@ -1299,6 +1540,18 @@
                 if (ghCommands) {
                     const cmds = ghCommands.value.trim();
                     cfg.tools.github.allowed_commands = cmds ? cmds.split(",").map(s => s.trim()).filter(Boolean) : [];
+                }
+
+                const vcEnabled = document.getElementById("cfg-vercel-enabled");
+                const vcBinary = document.getElementById("cfg-vercel-binary");
+                const vcTimeout = document.getElementById("cfg-vercel-timeout");
+                const vcCommands = document.getElementById("cfg-vercel-commands");
+                if (vcEnabled) cfg.tools.vercel.enabled = vcEnabled.checked;
+                if (vcBinary) cfg.tools.vercel.binary_path = vcBinary.value.trim() || "vercel";
+                if (vcTimeout) cfg.tools.vercel.timeout_seconds = parseInt(vcTimeout.value) || 120;
+                if (vcCommands) {
+                    const cmds2 = vcCommands.value.trim();
+                    cfg.tools.vercel.allowed_commands = cmds2 ? cmds2.split(",").map(s => s.trim()).filter(Boolean) : [];
                 }
 
                 const cpEnabled = document.getElementById("cfg-cpanel-enabled");
@@ -1452,6 +1705,18 @@
                     if (ghCommands) ghCommands.value = (cfg.tools.github.allowed_commands || []).join(", ");
                 }
 
+                // Populate Vercel settings
+                if (cfg.tools && cfg.tools.vercel) {
+                    const vcEnabled = document.getElementById("cfg-vercel-enabled");
+                    const vcBinary = document.getElementById("cfg-vercel-binary");
+                    const vcTimeout = document.getElementById("cfg-vercel-timeout");
+                    const vcCommands = document.getElementById("cfg-vercel-commands");
+                    if (vcEnabled) vcEnabled.checked = !!cfg.tools.vercel.enabled;
+                    if (vcBinary) vcBinary.value = cfg.tools.vercel.binary_path || "vercel";
+                    if (vcTimeout) vcTimeout.value = cfg.tools.vercel.timeout_seconds || 120;
+                    if (vcCommands) vcCommands.value = (cfg.tools.vercel.allowed_commands || []).join(", ");
+                }
+
                 // Populate cPanel settings
                 if (cfg.tools && cfg.tools.cpanel) {
                     const cpEnabled = document.getElementById("cfg-cpanel-enabled");
@@ -1475,6 +1740,169 @@
                     if (btcNetwork && cfg.tools.bitcoin.network) btcNetwork.value = cfg.tools.bitcoin.network;
                     if (btcWalletPath && cfg.tools.bitcoin.wallet_path) btcWalletPath.value = cfg.tools.bitcoin.wallet_path;
                     if (btcPassphrase && cfg.tools.bitcoin.passphrase) btcPassphrase.value = cfg.tools.bitcoin.passphrase;
+                }
+
+                // Populate Evolution settings
+                if (cfg.evolution) {
+                    const el = (id) => document.getElementById(id);
+                    if (el('cfg-evolution-enabled')) el('cfg-evolution-enabled').checked = !!cfg.evolution.enabled;
+                    if (el('cfg-evolution-interval')) { el('cfg-evolution-interval').value = cfg.evolution.interval_minutes || 30; if (el('cfg-evolution-interval-val')) el('cfg-evolution-interval-val').textContent = cfg.evolution.interval_minutes || 30; }
+                    if (el('cfg-evolution-max-cost')) el('cfg-evolution-max-cost').value = cfg.evolution.max_cost_per_day || '';
+                    if (el('cfg-evolution-self-modify')) el('cfg-evolution-self-modify').checked = !!cfg.evolution.self_modify_enabled;
+                    if (el('cfg-evolution-max-agents')) el('cfg-evolution-max-agents').value = cfg.evolution.max_agents || '';
+                    if (el('cfg-evolution-retire-threshold')) el('cfg-evolution-retire-threshold').value = cfg.evolution.retirement_threshold || '';
+                    if (el('cfg-evolution-retire-min-tasks')) el('cfg-evolution-retire-min-tasks').value = cfg.evolution.retirement_min_tasks || '';
+                    if (el('cfg-evolution-retire-inactive')) el('cfg-evolution-retire-inactive').value = cfg.evolution.retirement_inactive_days || '';
+                    if (el('cfg-evolution-summary-enabled')) el('cfg-evolution-summary-enabled').checked = !!cfg.evolution.daily_summary;
+                    if (el('cfg-evolution-summary-time')) el('cfg-evolution-summary-time').value = cfg.evolution.daily_summary_time || '';
+                    if (el('cfg-evolution-summary-channel')) el('cfg-evolution-summary-channel').value = cfg.evolution.daily_summary_channel || '';
+                    if (el('cfg-evolution-summary-chatid')) el('cfg-evolution-summary-chatid').value = cfg.evolution.daily_summary_chat_id || '';
+                }
+
+                // Populate Autonomy settings
+                if (cfg.autonomy) {
+                    const el = (id) => document.getElementById(id);
+                    if (el('cfg-autonomy-enabled')) el('cfg-autonomy-enabled').checked = !!cfg.autonomy.enabled;
+                    if (el('cfg-autonomy-suggestions')) el('cfg-autonomy-suggestions').checked = !!cfg.autonomy.suggestions;
+                    if (el('cfg-autonomy-goals')) el('cfg-autonomy-goals').checked = !!cfg.autonomy.goals;
+                    if (el('cfg-autonomy-research')) el('cfg-autonomy-research').checked = !!cfg.autonomy.research;
+                    if (el('cfg-autonomy-context-triggers')) el('cfg-autonomy-context-triggers').checked = !!cfg.autonomy.context_triggers;
+                    if (el('cfg-autonomy-interval')) { el('cfg-autonomy-interval').value = cfg.autonomy.interval_minutes || 10; if (el('cfg-autonomy-interval-val')) el('cfg-autonomy-interval-val').textContent = cfg.autonomy.interval_minutes || 10; }
+                }
+
+                // Populate Budget settings
+                {
+                    const budget = cfg.agents && cfg.agents.defaults && cfg.agents.defaults.budget;
+                    const el = (id) => document.getElementById(id);
+                    if (el('cfg-budget-max-cost') && budget) el('cfg-budget-max-cost').value = budget.max_cost_usd || '';
+                    if (el('cfg-budget-period') && budget) el('cfg-budget-period').value = budget.period || 'daily';
+                    // Populate per-agent budget overrides
+                    if (el('agent-budget-list') && cfg.agents && cfg.agents.list) {
+                        el('agent-budget-list').querySelectorAll('.agent-budget-row').forEach(function(r) { r.remove(); });
+                        let hasOverrides = false;
+                        cfg.agents.list.forEach(function(a) {
+                            if (a.budget && a.budget.max_cost_usd > 0) {
+                                if (typeof addAgentBudgetRow === 'function') addAgentBudgetRow(a.id, a.budget.max_cost_usd, a.budget.period);
+                                hasOverrides = true;
+                            }
+                        });
+                        const empty = el('agent-budget-empty');
+                        if (empty) empty.style.display = hasOverrides ? 'none' : '';
+                    }
+                }
+
+                // Populate TTS settings
+                if (cfg.tts) {
+                    const el = (id) => document.getElementById(id);
+                    if (el('cfg-tts-enabled')) el('cfg-tts-enabled').checked = !!cfg.tts.enabled;
+                    if (el('cfg-tts-provider')) el('cfg-tts-provider').value = cfg.tts.provider || 'elevenlabs';
+                    if (el('cfg-tts-api-key') && cfg.tts.api_key) el('cfg-tts-api-key').value = cfg.tts.api_key;
+                    if (el('cfg-tts-voice')) el('cfg-tts-voice').value = cfg.tts.voice || '';
+                }
+
+                // Populate Remote Access settings
+                if (cfg.remote_access) {
+                    const el = (id) => document.getElementById(id);
+                    if (el('cfg-remote-enabled')) el('cfg-remote-enabled').checked = !!cfg.remote_access.enabled;
+                    if (el('cfg-remote-provider')) el('cfg-remote-provider').value = cfg.remote_access.provider || 'tailscale';
+                    if (el('cfg-remote-port')) el('cfg-remote-port').value = cfg.remote_access.port || '';
+                }
+
+                // Populate Guardrails settings
+                if (cfg.guardrails) {
+                    const el = (id) => document.getElementById(id);
+                    const g = cfg.guardrails;
+                    if (g.pii_detection) {
+                        if (el('cfg-pii-enabled')) el('cfg-pii-enabled').checked = !!g.pii_detection.enabled;
+                        if (el('cfg-pii-action')) el('cfg-pii-action').value = g.pii_detection.action || 'warn';
+                    }
+                    if (g.approval) {
+                        if (el('cfg-approval-enabled')) el('cfg-approval-enabled').checked = !!g.approval.enabled;
+                        if (el('cfg-approval-require-for')) el('cfg-approval-require-for').value = (g.approval.require_for || []).join('\n');
+                        if (el('cfg-approval-timeout')) el('cfg-approval-timeout').value = g.approval.timeout_sec || '';
+                        if (el('cfg-approval-default')) el('cfg-approval-default').value = g.approval.default_action || 'deny';
+                    }
+                    if (g.input_validation) {
+                        if (el('cfg-input-enabled')) el('cfg-input-enabled').checked = !!g.input_validation.enabled;
+                        if (el('cfg-input-max-length')) el('cfg-input-max-length').value = g.input_validation.max_message_length || '';
+                        if (el('cfg-input-deny')) el('cfg-input-deny').value = (g.input_validation.deny_patterns || []).join('\n');
+                    }
+                    if (g.output_filtering) {
+                        if (el('cfg-output-enabled')) el('cfg-output-enabled').checked = !!g.output_filtering.enabled;
+                        if (el('cfg-output-redact')) el('cfg-output-redact').value = (g.output_filtering.redact_patterns || []).join('\n');
+                    }
+                    if (g.rate_limiting) {
+                        if (el('cfg-ratelimit-enabled')) el('cfg-ratelimit-enabled').checked = !!g.rate_limiting.enabled;
+                        if (el('cfg-ratelimit-rpm')) el('cfg-ratelimit-rpm').value = g.rate_limiting.max_rpm || '';
+                        if (el('cfg-ratelimit-tokens')) el('cfg-ratelimit-tokens').value = g.rate_limiting.max_tokens_per_hour || '';
+                    }
+                    if (g.prompt_injection) {
+                        if (el('cfg-injection-enabled')) el('cfg-injection-enabled').checked = !!g.prompt_injection.enabled;
+                        if (el('cfg-injection-action')) el('cfg-injection-action').value = g.prompt_injection.action || 'block';
+                    }
+                }
+
+                // Populate Channels — Email and DM policy
+                if (cfg.channels) {
+                    const el = (id) => document.getElementById(id);
+                    if (cfg.channels.email) {
+                        if (el('cfg-email-enabled')) el('cfg-email-enabled').checked = !!cfg.channels.email.enabled;
+                        if (el('cfg-email-imap')) el('cfg-email-imap').value = cfg.channels.email.imap_server || '';
+                        if (el('cfg-email-smtp')) el('cfg-email-smtp').value = cfg.channels.email.smtp_server || '';
+                        if (el('cfg-email-username')) el('cfg-email-username').value = cfg.channels.email.username || '';
+                        if (el('cfg-email-password') && cfg.channels.email.password) el('cfg-email-password').value = cfg.channels.email.password;
+                        if (el('cfg-email-poll')) el('cfg-email-poll').value = cfg.channels.email.poll_interval_sec || '';
+                        if (el('cfg-email-allow-from')) el('cfg-email-allow-from').value = (cfg.channels.email.allow_from || []).join('\n');
+                    }
+                    if (el('cfg-telegram-dm-policy')) el('cfg-telegram-dm-policy').value = (cfg.channels.telegram && cfg.channels.telegram.dm_policy) || '';
+                    if (el('cfg-discord-dm-policy')) el('cfg-discord-dm-policy').value = (cfg.channels.discord && cfg.channels.discord.dm_policy) || '';
+                }
+
+                // Populate Webhooks
+                if (cfg.webhooks && cfg.webhooks.length > 0 && typeof addWebhookRow === 'function') {
+                    const list = document.getElementById('webhooks-list');
+                    if (list) list.querySelectorAll('.webhook-row').forEach(function(r) { r.remove(); });
+                    cfg.webhooks.forEach(function(wh) { addWebhookRow(wh.url, wh.secret, wh.events, wh.enabled); });
+                }
+
+                // Populate Digests
+                if (cfg.digests && cfg.digests.length > 0 && typeof addDigestRow === 'function') {
+                    const list = document.getElementById('digests-list');
+                    if (list) list.querySelectorAll('.digest-row').forEach(function(r) { r.remove(); });
+                    cfg.digests.forEach(function(d) { addDigestRow(d.period, d.channel, d.chat_id, d.include_memory, d.include_usage); });
+                }
+
+                // Populate Triggers
+                if (cfg.triggers) {
+                    if (cfg.triggers.webhooks && cfg.triggers.webhooks.length > 0 && typeof addWebhookTriggerRow === 'function') {
+                        const list = document.getElementById('wh-trigger-list');
+                        if (list) list.querySelectorAll('.wh-trigger-row').forEach(function(r) { r.remove(); });
+                        cfg.triggers.webhooks.forEach(function(t) { addWebhookTriggerRow(t.path, t.agent_id, t.secret); });
+                    }
+                    if (cfg.triggers.file_watch && cfg.triggers.file_watch.length > 0 && typeof addFileWatchRow === 'function') {
+                        const list = document.getElementById('fw-trigger-list');
+                        if (list) list.querySelectorAll('.fw-trigger-row').forEach(function(r) { r.remove(); });
+                        cfg.triggers.file_watch.forEach(function(t) { addFileWatchRow(t.path, t.pattern, t.agent_id, t.prompt); });
+                    }
+                    if (cfg.triggers.patterns && cfg.triggers.patterns.length > 0 && typeof addPatternTriggerRow === 'function') {
+                        const list = document.getElementById('pt-trigger-list');
+                        if (list) list.querySelectorAll('.pt-trigger-row').forEach(function(r) { r.remove(); });
+                        cfg.triggers.patterns.forEach(function(t) { addPatternTriggerRow(t.regex, t.agent_id, t.prompt); });
+                    }
+                }
+
+                // Populate Personas
+                if (cfg.agents && cfg.agents.defaults && cfg.agents.defaults.personas && typeof addPersonaRow === 'function') {
+                    const list = document.getElementById('personas-list');
+                    if (list) list.querySelectorAll('.persona-row').forEach(function(r) { r.remove(); });
+                    const personas = cfg.agents.defaults.personas;
+                    let hasPersonas = false;
+                    for (const [name, p] of Object.entries(personas)) {
+                        addPersonaRow(name, p.description, p.system_prompt, p.model, p.allowed_tools);
+                        hasPersonas = true;
+                    }
+                    const empty = document.getElementById('personas-empty');
+                    if (empty) empty.style.display = hasPersonas ? 'none' : '';
                 }
 
                 fetchWorkspaceDocs();
@@ -1761,6 +2189,31 @@
         // renderAgentCards builds/updates the persistent per-agent status cards.
         // Called every 2s from fetchStatus(). Creates cards on first call, then
         // only updates the status/activity fields without tearing down existing cards.
+        function getPixelAgentInfo(agentId) {
+            // Read pixel agent state from the persistent pixel simulation
+            if (!window._px || !window._px.agents) return null;
+            return window._px.agents[agentId] || null;
+        }
+
+        function pixelLocationLabel(pxa) {
+            if (!pxa) return '';
+            const s = pxa.state;
+            if (s === 'type' || s === 'read') return 'At desk — working';
+            if (s === 'sit') return 'At desk — idle';
+            if (s === 'break') {
+                const spots = window._px && window._px.breakSpots;
+                const spot = spots && pxa.breakSpotIdx >= 0 ? spots[pxa.breakSpotIdx] : null;
+                if (spot) {
+                    const labels = {coffee:'Coffee machine',water:'Water cooler',couch:'On couch',table:'Break table',stand:'Standing area'};
+                    return 'Break room — ' + (labels[spot.type] || spot.type);
+                }
+                return 'Break room';
+            }
+            if (s === 'bathroom') return 'Bathroom';
+            if (s === 'walk') return 'Walking...';
+            return 'Office';
+        }
+
         function renderAgentCards(agentList, active) {
             const container = document.getElementById("agent-card-list");
             const pulse = document.getElementById("monitor-pulse");
@@ -1768,18 +2221,11 @@
 
             const activeId = (active && active.id) ? active.id : null;
             const activeStatus = (active && active.status) ? active.status : "Idle";
-
-            // Pulse indicator: red when any agent is busy, green when all idle
             const anyBusy = activeId || (window.activeAgents && Object.keys(window.activeAgents).length > 0);
             if (pulse) {
-                if (anyBusy) {
-                    pulse.className = "w-1.5 h-1.5 bg-red-500 animate-pulse";
-                } else {
-                    pulse.className = "w-1.5 h-1.5 bg-green-500";
-                }
+                pulse.className = anyBusy ? "w-1.5 h-1.5 bg-red-500 animate-pulse" : "w-1.5 h-1.5 bg-green-500";
             }
 
-            // Build set of known card IDs
             const existingIds = new Set();
             container.querySelectorAll('[data-agent-card]').forEach(function(el) {
                 existingIds.add(el.getAttribute('data-agent-card'));
@@ -1787,60 +2233,86 @@
 
             agentList.forEach(function(a) {
                 const isMain = (a.role === 'sofia' || a.id === 'main');
-                // Check both the global active agent and per-agent tracking
-                const isBusy = (a.id === activeId) ||
-                    (window.activeAgents && window.activeAgents[a.id]);
+                const isBusy = (a.id === activeId) || (window.activeAgents && window.activeAgents[a.id]);
                 const busyInfo = window.activeAgents && window.activeAgents[a.id];
-                const status = isBusy
-                    ? (busyInfo ? busyInfo.status || activeStatus : activeStatus)
-                    : 'Ready';
-                // Green = ready/idle, Red = busy/working
-                const statusColor = isBusy
-                    ? 'text-red-400 animate-pulse'
-                    : 'text-green-500';
+                const status = isBusy ? (busyInfo ? busyInfo.status || activeStatus : activeStatus) : 'Ready';
                 const dotColor = isBusy
                     ? 'bg-red-500 animate-pulse shadow-[0_0_4px_rgba(239,68,68,0.6)]'
                     : 'bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.4)]';
-                const borderColor = isBusy
-                    ? 'border-red-500/30'
-                    : 'border-green-500/20';
-                const roleLabel = isMain ? 'Primary' : 'Sub-agent';
+                const borderColor = isBusy ? 'border-red-500/30' : 'border-green-500/20';
+                const statusColor = isBusy ? 'text-red-400 animate-pulse' : 'text-green-500';
+                const roleLabel = isMain ? 'Primary' : (a.template ? a.template : 'Sub-agent');
                 const roleLabelColor = isMain ? 'text-sofia' : 'text-zinc-500';
 
+                // Agent description (capability purpose)
+                const agentDesc = a.description || '';
+                const descHtml = agentDesc
+                    ? '<div class="text-[8px] text-zinc-500 mt-0.5 leading-relaxed">' + escapeHtml(agentDesc) + '</div>'
+                    : '';
+
+                // Skills from API with capability-aware tooltips
+                const skills = a.skills || [];
+                const skillsHtml = skills.length > 0
+                    ? '<div class="flex flex-wrap gap-0.5 mt-1">' + skills.map(function(s) {
+                        return '<span class="px-1 py-0 rounded text-[7px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 cursor-help" title="Skill: ' + escapeHtml(s) + '">' + escapeHtml(s) + '</span>';
+                    }).join('') + '</div>'
+                    : '';
+
+                // Pixel agent info
+                const pxa = getPixelAgentInfo(a.id);
+                const locLabel = pixelLocationLabel(pxa);
+                const pxLevel = pxa ? pxa.level : 0;
+                const pxXp = pxa ? pxa.xp : 0;
+                const pxTasks = pxa ? pxa.tasksCompleted : 0;
+                const pxMood = pxa ? Math.round(pxa.mood * 100) : 0;
+                const pxAccessory = pxa && pxa.accessory && pxa.accessory.type !== 'none' ? pxa.accessory.type : '';
+
+                const pxStatsHtml = pxa
+                    ? '<div class="flex items-center gap-2 mt-1 text-[7px] font-mono text-zinc-600">' +
+                      (pxLevel > 1 ? '<span class="text-amber-400">Lv' + pxLevel + '</span>' : '') +
+                      '<span>XP:' + pxXp + '</span>' +
+                      '<span>Tasks:' + pxTasks + '</span>' +
+                      '<span>Mood:' + pxMood + '%</span>' +
+                      (pxAccessory ? '<span class="text-zinc-500">' + pxAccessory + '</span>' : '') +
+                      '</div>'
+                    : '';
+
+                const locHtml = locLabel
+                    ? '<div class="flex items-center gap-1 mt-1"><i data-lucide="map-pin" class="w-2.5 h-2.5 text-zinc-600"></i><span class="text-[8px] text-zinc-500 font-mono">' + escapeHtml(locLabel) + '</span></div>'
+                    : '';
+
+                const cardHtml =
+                    '<div class="flex items-center gap-2 mb-1">' +
+                    '  <div id="card-dot-' + a.id + '" class="w-2 h-2 shrink-0 ' + dotColor + '"></div>' +
+                    '  <span class="text-[10px] font-bold uppercase tracking-wider text-zinc-200 truncate flex-grow">' + escapeHtml(a.name || a.id) + '</span>' +
+                    '  <span class="text-[7px] font-bold uppercase ' + roleLabelColor + ' shrink-0">' + escapeHtml(roleLabel) + '</span>' +
+                    '</div>' +
+                    '<div class="text-[7px] text-zinc-600 font-mono truncate">' + escapeHtml(a.model || '') + '</div>' +
+                    '<div class="flex items-center gap-1.5 mt-0.5">' +
+                    '  <span id="card-status-' + a.id + '" class="text-[9px] font-mono ' + statusColor + ' truncate">' + escapeHtml(status) + '</span>' +
+                    '</div>' +
+                    descHtml +
+                    skillsHtml +
+                    locHtml +
+                    pxStatsHtml +
+                    '<div id="card-task-' + a.id + '" class="mt-1 text-[7px] text-red-400/70 font-mono truncate hidden"></div>';
+
                 if (!existingIds.has(a.id)) {
-                    // Create new card
                     const card = document.createElement('div');
                     card.setAttribute('data-agent-card', a.id);
                     card.className = 'agent-status-card p-2.5 border ' + borderColor + ' bg-black/30 transition-all duration-300';
-                    card.innerHTML =
-                        '<div class="flex items-center gap-2 mb-1.5">' +
-                        '  <div id="card-dot-' + a.id + '" class="w-2 h-2 shrink-0 ' + dotColor + '"></div>' +
-                        '  <span class="text-[10px] font-bold uppercase tracking-wider text-zinc-200 truncate flex-grow">' + escapeHtml(a.name || a.id) + '</span>' +
-                        '  <span class="text-[8px] font-bold uppercase ' + roleLabelColor + ' shrink-0">' + roleLabel + '</span>' +
-                        '</div>' +
-                        '<div class="text-[8px] text-zinc-600 font-mono mb-1.5 truncate">' + escapeHtml(a.model || '') + '</div>' +
-                        '<div class="flex items-center gap-1.5">' +
-                        '  <span id="card-status-' + a.id + '" class="text-[9px] font-mono ' + statusColor + ' truncate">' + escapeHtml(status) + '</span>' +
-                        '</div>' +
-                        '<div id="card-task-' + a.id + '" class="mt-1 text-[8px] text-red-400/70 font-mono truncate hidden"></div>';
+                    card.innerHTML = cardHtml;
                     container.appendChild(card);
                     refreshIcons();
                 } else {
-                    // Update existing card
                     const card = container.querySelector('[data-agent-card="' + a.id + '"]');
                     if (!card) return;
                     card.className = 'agent-status-card p-2.5 border ' + borderColor + ' bg-black/30 transition-all duration-300';
-                    const dot = document.getElementById('card-dot-' + a.id);
-                    const statusEl = document.getElementById('card-status-' + a.id);
-                    if (dot) dot.className = 'w-2 h-2 shrink-0 ' + dotColor;
-                    if (statusEl) {
-                        statusEl.className = 'text-[9px] font-mono ' + statusColor + ' truncate';
-                        statusEl.textContent = status;
-                    }
+                    card.innerHTML = cardHtml;
+                    refreshIcons();
                 }
             });
 
-            // Remove cards for agents no longer in list
             existingIds.forEach(function(id) {
                 if (!agentList.find(function(a) { return a.id === id; })) {
                     const card = container.querySelector('[data-agent-card="' + id + '"]');
@@ -2223,6 +2695,258 @@
                     cfg.heartbeat.active_days = getCheckedHeartbeatDays();
                 }
 
+                // Save Evolution settings
+                const evoEnabled = document.getElementById("cfg-evolution-enabled");
+                if (evoEnabled) {
+                    if (!cfg.evolution) cfg.evolution = {};
+                    cfg.evolution.enabled = evoEnabled.checked;
+                    const evoInterval = document.getElementById("cfg-evolution-interval");
+                    if (evoInterval) cfg.evolution.interval_minutes = parseInt(evoInterval.value, 10) || 30;
+                    const evoMaxCost = document.getElementById("cfg-evolution-max-cost");
+                    if (evoMaxCost) cfg.evolution.max_cost_per_day = parseFloat(evoMaxCost.value) || 0;
+                    const evoSelfModify = document.getElementById("cfg-evolution-self-modify");
+                    if (evoSelfModify) cfg.evolution.self_modify_enabled = evoSelfModify.checked;
+                    const evoMaxAgents = document.getElementById("cfg-evolution-max-agents");
+                    if (evoMaxAgents) cfg.evolution.max_agents = parseInt(evoMaxAgents.value, 10) || 0;
+                    const evoRetireThreshold = document.getElementById("cfg-evolution-retire-threshold");
+                    if (evoRetireThreshold) cfg.evolution.retirement_threshold = parseFloat(evoRetireThreshold.value) || 0;
+                    const evoRetireMinTasks = document.getElementById("cfg-evolution-retire-min-tasks");
+                    if (evoRetireMinTasks) cfg.evolution.retirement_min_tasks = parseInt(evoRetireMinTasks.value, 10) || 0;
+                    const evoRetireInactive = document.getElementById("cfg-evolution-retire-inactive");
+                    if (evoRetireInactive) cfg.evolution.retirement_inactive_days = parseInt(evoRetireInactive.value, 10) || 0;
+                    const evoSummaryEnabled = document.getElementById("cfg-evolution-summary-enabled");
+                    if (evoSummaryEnabled) cfg.evolution.daily_summary = evoSummaryEnabled.checked;
+                    const evoSummaryTime = document.getElementById("cfg-evolution-summary-time");
+                    if (evoSummaryTime) cfg.evolution.daily_summary_time = evoSummaryTime.value.trim();
+                    const evoSummaryChannel = document.getElementById("cfg-evolution-summary-channel");
+                    if (evoSummaryChannel) cfg.evolution.daily_summary_channel = evoSummaryChannel.value;
+                    const evoSummaryChatId = document.getElementById("cfg-evolution-summary-chatid");
+                    if (evoSummaryChatId) cfg.evolution.daily_summary_chat_id = evoSummaryChatId.value.trim();
+                }
+
+                // Save Autonomy settings
+                const autoEnabled = document.getElementById("cfg-autonomy-enabled");
+                if (autoEnabled) {
+                    if (!cfg.autonomy) cfg.autonomy = {};
+                    cfg.autonomy.enabled = autoEnabled.checked;
+                    const autoSuggestions = document.getElementById("cfg-autonomy-suggestions");
+                    if (autoSuggestions) cfg.autonomy.suggestions = autoSuggestions.checked;
+                    const autoGoals = document.getElementById("cfg-autonomy-goals");
+                    if (autoGoals) cfg.autonomy.goals = autoGoals.checked;
+                    const autoResearch = document.getElementById("cfg-autonomy-research");
+                    if (autoResearch) cfg.autonomy.research = autoResearch.checked;
+                    const autoContextTriggers = document.getElementById("cfg-autonomy-context-triggers");
+                    if (autoContextTriggers) cfg.autonomy.context_triggers = autoContextTriggers.checked;
+                    const autoInterval = document.getElementById("cfg-autonomy-interval");
+                    if (autoInterval) cfg.autonomy.interval_minutes = parseInt(autoInterval.value, 10) || 10;
+                }
+
+                // Save Budget settings
+                const budgetMaxCost = document.getElementById("cfg-budget-max-cost");
+                if (budgetMaxCost) {
+                    if (!cfg.agents.defaults.budget) cfg.agents.defaults.budget = {};
+                    cfg.agents.defaults.budget.max_cost_usd = parseFloat(budgetMaxCost.value) || 0;
+                    const budgetPeriod = document.getElementById("cfg-budget-period");
+                    if (budgetPeriod) cfg.agents.defaults.budget.period = budgetPeriod.value;
+                    // Collect per-agent budget overrides
+                    document.querySelectorAll('.agent-budget-row').forEach(function(row) {
+                        const agentId = row.querySelector('.agent-budget-id').value.trim();
+                        const cost = parseFloat(row.querySelector('.agent-budget-cost').value) || 0;
+                        const period = row.querySelector('.agent-budget-period').value;
+                        if (agentId && cost > 0) {
+                            const agent = cfg.agents.list.find(function(a) { return a.id === agentId; });
+                            if (agent) {
+                                agent.budget = { max_cost_usd: cost, period: period };
+                            }
+                        }
+                    });
+                }
+
+                // Save TTS settings
+                const ttsEnabled = document.getElementById("cfg-tts-enabled");
+                if (ttsEnabled) {
+                    if (!cfg.tts) cfg.tts = {};
+                    cfg.tts.enabled = ttsEnabled.checked;
+                    const ttsProvider = document.getElementById("cfg-tts-provider");
+                    if (ttsProvider) cfg.tts.provider = ttsProvider.value;
+                    const ttsApiKey = document.getElementById("cfg-tts-api-key");
+                    if (ttsApiKey) cfg.tts.api_key = ttsApiKey.value.trim();
+                    const ttsVoice = document.getElementById("cfg-tts-voice");
+                    if (ttsVoice) cfg.tts.voice = ttsVoice.value.trim();
+                }
+
+                // Save Remote Access settings
+                const remoteEnabled = document.getElementById("cfg-remote-enabled");
+                if (remoteEnabled) {
+                    if (!cfg.remote_access) cfg.remote_access = {};
+                    cfg.remote_access.enabled = remoteEnabled.checked;
+                    const remoteProvider = document.getElementById("cfg-remote-provider");
+                    if (remoteProvider) cfg.remote_access.provider = remoteProvider.value;
+                    const remotePort = document.getElementById("cfg-remote-port");
+                    if (remotePort) cfg.remote_access.port = parseInt(remotePort.value, 10) || 0;
+                }
+
+                // Save Guardrails settings
+                const piiEnabled = document.getElementById("cfg-pii-enabled");
+                if (piiEnabled) {
+                    if (!cfg.guardrails) cfg.guardrails = {};
+                    if (!cfg.guardrails.pii_detection) cfg.guardrails.pii_detection = {};
+                    cfg.guardrails.pii_detection.enabled = piiEnabled.checked;
+                    const piiAction = document.getElementById("cfg-pii-action");
+                    if (piiAction) cfg.guardrails.pii_detection.action = piiAction.value;
+                }
+                const approvalEnabled = document.getElementById("cfg-approval-enabled");
+                if (approvalEnabled) {
+                    if (!cfg.guardrails) cfg.guardrails = {};
+                    if (!cfg.guardrails.approval) cfg.guardrails.approval = {};
+                    cfg.guardrails.approval.enabled = approvalEnabled.checked;
+                    const approvalRequireFor = document.getElementById("cfg-approval-require-for");
+                    if (approvalRequireFor) cfg.guardrails.approval.require_for = approvalRequireFor.value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+                    const approvalTimeout = document.getElementById("cfg-approval-timeout");
+                    if (approvalTimeout) cfg.guardrails.approval.timeout_sec = parseInt(approvalTimeout.value, 10) || 300;
+                    const approvalDefault = document.getElementById("cfg-approval-default");
+                    if (approvalDefault) cfg.guardrails.approval.default_action = approvalDefault.value;
+                }
+                const inputEnabled = document.getElementById("cfg-input-enabled");
+                if (inputEnabled) {
+                    if (!cfg.guardrails) cfg.guardrails = {};
+                    if (!cfg.guardrails.input_validation) cfg.guardrails.input_validation = {};
+                    cfg.guardrails.input_validation.enabled = inputEnabled.checked;
+                    const inputMaxLen = document.getElementById("cfg-input-max-length");
+                    if (inputMaxLen) cfg.guardrails.input_validation.max_message_length = parseInt(inputMaxLen.value, 10) || 0;
+                    const inputDeny = document.getElementById("cfg-input-deny");
+                    if (inputDeny) cfg.guardrails.input_validation.deny_patterns = inputDeny.value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+                }
+                const outputEnabled = document.getElementById("cfg-output-enabled");
+                if (outputEnabled) {
+                    if (!cfg.guardrails) cfg.guardrails = {};
+                    if (!cfg.guardrails.output_filtering) cfg.guardrails.output_filtering = {};
+                    cfg.guardrails.output_filtering.enabled = outputEnabled.checked;
+                    const outputRedact = document.getElementById("cfg-output-redact");
+                    if (outputRedact) cfg.guardrails.output_filtering.redact_patterns = outputRedact.value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+                }
+                const ratelimitEnabled = document.getElementById("cfg-ratelimit-enabled");
+                if (ratelimitEnabled) {
+                    if (!cfg.guardrails) cfg.guardrails = {};
+                    if (!cfg.guardrails.rate_limiting) cfg.guardrails.rate_limiting = {};
+                    cfg.guardrails.rate_limiting.enabled = ratelimitEnabled.checked;
+                    const ratelimitRpm = document.getElementById("cfg-ratelimit-rpm");
+                    if (ratelimitRpm) cfg.guardrails.rate_limiting.max_rpm = parseInt(ratelimitRpm.value, 10) || 0;
+                    const ratelimitTokens = document.getElementById("cfg-ratelimit-tokens");
+                    if (ratelimitTokens) cfg.guardrails.rate_limiting.max_tokens_per_hour = parseInt(ratelimitTokens.value, 10) || 0;
+                }
+                const injectionEnabled = document.getElementById("cfg-injection-enabled");
+                if (injectionEnabled) {
+                    if (!cfg.guardrails) cfg.guardrails = {};
+                    if (!cfg.guardrails.prompt_injection) cfg.guardrails.prompt_injection = {};
+                    cfg.guardrails.prompt_injection.enabled = injectionEnabled.checked;
+                    const injectionAction = document.getElementById("cfg-injection-action");
+                    if (injectionAction) cfg.guardrails.prompt_injection.action = injectionAction.value;
+                }
+
+                // Save Channels — Email and DM policy
+                const emailEnabled = document.getElementById("cfg-email-enabled");
+                if (emailEnabled) {
+                    if (!cfg.channels.email) cfg.channels.email = {};
+                    cfg.channels.email.enabled = emailEnabled.checked;
+                    const emailImap = document.getElementById("cfg-email-imap");
+                    if (emailImap) cfg.channels.email.imap_server = emailImap.value.trim();
+                    const emailSmtp = document.getElementById("cfg-email-smtp");
+                    if (emailSmtp) cfg.channels.email.smtp_server = emailSmtp.value.trim();
+                    const emailUser = document.getElementById("cfg-email-username");
+                    if (emailUser) cfg.channels.email.username = emailUser.value.trim();
+                    const emailPass = document.getElementById("cfg-email-password");
+                    if (emailPass) cfg.channels.email.password = emailPass.value.trim();
+                    const emailPoll = document.getElementById("cfg-email-poll");
+                    if (emailPoll) cfg.channels.email.poll_interval_sec = parseInt(emailPoll.value, 10) || 0;
+                    const emailAllowFrom = document.getElementById("cfg-email-allow-from");
+                    if (emailAllowFrom) cfg.channels.email.allow_from = emailAllowFrom.value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+                }
+                const tgDmPolicy = document.getElementById("cfg-telegram-dm-policy");
+                if (tgDmPolicy) cfg.channels.telegram.dm_policy = tgDmPolicy.value;
+                const dsDmPolicy = document.getElementById("cfg-discord-dm-policy");
+                if (dsDmPolicy) cfg.channels.discord.dm_policy = dsDmPolicy.value;
+
+                // Save Webhooks
+                const webhookRows = document.querySelectorAll('.webhook-row');
+                if (webhookRows.length > 0 || document.getElementById('webhooks-list')) {
+                    cfg.webhooks = [];
+                    webhookRows.forEach(function(row) {
+                        cfg.webhooks.push({
+                            url: row.querySelector('.webhook-url').value.trim(),
+                            secret: row.querySelector('.webhook-secret').value.trim(),
+                            events: Array.from(row.querySelectorAll('.webhook-event:checked')).map(function(cb) { return cb.value; }),
+                            enabled: row.querySelector('.webhook-enabled').checked,
+                        });
+                    });
+                }
+
+                // Save Digests
+                const digestRows = document.querySelectorAll('.digest-row');
+                if (digestRows.length > 0 || document.getElementById('digests-list')) {
+                    cfg.digests = [];
+                    digestRows.forEach(function(row) {
+                        cfg.digests.push({
+                            period: row.querySelector('.digest-period').value,
+                            channel: row.querySelector('.digest-channel').value,
+                            chat_id: row.querySelector('.digest-chatid').value.trim(),
+                            include_memory: row.querySelector('.digest-memory').checked,
+                            include_usage: row.querySelector('.digest-usage').checked,
+                        });
+                    });
+                }
+
+                // Save Triggers
+                const whTriggerRows = document.querySelectorAll('.wh-trigger-row');
+                const fwTriggerRows = document.querySelectorAll('.fw-trigger-row');
+                const ptTriggerRows = document.querySelectorAll('.pt-trigger-row');
+                if (whTriggerRows.length > 0 || fwTriggerRows.length > 0 || ptTriggerRows.length > 0 || document.getElementById('wh-trigger-list')) {
+                    if (!cfg.triggers) cfg.triggers = {};
+                    cfg.triggers.webhooks = [];
+                    whTriggerRows.forEach(function(row) {
+                        cfg.triggers.webhooks.push({
+                            path: row.querySelector('.wh-trigger-path').value.trim(),
+                            agent_id: row.querySelector('.wh-trigger-agent').value.trim(),
+                            secret: row.querySelector('.wh-trigger-secret').value.trim(),
+                        });
+                    });
+                    cfg.triggers.file_watch = [];
+                    fwTriggerRows.forEach(function(row) {
+                        cfg.triggers.file_watch.push({
+                            path: row.querySelector('.fw-trigger-path').value.trim(),
+                            pattern: row.querySelector('.fw-trigger-pattern').value.trim(),
+                            agent_id: row.querySelector('.fw-trigger-agent').value.trim(),
+                            prompt: row.querySelector('.fw-trigger-prompt').value.trim(),
+                        });
+                    });
+                    cfg.triggers.patterns = [];
+                    ptTriggerRows.forEach(function(row) {
+                        cfg.triggers.patterns.push({
+                            regex: row.querySelector('.pt-trigger-regex').value.trim(),
+                            agent_id: row.querySelector('.pt-trigger-agent').value.trim(),
+                            prompt: row.querySelector('.pt-trigger-prompt').value.trim(),
+                        });
+                    });
+                }
+
+                // Save Personas
+                const personaRows = document.querySelectorAll('.persona-row');
+                if (personaRows.length > 0 || document.getElementById('personas-list')) {
+                    if (!cfg.agents.defaults.personas) cfg.agents.defaults.personas = {};
+                    const newPersonas = {};
+                    personaRows.forEach(function(row) {
+                        const pName = row.querySelector('.persona-name').value.trim();
+                        if (!pName) return;
+                        newPersonas[pName] = {
+                            description: row.querySelector('.persona-description').value.trim(),
+                            system_prompt: row.querySelector('.persona-prompt').value,
+                            model: row.querySelector('.persona-model').value.trim(),
+                            allowed_tools: row.querySelector('.persona-tools').value.split(',').map(function(s) { return s.trim(); }).filter(Boolean),
+                        };
+                    });
+                    cfg.agents.defaults.personas = newPersonas;
+                }
+
                 validateChannelSettings();
 
                 const saveRes = await fetch("/api/config", {
@@ -2255,6 +2979,8 @@
             chatInput.addEventListener("keypress", (e) => {
                 if (e.key === "Enter") sendChat();
             });
+            // Also set up paste handler if available
+            if (typeof setupPasteHandler === 'function') setupPasteHandler();
         }
         attachChatInputHandler();
 
@@ -2465,6 +3191,26 @@
                                     'composing response';
                             }
                         }
+                        // Show token usage in chat (only if usage has numeric fields)
+                        if (typeof window.showTokenUsage === 'function' && d.usage && typeof d.usage === 'object') {
+                            window.showTokenUsage(d.usage);
+                        }
+                    } else if (d.type === 'suggestions' && d.suggestions) {
+                        // Show quick reply suggestions in chat (only with valid data)
+                        if (typeof window.showChatSuggestions === 'function') {
+                            window.showChatSuggestions(d.suggestions);
+                        }
+                    }
+
+                    // Refresh goal/plan panels on relevant events
+                    if (d.type === 'goal_step_start' || d.type === 'goal_step_end' ||
+                        d.type === 'goal_completed' || d.type === 'goal_evaluation_start' ||
+                        d.type === 'tool_call_end' || d.type === 'agent_done' ||
+                        d.type === 'subagent_task_end' ||
+                        d.type === 'plan_step_assigned' || d.type === 'plan_step_done') {
+                        if (typeof window._chatGoalPlanRefresh === 'function') window._chatGoalPlanRefresh();
+                        if (typeof window._goalsRefresh === 'function') window._goalsRefresh();
+                        if (typeof window._goalsPlanEvent === 'function') window._goalsPlanEvent(d);
                     }
 
                     // Handle agent status updates for sidebar cards
@@ -2480,6 +3226,16 @@
                                 taskEl.classList.add('hidden');
                             }
                         }
+                    }
+
+                    // Forward to pixel agents if handler registered
+                    if (typeof window._pxHandleEvent === 'function') {
+                        window._pxHandleEvent(d);
+                    }
+
+                    // Forward to notification inbox
+                    if (typeof window._handleNotifEvent === 'function') {
+                        window._handleNotifEvent(d);
                     }
 
                     // Forward to monitor page if active, otherwise buffer

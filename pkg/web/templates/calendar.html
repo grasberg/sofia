@@ -1,0 +1,554 @@
+<!-- CALENDAR TAB (HTMX Partial) -->
+<div id="tab-calendar" class="flex flex-col flex-grow min-h-0 animate-fade-in relative z-10 w-full h-full pb-4 max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="px-6 py-5 border-b border-[var(--border-color)] bg-[var(--bg-main)]/50 backdrop-blur shrink-0 flex items-center justify-between sticky top-0 z-20">
+        <div>
+            <h2 class="text-xl font-bold tracking-tight text-[var(--text-main)] flex items-center gap-2">
+                <i data-lucide="calendar" class="w-5 h-5 text-sofia"></i>
+                Schedule
+            </h2>
+            <p class="text-xs text-zinc-500 mt-1">Cron jobs, heartbeat windows, and upcoming events.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="calNavPrev()" class="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-[var(--text-main)] transition-colors border border-transparent hover:border-zinc-700">
+                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+            </button>
+            <button onclick="calNavToday()" class="px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-zinc-800 text-zinc-400 hover:text-[var(--text-main)] transition-colors border border-transparent hover:border-zinc-700">
+                Today
+            </button>
+            <button onclick="calNavNext()" class="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-[var(--text-main)] transition-colors border border-transparent hover:border-zinc-700">
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+            <span id="cal-week-label" class="text-xs font-mono text-zinc-500 ml-2"></span>
+        </div>
+    </div>
+
+    <div class="flex-grow overflow-y-auto px-6 py-4 space-y-5">
+        <!-- Upcoming Events -->
+        <div class="max-w-5xl mx-auto">
+            <div class="flex items-center gap-2 mb-3">
+                <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
+                <span class="text-xs font-bold uppercase tracking-widest text-zinc-500">Upcoming (Next 24h)</span>
+            </div>
+            <div id="cal-upcoming" class="flex flex-wrap gap-2">
+                <div id="cal-upcoming-empty" class="text-xs text-zinc-600 font-mono py-3">No events in the next 24 hours.</div>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="max-w-5xl mx-auto flex flex-wrap gap-4">
+            <div class="flex items-center gap-2 text-[11px] text-zinc-500">
+                <div class="w-3 h-3 rounded-sm bg-sofia/20 border border-sofia/40"></div>
+                Heartbeat active window
+            </div>
+            <div class="flex items-center gap-2 text-[11px] text-zinc-500">
+                <div class="w-3 h-3 rounded-sm bg-blue-500/30 border border-blue-500/50"></div>
+                Cron job
+            </div>
+            <div class="flex items-center gap-2 text-[11px] text-zinc-500">
+                <div class="w-3 h-3 rounded-sm bg-amber-500/30 border border-amber-500/50"></div>
+                One-time / interval job
+            </div>
+        </div>
+
+        <!-- Weekly Grid -->
+        <div class="max-w-5xl mx-auto">
+            <div id="cal-grid" class="border border-[var(--border-color)] rounded-xl overflow-hidden bg-zinc-950/40">
+                <!-- Header row: days -->
+                <div id="cal-header" class="grid grid-cols-8 border-b border-[var(--border-color)]">
+                    <div class="p-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600 border-r border-[var(--border-color)]"></div>
+                    <!-- Day headers injected by JS -->
+                </div>
+                <!-- Time rows -->
+                <div id="cal-body" class="relative">
+                    <!-- Rows injected by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Job Details -->
+        <div class="max-w-5xl mx-auto">
+            <div class="flex items-center gap-2 mb-3">
+                <i data-lucide="list" class="w-4 h-4 text-zinc-400"></i>
+                <span class="text-xs font-bold uppercase tracking-widest text-zinc-500">All Scheduled Items</span>
+            </div>
+            <div id="cal-job-list" class="space-y-2">
+                <div id="cal-job-empty" class="text-xs text-zinc-600 font-mono py-3">Loading...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    lucide.createIcons();
+
+    // State
+    let calWeekOffset = 0; // 0 = this week
+    let calCronJobs = [];
+    let calHeartbeatCfg = null;
+
+    const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+    // Navigation
+    function calNavPrev() { calWeekOffset--; renderCalendar(); }
+    function calNavNext() { calWeekOffset++; renderCalendar(); }
+    function calNavToday() { calWeekOffset = 0; renderCalendar(); }
+
+    // Get Monday of the target week
+    function getWeekStart() {
+        const now = new Date();
+        const day = now.getDay(); // 0=Sun, 1=Mon...
+        const diff = (day === 0 ? -6 : 1 - day) + (calWeekOffset * 7);
+        const monday = new Date(now);
+        monday.setDate(now.getDate() + diff);
+        monday.setHours(0, 0, 0, 0);
+        return monday;
+    }
+
+    // Parse cron expression to get firing times for a given day
+    // Handles: minute hour dom month dow (5-field)
+    function cronFiringsForDay(expr, date) {
+        if (!expr) return [];
+        const parts = expr.trim().split(/\s+/);
+        if (parts.length < 5) return [];
+
+        const [minF, hourF, , , dowF] = parts;
+
+        // Check day of week
+        const jsDow = date.getDay(); // 0=Sun
+        if (!fieldMatches(dowF, jsDow === 0 ? 7 : jsDow, 1, 7) && !fieldMatches(dowF, jsDow, 0, 6)) return [];
+
+        const hours = expandField(hourF, 0, 23);
+        const mins = expandField(minF, 0, 59);
+        const results = [];
+        for (const h of hours) {
+            for (const m of mins) {
+                results.push({ hour: h, minute: m });
+            }
+        }
+        return results;
+    }
+
+    function fieldMatches(field, value, min, max) {
+        if (field === '*') return true;
+        const expanded = expandField(field, min, max);
+        return expanded.includes(value);
+    }
+
+    function expandField(field, min, max) {
+        if (field === '*') {
+            return Array.from({ length: max - min + 1 }, (_, i) => i + min);
+        }
+        const results = new Set();
+        field.split(',').forEach(function(part) {
+            // Handle step: */5 or 1-10/2
+            const stepParts = part.split('/');
+            const step = stepParts.length > 1 ? parseInt(stepParts[1], 10) : 1;
+            let range = stepParts[0];
+
+            if (range === '*') {
+                for (let i = min; i <= max; i += step) results.add(i);
+            } else if (range.includes('-')) {
+                const [a, b] = range.split('-').map(Number);
+                for (let i = a; i <= b; i += step) results.add(i);
+            } else {
+                results.add(parseInt(range, 10));
+            }
+        });
+        return Array.from(results).sort(function(a, b) { return a - b; });
+    }
+
+    // Check if heartbeat is active for a given day and hour
+    function heartbeatActiveAt(day, hour) {
+        if (!calHeartbeatCfg || !calHeartbeatCfg.enabled) return false;
+
+        // Check active days
+        const activeDays = (calHeartbeatCfg.active_days || []).map(function(d) { return d.toLowerCase(); });
+        if (activeDays.length > 0 && !activeDays.includes(DAY_FULL[day].toLowerCase())) return false;
+
+        // Check active hours
+        const hours = calHeartbeatCfg.active_hours || '';
+        if (!hours || !hours.includes('-')) return true; // No restriction = always active
+        const [startStr, endStr] = hours.split('-');
+        const startH = parseInt(startStr.split(':')[0], 10);
+        const endH = parseInt(endStr.split(':')[0], 10);
+        return hour >= startH && hour < endH;
+    }
+
+    // Get heartbeat firing times for a given day
+    function heartbeatFiringsForDay(dayIndex) {
+        if (!calHeartbeatCfg || !calHeartbeatCfg.enabled) return [];
+
+        const activeDays = (calHeartbeatCfg.active_days || []).map(function(d) { return d.toLowerCase(); });
+        if (activeDays.length > 0 && !activeDays.includes(DAY_FULL[dayIndex].toLowerCase())) return [];
+
+        const interval = calHeartbeatCfg.interval || 30;
+        const hours = calHeartbeatCfg.active_hours || '';
+        let startH = 0, endH = 24;
+        if (hours && hours.includes('-')) {
+            const [s, e] = hours.split('-');
+            startH = parseInt(s.split(':')[0], 10);
+            endH = parseInt(e.split(':')[0], 10);
+        }
+
+        const firings = [];
+        let minuteOfDay = startH * 60;
+        const endMinute = endH * 60;
+        while (minuteOfDay < endMinute) {
+            firings.push({ hour: Math.floor(minuteOfDay / 60), minute: minuteOfDay % 60 });
+            minuteOfDay += interval;
+        }
+        return firings;
+    }
+
+    // Render
+    function renderCalendar() {
+        const monday = getWeekStart();
+
+        // Week label
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        const fmt = function(d) { return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
+        document.getElementById('cal-week-label').textContent = fmt(monday) + ' — ' + fmt(sunday);
+
+        // Header
+        const header = document.getElementById('cal-header');
+        header.innerHTML = '<div class="p-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600 border-r border-[var(--border-color)]"></div>';
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        for (let d = 0; d < 7; d++) {
+            const date = new Date(monday);
+            date.setDate(monday.getDate() + d);
+            const isToday = date.getTime() === today.getTime();
+            const dayEl = document.createElement('div');
+            dayEl.className = 'p-2 text-center border-r border-[var(--border-color)] last:border-r-0' +
+                (isToday ? ' bg-sofia/5' : '');
+            dayEl.innerHTML =
+                '<div class="text-[10px] font-bold uppercase tracking-widest ' + (isToday ? 'text-sofia' : 'text-zinc-500') + '">' + DAY_NAMES[d] + '</div>' +
+                '<div class="text-[11px] font-mono ' + (isToday ? 'text-sofia' : 'text-zinc-600') + '">' + date.getDate() + '</div>';
+            header.appendChild(dayEl);
+        }
+
+        // Body (hour rows)
+        const body = document.getElementById('cal-body');
+        body.innerHTML = '';
+
+        // Collect all events per cell
+        const cellEvents = {}; // key: "d-h" -> array of events
+        for (let d = 0; d < 7; d++) {
+            for (let h = 0; h < 24; h++) {
+                cellEvents[d + '-' + h] = [];
+            }
+        }
+
+        // Heartbeat events
+        for (let d = 0; d < 7; d++) {
+            const firings = heartbeatFiringsForDay(d);
+            firings.forEach(function(f) {
+                cellEvents[d + '-' + f.hour].push({ type: 'heartbeat', minute: f.minute });
+            });
+        }
+
+        // Cron job events
+        calCronJobs.forEach(function(job) {
+            if (!job.enabled) return;
+            if (job.schedule && job.schedule.kind === 'cron' && job.schedule.expr) {
+                for (let d = 0; d < 7; d++) {
+                    const date = new Date(monday);
+                    date.setDate(monday.getDate() + d);
+                    const firings = cronFiringsForDay(job.schedule.expr, date);
+                    firings.forEach(function(f) {
+                        cellEvents[d + '-' + f.hour].push({ type: 'cron', name: job.name, minute: f.minute });
+                    });
+                }
+            } else if (job.schedule && job.schedule.kind === 'every' && job.schedule.everyMs) {
+                // Interval jobs: mark approximate occurrences
+                const intervalH = job.schedule.everyMs / 3600000;
+                if (intervalH >= 1) {
+                    for (let d = 0; d < 7; d++) {
+                        for (let h = 0; h < 24; h += Math.max(1, Math.floor(intervalH))) {
+                            cellEvents[d + '-' + h].push({ type: 'interval', name: job.name, minute: 0 });
+                        }
+                    }
+                }
+            } else if (job.schedule && job.schedule.kind === 'at' && job.schedule.atMs) {
+                const atDate = new Date(job.schedule.atMs);
+                const atDay = (atDate.getDay() === 0 ? 6 : atDate.getDay() - 1);
+                const weekDay = new Date(monday);
+                weekDay.setDate(monday.getDate() + atDay);
+                if (atDate >= monday && atDate <= sunday) {
+                    cellEvents[atDay + '-' + atDate.getHours()].push({ type: 'at', name: job.name, minute: atDate.getMinutes() });
+                }
+            }
+        });
+
+        // Determine visible hour range (collapse empty rows)
+        let minHour = 23, maxHour = 0;
+        for (let d = 0; d < 7; d++) {
+            for (let h = 0; h < 24; h++) {
+                if (cellEvents[d + '-' + h].length > 0 || heartbeatActiveAt(d, h)) {
+                    minHour = Math.min(minHour, h);
+                    maxHour = Math.max(maxHour, h);
+                }
+            }
+        }
+        // Ensure at least some range, pad by 1
+        if (minHour > maxHour) { minHour = 8; maxHour = 18; }
+        minHour = Math.max(0, minHour - 1);
+        maxHour = Math.min(23, maxHour + 1);
+
+        for (let h = minHour; h <= maxHour; h++) {
+            const row = document.createElement('div');
+            row.className = 'grid grid-cols-8 border-b border-[var(--border-color)] last:border-b-0';
+
+            // Time label
+            const timeCell = document.createElement('div');
+            timeCell.className = 'p-1.5 text-[10px] font-mono text-zinc-600 border-r border-[var(--border-color)] text-right pr-2 w-full';
+            timeCell.textContent = String(h).padStart(2, '0') + ':00';
+            row.appendChild(timeCell);
+
+            for (let d = 0; d < 7; d++) {
+                const cell = document.createElement('div');
+                const isHbActive = heartbeatActiveAt(d, h);
+                const events = cellEvents[d + '-' + h];
+                const date = new Date(monday);
+                date.setDate(monday.getDate() + d);
+                const isTodayCol = date.getTime() === today.getTime();
+
+                let bgClass = '';
+                if (isHbActive) bgClass = 'bg-sofia/[0.04]';
+                if (isTodayCol && isHbActive) bgClass = 'bg-sofia/[0.07]';
+                else if (isTodayCol) bgClass = 'bg-sofia/[0.02]';
+
+                cell.className = 'p-1 border-r border-[var(--border-color)] last:border-r-0 min-h-[28px] ' + bgClass;
+
+                if (events.length > 0) {
+                    events.forEach(function(evt) {
+                        const dot = document.createElement('div');
+                        const timeStr = String(h).padStart(2, '0') + ':' + String(evt.minute).padStart(2, '0');
+                        if (evt.type === 'heartbeat') {
+                            dot.className = 'inline-block w-1.5 h-1.5 rounded-full bg-sofia/50 mr-0.5 mb-0.5';
+                            dot.title = 'Heartbeat at ' + timeStr;
+                        } else if (evt.type === 'cron') {
+                            dot.className = 'inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[8px] font-mono bg-blue-500/20 text-blue-400 border border-blue-500/30 mr-0.5 mb-0.5 truncate max-w-full';
+                            dot.textContent = evt.name || 'cron';
+                            dot.title = evt.name + ' at ' + timeStr;
+                        } else if (evt.type === 'interval') {
+                            dot.className = 'inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[8px] font-mono bg-amber-500/20 text-amber-400 border border-amber-500/30 mr-0.5 mb-0.5 truncate max-w-full';
+                            dot.textContent = evt.name || 'interval';
+                            dot.title = evt.name + ' (every ' + Math.round(calCronJobs.find(function(j) { return j.name === evt.name; })?.schedule?.everyMs / 60000 || 0) + 'm)';
+                        } else if (evt.type === 'at') {
+                            dot.className = 'inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[8px] font-mono bg-amber-500/20 text-amber-400 border border-amber-500/30 mr-0.5 mb-0.5 truncate max-w-full';
+                            dot.textContent = evt.name || 'once';
+                            dot.title = evt.name + ' at ' + timeStr + ' (one-time)';
+                        }
+                        cell.appendChild(dot);
+                    });
+                }
+                row.appendChild(cell);
+            }
+            body.appendChild(row);
+        }
+
+        renderUpcoming(monday);
+        renderJobList();
+    }
+
+    // Render upcoming events (next 24h)
+    function renderUpcoming(monday) {
+        const container = document.getElementById('cal-upcoming');
+        const empty = document.getElementById('cal-upcoming-empty');
+        container.querySelectorAll('.cal-event').forEach(function(el) { el.remove(); });
+
+        const now = new Date();
+        const end = new Date(now.getTime() + 24 * 3600 * 1000);
+        const events = [];
+
+        // Heartbeat events in next 24h
+        if (calHeartbeatCfg && calHeartbeatCfg.enabled) {
+            const interval = (calHeartbeatCfg.interval || 30) * 60000;
+            let t = new Date(now);
+            // Round up to next interval
+            t.setMinutes(Math.ceil(t.getMinutes() / (calHeartbeatCfg.interval || 30)) * (calHeartbeatCfg.interval || 30), 0, 0);
+            while (t < end) {
+                const dayIndex = t.getDay() === 0 ? 6 : t.getDay() - 1;
+                if (heartbeatActiveAt(dayIndex, t.getHours())) {
+                    events.push({ time: new Date(t), type: 'heartbeat', name: 'Heartbeat' });
+                }
+                t = new Date(t.getTime() + interval);
+            }
+        }
+
+        // Cron job events in next 24h
+        calCronJobs.forEach(function(job) {
+            if (!job.enabled) return;
+            if (job.schedule && job.schedule.kind === 'cron' && job.schedule.expr) {
+                // Check today and tomorrow
+                for (let dayOff = 0; dayOff <= 1; dayOff++) {
+                    const date = new Date(now);
+                    date.setDate(now.getDate() + dayOff);
+                    date.setHours(0, 0, 0, 0);
+                    const firings = cronFiringsForDay(job.schedule.expr, date);
+                    firings.forEach(function(f) {
+                        const ft = new Date(date);
+                        ft.setHours(f.hour, f.minute, 0, 0);
+                        if (ft > now && ft < end) {
+                            events.push({ time: ft, type: 'cron', name: job.name });
+                        }
+                    });
+                }
+            }
+            // Next run from state
+            if (job.state && job.state.nextRunAtMs) {
+                const nr = new Date(job.state.nextRunAtMs);
+                if (nr > now && nr < end) {
+                    // Avoid duplicate if already computed from expr
+                    const isDupe = events.some(function(e) { return e.name === job.name && Math.abs(e.time - nr) < 60000; });
+                    if (!isDupe) {
+                        events.push({ time: nr, type: job.schedule.kind === 'cron' ? 'cron' : 'interval', name: job.name });
+                    }
+                }
+            }
+        });
+
+        events.sort(function(a, b) { return a.time - b.time; });
+
+        // Show max 20
+        const shown = events.slice(0, 20);
+        if (shown.length === 0) {
+            if (empty) empty.style.display = '';
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        shown.forEach(function(evt) {
+            const el = document.createElement('div');
+            el.className = 'cal-event flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-mono';
+            if (evt.type === 'heartbeat') {
+                el.className += ' border-sofia/30 bg-sofia/5 text-sofia';
+            } else if (evt.type === 'cron') {
+                el.className += ' border-blue-500/30 bg-blue-500/5 text-blue-400';
+            } else {
+                el.className += ' border-amber-500/30 bg-amber-500/5 text-amber-400';
+            }
+            const timeStr = evt.time.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+            const dayStr = evt.time.toLocaleDateString('en-US', { weekday: 'short' });
+            el.innerHTML = '<span class="text-zinc-500">' + dayStr + '</span> <span class="font-bold">' + timeStr + '</span> ' + escapeHtml(evt.name);
+            container.appendChild(el);
+        });
+    }
+
+    // Render job list
+    function renderJobList() {
+        const list = document.getElementById('cal-job-list');
+        const empty = document.getElementById('cal-job-empty');
+        list.querySelectorAll('.cal-job-item').forEach(function(el) { el.remove(); });
+
+        const items = [];
+
+        // Heartbeat as an item
+        if (calHeartbeatCfg && calHeartbeatCfg.enabled) {
+            items.push({
+                name: 'Heartbeat',
+                type: 'heartbeat',
+                schedule: 'Every ' + (calHeartbeatCfg.interval || 30) + 'min',
+                window: calHeartbeatCfg.active_hours || 'Always',
+                days: (calHeartbeatCfg.active_days || []).join(', ') || 'Every day',
+                enabled: true,
+            });
+        }
+
+        // Cron jobs
+        calCronJobs.forEach(function(job) {
+            let schedStr = '';
+            if (job.schedule) {
+                if (job.schedule.kind === 'cron') schedStr = job.schedule.expr || '';
+                else if (job.schedule.kind === 'every') schedStr = 'Every ' + Math.round((job.schedule.everyMs || 0) / 60000) + 'min';
+                else if (job.schedule.kind === 'at') schedStr = 'Once at ' + new Date(job.schedule.atMs || 0).toLocaleString();
+            }
+            const nextRun = job.state && job.state.nextRunAtMs ? new Date(job.state.nextRunAtMs).toLocaleString() : '—';
+            const lastRun = job.state && job.state.lastRunAtMs ? new Date(job.state.lastRunAtMs).toLocaleString() : '—';
+            items.push({
+                name: job.name,
+                type: job.schedule ? job.schedule.kind : '?',
+                schedule: schedStr,
+                nextRun: nextRun,
+                lastRun: lastRun,
+                lastStatus: job.state ? job.state.lastStatus : '',
+                enabled: job.enabled,
+                message: (job.payload && job.payload.message) || '',
+            });
+        });
+
+        if (items.length === 0) {
+            if (empty) { empty.style.display = ''; empty.textContent = 'No scheduled items. Configure heartbeat or add cron jobs to see them here.'; }
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        items.forEach(function(item) {
+            const el = document.createElement('div');
+            el.className = 'cal-job-item flex items-center gap-4 p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]';
+
+            let iconColor, iconName, badgeColor;
+            if (item.type === 'heartbeat') { iconColor = 'text-sofia'; iconName = 'heart-pulse'; badgeColor = 'bg-sofia/10 text-sofia'; }
+            else if (item.type === 'cron') { iconColor = 'text-blue-400'; iconName = 'clock'; badgeColor = 'bg-blue-500/10 text-blue-400'; }
+            else { iconColor = 'text-amber-400'; iconName = 'timer'; badgeColor = 'bg-amber-500/10 text-amber-400'; }
+
+            const statusDot = !item.enabled ? '<span class="w-2 h-2 rounded-full bg-zinc-600 shrink-0" title="Disabled"></span>'
+                : item.lastStatus === 'error' ? '<span class="w-2 h-2 rounded-full bg-red-500 shrink-0" title="Last run failed"></span>'
+                : '<span class="w-2 h-2 rounded-full bg-green-500 shrink-0" title="Active"></span>';
+
+            el.innerHTML =
+                statusDot +
+                '<div class="w-7 h-7 rounded-lg bg-zinc-900 flex items-center justify-center shrink-0 ' + iconColor + '">' +
+                '  <i data-lucide="' + iconName + '" class="w-4 h-4"></i>' +
+                '</div>' +
+                '<div class="flex-grow min-w-0">' +
+                '  <div class="flex items-center gap-2">' +
+                '    <span class="text-sm font-semibold text-[var(--text-main)]">' + escapeHtml(item.name) + '</span>' +
+                '    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest ' + badgeColor + '">' + escapeHtml(item.type) + '</span>' +
+                (!item.enabled ? '<span class="text-[9px] text-zinc-600">DISABLED</span>' : '') +
+                '  </div>' +
+                '  <div class="text-[11px] text-zinc-500 font-mono mt-0.5">' + escapeHtml(item.schedule) +
+                (item.window ? ' · ' + escapeHtml(item.window) : '') +
+                (item.days ? ' · ' + escapeHtml(item.days) : '') +
+                '  </div>' +
+                (item.message ? '<div class="text-[11px] text-zinc-600 truncate mt-0.5">' + escapeHtml(item.message) + '</div>' : '') +
+                '</div>' +
+                '<div class="text-right shrink-0 space-y-0.5">' +
+                (item.nextRun ? '<div class="text-[10px] text-zinc-500"><span class="text-zinc-600">Next:</span> ' + escapeHtml(item.nextRun) + '</div>' : '') +
+                (item.lastRun ? '<div class="text-[10px] text-zinc-600"><span class="text-zinc-700">Last:</span> ' + escapeHtml(item.lastRun) + '</div>' : '') +
+                '</div>';
+
+            list.appendChild(el);
+        });
+        lucide.createIcons({ root: list });
+    }
+
+    // Fetch data
+    async function fetchCalendarData() {
+        try {
+            const [cronRes, cfgRes] = await Promise.all([
+                fetch('/api/cron'),
+                fetch('/api/config')
+            ]);
+            if (cronRes.ok) {
+                calCronJobs = await cronRes.json();
+                if (!Array.isArray(calCronJobs)) calCronJobs = [];
+            }
+            if (cfgRes.ok) {
+                const cfg = await cfgRes.json();
+                calHeartbeatCfg = cfg.heartbeat || null;
+            }
+        } catch (e) {
+            console.error('Failed to fetch calendar data:', e);
+        }
+        renderCalendar();
+    }
+
+    fetchCalendarData();
+</script>

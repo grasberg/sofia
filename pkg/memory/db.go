@@ -874,6 +874,44 @@ func (m *MemoryDB) GetEdges(agentID string, nodeID int64) ([]SemanticEdge, error
 	return edges, rows.Err()
 }
 
+// ListEdges returns all edges for an agent, with source/target names populated.
+func (m *MemoryDB) ListEdges(agentID string, limit int) ([]SemanticEdge, error) {
+	if limit <= 0 {
+		limit = 500
+	}
+	rows, err := m.db.Query(
+		`SELECT e.id, e.agent_id, e.source_id, e.target_id, e.relation, e.weight, e.properties,
+		        e.created_at, e.updated_at,
+		        s.name, s.label, t.name, t.label
+		 FROM semantic_edges e
+		 JOIN semantic_nodes s ON s.id = e.source_id
+		 JOIN semantic_nodes t ON t.id = e.target_id
+		 WHERE e.agent_id = ?
+		 ORDER BY e.weight DESC
+		 LIMIT ?`,
+		agentID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("memory: list edges: %w", err)
+	}
+	defer rows.Close()
+
+	var edges []SemanticEdge
+	for rows.Next() {
+		var e SemanticEdge
+		var created, updated string
+		if err = rows.Scan(&e.ID, &e.AgentID, &e.SourceID, &e.TargetID, &e.Relation,
+			&e.Weight, &e.Properties, &created, &updated,
+			&e.SourceName, &e.SourceLabel, &e.TargetName, &e.TargetLabel); err != nil {
+			return nil, fmt.Errorf("memory: scan edge: %w", err)
+		}
+		e.CreatedAt, _ = time.Parse(time.RFC3339, created)
+		e.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
+		edges = append(edges, e)
+	}
+	return edges, rows.Err()
+}
+
 // ReinforceEdge increases an edge's weight by delta (capped at 1.0).
 // Errors are intentionally ignored — this is a best-effort update.
 func (m *MemoryDB) ReinforceEdge(edgeID int64, delta float64) {

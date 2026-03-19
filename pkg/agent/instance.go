@@ -72,6 +72,8 @@ func NewAgentInstance(
 	toolsRegistry.Register(tools.NewEditFileTool(workspace, restrict))
 	toolsRegistry.Register(tools.NewAppendFileTool(workspace, restrict))
 	toolsRegistry.Register(tools.NewImageAnalyzeTool(workspace, restrict))
+	toolsRegistry.Register(tools.NewScreenshotTool(workspace))
+	toolsRegistry.Register(tools.NewDocGenTool(workspace))
 	toolsRegistry.Register(tools.NewSearchHistoryTool(memDB))
 
 	if mcpManager != nil {

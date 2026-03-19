@@ -1,0 +1,123 @@
+<div id="settings-subtab-evolution" class="h-full flex flex-col">
+    <div class="flex-grow min-h-0 overflow-y-auto pr-2 space-y-4">
+        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-4">Evolution Engine</h3>
+
+            <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                <div class="flex items-start justify-between">
+                    <div class="space-y-1 pr-6">
+                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable Evolution</h4>
+                        <p class="text-[11px] leading-relaxed text-zinc-500">
+                            Self-improving engine that analyzes performance, optimizes prompts, and evolves agent configurations over time.
+                        </p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                        <input type="checkbox" id="cfg-evolution-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Check Interval (minutes)</label>
+                    <input type="range" id="cfg-evolution-interval" min="5" max="120" value="30" oninput="document.getElementById('cfg-evolution-interval-val').textContent=this.value" onchange="saveConfig()"
+                        class="w-full h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-sofia">
+                    <div class="text-[11px] text-zinc-400 font-mono text-right">Every <span id="cfg-evolution-interval-val">30</span> min</div>
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Max Cost Per Day (USD)</label>
+                    <input type="number" id="cfg-evolution-max-cost" step="0.01" min="0" placeholder="1.00"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                    <div class="flex items-start justify-between">
+                        <div class="space-y-1 pr-6">
+                            <h4 class="text-sm font-semibold text-[var(--text-main)]">Self-Modify</h4>
+                            <p class="text-[11px] leading-relaxed text-zinc-500">Allow the engine to modify its own configuration files.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                            <input type="checkbox" id="cfg-evolution-self-modify" class="sr-only peer" onchange="saveConfig()">
+                            <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                        </label>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Max Evolved Agents</label>
+                    <input type="number" id="cfg-evolution-max-agents" min="1" max="50" placeholder="10"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                </div>
+            </div>
+        </div>
+
+        <details class="text-sm bg-black/5 border border-[var(--border-color)] rounded-xl group">
+            <summary class="text-[11px] font-bold uppercase tracking-widest text-zinc-500 cursor-pointer p-4 flex justify-between group-open:border-b group-open:border-[var(--border-color)]">
+                Agent Retirement
+                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform group-open:rotate-180"></i>
+            </summary>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Score Threshold (0-1)</label>
+                    <input type="number" id="cfg-evolution-retire-threshold" step="0.05" min="0" max="1" placeholder="0.3"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Min Tasks Before Retire</label>
+                    <input type="number" id="cfg-evolution-retire-min-tasks" min="1" placeholder="10"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Inactive Days Before Retire</label>
+                    <input type="number" id="cfg-evolution-retire-inactive" min="1" placeholder="7"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                </div>
+            </div>
+        </details>
+
+        <details class="text-sm bg-black/5 border border-[var(--border-color)] rounded-xl group">
+            <summary class="text-[11px] font-bold uppercase tracking-widest text-zinc-500 cursor-pointer p-4 flex justify-between group-open:border-b group-open:border-[var(--border-color)]">
+                Daily Summary
+                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform group-open:rotate-180"></i>
+            </summary>
+            <div class="p-4 space-y-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-[var(--text-main)]">Enable daily summary reports</span>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="cfg-evolution-summary-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Time (HH:MM)</label>
+                        <input type="text" id="cfg-evolution-summary-time" placeholder="09:00"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Channel</label>
+                        <select id="cfg-evolution-summary-channel"
+                            class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                            <option value="">Select channel</option>
+                            <option value="telegram">Telegram</option>
+                            <option value="discord">Discord</option>
+                            <option value="web">Web</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Chat ID</label>
+                        <input type="text" id="cfg-evolution-summary-chatid" placeholder="Chat ID"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <button onclick="saveConfig()" class="mt-2 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            Save changes
+        </button>
+    </div>
+</div>

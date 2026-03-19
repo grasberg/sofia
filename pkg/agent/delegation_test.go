@@ -34,21 +34,18 @@ func TestScoreCandidate_PartialSkillsMatch(t *testing.T) {
 func TestScoreCandidate_NoSkillsButPurpose(t *testing.T) {
 	agent := makeTestAgent("researcher", "Researcher", "", nil,
 		"Handles research queries about science and history.")
-	// "research", "science" both present in message → 2/5 significant words ≈ 0.10
 	score := scoreCandidate(agent, "can you do research on science topics")
 	assert.Greater(t, score, 0.0, "purpose overlap should yield a positive score")
 }
 
 func TestScoreCandidate_NameHint(t *testing.T) {
 	agent := makeTestAgent("johanna", "Johanna", "", nil, "")
-	// Name appears verbatim → hints component = 0.15
 	score := scoreCandidate(agent, "ask johanna to write a report")
 	assert.InDelta(t, 0.15, score, 0.01, "name mention should yield ~0.15")
 }
 
 func TestScoreCandidate_TemplateHint(t *testing.T) {
 	agent := makeTestAgent("researcher", "Researcher", "research-assistant", nil, "")
-	// Template slug present in message
 	score := scoreCandidate(agent, "use research-assistant for this task")
 	assert.InDelta(t, 0.15, score, 0.01, "template mention should yield ~0.15")
 }
@@ -59,13 +56,8 @@ func TestScoreCandidate_NoMatch(t *testing.T) {
 	assert.Less(t, score, delegationThreshold, "unrelated message should score below threshold")
 }
 
-// --- delegateTo integration tests ---
+// --- delegateToAll integration tests ---
 
-// stubRegistry implements the minimum registry surface needed by delegateTo.
-// remove stubRegistry entirely
-
-// agentLister is the interface delegateTo uses on al.registry.
-// We satisfy it with stubRegistry via an adapter AgentLoop.
 func newLoopWithAgents(agents map[string]*AgentInstance) *AgentLoop {
 	r := &AgentRegistry{
 		agents: agents,
@@ -73,7 +65,7 @@ func newLoopWithAgents(agents map[string]*AgentInstance) *AgentLoop {
 	return &AgentLoop{registry: r}
 }
 
-func TestDelegateTo_HighScore_Delegates(t *testing.T) {
+func TestDelegateToAll_HighScore_Delegates(t *testing.T) {
 	main := makeTestAgent("main", "Sofia", "", nil, "")
 	coder := makeTestAgent("coder", "Coder", "", []string{"code", "python", "debug", "programming"}, "")
 
@@ -82,14 +74,13 @@ func TestDelegateTo_HighScore_Delegates(t *testing.T) {
 		"coder": coder,
 	})
 
-	// All four skills present → score = 0.60 >= 0.72? No — 1.0 * 0.60 = 0.60, still below.
-	// Add name mention to push over: 0.60 + 0.15 = 0.75 >= 0.72 ✓
-	result := al.delegateTo("help me debug python programming code, ask coder")
-	assert.NotNil(t, result, "should delegate when score >= threshold")
-	assert.Equal(t, "coder", result.ID)
+	// All four skills present → score = 0.60 >= 0.35 ✓
+	result := al.delegateToAll("help me debug python programming code")
+	assert.NotEmpty(t, result, "should delegate when score >= threshold")
+	assert.Equal(t, "coder", result[0].Agent.ID)
 }
 
-func TestDelegateTo_LowScore_ReturnsNil(t *testing.T) {
+func TestDelegateToAll_LowScore_ReturnsNil(t *testing.T) {
 	main := makeTestAgent("main", "Sofia", "", nil, "")
 	coder := makeTestAgent("coder", "Coder", "", []string{"code", "python"}, "")
 
@@ -98,26 +89,24 @@ func TestDelegateTo_LowScore_ReturnsNil(t *testing.T) {
 		"coder": coder,
 	})
 
-	result := al.delegateTo("what is the weather today")
+	result := al.delegateToAll("what is the weather today")
 	assert.Nil(t, result, "unrelated message should not delegate")
 }
 
-func TestDelegateTo_MainAgentNeverSelected(t *testing.T) {
-	// Even if main scores high (e.g. name in message), delegateTo must skip it.
+func TestDelegateToAll_MainAgentNeverSelected(t *testing.T) {
 	main := makeTestAgent("main", "Sofia", "", []string{"help", "general", "chat", "tasks"}, "")
 
 	al := newLoopWithAgents(map[string]*AgentInstance{
 		"main": main,
 	})
 
-	result := al.delegateTo("help me with general chat tasks please sofia")
-	assert.Nil(t, result, "main agent must never be returned by delegateTo")
+	result := al.delegateToAll("help me with general chat tasks please sofia")
+	assert.Nil(t, result, "main agent must never be returned by delegateToAll")
 }
 
-func TestDelegateTo_BestCandidateWins(t *testing.T) {
+func TestDelegateToAll_MultipleAgentsSelected(t *testing.T) {
 	main := makeTestAgent("main", "Sofia", "", nil, "")
-	coder := makeTestAgent("coder", "Coder", "", []string{"code"}, "")
-	// researcher has more skills matching the message
+	coder := makeTestAgent("coder", "Coder", "", []string{"code", "python", "debug"}, "")
 	researcher := makeTestAgent("researcher", "Researcher", "",
 		[]string{"research", "analysis", "data", "science"}, "")
 
@@ -127,7 +116,36 @@ func TestDelegateTo_BestCandidateWins(t *testing.T) {
 		"researcher": researcher,
 	})
 
-	result := al.delegateTo("do research and analysis on science data, ask researcher")
-	assert.NotNil(t, result)
-	assert.Equal(t, "researcher", result.ID, "highest scoring agent should win")
+	// Message touches both agents' skills
+	result := al.delegateToAll("research the code for data analysis and debug the python science module")
+	assert.Len(t, result, 2, "both agents should be selected")
+
+	ids := []string{result[0].Agent.ID, result[1].Agent.ID}
+	assert.Contains(t, ids, "coder")
+	assert.Contains(t, ids, "researcher")
+}
+
+func TestDelegateToAll_SortedByScore(t *testing.T) {
+	main := makeTestAgent("main", "Sofia", "", nil, "")
+	coder := makeTestAgent("coder", "Coder", "", []string{"code"}, "")
+	researcher := makeTestAgent("researcher", "Researcher", "",
+		[]string{"research", "analysis", "data", "science"}, "")
+
+	al := newLoopWithAgents(map[string]*AgentInstance{
+		"main":       main,
+		"coder":      coder,
+		"researcher": researcher,
+	})
+
+	result := al.delegateToAll("do research and analysis on science data, ask researcher")
+	assert.NotEmpty(t, result)
+	assert.Equal(t, "researcher", result[0].Agent.ID, "highest scoring agent should be first")
+}
+
+func TestPickSwedishName(t *testing.T) {
+	name := pickSwedishName()
+	assert.NotEmpty(t, name)
+	// Should be unique on repeated calls
+	name2 := pickSwedishName()
+	assert.NotEqual(t, name, name2)
 }

@@ -87,12 +87,33 @@ func (al *AgentLoop) GetStartupInfo() map[string]any {
 		if a.ID == routing.DefaultAgentID {
 			role = "sofia"
 		}
+		// Look up capability description if this agent was created from a template
+		capDescription := ""
+		if a.Template != "" {
+			for _, c := range builtinCapabilities {
+				if c.ID == a.Template {
+					capDescription = c.Description
+					break
+				}
+			}
+		}
+		// Fall back to purpose prompt summary
+		if capDescription == "" && a.PurposePrompt != "" {
+			capDescription = a.PurposePrompt
+			if len(capDescription) > 150 {
+				capDescription = capDescription[:147] + "..."
+			}
+		}
+
 		agentMeta = append(agentMeta, map[string]any{
-			"id":       a.ID,
-			"name":     a.Name,
-			"role":     role,
-			"model":    a.Model,
-			"model_id": a.ModelID,
+			"id":          a.ID,
+			"name":        a.Name,
+			"role":        role,
+			"model":       a.Model,
+			"model_id":    a.ModelID,
+			"template":    a.Template,
+			"skills":      a.SkillsFilter,
+			"description": capDescription,
 		})
 	}
 	info["agents"] = map[string]any{
@@ -106,6 +127,33 @@ func (al *AgentLoop) GetStartupInfo() map[string]any {
 	}
 
 	return info
+}
+
+// GetActivePlan returns the active plan's formatted status, or empty string if no plan.
+func (al *AgentLoop) GetActivePlan() map[string]any {
+	if al.planManager == nil {
+		return nil
+	}
+	plan := al.planManager.GetActivePlan()
+	if plan == nil {
+		return nil
+	}
+	steps := make([]map[string]any, len(plan.Steps))
+	for i, s := range plan.Steps {
+		steps[i] = map[string]any{
+			"index":       s.Index,
+			"description": s.Description,
+			"status":      string(s.Status),
+			"result":      s.Result,
+			"assigned_to": s.AssignedTo,
+		}
+	}
+	return map[string]any{
+		"id":     plan.ID,
+		"goal":   plan.Goal,
+		"status": string(plan.Status),
+		"steps":  steps,
+	}
 }
 
 // ListAgentIDs returns all registered agent IDs.

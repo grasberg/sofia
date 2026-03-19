@@ -443,70 +443,82 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 		return response, nil
 	}
 
-	// Delegation: first try keyword-based scoring, then fall back to semantic (LLM-based).
-	subagent := al.delegateTo(msg.Content)
+	// --- Auto-spawn agents for capabilities/skills not covered by any existing agent ---
+	missingCaps := al.findMissingCapabilities(msg.Content)
+	for _, cap := range missingCaps {
+		newAgent, err := al.spawnAgentForCapability(cap)
+		if err != nil {
+			logger.WarnCF(agentComp, "Failed to auto-create agent for capability",
+				map[string]any{"capability": cap.ID, "error": err.Error()})
+		} else {
+			logger.InfoCF(agentComp,
+				fmt.Sprintf("Auto-created %s agent %q", cap.Name, newAgent.Name),
+				map[string]any{"agent_id": newAgent.ID, "name": newAgent.Name, "capability": cap.ID})
+		}
+	}
+	// Also check workspace skills not covered
+	missingSkills := al.findMissingSkills(msg.Content)
+	if len(missingSkills) > 0 {
+		newAgent, err := al.spawnAgentForSkills(missingSkills)
+		if err != nil {
+			logger.WarnCF(agentComp, "Failed to auto-create agent for missing skills",
+				map[string]any{"skills": missingSkills, "error": err.Error()})
+		} else {
+			logger.InfoCF(agentComp,
+				fmt.Sprintf("Auto-created agent %q for skills %v", newAgent.Name, missingSkills),
+				map[string]any{"agent_id": newAgent.ID, "name": newAgent.Name, "skills": missingSkills})
+		}
+	}
+
+	// --- Multi-delegation: run ALL qualifying agents in parallel ---
+	candidates := al.delegateToAll(msg.Content)
 	delegationReason := "keyword_match"
-	if subagent == nil {
-		// Semantic delegation fallback: use an LLM call to determine the best agent
-		subagent = al.semanticDelegateTo(ctx, msg.Content)
+	if len(candidates) == 0 {
+		// Semantic fallback: ask LLM which agents should handle this
+		candidates = al.semanticDelegateToAll(ctx, msg.Content)
 		delegationReason = "semantic_match"
 	}
-	if subagent != nil {
-		score := scoreCandidate(subagent, strings.ToLower(msg.Content))
-		logger.InfoCF(
-			agentComp,
-			fmt.Sprintf(
-				"SOFIA: delegating to %q (score=%.2f, threshold=%.2f)",
-				subagent.Name,
-				score,
-				delegationThreshold,
-			),
+
+	if len(candidates) > 0 {
+		agentNames := make([]string, len(candidates))
+		for i, c := range candidates {
+			n := c.Agent.Name
+			if n == "" {
+				n = c.Agent.ID
+			}
+			agentNames[i] = fmt.Sprintf("%s(%.2f)", n, c.Score)
+		}
+		logger.InfoCF(agentComp,
+			fmt.Sprintf("SOFIA: delegating to %d agent(s): %s", len(candidates), strings.Join(agentNames, ", ")),
 			map[string]any{
 				"from_agent": agent.ID,
-				"to_agent":   subagent.ID,
-				"agent_name": subagent.Name,
-				"score":      fmt.Sprintf("%.2f", score),
-				"threshold":  fmt.Sprintf("%.2f", delegationThreshold),
-				"reason":     "skills+purpose+hint match",
+				"count":      len(candidates),
+				"agents":     agentNames,
+				"reason":     delegationReason,
 				"preview":    utils.Truncate(msg.Content, 120),
 			},
 		)
-		subagentName := subagent.Name
-		if subagentName == "" {
-			subagentName = subagent.ID
-		}
-		al.activeStatus.Store(fmt.Sprintf("Delegating to %s...", subagentName))
+
+		al.activeStatus.Store(fmt.Sprintf("Delegating to %d agent(s)...", len(candidates)))
 		al.broadcastPresence(agent.ID, "processing")
-		al.dashboardHub.Broadcast(map[string]any{
-			"type":          "agent_delegating",
-			"from_agent_id": agent.ID,
-			"to_agent_id":   subagent.ID,
-			"to_agent_name": subagentName,
-			"reason":        delegationReason,
-		})
+
 		delegateStart := time.Now()
-		subResult, err := al.runSpawnedTaskAsAgent(ctx, subagent.ID, "", msg.Content, msg.Channel, msg.ChatID)
+		combinedResult, err := al.runMultiDelegation(ctx, candidates, msg.Content, msg.Channel, msg.ChatID)
 		delegateDur := time.Since(delegateStart).Milliseconds()
+
 		if err != nil {
-			logger.WarnCF(
-				agentComp,
-				fmt.Sprintf("SOFIA: delegation to %q failed — falling back to Sofia", subagent.Name),
-				map[string]any{
-					"to_agent":    subagent.ID,
-					"duration_ms": delegateDur,
-					"error":       err.Error(),
-				},
-			)
+			logger.WarnCF(agentComp,
+				fmt.Sprintf("SOFIA: multi-delegation failed after %dms — falling back to Sofia", delegateDur),
+				map[string]any{"duration_ms": delegateDur, "error": err.Error()})
 		} else {
-			logger.InfoCF(agentComp, fmt.Sprintf("SOFIA: sub-agent %q done, synthesizing result", subagent.Name),
+			logger.InfoCF(agentComp,
+				fmt.Sprintf("SOFIA: %d agent(s) done in %dms, synthesizing results", len(candidates), delegateDur),
 				map[string]any{
-					"to_agent":       subagent.ID,
-					"duration_ms":    delegateDur,
-					"result_len":     len(subResult),
-					"result_preview": utils.Truncate(subResult, 160),
+					"count":       len(candidates),
+					"duration_ms": delegateDur,
+					"result_len":  len(combinedResult),
 				})
-			// Let Sofia synthesize and present the sub-agent's result to the user.
-			synthesisMsg := fmt.Sprintf("[Subagent result from %s]\n\n%s", subagent.Name, subResult)
+			synthesisMsg := fmt.Sprintf("[Combined results from %d subagents]\n\n%s", len(candidates), combinedResult)
 			return al.runAgentLoop(ctx, agent, processOptions{
 				SessionKey:      sessionKey,
 				Channel:         msg.Channel,

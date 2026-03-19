@@ -574,9 +574,16 @@ Instructions:
 		SessionKey: topSession.Key, // inject directly into their ongoing session
 	})
 
+	// Broadcast to web UI so the notification inbox captures it
+	s.broadcast(map[string]any{
+		"type":    "proactive_suggestion",
+		"content": content,
+		"agent_id": s.agentID,
+	})
+
 	// Send an OS desktop push notification so the user knows Sofia is thinking about them
 	if s.push != nil {
-		_ = s.push.Send("Sofia: Proactive Suggestion", "I have an idea based on your recent activity. Check the terminal/UI.")
+		_ = s.push.Send("Sofia: Proactive Suggestion", "I have an idea based on your recent activity. Check the web UI to review.")
 	}
 }
 

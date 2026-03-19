@@ -1,0 +1,88 @@
+<div id="settings-subtab-autonomy" class="h-full flex flex-col">
+    <div class="flex-grow min-h-0 overflow-y-auto pr-2 space-y-4">
+        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-4">Autonomy System</h3>
+
+            <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                <div class="flex items-start justify-between">
+                    <div class="space-y-1 pr-6">
+                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable Autonomy</h4>
+                        <p class="text-[11px] leading-relaxed text-zinc-500">
+                            Allow Sofia to take proactive actions: set goals, make suggestions, conduct research, and respond to context triggers.
+                        </p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                        <input type="checkbox" id="cfg-autonomy-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="space-y-3 mt-4">
+                <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="text-sm font-semibold text-[var(--text-main)]">Proactive Suggestions</h4>
+                            <p class="text-[11px] text-zinc-500">Offer helpful suggestions based on context and patterns.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                            <input type="checkbox" id="cfg-autonomy-suggestions" class="sr-only peer" onchange="saveConfig()">
+                            <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="text-sm font-semibold text-[var(--text-main)]">Goal Persistence</h4>
+                            <p class="text-[11px] text-zinc-500">Remember and pursue long-term goals across sessions.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                            <input type="checkbox" id="cfg-autonomy-goals" class="sr-only peer" onchange="saveConfig()">
+                            <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="text-sm font-semibold text-[var(--text-main)]">Autonomous Research</h4>
+                            <p class="text-[11px] text-zinc-500">Conduct web searches and research autonomously when needed.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                            <input type="checkbox" id="cfg-autonomy-research" class="sr-only peer" onchange="saveConfig()">
+                            <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="text-sm font-semibold text-[var(--text-main)]">Context Triggers</h4>
+                            <p class="text-[11px] text-zinc-500">Automatically trigger actions based on conversation context.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                            <input type="checkbox" id="cfg-autonomy-context-triggers" class="sr-only peer" onchange="saveConfig()">
+                            <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4 space-y-2">
+                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Check Interval (minutes)</label>
+                <input type="range" id="cfg-autonomy-interval" min="2" max="60" value="10" oninput="document.getElementById('cfg-autonomy-interval-val').textContent=this.value" onchange="saveConfig()"
+                    class="w-full h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-sofia">
+                <div class="text-[11px] text-zinc-400 font-mono text-right">Every <span id="cfg-autonomy-interval-val">10</span> min</div>
+            </div>
+        </div>
+
+        <button onclick="saveConfig()" class="mt-2 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            Save changes
+        </button>
+    </div>
+</div>

@@ -297,3 +297,110 @@ func formatToolsForLog(toolDefs []providers.ToolDefinition) string {
 	return sb.String()
 }
 
+// runPlanDispatcher periodically checks for unclaimed pending plan steps
+// and dispatches them to available subagents in parallel.
+func (al *AgentLoop) runPlanDispatcher(ctx context.Context) {
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			al.dispatchPendingSteps(ctx)
+		}
+	}
+}
+
+func (al *AgentLoop) dispatchPendingSteps(ctx context.Context) {
+	if al.planManager == nil || !al.planManager.HasPendingSteps() {
+		return
+	}
+
+	// Get all available subagent IDs
+	agentIDs := al.getRegistry().ListAgentIDs()
+	subagentIDs := make([]string, 0, len(agentIDs))
+	for _, id := range agentIDs {
+		if routing.NormalizeAgentID(id) != routing.DefaultAgentID {
+			subagentIDs = append(subagentIDs, id)
+		}
+	}
+
+	// If no subagents exist, use the default agent
+	if len(subagentIDs) == 0 {
+		subagentIDs = []string{routing.DefaultAgentID}
+	}
+
+	for _, agentID := range subagentIDs {
+		planID, stepIdx, description, ok := al.planManager.ClaimPendingStep(agentID)
+		if !ok {
+			break // no more pending steps
+		}
+
+		agent, exists := al.getRegistry().GetAgent(agentID)
+		if !exists {
+			continue
+		}
+		agentName := agent.Name
+		if agentName == "" {
+			agentName = agentID
+		}
+
+		logger.InfoCF("plan-dispatch",
+			fmt.Sprintf("Dispatching step #%d to %s: %s", stepIdx+1, agentName, utils.Truncate(description, 80)),
+			map[string]any{"plan_id": planID, "step": stepIdx, "agent": agentID})
+
+		al.dashboardHub.Broadcast(map[string]any{
+			"type":            "plan_step_assigned",
+			"agent_id":        agentID,
+			"agent_name":      agentName,
+			"plan_id":         planID,
+			"step_index":      stepIdx,
+			"step_description": utils.Truncate(description, 120),
+			"from_agent_id":   routing.DefaultAgentID,
+			"to_agent_id":     agentID,
+			"to_agent_name":   agentName,
+			"reason":          "plan_dispatch",
+		})
+
+		go func(pID string, sIdx int, desc, aID, aName string) {
+			start := time.Now()
+			result, err := al.runSpawnedTaskAsAgent(ctx, aID, "", desc, "cli", "plan")
+			dur := time.Since(start).Milliseconds()
+
+			if err != nil {
+				logger.WarnCF("plan-dispatch",
+					fmt.Sprintf("Step #%d failed (%s, %dms): %v", sIdx+1, aName, dur, err),
+					map[string]any{"plan_id": pID, "step": sIdx, "agent": aID})
+				al.planManager.CompleteStep(pID, sIdx, false, "Error: "+err.Error())
+				al.dashboardHub.Broadcast(map[string]any{
+					"type":       "plan_step_done",
+					"agent_id":   aID,
+					"agent_name": aName,
+					"plan_id":    pID,
+					"step_index": sIdx,
+					"success":    false,
+					"error":      err.Error(),
+				})
+			} else {
+				logger.InfoCF("plan-dispatch",
+					fmt.Sprintf("Step #%d done (%s, %dms)", sIdx+1, aName, dur),
+					map[string]any{"plan_id": pID, "step": sIdx, "agent": aID, "result_len": len(result)})
+				if len(result) > 500 {
+					result = result[:500] + "..."
+				}
+				al.planManager.CompleteStep(pID, sIdx, true, result)
+				al.dashboardHub.Broadcast(map[string]any{
+					"type":       "plan_step_done",
+					"agent_id":   aID,
+					"agent_name": aName,
+					"plan_id":    pID,
+					"step_index": sIdx,
+					"success":    true,
+				})
+			}
+		}(planID, stepIdx, description, agentID, agentName)
+	}
+}
+

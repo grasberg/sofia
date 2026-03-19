@@ -135,6 +135,14 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	}
 
 	planMgr := tools.NewPlanManager()
+	// Persist plans to workspace so they survive restarts
+	if defaultAgent != nil {
+		planPath := filepath.Join(defaultAgent.Workspace, "plans.json")
+		planMgr.SetPersistPath(planPath)
+		if err := planMgr.Load(planPath); err != nil {
+			logger.WarnCF("agent", "Failed to load saved plans", map[string]any{"error": err.Error()})
+		}
+	}
 	scratchpad := tools.NewSharedScratchpad()
 	checkpointMgr := checkpoint.NewManager(memDB)
 	a2aRouter := NewA2ARouter()
@@ -297,6 +305,9 @@ func (al *AgentLoop) Run(ctx context.Context) error {
 				map[string]any{"error": err.Error()})
 		}
 	}
+
+	// Start the plan task dispatcher — auto-assigns pending plan steps to subagents
+	go al.runPlanDispatcher(ctx)
 
 	for al.running.Load() {
 		select {

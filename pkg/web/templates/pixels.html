@@ -1,0 +1,1781 @@
+<!-- PIXEL AGENTS TAB (HTMX Partial) — fill entire content area -->
+<style>
+    #tab-pixels { position:absolute; inset:0; }
+    #tab-pixels canvas { display:block; }
+    #main-content:has(#tab-pixels) { padding:0 !important; position:relative; }
+</style>
+<div id="tab-pixels" class="bg-[#0a0a12] overflow-hidden">
+    <canvas id="px-canvas" style="width:100%;height:100%;cursor:grab;image-rendering:pixelated"></canvas>
+
+    <!-- HUD Overlay -->
+    <div class="absolute top-4 left-4 flex flex-col gap-2 z-10 pointer-events-none">
+        <div class="bg-black/70 backdrop-blur border border-zinc-800 rounded-lg px-3 py-2 pointer-events-auto">
+            <div class="text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Pixel Agents</div>
+            <div class="flex items-center gap-3 text-[11px]">
+                <span class="text-zinc-400">Agents: <span id="px-agent-count" class="text-sofia font-mono font-bold">0</span></span>
+                <span class="text-zinc-400">Active: <span id="px-active-count" class="text-green-400 font-mono font-bold">0</span></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent tooltip -->
+    <div id="px-tooltip" class="absolute hidden bg-black/80 backdrop-blur border border-zinc-700 rounded-lg px-3 py-2 z-20 pointer-events-none" style="max-width:280px">
+        <div id="px-tip-name" class="text-xs font-bold text-[var(--text-main)]"></div>
+        <div id="px-tip-status" class="text-[10px] text-zinc-400 font-mono mt-0.5"></div>
+        <div id="px-tip-tool" class="text-[10px] text-amber-400 font-mono mt-0.5 hidden"></div>
+        <div id="px-tip-stats" class="text-[10px] text-zinc-500 font-mono mt-1 pt-1 border-t border-zinc-700"></div>
+    </div>
+
+    <!-- Zoom controls -->
+    <div class="absolute bottom-4 right-4 flex gap-1 z-10">
+        <button onclick="pxZoomIn()" class="w-8 h-8 bg-black/70 border border-zinc-700 rounded text-zinc-400 hover:text-white hover:border-zinc-500 text-sm font-bold transition">+</button>
+        <button onclick="pxZoomOut()" class="w-8 h-8 bg-black/70 border border-zinc-700 rounded text-zinc-400 hover:text-white hover:border-zinc-500 text-sm font-bold transition">-</button>
+    </div>
+</div>
+
+<script>
+(function() {
+    const T = 16;
+    const COLS = 32, ROWS = 20; // extended for bathroom below
+    const WALK_SPEED = 48;
+    const WALK_FRAME_DUR = 0.15;
+    const TYPE_FRAME_DUR = 0.25;
+    const MAX_DT = 0.1;
+    const DESK_IDLE_MIN = 15, DESK_IDLE_MAX = 40;
+    const BREAK_STAY_MIN = 15, BREAK_STAY_MAX = 45;
+    const BATHROOM_STAY_MIN = 8, BATHROOM_STAY_MAX = 18;
+    const BATHROOM_IDLE_THRESHOLD = 80; // seconds idle before needing bathroom
+    const WANDER_PAUSE_MIN = 2, WANDER_PAUSE_MAX = 5;
+
+    const FLOOR_COLOR = '#1a1a2e';
+    const FLOOR_ALT   = '#181828';
+    const BREAK_FLOOR = '#1e1a16';
+    const BREAK_ALT   = '#1a1712';
+    const BATH_FLOOR  = '#1c1e22';
+    const BATH_ALT    = '#181a1e';
+    const WALL_COLOR  = '#3a3a5c';
+    const WALL_TOP    = '#4a4a6c';
+    const DIVIDER_COL = '#3a3a5c';
+    const DESK_COLOR  = '#4a3a2e';
+    const DESK_TOP    = '#5c4a3a';
+    const DESK_LEG    = '#3a2a1e';
+    const CHAIR_SEAT  = '#2a2a44';
+    const CHAIR_BACK  = '#222240';
+
+    // Divider walls and doors
+    const DIV_COL = 22;
+    const DOOR_ROW_MIN = 6, DOOR_ROW_MAX = 8;
+    // Bathroom is below the main office: rows 15-19, cols 23-30
+    const BATH_TOP = 15, BATH_BOT = 19;
+    const BATH_LEFT = 23, BATH_RIGHT = 30;
+    // Hallway connects break room to bathroom: col 27, rows 13-15
+    const HALL_COL = 27, HALL_ROW_MIN = 13, HALL_ROW_MAX = 15;
+
+    // 6 palettes: [skin, skinShade, hair, hairHi, shirt, shirtHi, pants, shoes, accent, eyeColor]
+    const PALETTES = [
+        ['#ffcc99','#e6b080','#442211','#664433','#cc3333','#ee5555','#2a2a44','#1a1a1a','#ff6666','#224488'], // red
+        ['#ffe0bd','#e6c8a0','#8B4513','#aa6633','#3366cc','#5588ee','#2a2a44','#1a1a1a','#66aaff','#226644'], // blue
+        ['#f5c7a1','#ddb088','#1a1a1a','#333333','#33aa55','#55cc77','#2e2e44','#1a1a1a','#66ee88','#884422'], // green
+        ['#e8b88a','#d0a070','#663300','#885522','#9944cc','#bb66ee','#2a2a44','#1a1a1a','#dd88ff','#226688'], // purple
+        ['#ffd5b8','#e6bc9c','#555555','#777777','#cc8822','#eeaa44','#2e2e44','#1a1a1a','#ffcc66','#448844'], // orange
+        ['#d4a574','#bb8c5c','#222222','#444444','#1199aa','#33bbcc','#2a2a40','#1a1a1a','#44eedd','#664422'], // cyan
+    ];
+
+    // ===== IDLE CHATTER =====
+    const CHATTER_WORK = [
+        'This codebase is huge','Almost done...','One more bug','Stack overflow lol',
+        'Need more coffee','Refactoring this','Ship it!','LGTM',
+        'PR ready','Merge conflict ugh','Tests passing!','Deploying...',
+        'Reviewing code','Hmm interesting','Found it!','That was tricky',
+        'Clean build!','Optimizing...','Null pointer again','Adding types',
+    ];
+    const CHATTER_BREAK = [
+        'Nice weather today','Seen any good PRs?','This coffee is good',
+        'I love Mondays','Standup was fun','Sprint planning!',
+        'Who broke prod?','Kubernetes again...','Docker is life',
+        'AI will replace us','We ARE the AI lol','Time for lunch?',
+        'Pizza tonight?','Deadline tomorrow','Vim or Emacs?',
+        'Tabs vs spaces','Dark mode only','Good morning!',
+        'Read any good docs?','Microservices...','Skal!',
+    ];
+    const CHATTER_COUCH = [
+        'So tired...','Five more minutes','*yawns*','ZzZz...',
+        'Just resting my eyes','Power nap mode','Recharging...',
+    ];
+
+    // ===== AGENT ACCESSORIES =====
+    // Random visual traits assigned at creation
+    const ACCESSORY_TYPES = ['none','glasses','headphones','hat','badge'];
+    const GLASSES_COLORS = ['#8899aa','#aabb44','#cc6688','#66aacc','#ddaa33'];
+    const HAT_COLORS = ['#cc3333','#3366cc','#33aa55','#ccaa22','#cc66ff'];
+    const BADGE_COLORS = ['#ff4d4d','#44cc66','#4488ff','#ffaa33','#cc44ff'];
+
+    function randomAccessory() {
+        const type = ACCESSORY_TYPES[Math.floor(Math.random()*ACCESSORY_TYPES.length)];
+        const colors = type==='glasses'?GLASSES_COLORS:type==='hat'?HAT_COLORS:type==='badge'?BADGE_COLORS:['#fff'];
+        return { type: type, color: colors[Math.floor(Math.random()*colors.length)] };
+    }
+
+    // ===== PERSISTENCE (localStorage) =====
+    const SAVE_KEY = 'sofia_px_state';
+    const SAVE_INTERVAL = 3000; // save every 3 seconds
+
+    function saveState() {
+        try {
+            const P = window._px;
+            if (!P || !P.agents) return;
+            // Serialize only the data we need to restore — skip sprites, cache, timers
+            const agentsSave = {};
+            for (const id in P.agents) {
+                const a = P.agents[id];
+                agentsSave[id] = {
+                    id:a.id, name:a.name, palette:a.palette,
+                    state:a.state, dir:a.dir, x:a.x, y:a.y,
+                    tileCol:a.tileCol, tileRow:a.tileRow,
+                    seatCol:a.seatCol, seatRow:a.seatRow,
+                    frame:a.frame, frameTimer:a.frameTimer,
+                    deskIdleTimer:a.deskIdleTimer,
+                    wanderTimer:a.wanderTimer, wanderCount:a.wanderCount, wanderLimit:a.wanderLimit,
+                    breakSpotIdx:a.breakSpotIdx, breakTimer:a.breakTimer,
+                    bathroomSpotIdx:a.bathroomSpotIdx, bathroomTimer:a.bathroomTimer,
+                    totalIdleTime:a.totalIdleTime, needsBathroom:a.needsBathroom,
+                    isActive:a.isActive,
+                    currentTool:a.currentTool, toolArgs:a.toolArgs,
+                    bubbleText:a.bubbleText, bubbleType:a.bubbleType, bubbleTimer:a.bubbleTimer,
+                    statusText:a.statusText,
+                    accessory:a.accessory,
+                    xp:a.xp, level:a.level, tasksCompleted:a.tasksCompleted,
+                    mood:a.mood,
+                    chatterTimer:a.chatterTimer, lastChatter:a.lastChatter,
+                    emote:a.emote, emoteTimer:a.emoteTimer,
+                };
+            }
+            localStorage.setItem(SAVE_KEY, JSON.stringify({
+                agents: agentsSave,
+                nextPal: P.nextPal,
+                zoom: P.zoom, panX: P.panX, panY: P.panY,
+                savedAt: Date.now(),
+            }));
+        } catch(e) { /* quota exceeded or private mode — ignore */ }
+    }
+
+    function loadState() {
+        try {
+            const raw = localStorage.getItem(SAVE_KEY);
+            if (!raw) return null;
+            const saved = JSON.parse(raw);
+            // Discard saves older than 24 hours
+            if (saved.savedAt && Date.now() - saved.savedAt > 86400000) return null;
+            return saved;
+        } catch(e) { return null; }
+    }
+
+    // Persistent state survives tab switches — stored on window._px
+    if (!window._px) {
+        window._px = {
+            agents: {}, desks: [], breakSpots: [], bathroomSpots: [],
+            zoom: 1, panX: 0, panY: 0, animFrame: 0,
+            nextPal: 0, spritesByPal: {}, spriteCache: new Map(),
+            officeBuilt: false, simTimer: null, lastSimTime: 0,
+            initialFitDone: false, particles: [],
+        };
+
+        // Restore from localStorage on fresh page load
+        const saved = loadState();
+        if (saved) {
+            window._px.nextPal = saved.nextPal || 0;
+            if (saved.zoom) window._px.zoom = saved.zoom;
+            if (saved.panX) window._px.panX = saved.panX;
+            if (saved.panY) window._px.panY = saved.panY;
+            window._px._savedAgents = saved.agents || {}; // stash for after office build
+            window._px.initialFitDone = true; // keep saved zoom
+        }
+    }
+    const P = window._px;
+    // Local aliases — point to the persistent objects
+    let agents = P.agents, desks = P.desks;
+    let breakSpots = P.breakSpots, bathroomSpots = P.bathroomSpots;
+    let zoom, panX, panY; // read from P in init
+    let dragging = null;
+    let animFrame = 0;
+    let canvas, ctx, hoverAgent = null;
+    // Sync zoom/pan from persistent state
+    function syncFromP() { zoom = P.zoom; panX = P.panX; panY = P.panY; animFrame = P.animFrame; }
+    function syncToP() { P.zoom = zoom; P.panX = panX; P.panY = panY; P.animFrame = animFrame; }
+
+    // ===== DETAILED SPRITE GENERATION =====
+    function generateCharSprites(pal) {
+        const [skin,skinSh,hair,hairHi,shirt,shirtHi,pants,shoes,accent,eye] = pal;
+        const S = {};
+
+        function F() {
+            const f = [];
+            for (let r = 0; r < 24; r++) { f[r] = []; for (let c = 0; c < 16; c++) f[r][c] = ''; }
+            return f;
+        }
+        function R(f,x,y,w,h,color) {
+            for (let r=y;r<y+h&&r<24;r++) for(let c=x;c<x+w&&c<16;c++) f[r][c]=color;
+        }
+        function P(f,x,y,color) { if(y>=0&&y<24&&x>=0&&x<16) f[y][x]=color; }
+
+        function downFrame(legPhase, armPhase, seated) {
+            const f = F();
+            // Hair top + volume
+            R(f, 5,0, 6,2, hair);
+            P(f, 4,1, hair); P(f, 11,1, hair);
+            P(f, 6,0, hairHi); P(f, 8,0, hairHi);
+            // Head
+            R(f, 5,2, 6,5, skin);
+            // Hair sides framing face
+            P(f, 5,2, hair); P(f, 10,2, hair);
+            P(f, 5,3, hair); P(f, 10,3, hair);
+            // Ears
+            P(f, 4,3, skinSh); P(f, 11,3, skinSh);
+            // Eyes — 2px wide with pupil
+            P(f, 6,4, '#fff'); P(f, 7,4, eye);
+            P(f, 9,4, eye); P(f, 10,4, '#fff');
+            // Eyebrows
+            P(f, 6,3, hair); P(f, 7,3, hair);
+            P(f, 9,3, hair); P(f, 10,3, hair);
+            // Nose
+            P(f, 8,5, skinSh);
+            // Mouth
+            P(f, 7,6, skinSh); P(f, 8,6, skinSh);
+            // Neck
+            P(f, 7,7, skinSh); P(f, 8,7, skinSh);
+            // Shoulders + torso
+            R(f, 4,8, 8,5, shirt);
+            // Collar / accent stripe
+            P(f, 7,8, accent); P(f, 8,8, accent);
+            // Shirt highlight
+            P(f, 5,9, shirtHi); P(f, 6,9, shirtHi);
+            // Arms
+            const armY = seated ? 9 + armPhase : 9;
+            const armLen = seated ? 3 : 4;
+            R(f, 3,armY, 1,armLen, shirt);
+            R(f, 12,armY, 1,armLen, shirt);
+            // Hands
+            P(f, 3, armY+armLen, skin);
+            P(f, 12, armY+armLen, skin);
+            if (seated) {
+                // Hands forward on desk
+                P(f, 4, armY+armLen, skin);
+                P(f, 11, armY+armLen, skin);
+            }
+            // Belt
+            R(f, 5,13, 6,1, '#222');
+            P(f, 7,13, accent);
+            // Pants
+            R(f, 5,14, 6,3, pants);
+            // Leg separation
+            P(f, 7,15, ''); P(f, 8,15, '');
+            P(f, 7,16, ''); P(f, 8,16, '');
+            // Walk animation — shift feet
+            const footY = 17;
+            if (!seated) {
+                if (legPhase === 1) {
+                    R(f, 5,footY, 2,2, shoes); R(f, 9,footY+1, 2,1, shoes);
+                    P(f, 9,footY, pants);
+                } else if (legPhase === -1) {
+                    R(f, 5,footY+1, 2,1, shoes); R(f, 9,footY, 2,2, shoes);
+                    P(f, 5,footY, pants);
+                } else {
+                    R(f, 5,footY, 2,2, shoes); R(f, 9,footY, 2,2, shoes);
+                }
+                // Shoe highlights
+                P(f, 5,footY, '#333');  P(f, 9,footY, '#333');
+            } else {
+                // Seated — legs tucked, shorter
+                R(f, 5,footY, 2,1, shoes); R(f, 9,footY, 2,1, shoes);
+            }
+            return f;
+        }
+
+        function upFrame(legPhase) {
+            const f = F();
+            // Hair — full back of head
+            R(f, 4,0, 8,7, hair);
+            P(f, 6,1, hairHi); P(f, 8,1, hairHi); P(f, 7,0, hairHi);
+            // Neck
+            P(f, 7,7, skinSh); P(f, 8,7, skinSh);
+            // Shoulders + torso (back)
+            R(f, 4,8, 8,5, shirt);
+            P(f, 5,9, shirtHi);
+            // Arms
+            R(f, 3,9, 1,4, shirt); R(f, 12,9, 1,4, shirt);
+            // Belt
+            R(f, 5,13, 6,1, '#222');
+            // Pants
+            R(f, 5,14, 6,3, pants);
+            P(f, 7,15, ''); P(f, 8,15, '');
+            P(f, 7,16, ''); P(f, 8,16, '');
+            // Shoes
+            const footY = 17;
+            if (legPhase === 1) {
+                R(f, 5,footY, 2,2, shoes); R(f, 9,footY+1, 2,1, shoes);
+            } else if (legPhase === -1) {
+                R(f, 5,footY+1, 2,1, shoes); R(f, 9,footY, 2,2, shoes);
+            } else {
+                R(f, 5,footY, 2,2, shoes); R(f, 9,footY, 2,2, shoes);
+            }
+            return f;
+        }
+
+        function sideFrame(legPhase, armPhase, seated) {
+            const f = F();
+            // Hair — side profile
+            R(f, 6,0, 5,2, hair);
+            P(f, 5,1, hair); P(f, 7,0, hairHi);
+            // Head — side
+            R(f, 6,2, 5,5, skin);
+            // Hair framing
+            P(f, 6,2, hair); P(f, 6,3, hair);
+            // Ear (on left side, visible)
+            P(f, 5,3, skinSh); P(f, 5,4, skinSh);
+            // Eye
+            P(f, 9,4, eye); P(f, 10,4, '#fff');
+            // Eyebrow
+            P(f, 9,3, hair); P(f, 10,3, hair);
+            // Nose (protruding)
+            P(f, 11,4, skin); P(f, 11,5, skinSh);
+            // Mouth
+            P(f, 10,6, skinSh);
+            // Neck
+            P(f, 8,7, skinSh);
+            // Torso
+            R(f, 5,8, 6,5, shirt);
+            P(f, 6,9, shirtHi); P(f, 7,9, shirtHi);
+            // Collar
+            P(f, 7,8, accent); P(f, 8,8, accent);
+            // Back arm
+            R(f, 4,9, 1,4, shirt);
+            // Front arm
+            const armY = seated ? 9 + armPhase : 9;
+            const armLen = seated ? 3 : 4;
+            R(f, 11,armY, 1,armLen, shirt);
+            P(f, 11,armY+armLen, skin);
+            if (seated) P(f, 12, armY+armLen, skin);
+            // Belt
+            R(f, 6,13, 5,1, '#222');
+            // Pants
+            R(f, 6,14, 5,3, pants);
+            P(f, 8,15, ''); P(f, 8,16, '');
+            // Shoes
+            const footY = 17;
+            if (!seated) {
+                if (legPhase === 1) {
+                    R(f, 6,footY, 2,2, shoes); R(f, 9,footY+1, 2,1, shoes);
+                } else if (legPhase === -1) {
+                    R(f, 6,footY+1, 2,1, shoes); R(f, 9,footY, 2,2, shoes);
+                } else {
+                    R(f, 6,footY, 2,2, shoes); R(f, 9,footY, 2,2, shoes);
+                }
+            } else {
+                R(f, 6,footY, 2,1, shoes); R(f, 9,footY, 2,1, shoes);
+            }
+            return f;
+        }
+
+        function flipH(frame) { return frame.map(function(r){return r.slice().reverse();}); }
+
+        S.down = {
+            walk: [downFrame(0,0,false), downFrame(1,0,false), downFrame(0,0,false), downFrame(-1,0,false)],
+            type: [downFrame(0,0,true), downFrame(0,1,true)],
+            read: [downFrame(0,0,true), downFrame(0,0,true)],
+            idle: [downFrame(0,0,false)],
+            sit:  [downFrame(0,0,true)]  // seated idle — at desk not typing
+        };
+        S.up = {
+            walk: [upFrame(0), upFrame(1), upFrame(0), upFrame(-1)],
+            type: [upFrame(0), upFrame(0)],
+            read: [upFrame(0), upFrame(0)],
+            idle: [upFrame(0)],
+            sit:  [upFrame(0)]
+        };
+        S.right = {
+            walk: [sideFrame(0,0,false), sideFrame(1,0,false), sideFrame(0,0,false), sideFrame(-1,0,false)],
+            type: [sideFrame(0,0,true), sideFrame(0,1,true)],
+            read: [sideFrame(0,0,true), sideFrame(0,0,true)],
+            idle: [sideFrame(0,0,false)],
+            sit:  [sideFrame(0,0,true)]
+        };
+        S.left = {};
+        for (const a of ['walk','type','read','idle','sit']) S.left[a] = S.right[a].map(flipH);
+        return S;
+    }
+
+    // ===== SPRITE CACHE =====
+    const spriteCache = P.spriteCache;
+    function rasterize(frame, z) {
+        if (!spriteCache.has(z)) spriteCache.set(z, new WeakMap());
+        const m = spriteCache.get(z);
+        if (m.has(frame)) return m.get(frame);
+        const h = frame.length, w = 16;
+        const off = document.createElement('canvas');
+        off.width = w*z; off.height = h*z;
+        const c = off.getContext('2d');
+        for (let r=0;r<h;r++) for(let col=0;col<w;col++) {
+            if(frame[r][col]) { c.fillStyle = frame[r][col]; c.fillRect(col*z, r*z, z, z); }
+        }
+        m.set(frame, off);
+        return off;
+    }
+
+    // ===== OFFICE + BREAK ROOM =====
+    function buildOffice() {
+        // Clear and rebuild in-place (keep same array references so P.desks stays in sync)
+        desks.length = 0;
+        breakSpots.length = 0;
+        bathroomSpots.length = 0;
+        // Work area desks (left room, cols 1-21)
+        const positions = [
+            {col:3,row:3},{col:7,row:3},{col:11,row:3},{col:15,row:3},{col:19,row:3},
+            {col:3,row:7},{col:7,row:7},{col:11,row:7},{col:15,row:7},{col:19,row:7},
+            {col:3,row:11},{col:7,row:11},{col:11,row:11},{col:15,row:11},{col:19,row:11},
+        ];
+        positions.forEach(function(p) { desks.push({col:p.col, row:p.row, agentId:null}); });
+
+        // Break room spots (right room, cols 23-30)
+        [
+            {col:29,row:2, type:'coffee',  facing:3, occupant:null},
+            {col:28,row:2, type:'coffee',  facing:3, occupant:null},
+            {col:29,row:6, type:'water',   facing:3, occupant:null},
+            {col:25,row:11, type:'couch',  facing:0, occupant:null},
+            {col:26,row:11, type:'couch',  facing:0, occupant:null},
+            {col:27,row:11, type:'couch',  facing:0, occupant:null},
+            {col:25,row:6, type:'table',   facing:0, occupant:null},
+            {col:26,row:6, type:'table',   facing:0, occupant:null},
+            {col:25,row:8, type:'table',   facing:3, occupant:null},
+            {col:26,row:8, type:'table',   facing:3, occupant:null},
+            {col:24,row:2, type:'stand',   facing:0, occupant:null},
+            {col:24,row:12,type:'stand',   facing:3, occupant:null},
+        ].forEach(function(s) { breakSpots.push(s); });
+
+        // Bathroom spots
+        [
+            {col:24, row:16, type:'stall',  facing:1, occupant:null},
+            {col:24, row:18, type:'stall',  facing:1, occupant:null},
+            {col:28, row:16, type:'sink',   facing:3, occupant:null},
+            {col:29, row:16, type:'sink',   facing:3, occupant:null},
+        ].forEach(function(s) { bathroomSpots.push(s); });
+    }
+
+    function isBreakRoom(c,r) { return c > DIV_COL && c < COLS-1 && r > 0 && r < 14; }
+    function isBathroom(c,r) { return c >= BATH_LEFT && c <= BATH_RIGHT && r >= BATH_TOP && r <= BATH_BOT; }
+    function isHallway(c,r) { return c >= 26 && c <= 28 && r >= 13 && r <= BATH_TOP; }
+
+    // ===== PATHFINDING =====
+    function isWalkable(c,r) {
+        // Main office interior
+        if(c>=1 && c<DIV_COL && r>=1 && r<=12) {
+            for(const d of desks) { if((c===d.col||c===d.col+1)&&r===d.row) return false; }
+            return true;
+        }
+        // Break room door
+        if(c===DIV_COL && r>=DOOR_ROW_MIN && r<=DOOR_ROW_MAX) return true;
+        // Break room interior (rows 1-12, cols 23-30)
+        if(c>DIV_COL && c<=30 && r>=1 && r<=12) {
+            if(c>=28&&c<=29&&r===1) return false; // coffee machine
+            if(c>=25&&c<=27&&r===10) return false; // couch
+            if(c>=25&&c<=26&&r===7) return false;  // table
+            return true;
+        }
+        // Hallway (cols 26-28, rows 13-15) connecting break room to bathroom
+        if(c>=26 && c<=28 && r>=13 && r<=BATH_TOP) return true;
+        // Bathroom interior (cols 24-29, rows 16-18)
+        if(c>=BATH_LEFT && c<=BATH_RIGHT-1 && r>=BATH_TOP+1 && r<=BATH_BOT-1) {
+            if(c===BATH_LEFT && (r===16||r===18)) return false; // stall walls
+            return true;
+        }
+        return false;
+    }
+    function findPath(fc,fr,tc,tr) {
+        if(fc===tc&&fr===tr) return [];
+        const K=function(c,r){return c+','+r;};
+        const vis=new Set(), q=[{col:fc,row:fr,path:[]}];
+        vis.add(K(fc,fr));
+        while(q.length) {
+            const u=q.shift();
+            for(const[dc,dr] of [[0,-1],[0,1],[-1,0],[1,0]]) {
+                const nc=u.col+dc, nr=u.row+dr, k=K(nc,nr);
+                if(vis.has(k)) continue;
+                if(!isWalkable(nc,nr)&&!(nc===tc&&nr===tr)) continue;
+                vis.add(k);
+                const np=u.path.concat({col:nc,row:nr});
+                if(nc===tc&&nr===tr) return np;
+                q.push({col:nc,row:nr,path:np});
+            }
+        }
+        return [];
+    }
+
+    // ===== AGENTS =====
+    let spritesByPal = P.spritesByPal;
+    function getSprites(i) {
+        if(!spritesByPal[i]) spritesByPal[i]=generateCharSprites(PALETTES[i%PALETTES.length]);
+        return spritesByPal[i];
+    }
+    function createAgent(id, name) {
+        if (agents[id]) return agents[id]; // already exists
+
+        // Check for saved state from localStorage
+        const saved = P._savedAgents && P._savedAgents[id];
+
+        const pal = saved ? saved.palette : (P.nextPal++ % PALETTES.length);
+        let desk = desks.find(function(d){return !d.agentId;});
+        if(!desk) desk = desks[0];
+        if(desk) desk.agentId = id;
+        const sc = desk?desk.col:5, sr = desk?desk.row+1:5;
+
+        if (saved) {
+            // Restore agent from saved state
+            agents[id] = {
+                id:id, name:saved.name||name||id, palette:pal, sprites:getSprites(pal),
+                state:saved.state||'sit', dir:saved.dir||3,
+                x:saved.x||(sc*T+T/2), y:saved.y||(sr*T+T/2),
+                tileCol:saved.tileCol||sc, tileRow:saved.tileRow||sr,
+                seatCol:saved.seatCol||sc, seatRow:saved.seatRow||sr,
+                path:[], frame:saved.frame||0, frameTimer:saved.frameTimer||0,
+                deskIdleTimer:saved.deskIdleTimer||DESK_IDLE_MIN,
+                wanderTimer:saved.wanderTimer||0, wanderCount:saved.wanderCount||0,
+                wanderLimit:saved.wanderLimit||2,
+                breakSpotIdx:saved.breakSpotIdx||-1, breakTimer:saved.breakTimer||0,
+                bathroomSpotIdx:saved.bathroomSpotIdx||-1, bathroomTimer:saved.bathroomTimer||0,
+                totalIdleTime:saved.totalIdleTime||0, needsBathroom:!!saved.needsBathroom,
+                isActive:!!saved.isActive,
+                currentTool:saved.currentTool||null, toolArgs:saved.toolArgs||'',
+                bubbleText:saved.bubbleText||'', bubbleType:saved.bubbleType||'', bubbleTimer:saved.bubbleTimer||0,
+                statusText:saved.statusText||'idle',
+                spawnTimer:0, // no spawn animation on restore
+                accessory:saved.accessory||randomAccessory(),
+                xp:saved.xp||0, level:saved.level||1, tasksCompleted:saved.tasksCompleted||0,
+                mood:saved.mood||0.7,
+                chatterTimer:saved.chatterTimer||10, lastChatter:saved.lastChatter||'',
+                emote:saved.emote||'', emoteTimer:saved.emoteTimer||0,
+            };
+            // Reclaim break/bathroom spots
+            if (agents[id].breakSpotIdx >= 0 && breakSpots[agents[id].breakSpotIdx]) {
+                breakSpots[agents[id].breakSpotIdx].occupant = id;
+            }
+            if (agents[id].bathroomSpotIdx >= 0 && bathroomSpots[agents[id].bathroomSpotIdx]) {
+                bathroomSpots[agents[id].bathroomSpotIdx].occupant = id;
+            }
+            // If was walking, restart at current tile (path not persisted)
+            if (agents[id].state === 'walk') {
+                agents[id].state = 'idle';
+                agents[id].x = agents[id].tileCol * T + T/2;
+                agents[id].y = agents[id].tileRow * T + T/2;
+                agents[id].wanderTimer = 1;
+            }
+        } else {
+            // Brand new agent
+            agents[id] = {
+                id:id, name:name||id, palette:pal, sprites:getSprites(pal),
+                state:'sit', dir:3,
+                x:sc*T+T/2, y:sr*T+T/2,
+                tileCol:sc, tileRow:sr, seatCol:sc, seatRow:sr,
+                path:[], frame:0, frameTimer:0,
+                deskIdleTimer: DESK_IDLE_MIN + Math.random()*(DESK_IDLE_MAX-DESK_IDLE_MIN),
+                wanderTimer: 0, wanderCount:0, wanderLimit: 1+Math.floor(Math.random()*2),
+                breakSpotIdx: -1, breakTimer: 0,
+                bathroomSpotIdx: -1, bathroomTimer: 0,
+                totalIdleTime: Math.random() * 40,
+                needsBathroom: false,
+                isActive:false,
+                currentTool:null, toolArgs:'',
+                bubbleText:'', bubbleType:'', bubbleTimer:0,
+                statusText:'idle',
+                spawnTimer:0.3,
+                accessory: randomAccessory(),
+                xp: 0, level: 1, tasksCompleted: 0,
+                mood: 0.7 + Math.random()*0.3,
+                chatterTimer: 5 + Math.random()*20,
+                lastChatter: '',
+                emote: '', emoteTimer: 0,
+            };
+        }
+        return agents[id];
+    }
+
+    // ===== BREAK ROOM HELPERS =====
+    function freeBreakSpot(a) {
+        if (a.breakSpotIdx >= 0 && breakSpots[a.breakSpotIdx]) breakSpots[a.breakSpotIdx].occupant = null;
+        a.breakSpotIdx = -1;
+    }
+    function pickBreakSpot() {
+        const free = [];
+        breakSpots.forEach(function(s,i) { if(!s.occupant) free.push(i); });
+        return free.length === 0 ? -1 : free[Math.floor(Math.random()*free.length)];
+    }
+    function breakBubbleText(type) {
+        return {coffee:'Coffee break',water:'Getting water',couch:'Relaxing',table:'Chatting',stand:'Stretching'}[type]||'On break';
+    }
+
+    // ===== BATHROOM HELPERS =====
+    function freeBathroomSpot(a) {
+        if (a.bathroomSpotIdx >= 0 && bathroomSpots[a.bathroomSpotIdx]) bathroomSpots[a.bathroomSpotIdx].occupant = null;
+        a.bathroomSpotIdx = -1;
+    }
+    function pickBathroomSpot() {
+        const free = [];
+        bathroomSpots.forEach(function(s,i) { if(!s.occupant) free.push(i); });
+        return free.length === 0 ? -1 : free[Math.floor(Math.random()*free.length)];
+    }
+    function bathroomBubbleText(type) {
+        return type === 'sink' ? 'Washing hands' : 'Be right back';
+    }
+
+    // ===== STATE MACHINE =====
+    function updateAgent(a, dt) {
+        if (a.spawnTimer > 0) { a.spawnTimer -= dt; return; }
+        a.frameTimer += dt;
+        if (a.bubbleTimer > 0) { a.bubbleTimer -= dt; if(a.bubbleTimer<=0) { a.bubbleType=''; a.bubbleText=''; } }
+
+        const atSeat = a.tileCol===a.seatCol && a.tileRow===a.seatRow;
+        const READ_TOOLS = ['Read','Grep','Glob','WebFetch','WebSearch'];
+
+        // Track total idle time (not working)
+        if (!a.isActive) { a.totalIdleTime += dt; }
+        else { a.totalIdleTime = 0; a.needsBathroom = false; }
+        if (a.totalIdleTime >= BATHROOM_IDLE_THRESHOLD && !a.needsBathroom) a.needsBathroom = true;
+
+        // --- INTERRUPT: got work while not working → rush to desk ---
+        if (a.isActive && a.state !== 'type' && a.state !== 'read' && a.state !== 'spawnEffect') {
+            freeBreakSpot(a); freeBathroomSpot(a);
+            if (atSeat) {
+                a.state = READ_TOOLS.includes(a.currentTool)?'read':'type';
+                a.dir = 3; a.frame = 0;
+            } else if (a.state !== 'walk' || (a.path.length > 0 && (a.path[a.path.length-1].col !== a.seatCol || a.path[a.path.length-1].row !== a.seatRow))) {
+                a.path = findPath(a.tileCol, a.tileRow, a.seatCol, a.seatRow);
+                if (a.path.length > 0) { a.state = 'walk'; a.frame = 0; }
+            }
+            // If already walking to seat, let walk state handle it
+        }
+
+        if (a.state === 'type' || a.state === 'read') {
+            if (a.frameTimer >= TYPE_FRAME_DUR) { a.frameTimer -= TYPE_FRAME_DUR; a.frame = (a.frame+1)%2; }
+            if (!a.isActive) {
+                a.state = 'sit'; a.frame = 0; a.dir = 3;
+                a.deskIdleTimer = DESK_IDLE_MIN + Math.random()*(DESK_IDLE_MAX-DESK_IDLE_MIN);
+            }
+
+        } else if (a.state === 'sit') {
+            a.frame = 0;
+            if (a.isActive) {
+                a.state = READ_TOOLS.includes(a.currentTool) ? 'read' : 'type';
+                a.frame = 0; a.dir = 3;
+            } else {
+                a.deskIdleTimer -= dt;
+                if (a.deskIdleTimer <= 0) {
+                    // If needs bathroom urgently, go directly
+                    if (a.needsBathroom) {
+                        const bi = pickBathroomSpot();
+                        if (bi >= 0) {
+                            const spot = bathroomSpots[bi];
+                            a.path = findPath(a.tileCol, a.tileRow, spot.col, spot.row);
+                            if (a.path.length > 0) {
+                                spot.occupant = a.id; a.bathroomSpotIdx = bi;
+                                a.state = 'walk'; a.frame = 0;
+                                a.statusText = 'heading to bathroom';
+                                return;
+                            }
+                        }
+                    }
+                    // Otherwise head to break room
+                    const si = pickBreakSpot();
+                    if (si >= 0) {
+                        const spot = breakSpots[si];
+                        a.path = findPath(a.tileCol, a.tileRow, spot.col, spot.row);
+                        if (a.path.length > 0) {
+                            spot.occupant = a.id;
+                            a.breakSpotIdx = si;
+                            a.state = 'walk'; a.frame = 0;
+                            a.bubbleType = 'break'; a.bubbleText = breakBubbleText(spot.type); a.bubbleTimer = 999;
+                            a.statusText = breakBubbleText(spot.type).toLowerCase();
+                        } else {
+                            a.deskIdleTimer = 10 + Math.random()*20;
+                        }
+                    } else {
+                        a.deskIdleTimer = 10 + Math.random()*20; // all spots taken
+                    }
+                }
+            }
+
+        } else if (a.state === 'break') {
+            a.frame = 0;
+            a.breakTimer -= dt;
+            if (a.breakTimer <= 0) {
+                freeBreakSpot(a);
+                // If needs bathroom, go there instead of back to desk
+                if (a.needsBathroom) {
+                    const bi = pickBathroomSpot();
+                    if (bi >= 0) {
+                        const spot = bathroomSpots[bi];
+                        a.path = findPath(a.tileCol, a.tileRow, spot.col, spot.row);
+                        if (a.path.length > 0) {
+                            spot.occupant = a.id;
+                            a.bathroomSpotIdx = bi;
+                            a.state = 'walk'; a.frame = 0;
+                            a.bubbleType = ''; a.bubbleText = ''; // no bubble while walking there
+                            a.statusText = 'heading to bathroom';
+                            return;
+                        }
+                    }
+                }
+                // Move to another break spot or return to desk
+                if (Math.random() < 0.35) {
+                    const si = pickBreakSpot();
+                    if (si >= 0) {
+                        const spot = breakSpots[si];
+                        a.path = findPath(a.tileCol, a.tileRow, spot.col, spot.row);
+                        if (a.path.length > 0) {
+                            spot.occupant = a.id; a.breakSpotIdx = si;
+                            a.state = 'walk'; a.frame = 0;
+                            a.bubbleType = 'break'; a.bubbleText = breakBubbleText(spot.type); a.bubbleTimer = 999;
+                            a.statusText = breakBubbleText(spot.type).toLowerCase();
+                            return;
+                        }
+                    }
+                }
+                a.path = findPath(a.tileCol, a.tileRow, a.seatCol, a.seatRow);
+                if (a.path.length > 0) { a.state = 'walk'; a.frame = 0; }
+                else { a.state = 'idle'; }
+                a.bubbleType = ''; a.bubbleText = ''; a.statusText = 'returning';
+            }
+
+        } else if (a.state === 'bathroom') {
+            a.frame = 0;
+            a.bathroomTimer -= dt;
+            if (a.bathroomTimer <= 0) {
+                const spot = a.bathroomSpotIdx >= 0 ? bathroomSpots[a.bathroomSpotIdx] : null;
+                if (spot && spot.type === 'stall') {
+                    // After stall, go to sink
+                    freeBathroomSpot(a);
+                    const si = bathroomSpots.findIndex(function(s){ return s.type === 'sink' && !s.occupant; });
+                    if (si >= 0) {
+                        const sink = bathroomSpots[si];
+                        a.path = findPath(a.tileCol, a.tileRow, sink.col, sink.row);
+                        if (a.path.length > 0) {
+                            sink.occupant = a.id; a.bathroomSpotIdx = si;
+                            a.state = 'walk'; a.frame = 0;
+                            a.statusText = 'washing hands';
+                            return;
+                        }
+                    }
+                }
+                // Done — go back to desk
+                freeBathroomSpot(a);
+                a.needsBathroom = false;
+                a.totalIdleTime = 0;
+                a.path = findPath(a.tileCol, a.tileRow, a.seatCol, a.seatRow);
+                if (a.path.length > 0) { a.state = 'walk'; a.frame = 0; }
+                else { a.state = 'idle'; }
+                a.bubbleType = ''; a.bubbleText = ''; a.statusText = 'returning';
+            }
+
+        } else if (a.state === 'walk') {
+            if (a.frameTimer >= WALK_FRAME_DUR) { a.frameTimer -= WALK_FRAME_DUR; a.frame = (a.frame+1)%4; }
+            if (a.path.length === 0) {
+                // Arrived — figure out where we are
+                if (atSeat) {
+                    if (a.isActive) { a.state = READ_TOOLS.includes(a.currentTool)?'read':'type'; }
+                    else { a.state = 'sit'; }
+                    a.dir = 3; a.frame = 0;
+                    a.deskIdleTimer = DESK_IDLE_MIN + Math.random()*(DESK_IDLE_MAX-DESK_IDLE_MIN);
+                    a.bubbleType = ''; a.bubbleText = ''; a.statusText = a.isActive ? a.statusText : 'idle';
+                } else if (a.breakSpotIdx >= 0) {
+                    a.state = 'break'; a.frame = 0;
+                    a.dir = breakSpots[a.breakSpotIdx].facing;
+                    a.breakTimer = BREAK_STAY_MIN + Math.random()*(BREAK_STAY_MAX-BREAK_STAY_MIN);
+                    if (breakSpots[a.breakSpotIdx].type === 'couch') {
+                        a.emote = 'zzz'; a.emoteTimer = 8;
+                    }
+                } else if (a.bathroomSpotIdx >= 0) {
+                    a.state = 'bathroom'; a.frame = 0;
+                    a.dir = bathroomSpots[a.bathroomSpotIdx].facing;
+                    const isSink = bathroomSpots[a.bathroomSpotIdx].type === 'sink';
+                    a.bathroomTimer = isSink ? 5 + Math.random()*5 : BATHROOM_STAY_MIN + Math.random()*(BATHROOM_STAY_MAX-BATHROOM_STAY_MIN);
+                    a.bubbleType = 'break'; a.bubbleText = bathroomBubbleText(bathroomSpots[a.bathroomSpotIdx].type); a.bubbleTimer = 999;
+                    a.statusText = isSink ? 'washing hands' : 'in bathroom';
+                } else {
+                    a.state = 'idle'; a.frame = 0;
+                    a.wanderTimer = WANDER_PAUSE_MIN + Math.random()*(WANDER_PAUSE_MAX-WANDER_PAUSE_MIN);
+                }
+                return;
+            }
+            const tgt = a.path[0];
+            const tx=tgt.col*T+T/2, ty=tgt.row*T+T/2;
+            const dx=tx-a.x, dy=ty-a.y;
+            const dist=Math.sqrt(dx*dx+dy*dy), step=WALK_SPEED*dt;
+            if (step>=dist) { a.x=tx;a.y=ty;a.tileCol=tgt.col;a.tileRow=tgt.row;a.path.shift(); }
+            else { a.x+=dx/dist*step; a.y+=dy/dist*step; }
+            if(Math.abs(dx)>Math.abs(dy)) a.dir=dx>0?2:1; else a.dir=dy>0?0:3;
+
+        } else { // idle (standing, between actions)
+            a.wanderTimer -= dt;
+            if (a.wanderTimer <= 0) {
+                a.path = findPath(a.tileCol, a.tileRow, a.seatCol, a.seatRow);
+                if (a.path.length > 0) { a.state = 'walk'; a.frame = 0; }
+                else { a.wanderTimer = 3; }
+            }
+        }
+
+        // --- Mood decay/recovery ---
+        if (a.isActive) a.mood = Math.min(1, a.mood + dt * 0.002); // slow recovery while productive
+        else a.mood = Math.max(0.1, a.mood - dt * 0.0005); // very slow decay when idle
+        if (a.state === 'break') a.mood = Math.min(1, a.mood + dt * 0.01); // break room boosts mood
+
+        // --- Emote timer ---
+        if (a.emoteTimer > 0) { a.emoteTimer -= dt; if(a.emoteTimer<=0) a.emote=''; }
+
+        // --- Idle chatter (only in break room or sitting at desk idle) ---
+        if (!a.isActive && !a.bubbleText) {
+            a.chatterTimer -= dt;
+            if (a.chatterTimer <= 0) {
+                a.chatterTimer = 8 + Math.random() * 25;
+                // Pick chatter based on location/state
+                let pool;
+                if (a.state === 'break') {
+                    const spot = a.breakSpotIdx >= 0 ? breakSpots[a.breakSpotIdx] : null;
+                    pool = (spot && spot.type === 'couch') ? CHATTER_COUCH : CHATTER_BREAK;
+                    // Check for nearby agents — if someone else is at a break spot, make it conversational
+                    const nearby = Object.values(agents).filter(function(o) {
+                        return o.id !== a.id && o.state === 'break' && Math.abs(o.tileCol - a.tileCol) <= 2 && Math.abs(o.tileRow - a.tileRow) <= 2;
+                    });
+                    if (nearby.length > 0) {
+                        // Reply-style chatter
+                        const other = nearby[0];
+                        if (other.lastChatter && Math.random() < 0.5) {
+                            pool = ['Haha yeah!', 'Totally agree', 'So true', 'No way!', 'Right??', 'Tell me more', 'Interesting...', 'Hmm maybe', 'For sure!', '*nods*'];
+                        }
+                    }
+                } else if (a.state === 'sit' || a.state === 'idle') {
+                    pool = CHATTER_WORK;
+                }
+                if (pool) {
+                    const msg = pool[Math.floor(Math.random() * pool.length)];
+                    a.bubbleType = 'chat'; a.bubbleText = msg; a.bubbleTimer = 3 + Math.random()*3;
+                    a.lastChatter = msg;
+                }
+            }
+        }
+    }
+
+    // ===== RENDERING =====
+    function getFrame(a) {
+        const dk=['down','left','right','up'][a.dir];
+        let ak;
+        if (a.state==='type'||a.state==='read'||a.state==='sit') ak = a.state;
+        else if (a.state==='walk') ak = 'walk';
+        else if (a.state==='break') {
+            const spot = a.breakSpotIdx>=0 ? breakSpots[a.breakSpotIdx] : null;
+            ak = (spot && (spot.type==='couch'||spot.type==='table')) ? 'sit' : 'idle';
+        } else if (a.state==='bathroom') {
+            ak = 'idle'; // standing at sink or in stall
+        } else ak = 'idle';
+        return a.sprites[dk][ak][a.frame % a.sprites[dk][ak].length];
+    }
+
+    function renderFrame(time) {
+        if(!canvas||!ctx) return;
+        // Simulation runs in background via setInterval — render only draws
+        const dpr=window.devicePixelRatio||1;
+        const cw=canvas.width/dpr, ch=canvas.height/dpr;
+        ctx.setTransform(dpr,0,0,dpr,0,0);
+        ctx.imageSmoothingEnabled=false;
+
+        ctx.fillStyle='#08080f'; ctx.fillRect(0,0,cw,ch);
+
+        const mapW=COLS*T*zoom, mapH=ROWS*T*zoom;
+        const ox=Math.floor((cw-mapW)/2+panX), oy=Math.floor((ch-mapH)/2+panY);
+
+        // Floor + walls + divider + bathroom
+        for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) {
+            const tx=ox+c*T*zoom, ty=oy+r*T*zoom;
+
+            // --- Main office outer walls (rows 0-13, cols 0-21) ---
+            const mainOuter = (r<=13) && (r===0||(r===13&&c<=DIV_COL)||c===0||(c===DIV_COL+1&&r>12));
+            const mainLeft = c===0 && r<=13;
+            const mainRight = c===21 && r<=13 && r>0;
+
+            // --- Break room walls ---
+            const breakTop = r===0 && c>DIV_COL && c<=30;
+            const breakBot = r===13 && c>DIV_COL && c<=30 && !(c>=26&&c<=28); // gap for hallway
+            const breakRight = c===COLS-1 && r<=13;
+            const breakDivider = c===DIV_COL && r<=13 && (r<DOOR_ROW_MIN||r>DOOR_ROW_MAX);
+
+            // --- Bathroom walls ---
+            const bathTop = r===BATH_TOP && c>=BATH_LEFT && c<=BATH_RIGHT && !(c>=26&&c<=28); // gap for hallway
+            const bathBot = r===BATH_BOT && c>=BATH_LEFT && c<=BATH_RIGHT;
+            const bathLeft = c===BATH_LEFT && r>BATH_TOP && r<BATH_BOT;
+            const bathRight2 = c===BATH_RIGHT && r>=BATH_TOP && r<=BATH_BOT;
+
+            // --- Hallway walls ---
+            const hallLeft = c===25 && r>=13 && r<=BATH_TOP;
+            const hallRight = c===29 && r>=13 && r<=BATH_TOP;
+
+            const isWall = mainOuter || mainLeft || breakTop || breakBot || breakRight || breakDivider || bathTop || bathBot || bathLeft || bathRight2 || hallLeft || hallRight;
+            // Don't draw walls in areas that should be floor
+            const isMainFloor = c>=1 && c<=21 && r>=1 && r<=12;
+            const isBreakFloor = c>DIV_COL && c<COLS-1 && r>=1 && r<=12;
+            const isHallFloor = c>=26 && c<=28 && r>=13 && r<=BATH_TOP;
+            const isBathFloor = c>BATH_LEFT && c<BATH_RIGHT && r>BATH_TOP && r<BATH_BOT;
+            const isDoor = c===DIV_COL && r>=DOOR_ROW_MIN && r<=DOOR_ROW_MAX;
+            const isMainBot = r===13 && c>=1 && c<=21;
+
+            if (isDoor) {
+                ctx.fillStyle = (r===DOOR_ROW_MIN||r===DOOR_ROW_MAX)?WALL_TOP:BREAK_FLOOR;
+                ctx.fillRect(tx,ty,T*zoom,T*zoom);
+            } else if (isMainFloor) {
+                ctx.fillStyle=(r+c)%2===0?FLOOR_COLOR:FLOOR_ALT;
+                ctx.fillRect(tx,ty,T*zoom,T*zoom);
+            } else if (isBreakFloor) {
+                ctx.fillStyle=(r+c)%2===0?BREAK_FLOOR:BREAK_ALT;
+                ctx.fillRect(tx,ty,T*zoom,T*zoom);
+            } else if (isHallFloor) {
+                ctx.fillStyle=(r+c)%2===0?BATH_FLOOR:BATH_ALT;
+                ctx.fillRect(tx,ty,T*zoom,T*zoom);
+            } else if (isBathFloor) {
+                ctx.fillStyle=(r+c)%2===0?BATH_FLOOR:BATH_ALT;
+                ctx.fillRect(tx,ty,T*zoom,T*zoom);
+            } else if (isWall || isMainBot) {
+                ctx.fillStyle=WALL_COLOR;
+                ctx.fillRect(tx,ty,T*zoom,T*zoom);
+                if(r===0||r===BATH_TOP) { ctx.fillStyle=WALL_TOP; ctx.fillRect(tx,ty,T*zoom,4*zoom); }
+            }
+            // Everything else stays as background (void)
+        }
+
+        // ===== BREAK ROOM FURNITURE =====
+        const bx = ox + 23*T*zoom; // break room left edge in px
+        // -- Coffee machine (cols 28-29, row 1) --
+        const cmx=ox+28*T*zoom, cmy=oy+1*T*zoom;
+        ctx.fillStyle='#555';
+        ctx.fillRect(cmx, cmy, T*2*zoom, T*zoom);
+        ctx.fillStyle='#666';
+        ctx.fillRect(cmx+2*zoom, cmy+2*zoom, 4*zoom, 6*zoom); // left unit
+        ctx.fillRect(cmx+8*zoom, cmy+2*zoom, 4*zoom, 6*zoom); // right unit
+        ctx.fillStyle='#ff4d4d';
+        ctx.fillRect(cmx+3*zoom, cmy+3*zoom, 2*zoom, zoom); // indicator light
+        ctx.fillStyle='#8B4513';
+        ctx.fillRect(cmx+10*zoom, cmy+6*zoom, 2*zoom, 3*zoom); // cup
+        ctx.fillStyle='#ddd';
+        ctx.fillRect(cmx+10*zoom, cmy+6*zoom, 2*zoom, zoom); // cup rim
+        // Label
+        ctx.fillStyle='rgba(255,255,255,0.15)';
+        ctx.font=Math.max(5,zoom*1.5)+'px monospace';
+        ctx.textAlign='center';
+        ctx.fillText('COFFEE',cmx+T*zoom,cmy-zoom);
+
+        // -- Water cooler (col 29, row 5) --
+        const wcx=ox+29*T*zoom, wcy=oy+5*T*zoom;
+        ctx.fillStyle='#88bbdd';
+        ctx.fillRect(wcx+4*zoom, wcy, 6*zoom, 4*zoom); // bottle
+        ctx.fillStyle='#aaddee';
+        ctx.fillRect(wcx+5*zoom, wcy+zoom, 4*zoom, 2*zoom); // water
+        ctx.fillStyle='#777';
+        ctx.fillRect(wcx+3*zoom, wcy+4*zoom, 8*zoom, 8*zoom); // base
+        ctx.fillStyle='#999';
+        ctx.fillRect(wcx+4*zoom, wcy+4*zoom, 6*zoom, zoom); // spout area
+
+        // -- Couch (cols 25-27, row 10) --
+        const cox=ox+24*T*zoom, coy=oy+10*T*zoom;
+        // Back
+        ctx.fillStyle='#4a2233';
+        ctx.fillRect(cox+zoom, coy, T*4*zoom-2*zoom, 5*zoom);
+        // Seat cushions
+        ctx.fillStyle='#6a3344';
+        ctx.fillRect(cox+zoom, coy+5*zoom, T*4*zoom-2*zoom, 7*zoom);
+        // Cushion dividers
+        ctx.fillStyle='#5a2a38';
+        ctx.fillRect(cox+T*zoom+6*zoom, coy+5*zoom, zoom, 7*zoom);
+        ctx.fillRect(cox+T*2*zoom+8*zoom, coy+5*zoom, zoom, 7*zoom);
+        // Armrests
+        ctx.fillStyle='#4a2233';
+        ctx.fillRect(cox, coy+2*zoom, zoom, 10*zoom);
+        ctx.fillRect(cox+T*4*zoom-zoom, coy+2*zoom, zoom, 10*zoom);
+        // Legs
+        ctx.fillStyle='#333';
+        ctx.fillRect(cox+2*zoom, coy+12*zoom, 2*zoom, 3*zoom);
+        ctx.fillRect(cox+T*4*zoom-4*zoom, coy+12*zoom, 2*zoom, 3*zoom);
+
+        // -- Table (cols 25-26, row 7) --
+        const tbx=ox+25*T*zoom, tby=oy+7*T*zoom;
+        ctx.fillStyle='#5c4a3a';
+        ctx.fillRect(tbx, tby, T*2*zoom, T*zoom);
+        ctx.fillStyle='#6a5844';
+        ctx.fillRect(tbx+zoom, tby+zoom, T*2*zoom-2*zoom, T*zoom-2*zoom);
+        // Legs
+        ctx.fillStyle='#3a2a1e';
+        ctx.fillRect(tbx+zoom, tby+T*zoom, 2*zoom, 3*zoom);
+        ctx.fillRect(tbx+T*2*zoom-3*zoom, tby+T*zoom, 2*zoom, 3*zoom);
+        // Items on table
+        ctx.fillStyle='#eee';
+        ctx.fillRect(tbx+4*zoom, tby+3*zoom, 3*zoom, 3*zoom); // plate
+        ctx.fillStyle='#8B4513';
+        ctx.fillRect(tbx+12*zoom, tby+4*zoom, 2*zoom, 3*zoom); // mug
+        ctx.fillStyle='#fff';
+        ctx.fillRect(tbx+12*zoom, tby+4*zoom, 2*zoom, zoom);
+
+        // -- Plant (col 24, row 1) --
+        const plx=ox+24*T*zoom, ply=oy+1*T*zoom;
+        ctx.fillStyle='#8B4513';
+        ctx.fillRect(plx+5*zoom, ply+8*zoom, 6*zoom, 6*zoom); // pot
+        ctx.fillStyle='#aa5533';
+        ctx.fillRect(plx+4*zoom, ply+8*zoom, 8*zoom, 2*zoom); // rim
+        ctx.fillStyle='#228833';
+        ctx.fillRect(plx+3*zoom, ply+2*zoom, 3*zoom, 6*zoom); // left leaf
+        ctx.fillRect(plx+7*zoom, ply, 4*zoom, 8*zoom);         // center leaf
+        ctx.fillRect(plx+10*zoom, ply+3*zoom, 3*zoom, 5*zoom); // right leaf
+        ctx.fillStyle='#33aa44';
+        ctx.fillRect(plx+8*zoom, ply+zoom, 2*zoom, 4*zoom);    // highlight
+
+        // -- Bookshelf (col 24, row 11-12) --
+        const bsx=ox+24*T*zoom, bsy=oy+12*T*zoom;
+        ctx.fillStyle='#5c4a3a';
+        ctx.fillRect(bsx, bsy, T*zoom, T*zoom);
+        // Books
+        const bookColors = ['#cc3333','#3366cc','#33aa55','#ccaa22','#9944cc'];
+        for(let i=0;i<5;i++) {
+            ctx.fillStyle=bookColors[i];
+            ctx.fillRect(bsx+1*zoom+i*3*zoom, bsy+2*zoom, 2*zoom, 8*zoom);
+        }
+
+        // -- Break room label on wall above door --
+        ctx.fillStyle='rgba(255,255,255,0.08)';
+        ctx.font='bold '+Math.max(6,zoom*2)+'px monospace';
+        ctx.textAlign='center';
+        ctx.fillText('BREAK ROOM', ox+26.5*T*zoom, oy+T*zoom-2*zoom);
+
+        // ===== BATHROOM FURNITURE =====
+        // Label
+        ctx.fillStyle='rgba(255,255,255,0.08)';
+        ctx.font='bold '+Math.max(6,zoom*2)+'px monospace';
+        ctx.textAlign='center';
+        ctx.fillText('WC', ox+26.5*T*zoom, oy+BATH_TOP*T*zoom+T*zoom-2*zoom);
+
+        // -- Stalls (col 24, rows 16 and 18) --
+        for (const sr of [16, 18]) {
+            const sx=ox+BATH_LEFT*T*zoom, sy=oy+sr*T*zoom;
+            // Stall walls
+            ctx.fillStyle='#555566';
+            ctx.fillRect(sx, sy-2*zoom, T*zoom, 2*zoom); // top partition
+            ctx.fillRect(sx, sy+T*zoom, T*zoom, 2*zoom); // bottom partition
+            // Toilet
+            ctx.fillStyle='#dddddd';
+            ctx.fillRect(sx+3*zoom, sy+3*zoom, 6*zoom, 8*zoom);
+            ctx.fillStyle='#eeeeee';
+            ctx.fillRect(sx+4*zoom, sy+4*zoom, 4*zoom, 5*zoom); // bowl
+            ctx.fillStyle='#cccccc';
+            ctx.fillRect(sx+3*zoom, sy+3*zoom, 6*zoom, 2*zoom); // tank
+            // Flush handle
+            ctx.fillStyle='#999';
+            ctx.fillRect(sx+8*zoom, sy+4*zoom, 2*zoom, zoom);
+            // Door (partial height)
+            ctx.fillStyle='#444455';
+            ctx.fillRect(sx+T*zoom-2*zoom, sy+2*zoom, 2*zoom, T*zoom-4*zoom);
+        }
+
+        // -- Sinks (cols 28-29, row 16) --
+        for (const sc of [28, 29]) {
+            const sx=ox+sc*T*zoom, sy=oy+16*T*zoom;
+            // Counter
+            ctx.fillStyle='#888899';
+            ctx.fillRect(sx, sy, T*zoom, 5*zoom);
+            // Basin
+            ctx.fillStyle='#aabbcc';
+            ctx.fillRect(sx+3*zoom, sy+zoom, 10*zoom, 3*zoom);
+            ctx.fillStyle='#99aabb';
+            ctx.fillRect(sx+4*zoom, sy+2*zoom, 8*zoom, zoom);
+            // Faucet
+            ctx.fillStyle='#ccccdd';
+            ctx.fillRect(sx+7*zoom, sy, 2*zoom, zoom);
+            // Mirror above
+            ctx.fillStyle='#667788';
+            ctx.fillRect(sx+2*zoom, sy-6*zoom, 12*zoom, 6*zoom);
+            ctx.fillStyle='#8899aa';
+            ctx.fillRect(sx+3*zoom, sy-5*zoom, 10*zoom, 4*zoom); // mirror reflection
+        }
+
+        // -- Paper towel dispenser (col 27, row 16) --
+        const ptx=ox+27*T*zoom, pty=oy+16*T*zoom;
+        ctx.fillStyle='#666677';
+        ctx.fillRect(ptx+4*zoom, pty-4*zoom, 8*zoom, 5*zoom);
+        ctx.fillStyle='#eeeedd';
+        ctx.fillRect(ptx+5*zoom, pty, 6*zoom, 2*zoom); // hanging paper
+
+        // -- Wet floor sign (col 26, row 18) --
+        const wfx=ox+26*T*zoom, wfy=oy+18*T*zoom;
+        ctx.fillStyle='#ccaa00';
+        ctx.beginPath();
+        ctx.moveTo(wfx+8*zoom, wfy+2*zoom);
+        ctx.lineTo(wfx+3*zoom, wfy+10*zoom);
+        ctx.lineTo(wfx+13*zoom, wfy+10*zoom);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle='#111';
+        ctx.font=Math.max(4,zoom*1.2)+'px monospace';
+        ctx.textAlign='center';
+        ctx.fillText('!', wfx+8*zoom, wfy+8*zoom);
+
+        // Desks + chairs + monitors
+        desks.forEach(function(d) {
+            const dx=ox+d.col*T*zoom, dy=oy+d.row*T*zoom;
+            const ha=d.agentId&&agents[d.agentId];
+            const working=ha&&ha.isActive;
+
+            // Chair (behind agent, row+1)
+            const cx2=dx+3*zoom, cy2=oy+(d.row+1)*T*zoom;
+            ctx.fillStyle=CHAIR_BACK;
+            ctx.fillRect(cx2+1*zoom, cy2-2*zoom, 10*zoom, 3*zoom);
+            ctx.fillStyle=CHAIR_SEAT;
+            ctx.fillRect(cx2+2*zoom, cy2+1*zoom, 8*zoom, 5*zoom);
+            // Chair legs
+            ctx.fillStyle='#333';
+            ctx.fillRect(cx2+3*zoom, cy2+6*zoom, 1*zoom, 2*zoom);
+            ctx.fillRect(cx2+8*zoom, cy2+6*zoom, 1*zoom, 2*zoom);
+
+            // Desk body (2 tiles wide)
+            ctx.fillStyle=DESK_COLOR;
+            ctx.fillRect(dx, dy+4*zoom, T*zoom*2, 8*zoom);
+            // Desk top surface
+            ctx.fillStyle=DESK_TOP;
+            ctx.fillRect(dx, dy+4*zoom, T*zoom*2, 2*zoom);
+            // Desk legs
+            ctx.fillStyle=DESK_LEG;
+            ctx.fillRect(dx+1*zoom, dy+12*zoom, 2*zoom, 3*zoom);
+            ctx.fillRect(dx+T*2*zoom-3*zoom, dy+12*zoom, 2*zoom, 3*zoom);
+
+            // Monitor frame
+            ctx.fillStyle='#222';
+            ctx.fillRect(dx+4*zoom, dy, 10*zoom, 4*zoom);
+            // Screen
+            ctx.fillStyle=working?'#33ff66':'#1a2a1a';
+            ctx.fillRect(dx+5*zoom, dy+zoom, 8*zoom, 2*zoom);
+            // Screen content lines when working
+            if(working) {
+                for(let i=0;i<2;i++) {
+                    const lw = 2+Math.floor(((animFrame*3+i*7+d.col)%11)/11*5);
+                    const flicker = ((animFrame+i*13+d.col*7)%6)<1;
+                    ctx.fillStyle=flicker?'#88ffaa':'#22cc55';
+                    ctx.fillRect(dx+(5+i)*zoom, dy+zoom+i*zoom, lw*zoom, zoom);
+                }
+            }
+            // Monitor stand
+            ctx.fillStyle='#333';
+            ctx.fillRect(dx+8*zoom, dy+4*zoom, 2*zoom, zoom);
+            // Keyboard
+            ctx.fillStyle='#2a2a2a';
+            ctx.fillRect(dx+5*zoom, dy+6*zoom, 8*zoom, 2*zoom);
+            if(working) {
+                // Keyboard key flash
+                const kx=5+((animFrame*2+d.col)%6);
+                ctx.fillStyle='#444';
+                ctx.fillRect(dx+kx*zoom, dy+6*zoom, 2*zoom, zoom);
+            }
+            // Coffee mug (on right side of desk)
+            ctx.fillStyle='#eee';
+            ctx.fillRect(dx+15*zoom, dy+5*zoom, 2*zoom, 3*zoom);
+            ctx.fillStyle='#8B4513';
+            ctx.fillRect(dx+15*zoom, dy+5*zoom, 2*zoom, zoom);
+        });
+
+        // Z-sorted agents
+        const drawList = [];
+        for(const id in agents) drawList.push(agents[id]);
+        drawList.sort(function(a,b){return a.y-b.y;});
+
+        drawList.forEach(function(a) {
+            if(a.spawnTimer>0) { renderSpawn(a,ox,oy); return; }
+            const frame=getFrame(a);
+            const cached=rasterize(frame,zoom);
+            const seatedDesk=a.state==='type'||a.state==='read'||a.state==='sit';
+            const seatedBreak=a.state==='break'&&a.breakSpotIdx>=0&&(breakSpots[a.breakSpotIdx].type==='couch'||breakSpots[a.breakSpotIdx].type==='table');
+            const seated=seatedDesk||seatedBreak;
+            const sitOff=seated?4*zoom:0;
+            const drawX=Math.round(ox+a.x*zoom-cached.width/2);
+            const drawY=Math.round(oy+a.y*zoom-cached.height+sitOff);
+
+            // Shadow
+            ctx.fillStyle='rgba(0,0,0,0.25)';
+            ctx.beginPath();
+            ctx.ellipse(ox+a.x*zoom, oy+a.y*zoom+2*zoom, 5*zoom, 1.5*zoom, 0,0,Math.PI*2);
+            ctx.fill();
+
+            // Hover highlight
+            if(hoverAgent===a) {
+                ctx.globalAlpha=0.2; ctx.fillStyle='#fff';
+                ctx.fillRect(drawX-zoom,drawY-zoom,cached.width+2*zoom,cached.height+2*zoom);
+                ctx.globalAlpha=1;
+            }
+
+            ctx.drawImage(cached,drawX,drawY);
+
+            // Accessory overlay
+            renderAccessory(a, drawX, drawY);
+
+            // Active glow
+            if(a.isActive) {
+                ctx.fillStyle='rgba(255,77,77,0.12)';
+                ctx.beginPath();
+                ctx.ellipse(ox+a.x*zoom, oy+a.y*zoom+zoom, 8*zoom, 3*zoom, 0,0,Math.PI*2);
+                ctx.fill();
+            }
+
+            // Level badge (top-right of character)
+            renderLevelBadge(a, ox+a.x*zoom, oy+a.y*zoom);
+
+            // Mood bar (under shadow)
+            if (zoom >= 3) renderMoodBar(a, ox+a.x*zoom, oy+a.y*zoom);
+
+            // Floating emote
+            renderEmote(a, ox+a.x*zoom, drawY);
+
+            // Speech bubble with text
+            if(a.bubbleType && a.bubbleText) {
+                const bubbleY = drawY - 4*zoom;
+                renderTextBubble(ox+a.x*zoom, bubbleY, a.bubbleText, a.bubbleType);
+            }
+
+            // Name tag with level
+            const fontSize = Math.max(7, Math.min(zoom*2.5, 14));
+            ctx.font = 'bold '+fontSize+'px monospace';
+            ctx.textAlign = 'center';
+            const nm = a.name + (a.level>1 ? ' Lv'+a.level : '');
+            const tw = ctx.measureText(nm).width;
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(ox+a.x*zoom-tw/2-2, oy+a.y*zoom+4*zoom-fontSize+1, tw+4, fontSize+2);
+            ctx.fillStyle = a.isActive ? '#ff4d4d' : a.mood > 0.6 ? 'rgba(255,255,255,0.5)' : 'rgba(255,180,100,0.5)';
+            ctx.fillText(nm, ox+a.x*zoom, oy+a.y*zoom+4*zoom);
+        });
+
+        // Particles on top
+        renderParticles(ox, oy);
+
+        // HUD
+        const arr = Object.values(agents);
+        document.getElementById('px-agent-count').textContent = arr.length;
+        document.getElementById('px-active-count').textContent = arr.filter(function(a){return a.isActive;}).length;
+    }
+
+    // ===== TEXT SPEECH BUBBLE =====
+    function renderTextBubble(cx, cy, text, type) {
+        const fontSize = Math.max(6, Math.min(zoom*2, 11));
+        ctx.font = fontSize+'px monospace';
+        const lines = text.split('\n');
+        const maxW = Math.max.apply(null, lines.map(function(l){return ctx.measureText(l).width;}));
+        const pad = Math.max(3, zoom*1.5);
+        const lineH = fontSize + 1;
+        const bw = maxW + pad*2;
+        const bh = lines.length * lineH + pad*2;
+        const bx = Math.round(cx - bw/2);
+        const by = Math.round(cy - bh);
+
+        // Bubble colors by type
+        let bgColor, borderColor, textColor, accentColor;
+        if (type === 'done') {
+            bgColor='rgba(20,40,20,0.92)'; borderColor='#44bb66'; textColor='#88eebb'; accentColor='#44bb66';
+        } else if (type === 'error') {
+            bgColor='rgba(40,15,15,0.92)'; borderColor='#cc4444'; textColor='#ff8888'; accentColor='#cc4444';
+        } else if (type === 'break') {
+            bgColor='rgba(30,25,15,0.85)'; borderColor='#886644'; textColor='#ccbb99'; accentColor='#cc8833';
+        } else if (type === 'chat') {
+            bgColor='rgba(20,20,30,0.8)'; borderColor='#555577'; textColor='#aaaacc'; accentColor='#8888aa';
+        } else {
+            bgColor='rgba(10,10,25,0.92)'; borderColor='#555577'; textColor='#ccccee'; accentColor='#ff4d4d';
+        }
+
+        // Shadow
+        ctx.fillStyle='rgba(0,0,0,0.3)';
+        ctx.fillRect(bx+2, by+2, bw, bh);
+
+        // Background
+        ctx.fillStyle = bgColor;
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = Math.max(1, zoom*0.5);
+        ctx.beginPath();
+        ctx.roundRect(bx, by, bw, bh, Math.max(2, zoom));
+        ctx.fill();
+        ctx.stroke();
+
+        // Tail triangle
+        ctx.fillStyle = bgColor;
+        ctx.beginPath();
+        ctx.moveTo(cx-3*zoom, by+bh);
+        ctx.lineTo(cx, by+bh+2*zoom);
+        ctx.lineTo(cx+3*zoom, by+bh);
+        ctx.fill();
+        ctx.strokeStyle = borderColor;
+        ctx.beginPath();
+        ctx.moveTo(cx-3*zoom, by+bh);
+        ctx.lineTo(cx, by+bh+2*zoom);
+        ctx.lineTo(cx+3*zoom, by+bh);
+        ctx.stroke();
+        // Cover tail join with bg
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(cx-3*zoom, by+bh-1, 6*zoom, 2);
+
+        // Accent dot
+        ctx.fillStyle = accentColor;
+        ctx.fillRect(bx+pad, by+pad, 2, lineH*lines.length);
+
+        // Text
+        ctx.fillStyle = textColor;
+        ctx.textAlign = 'left';
+        lines.forEach(function(line, i) {
+            ctx.fillText(line, bx+pad+4, by+pad+lineH*(i+1)-2);
+        });
+        ctx.textAlign = 'center'; // reset
+    }
+
+    // ===== SPAWN EFFECT =====
+    function renderSpawn(agent, ox, oy) {
+        const progress=1-(agent.spawnTimer/0.3);
+        const frame=getFrame(agent);
+        const h=frame.length, w=16;
+        const headRow=Math.floor(progress*(h+6));
+        for(let col=0;col<w;col++) {
+            const stagger=((col*7+13)%17)/17*0.3;
+            const colHead=headRow-Math.floor(stagger*h);
+            for(let row=0;row<h;row++) {
+                const px_x=Math.round(ox+agent.x*zoom-(w*zoom)/2+col*zoom);
+                const px_y=Math.round(oy+agent.y*zoom-h*zoom+row*zoom);
+                if(row>colHead) continue;
+                if(row===colHead) { ctx.fillStyle='#ccffcc'; ctx.fillRect(px_x,px_y,zoom,zoom); }
+                else if(row>colHead-6) {
+                    const t=(colHead-row)/6;
+                    if(frame[row][col]) { ctx.fillStyle=frame[row][col]; ctx.fillRect(px_x,px_y,zoom,zoom); ctx.fillStyle='rgba(0,255,65,'+(0.6*t).toFixed(2)+')'; ctx.fillRect(px_x,px_y,zoom,zoom); }
+                    else { ctx.fillStyle='rgba(0,'+Math.floor(200*(1-t))+',30,'+(0.4*t).toFixed(2)+')'; ctx.fillRect(px_x,px_y,zoom,zoom); }
+                } else { if(frame[row][col]) { ctx.fillStyle=frame[row][col]; ctx.fillRect(px_x,px_y,zoom,zoom); } }
+            }
+        }
+    }
+
+    // ===== PARTICLES =====
+    function spawnParticles(wx, wy, color, count) {
+        for (let i = 0; i < count; i++) {
+            P.particles.push({
+                x: wx, y: wy,
+                vx: (Math.random()-0.5)*60,
+                vy: -20 - Math.random()*40,
+                life: 0.8 + Math.random()*0.6,
+                color: color,
+                size: 1 + Math.random()*1.5,
+            });
+        }
+    }
+    function updateParticles(dt) {
+        for (let i = P.particles.length-1; i >= 0; i--) {
+            const p = P.particles[i];
+            p.x += p.vx * dt; p.y += p.vy * dt;
+            p.vy += 60 * dt; // gravity
+            p.life -= dt;
+            if (p.life <= 0) P.particles.splice(i, 1);
+        }
+    }
+    function renderParticles(ox, oy) {
+        P.particles.forEach(function(p) {
+            const alpha = Math.min(1, p.life * 2);
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = p.color;
+            const s = p.size * zoom;
+            ctx.fillRect(ox + p.x*zoom - s/2, oy + p.y*zoom - s/2, s, s);
+        });
+        ctx.globalAlpha = 1;
+    }
+
+    // ===== ACCESSORY RENDERING =====
+    function renderAccessory(a, drawX, drawY) {
+        const acc = a.accessory;
+        if (!acc || acc.type === 'none') return;
+        const z = zoom;
+        if (acc.type === 'glasses') {
+            // Two lens circles on face — offset by direction
+            const faceX = drawX + 5*z, faceY = drawY + 4*z;
+            ctx.strokeStyle = acc.color; ctx.lineWidth = Math.max(1, z*0.5);
+            ctx.strokeRect(faceX + z, faceY, 3*z, 2*z);
+            ctx.strokeRect(faceX + 5*z, faceY, 3*z, 2*z);
+            // Bridge
+            ctx.fillStyle = acc.color;
+            ctx.fillRect(faceX + 4*z, faceY + z*0.5, z, z*0.5);
+        } else if (acc.type === 'headphones') {
+            const hx = drawX + 3*z, hy = drawY + z;
+            ctx.strokeStyle = '#555'; ctx.lineWidth = Math.max(1, z*0.7);
+            ctx.beginPath();
+            ctx.arc(drawX + 8*z, hy, 5*z, Math.PI, 0);
+            ctx.stroke();
+            ctx.fillStyle = acc.color;
+            ctx.fillRect(hx, hy + z, 2*z, 3*z);
+            ctx.fillRect(drawX + 11*z, hy + z, 2*z, 3*z);
+        } else if (acc.type === 'hat') {
+            ctx.fillStyle = acc.color;
+            ctx.fillRect(drawX + 3*z, drawY - z, 10*z, 2*z);
+            ctx.fillRect(drawX + 5*z, drawY - 3*z, 6*z, 2*z);
+        } else if (acc.type === 'badge') {
+            const bx = drawX + 4*z, by = drawY + 9*z;
+            ctx.fillStyle = acc.color;
+            ctx.fillRect(bx, by, 3*z, 2*z);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(bx + z, by + z*0.5, z, z);
+        }
+    }
+
+    // ===== EMOTE RENDERING =====
+    function renderEmote(a, cx, cy) {
+        if (!a.emote || a.emoteTimer <= 0) return;
+        const z = zoom;
+        const alpha = Math.min(1, a.emoteTimer);
+        const floatY = cy - 10*z - (2-a.emoteTimer)*8*z;
+        ctx.globalAlpha = alpha;
+        if (a.emote === 'star') {
+            ctx.fillStyle = '#ffdd00';
+            ctx.font = Math.max(8, z*4) + 'px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('\u2605', cx, floatY); // ★
+        } else if (a.emote === 'check') {
+            ctx.fillStyle = '#44bb66';
+            ctx.font = Math.max(8, z*3) + 'px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('\u2714', cx, floatY); // ✔
+        } else if (a.emote === 'zzz') {
+            ctx.fillStyle = '#8888cc';
+            ctx.font = Math.max(6, z*2.5) + 'px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('zzZ', cx + 4*z, floatY);
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    // ===== LEVEL BADGE =====
+    function renderLevelBadge(a, cx, cy) {
+        if (a.level <= 1) return;
+        const z = zoom;
+        const bx = cx + 6*z, by = cy - 24*z;
+        const fontSize = Math.max(5, z*1.5);
+        ctx.fillStyle = a.level >= 10 ? '#ffdd00' : a.level >= 5 ? '#44bbff' : '#88cc88';
+        ctx.beginPath();
+        ctx.arc(bx, by, fontSize*0.7, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold ' + fontSize + 'px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(a.level, bx, by);
+        ctx.textBaseline = 'alphabetic';
+    }
+
+    // ===== MOOD INDICATOR =====
+    function renderMoodBar(a, cx, cy) {
+        const z = zoom;
+        const barW = 10*z, barH = z;
+        const bx = cx - barW/2, by = cy + 5*z;
+        // Background
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(bx, by, barW, barH);
+        // Fill — green to red
+        const r = Math.floor(255*(1-a.mood)), g = Math.floor(200*a.mood);
+        ctx.fillStyle = 'rgb('+r+','+g+',50)';
+        ctx.fillRect(bx, by, barW*a.mood, barH);
+    }
+
+    // ===== INTERACTION =====
+    function hitTestAgent(mx, my) {
+        const dpr=window.devicePixelRatio||1;
+        const cw=canvas.width/dpr, ch=canvas.height/dpr;
+        const ox=Math.floor((cw-COLS*T*zoom)/2+panX), oy=Math.floor((ch-ROWS*T*zoom)/2+panY);
+        for(const id in agents) {
+            const a=agents[id];
+            const ax=ox+a.x*zoom, ay=oy+a.y*zoom;
+            if(mx>=ax-8*zoom&&mx<=ax+8*zoom&&my>=ay-24*zoom&&my<=ay+4*zoom) return a;
+        }
+        return null;
+    }
+    function setupInteraction() {
+        canvas.addEventListener('mousedown', function(e) {
+            if(!hitTestAgent(e.offsetX,e.offsetY)) { dragging={x:e.clientX-panX,y:e.clientY-panY}; canvas.style.cursor='grabbing'; }
+        });
+        canvas.addEventListener('mousemove', function(e) {
+            if(dragging) { panX=e.clientX-dragging.x; panY=e.clientY-dragging.y; P.panX=panX; P.panY=panY; }
+            else {
+                const hit=hitTestAgent(e.offsetX,e.offsetY);
+                hoverAgent=hit; canvas.style.cursor=hit?'pointer':'grab';
+                const tip=document.getElementById('px-tooltip');
+                if(hit) {
+                    tip.classList.remove('hidden'); tip.style.left=(e.offsetX+16)+'px'; tip.style.top=(e.offsetY-10)+'px';
+                    document.getElementById('px-tip-name').textContent=hit.name + (hit.accessory.type!=='none'?' ('+hit.accessory.type+')':'');
+                    document.getElementById('px-tip-status').textContent=hit.statusText||hit.state;
+                    const te=document.getElementById('px-tip-tool');
+                    if(hit.currentTool) { te.textContent='Tool: '+hit.currentTool+(hit.toolArgs?' — '+hit.toolArgs:''); te.classList.remove('hidden'); }
+                    else te.classList.add('hidden');
+                    const moodPct = Math.round(hit.mood*100);
+                    const moodEmoji = moodPct>80?'\u{1F600}':moodPct>50?'\u{1F610}':'\u{1F614}';
+                    document.getElementById('px-tip-stats').textContent=
+                        'Lv.'+hit.level+' | XP:'+hit.xp+' | Tasks:'+hit.tasksCompleted+' | Mood:'+moodEmoji+moodPct+'%';
+                } else tip.classList.add('hidden');
+            }
+        });
+        canvas.addEventListener('mouseup', function(){dragging=null;canvas.style.cursor='grab';});
+        canvas.addEventListener('mouseleave', function(){dragging=null;hoverAgent=null;document.getElementById('px-tooltip').classList.add('hidden');});
+        canvas.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            const old=zoom;
+            zoom=Math.max(1,Math.min(8,zoom+(e.deltaY>0?-1:1)));
+            P.zoom=zoom;
+            if(zoom!==old) spriteCache.clear();
+        });
+    }
+    window.pxZoomIn=function(){zoom=Math.min(8,zoom+1);P.zoom=zoom;spriteCache.clear();};
+    window.pxZoomOut=function(){zoom=Math.max(1,zoom-1);P.zoom=zoom;spriteCache.clear();};
+
+    // ===== BUBBLE TEXT HELPERS =====
+    function toolLabel(tool) {
+        const map = {
+            'Read':'Reading file','Grep':'Searching code','Glob':'Finding files',
+            'WebFetch':'Fetching URL','WebSearch':'Web search','Bash':'Running command',
+            'Edit':'Editing file','Write':'Writing file','exec':'Executing',
+            'shell':'Shell','web_search':'Searching','web_fetch':'Fetching',
+            'web_browse':'Browsing','read_file':'Reading','write_file':'Writing',
+            'edit_file':'Editing','list_dir':'Listing dir','append_file':'Appending',
+            'image_analyze':'Analyzing image','spawn':'Spawning agent',
+            'subagent':'Running subagent','cron':'Scheduling','plan':'Planning',
+            'a2a':'Agent-to-agent','scratchpad':'Scratchpad',
+        };
+        return map[tool] || tool;
+    }
+    function truncate(s, max) {
+        if (!s) return '';
+        s = s.replace(/\n/g,' ').trim();
+        return s.length > max ? s.substring(0,max-1)+'…' : s;
+    }
+
+    // ===== WEBSOCKET =====
+    function handleWSEvent(data) {
+        const id = data.agent_id || 'sofia';
+        const name = data.agent_name || id;
+        if (!agents[id]) createAgent(id, name);
+        const a = agents[id];
+
+        if (data.type === 'agent_thinking') {
+            a.isActive = true; a.currentTool = null; a.toolArgs = '';
+            a.statusText = 'thinking...';
+            a.bubbleType = 'work'; a.bubbleText = 'Thinking...'; a.bubbleTimer = 999;
+            a.mood = Math.min(1, a.mood + 0.05);
+        } else if (data.type === 'agent_done') {
+            a.isActive = false; a.currentTool = null; a.toolArgs = '';
+            a.tasksCompleted++;
+            a.xp += 10 + Math.floor(Math.random()*15);
+            const newLevel = 1 + Math.floor(a.xp / 50);
+            const leveledUp = newLevel > a.level;
+            a.level = newLevel;
+            a.mood = Math.min(1, a.mood + 0.15);
+            a.statusText = 'done';
+            a.bubbleType = 'done';
+            a.bubbleText = leveledUp ? 'LEVEL UP! Lv.' + a.level : 'Done! +' + a.xp%50 + 'xp';
+            a.bubbleTimer = 4;
+            a.emote = leveledUp ? 'star' : 'check';
+            a.emoteTimer = 2;
+            // Spawn particles
+            spawnParticles(a.x, a.y, leveledUp ? '#ffdd00' : '#44bb66', leveledUp ? 12 : 6);
+        } else if (data.type === 'tool_call_start') {
+            a.isActive = true;
+            a.currentTool = data.tool || null;
+            // Parse useful info from args
+            let detail = '';
+            if (data.args) {
+                try {
+                    const p = typeof data.args === 'string' ? JSON.parse(data.args) : data.args;
+                    detail = p.file_path || p.path || p.pattern || p.command || p.url || p.query || p.content || '';
+                    if (typeof detail === 'string') {
+                        // Show just filename for paths
+                        if (detail.includes('/')) detail = detail.split('/').pop();
+                        detail = truncate(detail, 22);
+                    } else detail = '';
+                } catch(_) {
+                    detail = truncate(String(data.args), 22);
+                }
+            }
+            a.toolArgs = detail;
+            const label = toolLabel(data.tool);
+            a.statusText = label + (detail ? ': '+detail : '');
+            a.bubbleType = 'work';
+            a.bubbleText = label + (detail ? '\n'+detail : '');
+            a.bubbleTimer = 999;
+            // Switch anim
+            const READ_TOOLS = ['Read','Grep','Glob','WebFetch','WebSearch','read_file','web_fetch','web_search','web_browse'];
+            if (a.state==='type'||a.state==='read') a.state = READ_TOOLS.includes(data.tool)?'read':'type';
+        } else if (data.type === 'tool_call_end') {
+            a.currentTool = null; a.toolArgs = '';
+            a.xp += 2; // small XP per tool call
+            a.level = 1 + Math.floor(a.xp / 50);
+            if (a.isActive) {
+                a.statusText = 'thinking...';
+                a.bubbleType = 'work'; a.bubbleText = 'Thinking...'; a.bubbleTimer = 999;
+            }
+        } else if (data.type === 'subagent_task_start') {
+            a.isActive = true;
+            a.statusText = 'working on task';
+            a.bubbleType = 'work'; a.bubbleText = 'Subagent task\n'+truncate(data.task,22); a.bubbleTimer = 999;
+        } else if (data.type === 'subagent_task_end') {
+            a.isActive = false; a.statusText = 'finished';
+            a.bubbleType = data.success===false ? 'error' : 'done';
+            a.bubbleText = data.success===false ? 'Task failed' : 'Task done';
+            a.bubbleTimer = 3;
+        } else if (data.type === 'agent_status') {
+            a.statusText = data.status || 'working';
+            if (a.isActive) { a.bubbleType = 'work'; a.bubbleText = truncate(data.status,26); a.bubbleTimer = 999; }
+        } else if (data.type === 'message_routed') {
+            a.isActive = true; a.statusText = 'processing message';
+            a.bubbleType = 'work'; a.bubbleText = 'New message\nfrom '+truncate(data.channel||'?',16); a.bubbleTimer = 999;
+        } else if (data.type === 'llm_response') {
+            if (a.isActive) {
+                const tc = data.tool_calls||0;
+                a.statusText = tc>0 ? 'executing '+tc+' tool(s)' : 'composing response';
+                a.bubbleType = 'work';
+                a.bubbleText = tc>0 ? 'Calling '+tc+' tool(s)' : 'Writing...';
+                a.bubbleTimer = 999;
+            }
+        } else if (data.type === 'plan_step_assigned') {
+            a.isActive = true;
+            a.currentTool = null;
+            const stepDesc = truncate(data.step_description || '', 26);
+            const stepNum = (data.step_index != null ? data.step_index + 1 : '?');
+            a.statusText = 'Plan step #' + stepNum;
+            a.bubbleType = 'work';
+            a.bubbleText = 'Step #' + stepNum + '\n' + stepDesc;
+            a.bubbleTimer = 999;
+            a.mood = Math.min(1, a.mood + 0.05);
+        } else if (data.type === 'plan_step_done') {
+            a.isActive = false;
+            a.tasksCompleted++;
+            a.xp += 15 + Math.floor(Math.random()*10);
+            const newLevel = 1 + Math.floor(a.xp / 50);
+            const leveledUp = newLevel > a.level;
+            a.level = newLevel;
+            a.mood = Math.min(1, a.mood + 0.2);
+            const stepNum = (data.step_index != null ? data.step_index + 1 : '?');
+            if (data.success === false) {
+                a.bubbleType = 'error';
+                a.bubbleText = 'Step #' + stepNum + ' failed';
+                a.emote = ''; a.emoteTimer = 0;
+            } else {
+                a.bubbleType = 'done';
+                a.bubbleText = leveledUp ? 'LEVEL UP! Lv.' + a.level : 'Step #' + stepNum + ' done!';
+                a.emote = leveledUp ? 'star' : 'check';
+                a.emoteTimer = 2;
+                spawnParticles(a.x, a.y, leveledUp ? '#ffdd00' : '#44bb66', leveledUp ? 12 : 6);
+            }
+            a.bubbleTimer = 4;
+            a.statusText = data.success === false ? 'step failed' : 'step done';
+        }
+    }
+
+    // WS hook — always active, even when tab is not visible
+    window._pxHandleEvent = handleWSEvent;
+    // Replay buffered events we may have missed
+    if (window.monitorEventBuffer) {
+        window.monitorEventBuffer.forEach(function(e) { handleWSEvent(e); });
+    }
+
+    // ===== BACKGROUND SIMULATION (runs even when tab is hidden) =====
+    let lastSaveTime = 0;
+    function simTick() {
+        const now = performance.now();
+        const dt = Math.min((now - P.lastSimTime) / 1000, MAX_DT);
+        P.lastSimTime = now;
+        P.animFrame++;
+        for (const id in agents) updateAgent(agents[id], dt);
+        updateParticles(dt);
+        // Periodic save to localStorage
+        if (now - lastSaveTime > SAVE_INTERVAL) {
+            lastSaveTime = now;
+            saveState();
+        }
+    }
+    // Start background sim if not already running
+    if (!P.simTimer) {
+        P.lastSimTime = performance.now();
+        P.simTimer = setInterval(simTick, 50);
+    }
+    // Save on page unload
+    if (!window._pxUnloadHooked) {
+        window._pxUnloadHooked = true;
+        window.addEventListener('beforeunload', saveState);
+    }
+
+    // ===== INIT (runs each time tab is shown) =====
+    function fitZoom() {
+        if(!canvas) return;
+        const dpr=window.devicePixelRatio||1;
+        const cw=canvas.width/dpr, ch=canvas.height/dpr;
+        const mzw=Math.floor((cw-32)/(COLS*T)), mzh=Math.floor((ch-32)/(ROWS*T));
+        const newZoom=Math.max(1,Math.min(8,Math.min(mzw,mzh)));
+        zoom=newZoom; P.zoom=newZoom;
+        panX=0; panY=0; P.panX=0; P.panY=0;
+        spriteCache.clear();
+    }
+    function init() {
+        canvas=document.getElementById('px-canvas');
+        if(!canvas) return;
+        ctx=canvas.getContext('2d');
+
+        syncFromP();
+
+        function resize() {
+            const dpr=window.devicePixelRatio||1;
+            const rect=canvas.parentElement.getBoundingClientRect();
+            canvas.width=rect.width*dpr; canvas.height=rect.height*dpr;
+            canvas.style.width=rect.width+'px'; canvas.style.height=rect.height+'px';
+            if (!P.initialFitDone) { fitZoom(); P.initialFitDone = true; }
+            else { spriteCache.clear(); } // keep user's zoom/pan on resize
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // Build office once
+        if (!P.officeBuilt) {
+            buildOffice();
+            P.officeBuilt = true;
+
+            // Restore saved agents first (keeps positions, XP, accessories)
+            if (P._savedAgents) {
+                for (const id in P._savedAgents) {
+                    createAgent(id, P._savedAgents[id].name);
+                }
+            }
+
+            // Then reconcile with backend — creates any new agents, skips existing
+            fetch('/api/status').then(function(r){return r.json();}).then(function(data){
+                if(data.agents&&data.agents.list) data.agents.list.forEach(function(a){ createAgent(a.id, a.name||a.id); });
+                // Clean up savedAgents reference after initial load
+                delete P._savedAgents;
+            }).catch(function(){
+                delete P._savedAgents;
+            });
+        }
+
+        setupInteraction();
+
+        // Render loop — only runs while canvas is in the DOM
+        let renderActive = true;
+        function renderLoop(time) {
+            if (!renderActive || !document.getElementById('px-canvas')) return;
+            syncFromP(); // pick up animFrame from background sim
+            renderFrame(time);
+            syncToP();
+            requestAnimationFrame(renderLoop);
+        }
+        // Stop render when we navigate away (canvas removed from DOM)
+        const observer = new MutationObserver(function() {
+            if (!document.getElementById('px-canvas')) {
+                renderActive = false;
+                observer.disconnect();
+            }
+        });
+        observer.observe(document.getElementById('main-content') || document.body, { childList: true, subtree: true });
+
+        P.lastSimTime = performance.now();
+        requestAnimationFrame(renderLoop);
+    }
+    init();
+})();
+</script>

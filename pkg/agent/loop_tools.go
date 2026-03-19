@@ -89,6 +89,14 @@ func registerSharedTools(
 			))
 		}
 
+		if cfg.Tools.Vercel.Enabled {
+			agent.Tools.Register(tools.NewVercelTool(
+				cfg.Tools.Vercel.BinaryPath,
+				cfg.Tools.Vercel.TimeoutSeconds,
+				cfg.Tools.Vercel.AllowedCommands,
+			))
+		}
+
 		if cfg.Tools.BraveSearch.Enabled && cfg.Tools.BraveSearch.APIKey != "" {
 			agent.Tools.Register(tools.NewBraveSearchTool(cfg.Tools.BraveSearch.APIKey))
 		}

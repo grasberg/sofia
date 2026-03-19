@@ -1,0 +1,386 @@
+<!-- GOALS & KANBAN TAB (HTMX Partial) -->
+<div id="tab-goals" class="flex flex-col flex-grow min-h-0 animate-fade-in">
+    <!-- Header -->
+    <div class="px-6 py-5 border-b border-[var(--border-color)] bg-[var(--bg-main)]/50 backdrop-blur shrink-0 flex items-center justify-between">
+        <div>
+            <h2 class="text-xl font-bold tracking-tight text-[var(--text-main)] flex items-center gap-2">
+                <i data-lucide="target" class="w-5 h-5 text-sofia"></i>
+                Goals &amp; Plan
+            </h2>
+            <p class="text-xs text-zinc-500 mt-1">Set a goal. Sofia plans and delegates to subagents.</p>
+        </div>
+        <button onclick="goalRefresh()" class="px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-zinc-800 text-zinc-400 hover:text-[var(--text-main)] transition-colors border border-transparent hover:border-zinc-700 flex items-center gap-1">
+            <i data-lucide="refresh-cw" class="w-3 h-3"></i> Refresh
+        </button>
+    </div>
+
+    <div class="flex-grow overflow-y-auto">
+        <!-- Set Goal Section -->
+        <div class="px-6 py-4 border-b border-[var(--border-color)]">
+            <div class="max-w-3xl mx-auto">
+                <div id="goal-set-form" class="flex gap-3">
+                    <div class="flex-grow">
+                        <input type="text" id="goal-input" placeholder="Describe what you want Sofia to achieve..."
+                            class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm text-[var(--text-main)] focus:outline-none focus:border-sofia/50 transition-all"
+                            onkeypress="if(event.key==='Enter')goalSubmit()">
+                    </div>
+                    <button onclick="goalSubmit()" class="bg-sofia hover:bg-sofia-hover text-white font-bold px-6 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2 shrink-0">
+                        <i data-lucide="rocket" class="w-4 h-4"></i>
+                        Set Goal
+                    </button>
+                </div>
+                <div id="goal-set-status" class="hidden mt-2 text-[11px] text-sofia font-mono animate-pulse"></div>
+            </div>
+        </div>
+
+        <!-- Active Goal Display -->
+        <div id="goal-active-section" class="hidden px-6 py-4 border-b border-[var(--border-color)] bg-sofia/[0.02]">
+            <div class="max-w-3xl mx-auto flex items-start gap-4">
+                <div class="w-10 h-10 rounded-xl bg-sofia/10 border border-sofia/20 flex items-center justify-center shrink-0">
+                    <i data-lucide="target" class="w-5 h-5 text-sofia"></i>
+                </div>
+                <div class="flex-grow min-w-0">
+                    <div class="flex items-center gap-2">
+                        <h3 id="goal-active-name" class="text-sm font-bold text-[var(--text-main)]"></h3>
+                        <span id="goal-active-priority" class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest"></span>
+                        <span id="goal-active-status" class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-green-500/10 text-green-400"></span>
+                    </div>
+                    <p id="goal-active-desc" class="text-xs text-zinc-500 mt-1"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kanban Board -->
+        <div class="px-6 py-4 flex-grow">
+            <div id="kanban-empty" class="hidden text-center py-16 text-zinc-600">
+                <i data-lucide="clipboard-list" class="w-12 h-12 mx-auto mb-3 text-zinc-700"></i>
+                <div class="text-sm font-medium">No active plan</div>
+                <div class="text-xs mt-1">Set a goal above and Sofia will create a plan with tasks for her subagents.</div>
+            </div>
+
+            <div id="kanban-board" class="hidden">
+                <!-- Plan header -->
+                <div class="flex items-center gap-3 mb-4">
+                    <i data-lucide="list-checks" class="w-4 h-4 text-blue-400"></i>
+                    <span id="kanban-plan-goal" class="text-xs font-bold uppercase tracking-widest text-zinc-500"></span>
+                    <span id="kanban-plan-progress" class="text-xs font-mono text-zinc-600 ml-auto"></span>
+                </div>
+
+                <!-- Columns -->
+                <div class="grid grid-cols-4 gap-4" style="min-height:300px">
+                    <!-- Pending -->
+                    <div class="flex flex-col">
+                        <div class="flex items-center gap-2 mb-3 px-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-zinc-500"></span>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Backlog</span>
+                            <span id="kanban-count-pending" class="text-[10px] font-mono text-zinc-600 ml-auto">0</span>
+                        </div>
+                        <div id="kanban-col-pending" class="flex-grow space-y-2 p-2 rounded-xl bg-zinc-950/30 border border-[var(--border-color)] min-h-[200px]">
+                        </div>
+                    </div>
+                    <!-- In Progress -->
+                    <div class="flex flex-col">
+                        <div class="flex items-center gap-2 mb-3 px-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-amber-400">In Progress</span>
+                            <span id="kanban-count-in_progress" class="text-[10px] font-mono text-zinc-600 ml-auto">0</span>
+                        </div>
+                        <div id="kanban-col-in_progress" class="flex-grow space-y-2 p-2 rounded-xl bg-amber-500/[0.03] border border-amber-500/20 min-h-[200px]">
+                        </div>
+                    </div>
+                    <!-- Completed -->
+                    <div class="flex flex-col">
+                        <div class="flex items-center gap-2 mb-3 px-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-green-400">Done</span>
+                            <span id="kanban-count-completed" class="text-[10px] font-mono text-zinc-600 ml-auto">0</span>
+                        </div>
+                        <div id="kanban-col-completed" class="flex-grow space-y-2 p-2 rounded-xl bg-green-500/[0.03] border border-green-500/20 min-h-[200px]">
+                        </div>
+                    </div>
+                    <!-- Failed -->
+                    <div class="flex flex-col">
+                        <div class="flex items-center gap-2 mb-3 px-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-red-400">Failed</span>
+                            <span id="kanban-count-failed" class="text-[10px] font-mono text-zinc-600 ml-auto">0</span>
+                        </div>
+                        <div id="kanban-col-failed" class="flex-grow space-y-2 p-2 rounded-xl bg-red-500/[0.03] border border-red-500/20 min-h-[200px]">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- All Goals List -->
+        <div class="px-6 py-4 border-t border-[var(--border-color)]">
+            <div class="flex items-center gap-2 mb-3">
+                <i data-lucide="archive" class="w-4 h-4 text-zinc-500"></i>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-zinc-600">All Goals</span>
+            </div>
+            <div id="goals-all-list" class="space-y-2">
+                <div class="text-xs text-zinc-600 font-mono">Loading...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    lucide.createIcons();
+
+    // ===== SET GOAL =====
+    async function goalSubmit() {
+        const input = document.getElementById('goal-input');
+        const goalText = input.value.trim();
+        if (!goalText) return;
+
+        const status = document.getElementById('goal-set-status');
+        status.classList.remove('hidden');
+        status.textContent = 'Sending goal to Sofia...';
+        input.disabled = true;
+
+        // Send to Sofia as a chat message with a structured prompt
+        const prompt = 'NEW MAIN GOAL FROM USER:\n\n"' + goalText + '"\n\n' +
+            'Instructions:\n' +
+            '1. Create this as a HIGH priority goal using manage_goals (action: "add")\n' +
+            '2. Create a detailed plan using the plan tool with concrete steps\n' +
+            '3. Each step should be a self-contained task that a subagent can complete independently\n' +
+            '4. Include specific instructions in each step description so a subagent knows exactly what to do\n' +
+            '5. Start executing the plan immediately — delegate steps to subagents using the spawn tool\n' +
+            '6. Run independent steps in parallel for maximum speed';
+
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: prompt, session_key: 'goal:' + Date.now() })
+            });
+            if (res.ok) {
+                status.textContent = 'Goal set! Sofia is planning...';
+                input.value = '';
+                setTimeout(function() { status.classList.add('hidden'); }, 4000);
+                setTimeout(goalRefresh, 2000);
+                setTimeout(goalRefresh, 5000);
+                setTimeout(goalRefresh, 10000);
+            } else {
+                status.textContent = 'Error setting goal';
+            }
+        } catch(e) {
+            status.textContent = 'Failed to connect';
+        }
+        input.disabled = false;
+    }
+
+    // ===== FETCH DATA =====
+    async function goalRefresh() {
+        try {
+            const [goalsRes, planRes] = await Promise.all([
+                fetch('/api/goals?agent_id=sofia'),
+                fetch('/api/plan')
+            ]);
+            const goals = goalsRes.ok ? await goalsRes.json() : [];
+            const plan = planRes.ok ? await planRes.json() : null;
+            renderActiveGoal(goals);
+            renderKanban(plan);
+            renderAllGoals(goals);
+        } catch(e) {
+            console.error('Goal refresh failed:', e);
+        }
+    }
+
+    // ===== RENDER ACTIVE GOAL =====
+    function renderActiveGoal(goals) {
+        const section = document.getElementById('goal-active-section');
+        if (!goals || goals.length === 0) { section.classList.add('hidden'); return; }
+
+        const priorityOrder = {high:0, medium:1, low:2};
+        const active = goals.filter(function(g){return g.status==='active';});
+        active.sort(function(a,b){return (priorityOrder[a.priority]||9)-(priorityOrder[b.priority]||9);});
+
+        if (active.length === 0) { section.classList.add('hidden'); return; }
+        const goal = active[0];
+        section.classList.remove('hidden');
+
+        document.getElementById('goal-active-name').textContent = goal.name || '';
+        document.getElementById('goal-active-desc').textContent = goal.description || '';
+
+        const prioEl = document.getElementById('goal-active-priority');
+        const prioColors = {high:'bg-red-500/15 text-red-400',medium:'bg-amber-500/15 text-amber-400',low:'bg-blue-500/15 text-blue-400'};
+        prioEl.className = 'px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest ' + (prioColors[goal.priority]||'');
+        prioEl.textContent = goal.priority || '';
+
+        const statusEl = document.getElementById('goal-active-status');
+        statusEl.textContent = goal.status;
+    }
+
+    // ===== RENDER KANBAN =====
+    function renderKanban(plan) {
+        const board = document.getElementById('kanban-board');
+        const empty = document.getElementById('kanban-empty');
+
+        if (!plan || !plan.steps || plan.steps.length === 0) {
+            board.classList.add('hidden');
+            empty.classList.remove('hidden');
+            return;
+        }
+        board.classList.remove('hidden');
+        empty.classList.add('hidden');
+
+        document.getElementById('kanban-plan-goal').textContent = plan.goal || '';
+        const steps = plan.steps;
+        const completed = steps.filter(function(s){return s.status==='completed';}).length;
+        document.getElementById('kanban-plan-progress').textContent = completed + ' / ' + steps.length + ' done';
+
+        // Group steps by status
+        const cols = { pending: [], in_progress: [], completed: [], failed: [] };
+        steps.forEach(function(s) {
+            const status = s.status || 'pending';
+            if (!cols[status]) cols[status] = [];
+            cols[status].push(s);
+        });
+
+        // Render each column
+        ['pending','in_progress','completed','failed'].forEach(function(status) {
+            const col = document.getElementById('kanban-col-' + status);
+            const count = document.getElementById('kanban-count-' + status);
+            col.innerHTML = '';
+            count.textContent = cols[status].length;
+
+            cols[status].forEach(function(step) {
+                const card = document.createElement('div');
+                card.className = 'kanban-card p-3 rounded-lg border transition-all';
+
+                if (status === 'in_progress') {
+                    card.className += ' border-amber-500/30 bg-amber-500/[0.05]';
+                } else if (status === 'completed') {
+                    card.className += ' border-green-500/20 bg-green-500/[0.03]';
+                } else if (status === 'failed') {
+                    card.className += ' border-red-500/20 bg-red-500/[0.03]';
+                } else {
+                    card.className += ' border-[var(--border-color)] bg-[var(--bg-main)]';
+                }
+
+                // Step number badge
+                var stepNum = '<span class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ';
+                if (status === 'in_progress') stepNum += 'bg-amber-500/20 text-amber-400';
+                else if (status === 'completed') stepNum += 'bg-green-500/20 text-green-400';
+                else if (status === 'failed') stepNum += 'bg-red-500/20 text-red-400';
+                else stepNum += 'bg-zinc-800 text-zinc-400';
+                stepNum += '">#' + (step.index + 1) + '</span>';
+
+                // Status icon
+                var statusIcon;
+                if (status === 'completed') statusIcon = '<i data-lucide="check-circle" class="w-3.5 h-3.5 text-green-400"></i>';
+                else if (status === 'in_progress') statusIcon = '<i data-lucide="loader" class="w-3.5 h-3.5 text-amber-400 animate-spin"></i>';
+                else if (status === 'failed') statusIcon = '<i data-lucide="x-circle" class="w-3.5 h-3.5 text-red-400"></i>';
+                else statusIcon = '<i data-lucide="circle" class="w-3.5 h-3.5 text-zinc-600"></i>';
+
+                // Assigned agent badge with name and working indicator
+                var assignedHtml = '';
+                if (step.assigned_to) {
+                    var aName = resolveAgentName(step.assigned_to);
+                    var agentColor, agentIcon, agentLabel;
+                    if (status === 'completed') {
+                        agentColor = 'bg-green-500/10 text-green-400 border-green-500/20';
+                        agentIcon = 'check-circle';
+                        agentLabel = aName + ' — done';
+                    } else if (status === 'failed') {
+                        agentColor = 'bg-red-500/10 text-red-400 border-red-500/20';
+                        agentIcon = 'x-circle';
+                        agentLabel = aName + ' — failed';
+                    } else {
+                        agentColor = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+                        agentIcon = 'loader';
+                        agentLabel = aName + ' — working...';
+                    }
+                    assignedHtml = '<div class="flex items-center gap-1.5 mt-2 p-1.5 rounded-lg border ' + agentColor + '">' +
+                        '<i data-lucide="' + agentIcon + '" class="w-3 h-3 ' + (status==='in_progress'?'animate-spin':'') + '"></i>' +
+                        '<span class="text-[9px] font-semibold">' + escapeHtml(agentLabel) + '</span>' +
+                        '</div>';
+                } else if (status === 'pending') {
+                    assignedHtml = '<div class="flex items-center gap-1 mt-2 text-[9px] text-zinc-600">' +
+                        '<i data-lucide="clock" class="w-2.5 h-2.5"></i> Waiting for agent...' +
+                        '</div>';
+                }
+
+                card.innerHTML =
+                    '<div class="flex items-start gap-2">' +
+                    statusIcon +
+                    '<div class="flex-grow min-w-0">' +
+                    '  <div class="flex items-center gap-2 mb-1">' +
+                    stepNum +
+                    '  </div>' +
+                    '  <p class="text-xs text-[var(--text-main)] leading-relaxed ' + (status==='completed'?'line-through opacity-60':'') + '">' +
+                    escapeHtml(step.description || '') + '</p>' +
+                    assignedHtml +
+                    (step.result ? '<div class="mt-2 p-2 rounded bg-black/20 border border-[var(--border-color)]"><div class="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">Result</div><div class="text-[11px] text-zinc-400 font-mono whitespace-pre-wrap max-h-20 overflow-y-auto scrollbar-custom">' + escapeHtml(step.result) + '</div></div>' : '') +
+                    '</div>' +
+                    '</div>';
+
+                col.appendChild(card);
+            });
+
+            lucide.createIcons({ root: col });
+        });
+    }
+
+    // ===== RENDER ALL GOALS =====
+    function renderAllGoals(goals) {
+        const list = document.getElementById('goals-all-list');
+        list.innerHTML = '';
+
+        if (!goals || goals.length === 0) {
+            list.innerHTML = '<div class="text-xs text-zinc-600 font-mono">No goals yet.</div>';
+            return;
+        }
+
+        const priorityColors = {high:'text-red-400 bg-red-500/10',medium:'text-amber-400 bg-amber-500/10',low:'text-blue-400 bg-blue-500/10'};
+        const statusIcons = {active:'play-circle',completed:'check-circle',failed:'x-circle',paused:'pause-circle'};
+        const statusColors = {active:'text-green-400',completed:'text-zinc-500',failed:'text-red-400',paused:'text-amber-400'};
+
+        goals.forEach(function(g) {
+            const isInactive = g.status === 'completed' || g.status === 'failed';
+            const el = document.createElement('div');
+            el.className = 'flex items-center gap-3 p-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]' + (isInactive ? ' opacity-40' : '');
+            el.innerHTML =
+                '<div class="w-6 h-6 flex items-center justify-center shrink-0 ' + (statusColors[g.status]||'text-zinc-400') + '">' +
+                '  <i data-lucide="' + (statusIcons[g.status]||'circle') + '" class="w-4 h-4"></i>' +
+                '</div>' +
+                '<div class="flex-grow min-w-0">' +
+                '  <div class="flex items-center gap-2">' +
+                '    <span class="text-sm font-semibold text-[var(--text-main)]">' + escapeHtml(g.name || '') + '</span>' +
+                '    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest ' + (priorityColors[g.priority]||'') + '">' + escapeHtml(g.priority || '') + '</span>' +
+                '    <span class="text-[10px] text-zinc-600 uppercase">' + escapeHtml(g.status || '') + '</span>' +
+                '  </div>' +
+                (g.description ? '<div class="text-[11px] text-zinc-500 mt-0.5">' + escapeHtml(g.description) + '</div>' : '') +
+                '</div>';
+            list.appendChild(el);
+        });
+        lucide.createIcons({ root: list });
+    }
+
+    // ===== AGENT NAME CACHE =====
+    var agentNameCache = {};
+    function fetchAgentNames() {
+        fetch('/api/status').then(function(r){return r.json();}).then(function(data) {
+            if (data.agents && data.agents.list) {
+                data.agents.list.forEach(function(a) { agentNameCache[a.id] = a.name || a.id; });
+            }
+        }).catch(function(){});
+    }
+    function resolveAgentName(id) { return agentNameCache[id] || id; }
+    fetchAgentNames();
+
+    // ===== WS HOOK =====
+    window._goalsRefresh = goalRefresh;
+
+    // Also listen for plan step events for instant refresh
+    window._goalsPlanEvent = function(d) {
+        if (d.type === 'plan_step_assigned' || d.type === 'plan_step_done') {
+            goalRefresh();
+        }
+    };
+
+    // Initial load
+    goalRefresh();
+</script>

@@ -1,48 +1,121 @@
 <div id="settings-subtab-channels" class="h-full flex flex-col">
-	<div class="flex-grow min-h-0 overflow-y-auto pr-2">
-                        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
-                            <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Channel Setup</label>
-                            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                                <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3">
-                                    <label class="flex items-center gap-3 cursor-pointer">
-                                        <input type="checkbox" id="cfg-telegram" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
-                                        <span class="text-sm font-semibold text-[var(--text-main)]">Telegram</span>
-                                    </label>
-                                    <input type="password" id="cfg-telegram-token" placeholder="Bot token"
-                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
-                                    <input type="text" id="cfg-telegram-proxy" placeholder="Proxy URL (optional)"
-                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
-                                    <textarea id="cfg-telegram-allow-from" rows="3" placeholder="Allowed user IDs (comma or newline separated)"
-                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"></textarea>
-                                    <div id="cfg-telegram-warning" class="hidden text-[11px] text-yellow-500">Telegram is enabled but token is empty.</div>
-                                </div>
+	<div class="flex-grow min-h-0 overflow-y-auto pr-2 space-y-4">
+        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+            <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Channel Setup</label>
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="cfg-telegram" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
+                        <span class="text-sm font-semibold text-[var(--text-main)]">Telegram</span>
+                    </label>
+                    <input type="password" id="cfg-telegram-token" placeholder="Bot token"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    <input type="text" id="cfg-telegram-proxy" placeholder="Proxy URL (optional)"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    <textarea id="cfg-telegram-allow-from" rows="3" placeholder="Allowed user IDs (comma or newline separated)"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"></textarea>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">DM Policy</label>
+                        <select id="cfg-telegram-dm-policy"
+                            class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                            <option value="">Default</option>
+                            <option value="allow">Allow all DMs</option>
+                            <option value="allowlist">Allowlist only</option>
+                            <option value="deny">Deny all DMs</option>
+                        </select>
+                    </div>
+                    <div id="cfg-telegram-warning" class="hidden text-[11px] text-yellow-500">Telegram is enabled but token is empty.</div>
+                </div>
 
-                                <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3">
-                                    <label class="flex items-center gap-3 cursor-pointer">
-                                        <input type="checkbox" id="cfg-discord" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
-                                        <span class="text-sm font-semibold text-[var(--text-main)]">Discord</span>
-                                    </label>
-                                    <input type="password" id="cfg-discord-token" placeholder="Bot token"
-                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
-                                    <textarea id="cfg-discord-allow-from" rows="3" placeholder="Allowed user IDs (comma or newline separated)"
-                                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"></textarea>
-                                    <label class="flex items-center gap-2 text-xs text-zinc-500">
-                                        <input type="checkbox" id="cfg-discord-mention-only" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
-                                        Respond only when bot is mentioned
-                                    </label>
-                                    <div id="cfg-discord-warning" class="hidden text-[11px] text-yellow-500">Discord is enabled but token is empty.</div>
-                                </div>
-                            </div>
+                <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="cfg-discord" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
+                        <span class="text-sm font-semibold text-[var(--text-main)]">Discord</span>
+                    </label>
+                    <input type="password" id="cfg-discord-token" placeholder="Bot token"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    <textarea id="cfg-discord-allow-from" rows="3" placeholder="Allowed user IDs (comma or newline separated)"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"></textarea>
+                    <label class="flex items-center gap-2 text-xs text-zinc-500">
+                        <input type="checkbox" id="cfg-discord-mention-only" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-sofia focus:ring-sofia/20">
+                        Respond only when bot is mentioned
+                    </label>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">DM Policy</label>
+                        <select id="cfg-discord-dm-policy"
+                            class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                            <option value="">Default</option>
+                            <option value="allow">Allow all DMs</option>
+                            <option value="allowlist">Allowlist only</option>
+                            <option value="deny">Deny all DMs</option>
+                        </select>
+                    </div>
+                    <div id="cfg-discord-warning" class="hidden text-[11px] text-yellow-500">Discord is enabled but token is empty.</div>
+                </div>
+            </div>
 
-                            <div id="cfg-channels-warning" class="hidden mt-3 text-[11px] text-yellow-500">One or more enabled channels are missing tokens.</div>
+            <div id="cfg-channels-warning" class="hidden mt-3 text-[11px] text-yellow-500">One or more enabled channels are missing tokens.</div>
 
-                            <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
-                                <i data-lucide="save" class="w-4 h-4"></i>
-                                Save changes
-                            </button>
-                        </div>
+            <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+                <i data-lucide="save" class="w-4 h-4"></i>
+                Save changes
+            </button>
+        </div>
 
+        <!-- Email Channel -->
+        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">Email Channel</h3>
+            <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable Email</h4>
+                        <p class="text-[11px] text-zinc-500">Receive and respond to messages via email (IMAP/SMTP).</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="cfg-email-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">IMAP Server</label>
+                        <input type="text" id="cfg-email-imap" placeholder="imap.gmail.com:993"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">SMTP Server</label>
+                        <input type="text" id="cfg-email-smtp" placeholder="smtp.gmail.com:587"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Username</label>
+                        <input type="text" id="cfg-email-username" placeholder="sofia@example.com"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Password</label>
+                        <input type="password" id="cfg-email-password" placeholder="App password"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Poll Interval (seconds)</label>
+                    <input type="number" id="cfg-email-poll" min="10" placeholder="60"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Allow From (one email per line)</label>
+                    <textarea id="cfg-email-allow-from" rows="3" placeholder="user@example.com"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"></textarea>
+                </div>
+            </div>
 
-
+            <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+                <i data-lucide="save" class="w-4 h-4"></i>
+                Save changes
+            </button>
+        </div>
 	</div>
 </div>
