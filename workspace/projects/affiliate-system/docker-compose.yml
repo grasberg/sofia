@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  app:
+    image: php:8.3-cli
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - ./composer-cache:/tmp/composer-cache
+    environment:
+      COMPOSER_CACHE_DIR: /tmp/composer-cache
+    command: tail -f /dev/null
+
+  composer:
+    image: composer:2
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - ./composer-cache:/tmp/composer-cache
+    environment:
+      COMPOSER_CACHE_DIR: /tmp/composer-cache

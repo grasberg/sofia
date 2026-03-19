@@ -1,0 +1,105 @@
+# Planmall för Sofia plan-verktyget
+# Använd denna mall för att skapa nya planer i YAML-format
+# Baserat på enkel struktur (Alternativ 1)
+
+# Unik identifierare för planen (valfri, kan genereras automatiskt)
+id: "plan-{{timestamp}}"
+
+# Planens huvudmål (obligatoriskt)
+goal: "Beskriv tydligt vad planen ska uppnå"
+
+# Status: pending, in_progress, completed, failed (obligatoriskt)
+status: "pending"
+
+# Frivillig metadata
+metadata:
+  created_at: "{{current_timestamp}}"
+  updated_at: "{{current_timestamp}}"
+  priority: "medium"  # low, medium, high
+  tags: []  # Frivilliga taggar för kategorisering
+  owner: "{{agent_or_user}}"
+
+# Steg för planen (obligatoriskt, minst ett steg)
+steps:
+  - index: 1
+    description: "Beskriv det första steget tydligt och specifikt"
+    status: "pending"  # pending, in_progress, completed, failed
+    # Frivilliga fält per steg:
+    # note: "Ytterligare information eller anteckningar"
+    # dependencies: []  # Lista med step-index som måste vara klara först
+    # estimated_hours: 1
+    # assignee: "agent_id eller user"
+
+  - index: 2
+    description: "Beskriv det andra steget"
+    status: "pending"
+
+# Automatiskt beräknad progress (kan beräknas från steg-status)
+progress:
+  completed: 0
+  total: {{steps_count}}
+
+---
+# Exempel på fylld mall
+id: "plan-example-1"
+goal: "Skapa landing page för ny produkt"
+status: "pending"
+metadata:
+  created_at: "2026-03-19T12:00:00Z"
+  priority: "high"
+  tags: ["web", "marketing", "product-launch"]
+  owner: "sofia"
+steps:
+  - index: 1
+    description: "Skissa wireframe för landing page"
+    status: "pending"
+    estimated_hours: 2
+    assignee: "sofia"
+  - index: 2
+    description: "Designa UI med Figma"
+    status: "pending"
+    dependencies: [1]
+    estimated_hours: 4
+    assignee: "design-agent"
+  - index: 3
+    description: "Implementera HTML/CSS"
+    status: "pending"
+    dependencies: [2]
+    estimated_hours: 6
+    assignee: "sofia"
+  - index: 4
+    description: "Testa responsiv design"
+    status: "pending"
+    dependencies: [3]
+    estimated_hours: 2
+    assignee: "sofia"
+progress:
+  completed: 0
+  total: 4
+
+---
+# Ytterligare tips för effektiv användning
+
+1. **Var specifik i stegbeskrivningar:** Undvik vaga formuleringar.
+   - Dåligt: "Fixa buggen"
+   - Bra: "Åtgärda null pointer exception i UserService.getProfile()"
+
+2. **Använd dependencies för att definiera ordning:** Steg kan bero på tidigare steg.
+
+3. **Tilldela rätt resurs:** Använd assignee för att delegera till specialiserade agenter.
+
+4. **Uppdatera status regelbundet:** När ett steg påbörjas eller slutförs.
+
+5. **Använd taggar för organisation:** Gruppera relaterade planer med taggar som "stripe", "ui", "backend", "bugfix".
+
+---
+# Kommandotips (hypotetiskt)
+
+# Skapa ny plan från YAML-fil:
+# sofia plan create --yaml plan.yaml
+
+# Uppdatera plan från YAML-fil:
+# sofia plan update --id plan-123 --yaml updated_plan.yaml
+
+# Exportera plan till YAML:
+# sofia plan export --id plan-123 --format yaml > plan_123.yaml

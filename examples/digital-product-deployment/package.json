@@ -1,0 +1,25 @@
+{
+  "name": "digital-product-landing-page",
+  "version": "1.0.0",
+  "description": "Landing page for digital product with Stripe Checkout",
+  "main": "index.html",
+  "scripts": {
+    "build": "echo 'Building static site...'",
+    "dev": "echo 'Running development server...'",
+    "test": "echo 'No tests specified'"
+  },
+  "dependencies": {
+    "stripe": "^14.0.0"
+  },
+  "devDependencies": {
+    "@netlify/functions": "^2.0.0"
+  },
+  "keywords": [
+    "digital-product",
+    "stripe",
+    "netlify",
+    "landing-page"
+  ],
+  "author": "DigitalProdukter.se",
+  "license": "MIT"
+}

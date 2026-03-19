@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Produkt: PDF-guide för affiliate-marknadsföring</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --secondary-color: #10b981;
+        }
+        .hero {
+            padding: 4rem 1rem;
+            text-align: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 0 0 2rem 2rem;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 3rem 0;
+        }
+        .feature-card {
+            padding: 2rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 1rem;
+            transition: transform 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .price {
+            font-size: 3rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        .cta-button {
+            background: var(--primary-color);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            display: inline-block;
+            margin: 1rem 0;
+        }
+        .cta-button:hover {
+            background: #4338ca;
+        }
+    </style>
+</head>
+<body>
+    <nav class="container-fluid">
+        <ul>
+            <li><strong>DigitalProdukter.se</strong></li>
+        </ul>
+        <ul>
+            <li><a href="#features">Funktioner</a></li>
+            <li><a href="#pricing">Pris</a></li>
+            <li><a href="#faq">FAQ</a></li>
+            <li><button class="cta-button" id="buy-button">Köp nu - 297 SEK</button></li>
+        </ul>
+    </nav>
+
+    <main class="container">
+        <section class="hero">
+            <h1>Affiliate-marknadsföring: Komplett guide 2026</h1>
+            <p>Lär dig hur du bygger en passiv inkomst genom affiliate-marknadsföring med svenska betalningslösningar</p>
+            <button class="cta-button" id="hero-buy-button">Ladda ner PDF-guiden nu</button>
+        </section>
+
+        <section id="features">
+            <h2>Vad får du?</h2>
+            <div class="features">
+                <article class="feature-card">
+                    <h3>✅ Steg-för-steg arbetsflöde</h3>
+                    <p>Exakt process från idé till automatiserad utbetalning med Stripe och Swish.</p>
+                </article>
+                <article class="feature-card">
+                    <h3>✅ Affiliate-link builder</h3>
+                    <p>Färdiga skript för att generera spårbara affiliate-länkar med UTM-taggar.</p>
+                </article>
+                <article class="feature-card">
+                    <h3>✅ Automatiska utbetalnings-PDFs</h3>
+                    <p>System för att automatiskt generera och skicka utbetalnings-PDFs till affiliates.</p>
+                </article>
+                <article class="feature-card">
+                    <h3>✅ Product Hunt launch checklista</h3>
+                    <p>Exakt checklista för att lansera din produkt på Product Hunt med maximal exponering.</p>
+                </article>
+            </div>
+        </section>
+
+        <section id="pricing" style="text-align: center;">
+            <h2>En engångsinvestering för livet</h2>
+            <div class="price">297 SEK</div>
+            <p>Inga månadsavgifter • Livstidsuppdateringar • 30-dagars pengarna tillbaka-garanti</p>
+            <button class="cta-button" id="pricing-buy-button">Köp nu</button>
+            <p><small>Betalning via Stripe (kort) eller Swish. Omedelbar nedladdning efter köp.</small></p>
+        </section>
+
+        <section id="faq">
+            <h2>Vanliga frågor</h2>
+            <details>
+                <summary>Hur får jag tillgång till produkten?</summary>
+                <p>Direkt efter betalning skickas en nedladdningslänk till din e-postadress. Du kan också logga in på ditt konto på vår plattform för att ladda ner.</p>
+            </details>
+            <details>
+                <summary>Finns det en återbetalningspolicy?</summary>
+                <p>Ja, du har 30 dagars pengarna tillbaka-garanti om du inte är nöjd. Kontakta support@digitalprodukter.se.</p>
+            </details>
+            <details>
+                <summary>Kommer produkten att uppdateras?</summary>
+                <p>Ja, alla köpare får gratis livstidsuppdateringar när nya versioner släpps.</p>
+            </details>
+        </section>
+    </main>
+
+    <footer class="container">
+        <small>© 2026 DigitalProdukter.se • support@digitalprodukter.se</small>
+    </footer>
+
+    <script>
+        // Stripe Checkout integration
+        const stripe = Stripe('pk_test_xxxxxxxxxxxxxx');
+        
+        async function initiateCheckout() {
+            try {
+                const response = await fetch('/.netlify/functions/create-checkout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        priceId: 'price_xxxxxxxxxxxxxx',
+                        successUrl: `${window.location.origin}/purchase-success`,
+                        cancelUrl: `${window.location.origin}/purchase-cancel`,
+                    }),
+                });
+                
+                const session = await response.json();
+                const result = await stripe.redirectToCheckout({
+                    sessionId: session.id,
+                });
+                
+                if (result.error) {
+                    alert(result.error.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Ett fel uppstod. Försök igen senare.');
+            }
+        }
+        
+        // Attach event listeners to all buy buttons
+        document.querySelectorAll('#buy-button, #hero-buy-button, #pricing-buy-button').forEach(button => {
+            button.addEventListener('click', initiateCheckout);
+        });
+        
+        // Simple form submission tracking
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Landing page loaded - ready for conversions!');
+        });
+    </script>
+</body>
+</html>

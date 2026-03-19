@@ -1,0 +1,223 @@
+# Landing Page Configuration YAML Example
+# Complete structure for a digital product landing page
+
+# Basic product information
+product_id: "niche-selection-toolkit"
+product_name: "Niche Selection Toolkit"
+product_slug: "niche-selection-toolkit"
+product_type: "digital_download"
+category: "Business Tools"
+tags: ["niche", "validation", "entrepreneur", "market-research"]
+language: "en"
+status: "published"
+
+# Pricing and currency
+currency: "USD"
+base_price: 47.00
+discount_price: 37.00
+discount_end_date: "2026-04-30"
+payment_type: "one_time"
+affiliate_percentage: 7.5
+
+# Tiers (if applicable)
+tiers:
+  - tier_id: "starter"
+    tier_name: "Starter"
+    price: 47.00
+    currency: "USD"
+    features:
+      - "Niche Selection Checklist (PDF)"
+      - "Market Validation Worksheet"
+      - "5 Niche Idea Templates"
+      - "Basic Competitor Analysis Guide"
+      - "Email support (72h response)"
+    description: "Essential tools for niche selection and validation"
+    cta_text: "Get Starter"
+    highlight: false
+
+  - tier_id: "professional"
+    tier_name: "Professional"
+    price: 97.00
+    currency: "USD"
+    features:
+      - "All Starter features"
+      - "Advanced Niche Scoring Calculator"
+      - "Video Tutorial: 'How to Validate a Niche in 48 Hours'"
+      - "10 Additional Niche Templates"
+      - "SWOT Analysis Framework"
+      - "Community Access (Discord)"
+      - "Priority email support (24h response)"
+    description: "Advanced tools for serious entrepreneurs"
+    cta_text: "Get Professional"
+    highlight: true  # Recommended tier
+
+  - tier_id: "agency"
+    tier_name: "Agency"
+    price: 297.00
+    currency: "USD"
+    features:
+      - "All Professional features"
+      - "Whitelabel Rights (resell to clients)"
+      - "Custom Niche Research Template"
+      - "1-hour Strategy Consultation Call"
+      - "Masterclass: 'Scaling Niche Businesses'"
+      - "Lifetime Updates"
+      - "Direct Slack support"
+    description: "Complete package with whitelabel rights"
+    cta_text: "Get Agency"
+    highlight: false
+
+# Descriptions
+short_description: "A comprehensive toolkit to help entrepreneurs identify profitable niches, validate ideas, and launch successfully."
+long_description: |
+  # Transform Your Business Idea into Reality
+
+  Are you tired of guessing which niche to pursue? The Niche Selection Toolkit provides you with proven frameworks and tools to systematically identify, validate, and launch profitable business ideas.
+
+  ## What You'll Achieve
+  - **Identify** 3-5 profitable niches in your area of expertise
+  - **Validate** market demand before investing time and money
+  - **Launch** with confidence using step-by-step guides
+
+  This toolkit has been used by over 500 entrepreneurs to launch successful businesses.
+
+benefits:
+  - "Save 50+ hours of market research"
+  - "Avoid costly mistakes by validating first"
+  - "Access proven frameworks used by successful entrepreneurs"
+  - "Get lifetime updates as the market evolves"
+
+target_audience:
+  - "Aspiring entrepreneurs"
+  - "Content creators looking to monetize"
+  - "Small business owners expanding to new markets"
+  - "Marketing agencies offering niche research services"
+
+how_it_works:
+  - "1. Download the toolkit immediately after purchase"
+  - "2. Use the checklist to evaluate potential niches"
+  - "3. Apply validation frameworks to test market demand"
+  - "4. Launch with confidence using the launch guide"
+
+# Delivery and access
+delivery_method: "digital_download"
+delivery_format: "PDF, Excel, Video"
+delivery_instant: true
+access_duration: "lifetime"
+updates_included: true
+license_type: "personal"
+
+# Media resources
+media:
+  hero_image: "/images/hero-niche-toolkit.jpg"
+  product_images:
+    - "/images/preview-1.png"
+    - "/images/preview-2.png"
+    - "/images/preview-3.png"
+  demo_video_url: "https://youtube.com/watch?v=example"
+  thumbnail_image: "/images/thumbnail.jpg"
+  preview_file: "/previews/toolkit-preview.pdf"
+
+# Landing page sections
+sections:
+  - section_id: "hero"
+    section_type: "hero"
+    title: "Find Your Perfect Niche"
+    subtitle: "Stop guessing. Start validating. Launch with confidence."
+    order: 1
+    visible: true
+    content:
+      primary_cta_text: "Get the Toolkit"
+      primary_cta_url: "#pricing"
+      secondary_cta_text: "Watch Demo"
+      secondary_cta_url: "#demo"
+
+  - section_id: "benefits"
+    section_type: "features"
+    title: "Why This Toolkit Works"
+    order: 2
+    visible: true
+    content:
+      - title: "Save Time"
+        description: "Complete your niche research in days, not months"
+        icon: "clock"
+      - title: "Reduce Risk"
+        description: "Validate demand before investing resources"
+        icon: "shield"
+      - title: "Proven Frameworks"
+        description: "Based on successful entrepreneur methodologies"
+        icon: "check-circle"
+      - title: "Lifetime Updates"
+        description: "Get access to new tools and frameworks forever"
+        icon: "refresh"
+
+  - section_id: "pricing"
+    section_type: "pricing"
+    title: "Choose Your Plan"
+    order: 3
+    visible: true
+    content:
+      show_tiers: true
+      tier_comparison: true
+
+  - section_id: "testimonials"
+    section_type: "testimonials"
+    title: "What Entrepreneurs Say"
+    order: 4
+    visible: true
+    content:
+      - author: "Anna L."
+        role: "Founder, Content Agency"
+        content: "This toolkit helped me identify a niche that now generates $10k/month. The validation framework alone was worth 10x the price."
+        rating: 5
+      - author: "Markus T."
+        role: "Digital Nomad"
+        content: "I was stuck analyzing niches for 6 months. With this toolkit, I made a decision in 2 weeks and launched successfully."
+        rating: 5
+
+  - section_id: "faq"
+    section_type: "faq"
+    title: "Frequently Asked Questions"
+    order: 5
+    visible: true
+    content:
+      - question: "Is this a subscription?"
+        answer: "No, this is a one-time purchase with lifetime access and updates."
+      - question: "What format are the files?"
+        answer: "PDF checklists, Excel calculators, and MP4 video tutorials."
+      - question: "Do you offer refunds?"
+        answer: "Yes, we offer a 30-day money-back guarantee if you're not satisfied."
+
+  - section_id: "guarantee"
+    section_type: "guarantee"
+    title: "Risk-Free Purchase"
+    order: 6
+    visible: true
+    content:
+      guarantee_text: "30-day money-back guarantee"
+      guarantee_days: 30
+
+# Tracking and integration
+utm_campaign: "niche_toolkit_launch"
+affiliate_code: "NICHE10"
+pixel_ids:
+  facebook: "1234567890"
+  google: "UA-XXXXX-Y"
+email_integration: true
+email_list: "niche_toolkit_buyers"
+
+# Platform-specific settings (examples)
+platform_specific:
+  gumroad:
+    product_type: "digital"
+    featured: true
+    affiliate_enabled: true
+  stripe:
+    product_id: "prod_abc123"
+    prices:
+      - price_id: "price_starter"
+        tier_id: "starter"
+      - price_id: "price_professional"
+        tier_id: "professional"
+      - price_id: "price_agency"
+        tier_id: "agency"

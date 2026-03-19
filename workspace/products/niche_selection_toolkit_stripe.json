@@ -1,0 +1,37 @@
+{
+  "tiers": [
+    {
+      "name": "Niche Selection Toolkit - Starter",
+      "description": "A comprehensive toolkit to help entrepreneurs identify profitable niches. Includes: Niche Selection Checklist, Market Validation Worksheet, 5 Niche Idea Templates, Basic Competitor Analysis Guide, Email support.",
+      "price_amount": 4700,
+      "price_currency": "usd",
+      "metadata": {
+        "tier": "starter",
+        "features": "niche-checklist,market-worksheet,5-templates,competitor-analysis,email-support",
+        "delivery": "digital"
+      }
+    },
+    {
+      "name": "Niche Selection Toolkit - Professional",
+      "description": "Advanced toolkit for serious entrepreneurs. Includes all Starter features plus: Advanced Niche Scoring Calculator, Video Tutorial, 10 Additional Niche Templates, SWOT Analysis Framework, Community Access, Priority email support.",
+      "price_amount": 9700,
+      "price_currency": "usd",
+      "metadata": {
+        "tier": "professional",
+        "features": "all-starter,scoring-calculator,video-tutorial,10-templates,swot-framework,community-access,priority-support",
+        "delivery": "digital"
+      }
+    },
+    {
+      "name": "Niche Selection Toolkit - Agency",
+      "description": "Complete solution for agencies and consultants. Includes all Professional features plus: Whitelabel Rights, Custom Niche Research Template, 1-hour Strategy Consultation Call, Masterclass, Lifetime Updates, Direct Slack support.",
+      "price_amount": 29700,
+      "price_currency": "usd",
+      "metadata": {
+        "tier": "agency",
+        "features": "all-professional,whitelabel-rights,custom-template,consultation-call,masterclass,lifetime-updates,slack-support",
+        "delivery": "digital"
+      }
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "header": {
+    "logo": {
+      "src": "/logo.png",
+      "alt": "Brand Name",
+      "text": "Brand Name",
+      "href": "/"
+    },
+    "menu": [
+      {
+        "label": "Features",
+        "href": "#features",
+        "target": "_self"
+      },
+      {
+        "label": "Pricing",
+        "href": "#pricing",
+        "target": "_self"
+      },
+      {
+        "label": "Testimonials",
+        "href": "#testimonials",
+        "target": "_self"
+      },
+      {
+        "label": "FAQ",
+        "href": "#faq",
+        "target": "_self"
+      }
+    ],
+    "cta": [
+      {
+        "text": "Get Started",
+        "href": "/signup",
+        "variant": "primary",
+        "target": "_self"
+      },
+      {
+        "text": "Learn More",
+        "href": "/about",
+        "variant": "secondary",
+        "target": "_self"
+      }
+    ],
+    "sticky": true,
+    "background_color": "#ffffff",
+    "text_color": "#333333"
+  }
+}

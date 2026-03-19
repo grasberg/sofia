@@ -1,0 +1,40 @@
+<!-- Features Component Template -->
+<section class="lp-features" id="features">
+  <div class="lp-features__container">
+    <div class="lp-features__header">
+      <h2 class="lp-features__title">{{title}}</h2>
+      <p class="lp-features__subtitle">{{subtitle}}</p>
+    </div>
+
+    <div class="lp-features__grid lp-features__grid--{{columns}}-columns">
+      {{#each features}}
+      <div class="lp-features__item {{#if highlighted}}lp-features__item--highlighted{{/if}}">
+        {{#if icon}}
+        <div class="lp-features__icon">
+          {{#if icon.src}}
+            <img src="{{icon.src}}" alt="{{icon.alt}}" class="lp-features__icon-image">
+          {{else}}
+            <span class="lp-features__icon-symbol">{{icon.symbol}}</span>
+          {{/if}}
+        </div>
+        {{/if}}
+
+        {{#if image}}
+        <div class="lp-features__image">
+          <img src="{{image.src}}" alt="{{image.alt}}" class="lp-features__image-element">
+        </div>
+        {{/if}}
+
+        <h3 class="lp-features__item-title">{{title}}</h3>
+        <p class="lp-features__item-description">{{description}}</p>
+
+        {{#if cta}}
+        <a href="{{cta.href}}" class="lp-features__item-cta" {{#if cta.target}}target="{{cta.target}}"{{/if}}>
+          {{cta.text}} →
+        </a>
+        {{/if}}
+      </div>
+      {{/each}}
+    </div>
+  </div>
+</section>
