@@ -271,6 +271,22 @@
     </main>
 
     <script>
+        // Global fetch wrapper: auto-inject X-Requested-With on mutating requests (CSRF protection)
+        (function() {
+            const _origFetch = window.fetch;
+            window.fetch = function(url, opts) {
+                if (opts && opts.method && /^(POST|PUT|DELETE|PATCH)$/i.test(opts.method)) {
+                    if (!opts.headers) opts.headers = {};
+                    if (opts.headers instanceof Headers) {
+                        if (!opts.headers.has('X-Requested-With')) opts.headers.set('X-Requested-With', 'fetch');
+                    } else {
+                        if (!opts.headers['X-Requested-With']) opts.headers['X-Requested-With'] = 'fetch';
+                    }
+                }
+                return _origFetch.call(this, url, opts);
+            };
+        })();
+
         let currentTab = 'chat';
         let skillsData = [];
         let activeAgentID = null;
