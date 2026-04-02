@@ -37,6 +37,7 @@ func TestWebhookDispatcher_DispatchToMatchingEvent(t *testing.T) {
 			Enabled: true,
 		},
 	})
+	wd.allowPrivate = true // allow localhost in tests
 
 	wd.Dispatch(EventTaskComplete, "agent-1", "telegram", map[string]string{"task": "demo"})
 
@@ -110,6 +111,7 @@ func TestWebhookDispatcher_HMACSignature(t *testing.T) {
 			Enabled: true,
 		},
 	})
+	wd.allowPrivate = true // allow localhost in tests
 
 	wd.Dispatch(EventCronComplete, "cron-agent", "cron", nil)
 

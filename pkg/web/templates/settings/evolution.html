@@ -25,11 +25,7 @@
                         class="w-full h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-sofia">
                     <div class="text-[11px] text-zinc-400 font-mono text-right">Every <span id="cfg-evolution-interval-val">30</span> min</div>
                 </div>
-                <div class="space-y-2">
-                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Max Cost Per Day (USD)</label>
-                    <input type="number" id="cfg-evolution-max-cost" step="0.01" min="0" placeholder="1.00"
-                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
-                </div>
+                <input type="hidden" id="cfg-evolution-max-cost">
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -49,6 +45,48 @@
                     <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Max Evolved Agents</label>
                     <input type="number" id="cfg-evolution-max-agents" min="1" max="50" placeholder="10"
                         class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-4">Memory &amp; Skills</h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                    <div class="flex items-start justify-between">
+                        <div class="space-y-1 pr-6">
+                            <h4 class="text-sm font-semibold text-[var(--text-main)]">Memory Consolidation</h4>
+                            <p class="text-[11px] leading-relaxed text-zinc-500">Periodically merge duplicates and prune stale knowledge.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                            <input type="checkbox" id="cfg-evolution-memory-consolidation" class="sr-only peer" onchange="saveConfig()">
+                            <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                        </label>
+                    </div>
+                </div>
+                <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                    <div class="flex items-start justify-between">
+                        <div class="space-y-1 pr-6">
+                            <h4 class="text-sm font-semibold text-[var(--text-main)]">Skill Auto-Improve</h4>
+                            <p class="text-[11px] leading-relaxed text-zinc-500">Automatically apply high-priority skill improvements.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                            <input type="checkbox" id="cfg-evolution-skill-auto-improve" class="sr-only peer" onchange="saveConfig()">
+                            <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4 space-y-2">
+                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Consolidation Interval (hours)</label>
+                <input type="range" id="cfg-evolution-consolidation-interval" min="1" max="24" value="6"
+                    oninput="document.getElementById('cfg-evolution-consolidation-interval-val').textContent=this.value"
+                    onchange="saveConfig()"
+                    class="w-full h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-sofia">
+                <div class="text-[11px] text-zinc-400 font-mono text-right">
+                    Every <span id="cfg-evolution-consolidation-interval-val">6</span> hours
                 </div>
             </div>
         </div>

@@ -155,5 +155,3 @@ func TestUsageInfo(t *testing.T) {
 		t.Errorf("expected total tokens 275, got %d", usage.TotalTokens)
 	}
 }
-
-

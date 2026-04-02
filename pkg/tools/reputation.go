@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/grasberg/sofia/pkg/reputation"
@@ -236,13 +237,9 @@ func (t *ReputationTool) rank(args map[string]any) *ToolResult {
 	}
 
 	// Sort by score descending.
-	for i := 0; i < len(rankings); i++ {
-		for j := i + 1; j < len(rankings); j++ {
-			if rankings[j].score > rankings[i].score {
-				rankings[i], rankings[j] = rankings[j], rankings[i]
-			}
-		}
-	}
+	sort.Slice(rankings, func(i, j int) bool {
+		return rankings[i].score > rankings[j].score
+	})
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Agent ranking for %q:\n", category)
@@ -262,7 +259,7 @@ func (t *ReputationTool) record(args map[string]any) *ToolResult {
 	if task == "" {
 		return ErrorResult("task is required")
 	}
-	success, _ := args["success"].(bool) //nolint:errcheck
+	success, _ := args["success"].(bool)     //nolint:errcheck
 	category, _ := args["category"].(string) //nolint:errcheck
 
 	id, err := t.manager.RecordOutcome(reputation.TaskOutcome{

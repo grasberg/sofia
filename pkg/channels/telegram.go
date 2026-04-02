@@ -42,7 +42,7 @@ type TelegramChannel struct {
 	bot          *telego.Bot
 	commands     TelegramCommander
 	config       *config.Config
-	chatIDs      map[string]int64
+	chatIDs      sync.Map // string -> int64
 	transcriber  *voice.GroqTranscriber
 	placeholders sync.Map // chatID -> messageID
 	stopThinking sync.Map // chatID -> thinkingCancel
@@ -89,14 +89,11 @@ func NewTelegramChannel(cfg *config.Config, bus *bus.MessageBus) (*TelegramChann
 	base := NewBaseChannel("telegram", telegramCfg, bus, telegramCfg.AllowFrom)
 
 	return &TelegramChannel{
-		BaseChannel:  base,
-		commands:     NewTelegramCommands(bot, cfg),
-		bot:          bot,
-		config:       cfg,
-		chatIDs:      make(map[string]int64),
-		transcriber:  nil,
-		placeholders: sync.Map{},
-		stopThinking: sync.Map{},
+		BaseChannel: base,
+		commands:    NewTelegramCommands(bot, cfg),
+		bot:         bot,
+		config:      cfg,
+		transcriber: nil,
 	}, nil
 }
 
@@ -259,7 +256,7 @@ func (c *TelegramChannel) handleMessage(ctx context.Context, message *telego.Mes
 	}
 
 	chatID := message.Chat.ID
-	c.chatIDs[senderID] = chatID
+	c.chatIDs.Store(senderID, chatID)
 
 	content := ""
 	mediaPaths := []string{}

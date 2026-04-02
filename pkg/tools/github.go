@@ -87,7 +87,9 @@ func (t *GitHubCLITool) Execute(ctx context.Context, args map[string]any) *ToolR
 
 	topLevel := strings.ToLower(strings.TrimSpace(commandArgs[0]))
 	if strings.HasPrefix(topLevel, "-") {
-		return ErrorResult("args must start with a gh top-level command (e.g. pr, issue, repo, run, api, release, gist)")
+		return ErrorResult(
+			"args must start with a gh top-level command (e.g. pr, issue, repo, run, api, release, gist)",
+		)
 	}
 
 	// Block dangerous commands that could leak credentials or modify auth

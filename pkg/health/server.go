@@ -9,12 +9,20 @@ import (
 	"time"
 )
 
+const checkCacheTTL = 30 * time.Second
+
 type Server struct {
 	server    *http.Server
 	mu        sync.RWMutex
 	ready     bool
-	checks    map[string]Check
+	checkFns  map[string]func() (bool, string)
+	cache     map[string]cachedCheck
 	startTime time.Time
+}
+
+type cachedCheck struct {
+	result Check
+	expiry time.Time
 }
 
 type Check struct {
@@ -33,8 +41,9 @@ type StatusResponse struct {
 func NewServer(host string, port int) *Server {
 	mux := http.NewServeMux()
 	s := &Server{
-		ready:     false,
-		checks:    make(map[string]Check),
+		ready:    false,
+		checkFns: make(map[string]func() (bool, string)),
+		cache:    make(map[string]cachedCheck),
 		startTime: time.Now(),
 	}
 
@@ -93,14 +102,33 @@ func (s *Server) SetReady(ready bool) {
 func (s *Server) RegisterCheck(name string, checkFn func() (bool, string)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.checkFns[name] = checkFn
+}
 
-	status, msg := checkFn()
-	s.checks[name] = Check{
-		Name:      name,
-		Status:    statusString(status),
-		Message:   msg,
-		Timestamp: time.Now(),
+// evaluateChecks runs all registered check functions, using cached results
+// when available and not expired.
+func (s *Server) evaluateChecks() map[string]Check {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	checks := make(map[string]Check, len(s.checkFns))
+	for name, fn := range s.checkFns {
+		if cached, ok := s.cache[name]; ok && now.Before(cached.expiry) {
+			checks[name] = cached.result
+			continue
+		}
+		status, msg := fn()
+		c := Check{
+			Name:      name,
+			Status:    statusString(status),
+			Message:   msg,
+			Timestamp: now,
+		}
+		s.cache[name] = cachedCheck{result: c, expiry: now.Add(checkCacheTTL)}
+		checks[name] = c
 	}
+	return checks
 }
 
 func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -119,12 +147,11 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) readyHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// Re-evaluate checks (with TTL caching) on each request.
+	checks := s.evaluateChecks()
+
 	s.mu.RLock()
 	ready := s.ready
-	checks := make(map[string]Check)
-	for k, v := range s.checks {
-		checks[k] = v
-	}
 	s.mu.RUnlock()
 
 	if !ready {

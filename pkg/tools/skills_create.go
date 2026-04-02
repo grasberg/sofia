@@ -74,7 +74,7 @@ func (t *CreateSkillTool) Execute(ctx context.Context, args map[string]any) *Too
 		return ErrorResult(fmt.Sprintf("Skill %q already exists. Use update_skill to modify it.", slug))
 	}
 
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return ErrorResult(fmt.Sprintf("Failed to create skill directory: %v", err))
 	}
 
@@ -88,11 +88,17 @@ func (t *CreateSkillTool) Execute(ctx context.Context, args map[string]any) *Too
 	sb.WriteString(content)
 
 	skillPath := filepath.Join(targetDir, "SKILL.md")
-	if err := fileutil.WriteFileAtomic(skillPath, []byte(sb.String()), 0644); err != nil {
+	if err := fileutil.WriteFileAtomic(skillPath, []byte(sb.String()), 0o644); err != nil {
 		os.RemoveAll(targetDir) // rollback
 		logger.ErrorCF("tool", "Failed to write skill file", map[string]any{"error": err.Error(), "path": skillPath})
 		return ErrorResult(fmt.Sprintf("Failed to write skill file: %v", err))
 	}
 
-	return SilentResult(fmt.Sprintf("Successfully created new skill %q at %s\nYou can now use this skill in future tasks.", slug, skillPath))
+	return SilentResult(
+		fmt.Sprintf(
+			"Successfully created new skill %q at %s\nYou can now use this skill in future tasks.",
+			slug,
+			skillPath,
+		),
+	)
 }

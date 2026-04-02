@@ -46,7 +46,10 @@ func (sm *SemanticMemory) AddFact(label, name string, properties map[string]any)
 
 // AddRelation creates a relationship between two entities.
 // Entities are looked up (or created) by label+name.
-func (sm *SemanticMemory) AddRelation(sourceLabel, sourceName, relation, targetLabel, targetName string, weight float64) error {
+func (sm *SemanticMemory) AddRelation(
+	sourceLabel, sourceName, relation, targetLabel, targetName string,
+	weight float64,
+) error {
 	if sm.db == nil {
 		return nil
 	}

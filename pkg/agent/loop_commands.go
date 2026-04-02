@@ -95,9 +95,11 @@ func (al *AgentLoop) handleCommand(ctx context.Context, msg bus.InboundMessage) 
 					value,
 				), true
 			}
+			al.agentModelMu.Lock()
 			oldModel := defaultAgent.Model
 			defaultAgent.Model = value
 			_, defaultAgent.ModelID = providers.ExtractProtocol(mc.Model)
+			al.agentModelMu.Unlock()
 			return fmt.Sprintf("Switched model from %s to %s", oldModel, value), true
 		case "channel":
 			if al.channelManager == nil {
@@ -172,22 +174,15 @@ func (al *AgentLoop) handleSessionCommand(
 		if usage == nil {
 			return "No usage data for this session yet.", true
 		}
-		cost := EstimateCost(usage, agent.Model)
-		costStr := "unknown"
-		if cost > 0 {
-			costStr = fmt.Sprintf("$%.4f", cost)
-		}
 		return fmt.Sprintf(
 			"Session usage:\n"+
 				"  Model: %s\n"+
 				"  Calls: %d\n"+
 				"  Prompt tokens: %d\n"+
 				"  Completion tokens: %d\n"+
-				"  Total tokens: %d\n"+
-				"  Estimated cost: %s",
+				"  Total tokens: %d",
 			agent.Model, usage.CallCount,
 			usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens,
-			costStr,
 		), true
 
 	case "/think":
@@ -556,9 +551,14 @@ func (al *AgentLoop) handleEvolveCommand(args []string, _ string) (string, bool)
 		}
 		return sb.String(), true
 	case "run":
+		if al.evolveRunning.Load() {
+			return "An evolution cycle is already running.", true
+		}
+		al.evolveRunning.Store(true)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		go func() {
 			defer cancel()
+			defer al.evolveRunning.Store(false)
 			al.evolutionEngine.RunNow(ctx)
 		}()
 		return "Evolution cycle triggered.", true

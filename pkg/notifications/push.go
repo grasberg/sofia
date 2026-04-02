@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/gen2brain/beeep"
+
 	"github.com/grasberg/sofia/pkg/logger"
 )
 

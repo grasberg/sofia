@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/grasberg/sofia/pkg/audit"
 	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/grasberg/sofia/pkg/constants"
 	"github.com/grasberg/sofia/pkg/guardrails"
@@ -32,6 +33,12 @@ func (al *AgentLoop) runLLMIteration(
 
 	reflectionInterval := al.cfg.Agents.Defaults.ReflectionInterval
 	parallelTools := al.cfg.Agents.Defaults.ParallelToolCalls
+
+	// Doom loop detector — tracks repeated actions/errors and suggests recovery.
+	var doomDetector *DoomLoopDetector
+	if al.cfg.Agents.Defaults.DoomLoopDetection.Enabled {
+		doomDetector = NewDoomLoopDetector(al.cfg.Agents.Defaults.DoomLoopDetection.RepetitionThreshold)
+	}
 
 	// Cache tool definitions across iterations — user intent doesn't change,
 	// only tool results do, so re-filtering is wasted work.
@@ -179,7 +186,11 @@ func (al *AgentLoop) runLLMIteration(
 			// Check limits
 			if maxRPM := al.cfg.Guardrails.RateLimiting.MaxRPM; maxRPM > 0 && al.rpmCounts[agent.ID] >= maxRPM {
 				al.rlMutex.Unlock()
-				logger.WarnCF(agentComp, "Guardrail: Rate limit exceeded (RPM)", map[string]any{"rpm": al.rpmCounts[agent.ID], "max": maxRPM})
+				logger.WarnCF(
+					agentComp,
+					"Guardrail: Rate limit exceeded (RPM)",
+					map[string]any{"rpm": al.rpmCounts[agent.ID], "max": maxRPM},
+				)
 				logger.Audit("Rate Limit Exceeded", map[string]any{
 					"agent_id": agent.ID,
 					"type":     "RPM",
@@ -190,9 +201,14 @@ func (al *AgentLoop) runLLMIteration(
 			}
 
 			estimatedTokens := al.estimateTokens(messages) // Approximate
-			if maxTokens := al.cfg.Guardrails.RateLimiting.MaxTokensPerHour; maxTokens > 0 && al.tokenCounts[agent.ID]+estimatedTokens > maxTokens {
+			if maxTokens := al.cfg.Guardrails.RateLimiting.MaxTokensPerHour; maxTokens > 0 &&
+				al.tokenCounts[agent.ID]+estimatedTokens > maxTokens {
 				al.rlMutex.Unlock()
-				logger.WarnCF(agentComp, "Guardrail: Rate limit exceeded (Tokens)", map[string]any{"tokens": al.tokenCounts[agent.ID], "max": maxTokens})
+				logger.WarnCF(
+					agentComp,
+					"Guardrail: Rate limit exceeded (Tokens)",
+					map[string]any{"tokens": al.tokenCounts[agent.ID], "max": maxTokens},
+				)
 				logger.Audit("Rate Limit Exceeded", map[string]any{
 					"agent_id": agent.ID,
 					"type":     "TokensPerHour",
@@ -202,9 +218,6 @@ func (al *AgentLoop) runLLMIteration(
 				return "Error: Agent rate limit exceeded (tokens per hour). Please try again later.", iteration, errorCount, nil
 			}
 
-			// Increment
-			al.rpmCounts[agent.ID]++
-			al.tokenCounts[agent.ID] += estimatedTokens
 			al.rlMutex.Unlock()
 		}
 
@@ -221,12 +234,22 @@ func (al *AgentLoop) runLLMIteration(
 				}
 			}
 
-			if strings.Contains(lastMsg, "code") || strings.Contains(lastMsg, "debug") || strings.Contains(lastMsg, "fix") {
+			if strings.Contains(lastMsg, "code") || strings.Contains(lastMsg, "debug") ||
+				strings.Contains(lastMsg, "fix") {
 				callTemp = 0.2 // Lower temp for analytical/coding tasks
-				logger.DebugCF(agentComp, "Auto-Tuning: lowered temperature for coding task", map[string]any{"temp": callTemp})
-			} else if strings.Contains(lastMsg, "brainstorm") || strings.Contains(lastMsg, "write") || strings.Contains(lastMsg, "creative") || strings.Contains(lastMsg, "idea") {
+				logger.DebugCF(
+					agentComp,
+					"Auto-Tuning: lowered temperature for coding task",
+					map[string]any{"temp": callTemp},
+				)
+			} else if strings.Contains(lastMsg, "brainstorm") || strings.Contains(lastMsg, "write") || strings.Contains(lastMsg, "creative") ||
+				strings.Contains(lastMsg, "idea") {
 				callTemp = 0.8 // Higher temp for creative tasks
-				logger.DebugCF(agentComp, "Auto-Tuning: raised temperature for creative task", map[string]any{"temp": callTemp})
+				logger.DebugCF(
+					agentComp,
+					"Auto-Tuning: raised temperature for creative task",
+					map[string]any{"temp": callTemp},
+				)
 			}
 		}
 		// -------------------
@@ -326,8 +349,22 @@ func (al *AgentLoop) runLLMIteration(
 			return "", iteration, errorCount, fmt.Errorf("LLM call failed after retries: %w", err)
 		}
 
+		if response == nil {
+			logger.ErrorCF(agentComp, "LLM returned nil response without error",
+				map[string]any{"agent_id": agent.ID, "iteration": iteration})
+			return "", iteration, errorCount, fmt.Errorf("LLM returned nil response")
+		}
+
+		// Increment rate limiter counters AFTER successful LLM call
+		if al.cfg.Guardrails.RateLimiting.Enabled {
+			al.rlMutex.Lock()
+			al.rpmCounts[agent.ID]++
+			al.tokenCounts[agent.ID] += al.estimateTokens(messages)
+			al.rlMutex.Unlock()
+		}
+
 		// Record token usage
-		if response != nil && response.Usage != nil {
+		if response.Usage != nil {
 			al.usageTracker.Record(opts.SessionKey, response.Usage)
 		}
 
@@ -370,12 +407,16 @@ func (al *AgentLoop) runLLMIteration(
 				})
 
 				// Append the assistant's text + a nudge as a user message
-				messages = append(messages,
+				messages = append(
+					messages,
 					providers.Message{Role: "assistant", Content: response.Content},
-					providers.Message{Role: "user", Content: "[SYSTEM] You responded with text but made ZERO tool calls. " +
-						"Nothing was actually done. You MUST call tools RIGHT NOW to execute. " +
-						"Pick the first concrete step and call the appropriate tool (write_file, exec, read_file, edit_file, list_dir, spawn). " +
-						"Do NOT repeat the plan. Do NOT narrate. Just call a tool."},
+					providers.Message{
+						Role: "user",
+						Content: "[SYSTEM] You responded with text but made ZERO tool calls. " +
+							"Nothing was actually done. You MUST call tools RIGHT NOW to execute. " +
+							"Pick the first concrete step and call the appropriate tool (write_file, exec, read_file, edit_file, list_dir, spawn). " +
+							"Do NOT repeat the plan. Do NOT narrate. Just call a tool.",
+					},
 				)
 				continue // re-enter the loop for one more try
 			}
@@ -383,9 +424,9 @@ func (al *AgentLoop) runLLMIteration(
 			if isTask && hasSubstantialText {
 				logger.WarnCF(agentComp, "LLM returned text-only for a task (nudge already used or skipped)",
 					map[string]any{
-						"agent_id":    agent.ID,
-						"iteration":   iteration,
-						"no_history":  opts.NoHistory,
+						"agent_id":     agent.ID,
+						"iteration":    iteration,
+						"no_history":   opts.NoHistory,
 						"response_len": len(response.Content),
 					})
 			}
@@ -407,6 +448,12 @@ func (al *AgentLoop) runLLMIteration(
 		normalizedToolCalls := make([]providers.ToolCall, 0, len(response.ToolCalls))
 		for _, tc := range response.ToolCalls {
 			normalizedToolCalls = append(normalizedToolCalls, providers.NormalizeToolCall(tc))
+		}
+
+		// Doom loop: record tool calls and LLM output for this iteration
+		if doomDetector != nil {
+			doomDetector.RecordToolCalls(normalizedToolCalls)
+			doomDetector.RecordOutput(response.Content)
 		}
 
 		// Log tool calls summary
@@ -589,6 +636,21 @@ func (al *AgentLoop) runLLMIteration(
 				}
 			}
 
+			// Audit log: record every tool call with timing and result
+			if al.auditLogger != nil {
+				_ = al.auditLogger.Log(audit.AuditEntry{
+					AgentID:    agent.ID,
+					SessionKey: opts.SessionKey,
+					Channel:    opts.Channel,
+					Action:     "tool_call",
+					Detail:     tc.Name,
+					Input:      utils.Truncate(string(argsJSON), 500),
+					Output:     utils.Truncate(toolResult.ForLLM, 500),
+					Duration:   toolDur,
+					Success:    toolResult.Err == nil && !toolResult.IsError,
+				})
+			}
+
 			contentForLLM := toolResult.ForLLM
 			if contentForLLM == "" && toolResult.Err != nil {
 				contentForLLM = toolResult.Err.Error()
@@ -611,8 +673,8 @@ func (al *AgentLoop) runLLMIteration(
 
 		var tcResults []toolCallResult
 
-		if parallelTools && len(normalizedToolCalls) > 1 {
-			// Parallel tool execution using errgroup
+		if parallelTools && len(normalizedToolCalls) > 1 && safeToParallelize(normalizedToolCalls) {
+			// Parallel tool execution using errgroup (path-overlap safe)
 			results := make([]toolCallResult, len(normalizedToolCalls))
 			g, _ := errgroup.WithContext(ctx)
 
@@ -636,6 +698,9 @@ func (al *AgentLoop) runLLMIteration(
 		for _, tcr := range tcResults {
 			if tcr.result != nil && tcr.result.Err != nil {
 				errorCount++
+				if doomDetector != nil {
+					doomDetector.RecordError(tcr.result.Err.Error())
+				}
 			}
 			// Handle confirmation-required results (#5)
 			if tcr.result.ConfirmationRequired {
@@ -651,8 +716,10 @@ func (al *AgentLoop) runLLMIteration(
 					al.bus.PublishOutbound(bus.OutboundMessage{
 						Channel: opts.Channel,
 						ChatID:  opts.ChatID,
-						Content: fmt.Sprintf("⚠️ Confirmation required: %s\n\nReply 'yes' to proceed or 'no' to cancel.",
-							tcr.result.ConfirmationPrompt),
+						Content: fmt.Sprintf(
+							"⚠️ Confirmation required: %s\n\nReply 'yes' to proceed or 'no' to cancel.",
+							tcr.result.ConfirmationPrompt,
+						),
 					})
 				}
 
@@ -682,6 +749,52 @@ func (al *AgentLoop) runLLMIteration(
 			agent.Sessions.AddFullMessage(opts.SessionKey, tcr.resultMsg)
 		}
 
+		// Budget pressure signaling: inject into last message already in the messages slice.
+		// The tool results were appended to `messages` above, so we modify the last
+		// tool message in-place to preserve prompt cache integrity.
+		if agent.MaxIterations > 0 && len(tcResults) > 0 {
+			pct := float64(iteration) / float64(agent.MaxIterations)
+			var budgetNote string
+			if pct >= 0.9 {
+				budgetNote = "\n\n[BUDGET WARNING: 90% of iterations used. " +
+					"Wrap up immediately and provide your final response.]"
+			} else if pct >= 0.7 {
+				budgetNote = "\n\n[BUDGET NOTE: 70% of iterations used. " +
+					"Start planning to wrap up soon.]"
+			}
+			if budgetNote != "" {
+				// Modify the last tool message already in the messages slice
+				for i := len(messages) - 1; i >= 0; i-- {
+					if messages[i].Role == "tool" {
+						messages[i].Content += budgetNote
+						break
+					}
+				}
+			}
+		}
+
+		// Doom loop detection: check if the agent is stuck and apply graduated recovery
+		if doomDetector != nil && doomDetector.Check() {
+			action := doomDetector.GetRecoveryAction()
+			switch action.Type {
+			case DoomRecoveryRedirect:
+				messages = append(messages, providers.Message{Role: "user", Content: action.Prompt})
+			case DoomRecoveryModelSwitch:
+				if len(agent.Candidates) > 0 {
+					messages = append(messages, providers.Message{Role: "user", Content: action.Prompt})
+				} else {
+					// No fallback — escalate to ask-help
+					helpAction := doomDetector.GetRecoveryAction()
+					finalContent = helpAction.Prompt
+				}
+			case DoomRecoveryAskHelp, DoomRecoveryAbort:
+				finalContent = action.Prompt + "\n\n" + doomDetector.FormatAttemptSummary()
+			}
+			if finalContent != "" {
+				break // exit the for loop
+			}
+		}
+
 		// Auto-rollback: if error count reaches threshold, rollback to last checkpoint
 		const autoRollbackThreshold = 3
 		if errorCount >= autoRollbackThreshold {
@@ -689,9 +802,16 @@ func (al *AgentLoop) runLLMIteration(
 			if rbErr != nil {
 				logger.WarnCF(agentComp, "Auto-rollback failed", map[string]any{"error": rbErr.Error()})
 			} else if cp != nil {
-				logger.InfoCF(agentComp,
-					fmt.Sprintf("CHECKPOINT: auto-rollback to %q (iter %d) after %d errors", cp.Name, cp.Iteration, errorCount),
-					map[string]any{"checkpoint_id": cp.ID, "errors": errorCount})
+				logger.InfoCF(
+					agentComp,
+					fmt.Sprintf(
+						"CHECKPOINT: auto-rollback to %q (iter %d) after %d errors",
+						cp.Name,
+						cp.Iteration,
+						errorCount,
+					),
+					map[string]any{"checkpoint_id": cp.ID, "errors": errorCount},
+				)
 
 				// Rebuild in-memory messages from restored state
 				messages = agent.ContextBuilder.BuildMessages(
@@ -753,10 +873,6 @@ func (al *AgentLoop) runLLMIteration(
 		}
 	}
 
-	if finalContent != "" {
-		finalContent = al.applyOutputFilter(agentComp, "llm_response", finalContent)
-	}
-
 	return finalContent, iteration, errorCount, nil
 }
 
@@ -815,4 +931,62 @@ func (al *AgentLoop) applyOutputFilter(agentComp, source, content string) string
 	}
 
 	return filteredContent
+}
+
+// safeToParallelize checks whether a batch of tool calls can be safely
+// executed in parallel. If any two calls reference overlapping file paths
+// (via "path", "file", or "file_path" arguments), they must run sequentially.
+func safeToParallelize(calls []providers.ToolCall) bool {
+	// File-mutating tools that should be checked for path overlap
+	writingTools := map[string]bool{
+		"write_file": true, "edit_file": true, "append_file": true,
+		"shell": true, "exec": true,
+	}
+
+	var paths []string
+	hasWriter := false
+	for _, tc := range calls {
+		p := extractFilePath(tc.Arguments)
+		if p != "" {
+			paths = append(paths, p)
+			if writingTools[tc.Name] {
+				hasWriter = true
+			}
+		}
+	}
+
+	// If no writing tools involved, parallel is safe
+	if !hasWriter || len(paths) < 2 {
+		return true
+	}
+
+	// Check for any overlapping paths
+	for i := 0; i < len(paths); i++ {
+		for j := i + 1; j < len(paths); j++ {
+			if pathsOverlap(paths[i], paths[j]) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func extractFilePath(args map[string]any) string {
+	for _, key := range []string{"path", "file", "file_path", "filename"} {
+		if v, ok := args[key].(string); ok && v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func pathsOverlap(a, b string) bool {
+	if a == b {
+		return true
+	}
+	// Check if one is a parent directory of the other
+	if strings.HasPrefix(a, b+"/") || strings.HasPrefix(b, a+"/") {
+		return true
+	}
+	return false
 }

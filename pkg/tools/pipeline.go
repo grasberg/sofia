@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/grasberg/sofia/pkg/logger"
 )
+
+var validPipelineName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 // CompositeTool enables chaining existing tools together into reusable pipelines.
 type CompositeTool struct {
@@ -174,10 +177,25 @@ func (t *CreatePipelineTool) Execute(ctx context.Context, args map[string]any) *
 		return ErrorResult("pipeline_name, description, and steps (must not be empty) are required parameters")
 	}
 
+	if !validPipelineName.MatchString(name) {
+		return ErrorResult(
+			fmt.Sprintf("invalid pipeline name %q: must match ^[a-z][a-z0-9_]*$", name),
+		)
+	}
+
+	// Check for name collision with existing tools
+	if _, exists := t.registry.Get(name); exists {
+		return ErrorResult(
+			fmt.Sprintf("cannot create pipeline: a tool named %q already exists in the registry", name),
+		)
+	}
+
 	// Validate that all steps exist
 	for _, stepName := range steps {
 		if _, ok := t.registry.Get(stepName); !ok {
-			return ErrorResult(fmt.Sprintf("cannot create pipeline: step tool '%s' does not exist in the registry", stepName))
+			return ErrorResult(
+				fmt.Sprintf("cannot create pipeline: step tool '%s' does not exist in the registry", stepName),
+			)
 		}
 	}
 

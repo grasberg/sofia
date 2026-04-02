@@ -6,9 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grasberg/sofia/pkg/memory"
 )
 
 func setupTestDB(t *testing.T) (*memory.MemoryDB, func()) {

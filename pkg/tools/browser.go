@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,10 +138,45 @@ type actionResult struct {
 	Error  string `json:"error,omitempty"`
 }
 
+// validateBrowseURL checks that a URL is safe to browse: only http/https schemes
+// are allowed, and the hostname must not resolve to a private/internal IP.
+func validateBrowseURL(rawURL string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+
+	scheme := strings.ToLower(parsed.Scheme)
+	switch scheme {
+	case "http", "https":
+		// allowed
+	case "file", "javascript", "data":
+		return fmt.Errorf("scheme %q is not allowed", scheme)
+	default:
+		return fmt.Errorf("only http/https URLs are allowed, got %q", scheme)
+	}
+
+	if parsed.Host == "" {
+		return fmt.Errorf("missing host in URL")
+	}
+
+	// SSRF protection: reject private/internal IPs.
+	if err := checkHostNotPrivate(parsed.Host); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (t *WebBrowseTool) Execute(ctx context.Context, args map[string]any) *ToolResult {
 	startURL, ok := args["url"].(string)
 	if !ok || startURL == "" {
 		return ErrorResult("url is required")
+	}
+
+	// Validate the starting URL for safe schemes and non-private hosts.
+	if err := validateBrowseURL(startURL); err != nil {
+		return ErrorResult(fmt.Sprintf("URL blocked: %v", err))
 	}
 
 	// Determine headless mode; args can override the tool default.
@@ -268,6 +304,10 @@ func (t *WebBrowseTool) executeAction(
 	case "navigate":
 		if action.URL == "" {
 			res.Error = "navigate requires url"
+			return res
+		}
+		if err := validateBrowseURL(action.URL); err != nil {
+			res.Error = fmt.Sprintf("URL blocked: %v", err)
 			return res
 		}
 		if _, err := page.Goto(action.URL, playwright.PageGotoOptions{

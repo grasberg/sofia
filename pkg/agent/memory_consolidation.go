@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/memory"
@@ -11,6 +12,7 @@ import (
 type ConsolidationReport struct {
 	MergedNodes      int
 	ResolvedConflict int
+	PrunedNodes      int
 	Details          []string
 }
 
@@ -112,13 +114,51 @@ func (mc *MemoryConsolidator) Consolidate() (ConsolidationReport, error) {
 		}
 	}
 
-	if report.MergedNodes > 0 || report.ResolvedConflict > 0 {
+	// Step 3: Quality-based pruning — remove stale, low-value nodes
+	report.PrunedNodes = mc.pruneStaleNodes(30)
+
+	if report.MergedNodes > 0 || report.ResolvedConflict > 0 || report.PrunedNodes > 0 {
 		logger.InfoCF("memory", "Memory consolidation completed",
 			map[string]any{
 				"merged_nodes":       report.MergedNodes,
 				"resolved_conflicts": report.ResolvedConflict,
+				"pruned_nodes":       report.PrunedNodes,
 			})
 	}
 
 	return report, nil
+}
+
+// pruneStaleNodes removes low-quality nodes that haven't been accessed in maxAgeDays.
+func (mc *MemoryConsolidator) pruneStaleNodes(maxAgeDays int) int {
+	if mc.db == nil || maxAgeDays <= 0 {
+		return 0
+	}
+
+	maxAge := time.Duration(maxAgeDays) * 24 * time.Hour
+	staleNodes, err := mc.db.GetStaleNodes(mc.agentID, maxAge, 2)
+	if err != nil {
+		logger.WarnCF("memory", "Failed to get stale nodes for pruning",
+			map[string]any{"error": err.Error()})
+		return 0
+	}
+
+	scorer := &MemoryQualityScorer{}
+	pruned := 0
+
+	for _, node := range staleNodes {
+		edges, _ := mc.db.GetEdges(mc.agentID, node.ID)
+		if scorer.ShouldPrune(node, len(edges), maxAgeDays) {
+			if err := mc.db.DeleteNode(node.ID); err != nil {
+				continue
+			}
+			pruned++
+		} else {
+			// Update the quality score for surviving nodes
+			score := scorer.Score(node, len(edges))
+			_ = mc.db.UpdateNodeQuality(node.ID, score)
+		}
+	}
+
+	return pruned
 }

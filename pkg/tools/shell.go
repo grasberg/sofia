@@ -109,12 +109,6 @@ var cautionDenyPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\bssh\b.*@`),
 }
 
-// defaultDenyPatterns is the combined list used when not elevated.
-var defaultDenyPatterns = append(
-	append([]*regexp.Regexp{}, destructiveDenyPatterns...),
-	cautionDenyPatterns...,
-)
-
 func NewExecTool(workingDir string, restrict bool) *ExecTool {
 	return NewExecToolWithConfig(workingDir, restrict, nil)
 }
@@ -122,11 +116,16 @@ func NewExecTool(workingDir string, restrict bool) *ExecTool {
 func NewExecToolWithConfig(workingDir string, restrict bool, cfg *config.Config) *ExecTool {
 	denyPatterns := make([]*regexp.Regexp, 0)
 
+	// Always enforce the critical destructive deny patterns regardless of config.
+	// These protect against catastrophic system damage and cannot be disabled.
+	denyPatterns = append(denyPatterns, destructiveDenyPatterns...)
+
 	if cfg != nil {
 		execConfig := cfg.Tools.Exec
 		enableDenyPatterns := execConfig.EnableDenyPatterns
 		if enableDenyPatterns {
-			denyPatterns = append(denyPatterns, defaultDenyPatterns...)
+			// Add caution patterns on top of the always-enforced destructive patterns
+			denyPatterns = append(denyPatterns, cautionDenyPatterns...)
 			if len(execConfig.CustomDenyPatterns) > 0 {
 				fmt.Printf("Using custom deny patterns: %v\n", execConfig.CustomDenyPatterns)
 				for _, pattern := range execConfig.CustomDenyPatterns {
@@ -139,11 +138,11 @@ func NewExecToolWithConfig(workingDir string, restrict bool, cfg *config.Config)
 				}
 			}
 		} else {
-			// If deny patterns are disabled, we won't add any patterns, allowing all commands.
-			fmt.Println("Warning: deny patterns are disabled. All commands will be allowed.")
+			// Caution patterns are disabled, but destructive patterns are always enforced above.
+			fmt.Println("Warning: caution deny patterns are disabled. Critical destructive patterns remain enforced.")
 		}
 	} else {
-		denyPatterns = append(denyPatterns, defaultDenyPatterns...)
+		denyPatterns = append(denyPatterns, cautionDenyPatterns...)
 	}
 
 	var confirmPatterns []*regexp.Regexp
@@ -383,8 +382,11 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 				t.mu.Unlock()
 
 				return ConfirmationResult(
-					fmt.Sprintf("Command requires confirmation: `%s`\nUse tool again with approval_token: %q to proceed.",
-						command, token),
+					fmt.Sprintf(
+						"Command requires confirmation: `%s`\nUse tool again with approval_token: %q to proceed.",
+						command,
+						token,
+					),
 				)
 			} else {
 				// Verify token
@@ -627,7 +629,41 @@ func (t *ExecTool) SetAllowPatterns(patterns []string) error {
 
 // SetElevated sets the elevated flag. When true, only destructive deny patterns
 // are enforced; caution patterns (package managers, docker, git push, etc.) are
-// allowed through.
+// allowed through. Requires a two-phase confirmation: first call returns a token,
+// second call with the token actually enables elevation.
 func (t *ExecTool) SetElevated(v bool) {
 	t.elevated = v
+}
+
+// RequestElevation implements a confirmation flow for enabling elevated mode.
+// Returns a confirmation token on first call. Pass the token back to ConfirmElevation
+// to actually enable it.
+func (t *ExecTool) RequestElevation() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	token := fmt.Sprintf("elevate_%d", time.Now().UnixNano()/1000)
+	t.pendingTokens[token] = time.Now().Add(5 * time.Minute)
+	return token
+}
+
+// ConfirmElevation verifies the token and enables elevated mode if valid.
+// Returns a warning message on success or an error message on failure.
+func (t *ExecTool) ConfirmElevation(token string) (string, bool) {
+	t.mu.Lock()
+	expires, valid := t.pendingTokens[token]
+	if valid {
+		delete(t.pendingTokens, token)
+	}
+	t.mu.Unlock()
+
+	if !valid || time.Now().After(expires) {
+		return "Invalid or expired elevation token.", false
+	}
+
+	t.elevated = true
+	return "WARNING: Elevated mode is now ACTIVE. Caution-level deny patterns (package managers, " +
+		"docker, git push, chmod, ssh, etc.) are bypassed. Critical destructive patterns " +
+		"(rm -rf /, mkfs, dd, fork bombs, sudo, kill) remain enforced. " +
+		"Elevated mode increases the risk of unintended system changes.", true
 }

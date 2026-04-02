@@ -20,6 +20,7 @@ func TestWebTool_WebFetch_Success(t *testing.T) {
 	defer server.Close()
 
 	tool := NewWebFetchTool(50000)
+	tool.allowPrivate = true
 	ctx := context.Background()
 	args := map[string]any{
 		"url": server.URL,
@@ -56,6 +57,7 @@ func TestWebTool_WebFetch_JSON(t *testing.T) {
 	defer server.Close()
 
 	tool := NewWebFetchTool(50000)
+	tool.allowPrivate = true
 	ctx := context.Background()
 	args := map[string]any{
 		"url": server.URL,
@@ -147,6 +149,7 @@ func TestWebTool_WebFetch_Truncation(t *testing.T) {
 	defer server.Close()
 
 	tool := NewWebFetchTool(1000) // Limit to 1000 chars
+	tool.allowPrivate = true
 	ctx := context.Background()
 	args := map[string]any{
 		"url": server.URL,
@@ -216,6 +219,7 @@ func TestWebTool_WebFetch_HTMLExtraction(t *testing.T) {
 	defer server.Close()
 
 	tool := NewWebFetchTool(50000)
+	tool.allowPrivate = true
 	ctx := context.Background()
 	args := map[string]any{
 		"url": server.URL,

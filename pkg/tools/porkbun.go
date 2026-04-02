@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"math"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -366,7 +366,9 @@ func (t *PorkbunTool) getPricing(ctx context.Context) *ToolResult {
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("\n*%d TLDs available total. Use check action for specific domain pricing.*", len(pricing)))
+	sb.WriteString(
+		fmt.Sprintf("\n*%d TLDs available total. Use check action for specific domain pricing.*", len(pricing)),
+	)
 
 	return NewToolResult(sb.String())
 }
@@ -461,7 +463,9 @@ func (t *PorkbunTool) dnsCreateRecord(ctx context.Context, domain string, args m
 	}
 
 	id, _ := result["id"].(float64)
-	return NewToolResult(fmt.Sprintf("**DNS record created** (ID: %.0f)\nType: %s, Content: %s", id, recordType, recordContent))
+	return NewToolResult(
+		fmt.Sprintf("**DNS record created** (ID: %.0f)\nType: %s, Content: %s", id, recordType, recordContent),
+	)
 }
 
 func (t *PorkbunTool) dnsDeleteRecord(ctx context.Context, domain string, args map[string]any) *ToolResult {

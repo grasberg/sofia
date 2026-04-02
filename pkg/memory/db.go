@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver (CGO_ENABLED=0 compatible)
@@ -14,13 +16,15 @@ import (
 	"github.com/grasberg/sofia/pkg/providers"
 )
 
-const schemaVersion = 10
+const schemaVersion = 11
 
 // MemoryDB is a shared SQLite database for session history and memory notes.
 // It is opened once at AgentLoop startup and shared across all AgentInstances.
 type MemoryDB struct {
-	db   *sql.DB
-	path string
+	mu        sync.RWMutex
+	db        *sql.DB
+	path      string
+	statCount atomic.Int64 // counter for periodic stats pruning
 }
 
 // Open opens (or creates) the SQLite database at the given path.
@@ -91,6 +95,62 @@ func (m *MemoryDB) Close() error {
 // Schema migration
 // ---------------------------------------------------------------------------
 
+// columnExists checks if a column exists in a table using PRAGMA table_info.
+func (m *MemoryDB) columnExists(table, column string) bool {
+	rows, err := m.db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull int
+		var dfltValue sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
+			continue
+		}
+		if name == column {
+			return true
+		}
+	}
+	return false
+}
+
+// setVersion updates the schema_version table to the given version.
+func (m *MemoryDB) setVersion(version int) error {
+	if _, err := m.db.Exec(`DELETE FROM schema_version`); err != nil {
+		return err
+	}
+	_, err := m.db.Exec(`INSERT INTO schema_version (version) VALUES (?)`, version)
+	return err
+}
+
+// runMigrationInTx wraps a migration function and its version bump in a transaction.
+// The migration function receives the *sql.Tx to use for all DDL/DML.
+func (m *MemoryDB) runMigrationInTx(version int, fn func(tx *sql.Tx) error) error {
+	tx, err := m.db.Begin()
+	if err != nil {
+		return fmt.Errorf("migration v%d: begin tx: %w", version, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := fn(tx); err != nil {
+		return fmt.Errorf("migration v%d: %w", version, err)
+	}
+
+	// Update version inside the transaction.
+	if _, err := tx.Exec(`DELETE FROM schema_version`); err != nil {
+		return fmt.Errorf("migration v%d: delete version: %w", version, err)
+	}
+	if _, err := tx.Exec(`INSERT INTO schema_version (version) VALUES (?)`, version); err != nil {
+		return fmt.Errorf("migration v%d: insert version: %w", version, err)
+	}
+
+	return tx.Commit()
+}
+
 func (m *MemoryDB) migrate() error {
 	// Create schema_version table first if it doesn't exist.
 	_, err := m.db.Exec(`CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`)
@@ -109,77 +169,51 @@ func (m *MemoryDB) migrate() error {
 		return nil
 	}
 
-	// Version 1: create all tables.
-	if current < 1 {
-		if err = m.applyV1(); err != nil {
-			return err
+	type migration struct {
+		version int
+		fn      func(tx *sql.Tx) error
+		// postTx runs after the transaction commits (for ALTER TABLE statements).
+		postTx func() error
+	}
+
+	migrations := []migration{
+		{1, m.applyV1tx, nil},
+		{2, m.applyV2tx, nil},
+		{3, m.applyV3tx, nil},
+		{4, m.applyV4tx, nil},
+		{5, m.applyV5tx, nil},
+		{6, m.applyV6tx, nil},
+		{7, m.applyV7tx, nil},
+		{8, m.applyV8tx, nil},
+		{9, nil, m.applyV9},
+		{10, m.applyV10tx, nil},
+		{11, m.applyV11tx, nil},
+	}
+
+	for _, mig := range migrations {
+		if current >= mig.version {
+			continue
+		}
+		if mig.fn != nil {
+			if err := m.runMigrationInTx(mig.version, mig.fn); err != nil {
+				return err
+			}
+		}
+		if mig.postTx != nil {
+			if err := mig.postTx(); err != nil {
+				return err
+			}
+			// Update version outside tx for ALTER TABLE migrations.
+			if err := m.setVersion(mig.version); err != nil {
+				return fmt.Errorf("migration v%d: set version: %w", mig.version, err)
+			}
 		}
 	}
 
-	if current < 2 {
-		if err = m.applyV2(); err != nil {
-			return err
-		}
-	}
-
-	if current < 3 {
-		if err = m.applyV3(); err != nil {
-			return err
-		}
-	}
-
-	if current < 4 {
-		if err = m.applyV4(); err != nil {
-			return err
-		}
-	}
-
-	if current < 5 {
-		if err = m.applyV5(); err != nil {
-			return err
-		}
-	}
-
-	if current < 6 {
-		if err = m.applyV6(); err != nil {
-			return err
-		}
-	}
-
-	if current < 7 {
-		if err = m.applyV7(); err != nil {
-			return err
-		}
-	}
-
-	if current < 8 {
-		if err = m.applyV8(); err != nil {
-			return err
-		}
-	}
-
-	if current < 9 {
-		if err = m.applyV9(); err != nil {
-			return err
-		}
-	}
-
-	if current < 10 {
-		if err = m.applyV10(); err != nil {
-			return err
-		}
-	}
-
-	// Upsert schema version.
-	_, err = m.db.Exec(`DELETE FROM schema_version`)
-	if err != nil {
-		return err
-	}
-	_, err = m.db.Exec(`INSERT INTO schema_version (version) VALUES (?)`, schemaVersion)
-	return err
+	return nil
 }
 
-func (m *MemoryDB) applyV1() error {
+func (m *MemoryDB) applyV1tx(tx *sql.Tx) error {
 	const ddl = `
 CREATE TABLE IF NOT EXISTS sessions (
     key        TEXT PRIMARY KEY,
@@ -214,7 +248,7 @@ CREATE TABLE IF NOT EXISTS memory_notes (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_notes_key ON memory_notes(agent_id, kind, date_key);
 `
-	_, err := m.db.Exec(ddl)
+	_, err := tx.Exec(ddl)
 	return err
 }
 
@@ -225,6 +259,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_notes_key ON memory_notes(agent_id,
 // GetOrCreateSession ensures a session row exists for the given key and
 // returns the current summary.  agentID is stored on creation only.
 func (m *MemoryDB) GetOrCreateSession(key, agentID string) (summary string, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	now := time.Now().UTC()
 	_, err = m.db.Exec(
 		`INSERT INTO sessions (key, agent_id, summary, created_at, updated_at)
@@ -245,6 +282,9 @@ func (m *MemoryDB) GetOrCreateSession(key, agentID string) (summary string, err 
 
 // GetSummary returns the summary for a session key (empty string if not found).
 func (m *MemoryDB) GetSummary(key string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	var s string
 	_ = m.db.QueryRow(`SELECT summary FROM sessions WHERE key = ?`, key).Scan(&s)
 	return s
@@ -252,6 +292,9 @@ func (m *MemoryDB) GetSummary(key string) string {
 
 // SetSummary updates the summary for a session key.
 func (m *MemoryDB) SetSummary(key, summary string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, err := m.db.Exec(
 		`UPDATE sessions SET summary = ?, updated_at = ? WHERE key = ?`,
 		summary, time.Now().UTC(), key,
@@ -261,7 +304,11 @@ func (m *MemoryDB) SetSummary(key, summary string) error {
 
 // AppendMessage appends a single message at the next position in the session.
 // The session row must already exist (call GetOrCreateSession first).
+// The INSERT and session UPDATE are wrapped in a single transaction.
 func (m *MemoryDB) AppendMessage(key string, msg providers.Message) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	toolCallsJSON, err := json.Marshal(msg.ToolCalls)
 	if err != nil {
 		return fmt.Errorf("memory: marshal tool_calls: %w", err)
@@ -271,7 +318,13 @@ func (m *MemoryDB) AppendMessage(key string, msg providers.Message) error {
 		return fmt.Errorf("memory: marshal images: %w", err)
 	}
 
-	_, err = m.db.Exec(
+	tx, err := m.db.Begin()
+	if err != nil {
+		return fmt.Errorf("memory: begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	_, err = tx.Exec(
 		`INSERT INTO messages
 		    (session_key, position, role, content, tool_calls, tool_call_id, tool_name, images, reasoning_content, created_at)
 		 VALUES (
@@ -288,12 +341,19 @@ func (m *MemoryDB) AppendMessage(key string, msg providers.Message) error {
 		return fmt.Errorf("memory: append message: %w", err)
 	}
 
-	_, err = m.db.Exec(`UPDATE sessions SET updated_at = ? WHERE key = ?`, time.Now().UTC(), key)
-	return err
+	_, err = tx.Exec(`UPDATE sessions SET updated_at = ? WHERE key = ?`, time.Now().UTC(), key)
+	if err != nil {
+		return fmt.Errorf("memory: update session updated_at: %w", err)
+	}
+
+	return tx.Commit()
 }
 
 // GetMessages returns all messages for a session, ordered by position.
 func (m *MemoryDB) GetMessages(key string) ([]providers.Message, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	rows, err := m.db.Query(
 		`SELECT role, content, tool_calls, tool_call_id, tool_name, images, reasoning_content
 		 FROM messages WHERE session_key = ? ORDER BY position ASC`,
@@ -330,6 +390,9 @@ func (m *MemoryDB) GetMessages(key string) ([]providers.Message, error) {
 
 // SetMessages replaces all messages in a session with the provided slice.
 func (m *MemoryDB) SetMessages(key string, msgs []providers.Message) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	tx, err := m.db.Begin()
 	if err != nil {
 		return fmt.Errorf("memory: begin tx: %w", err)
@@ -367,6 +430,9 @@ func (m *MemoryDB) SetMessages(key string, msgs []providers.Message) error {
 // TruncateMessages keeps only the last keepLast messages for a session.
 // If keepLast <= 0, all messages are deleted.
 func (m *MemoryDB) TruncateMessages(key string, keepLast int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if keepLast <= 0 {
 		_, err := m.db.Exec(`DELETE FROM messages WHERE session_key = ?`, key)
 		return err
@@ -386,6 +452,9 @@ func (m *MemoryDB) TruncateMessages(key string, keepLast int) error {
 
 // DeleteSession deletes a session and all its messages (cascaded).
 func (m *MemoryDB) DeleteSession(key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, err := m.db.Exec(`DELETE FROM sessions WHERE key = ?`, key)
 	return err
 }
@@ -403,6 +472,9 @@ type SessionRow struct {
 
 // ListSessions returns lightweight metadata for all sessions.
 func (m *MemoryDB) ListSessions() ([]SessionRow, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	const q = `
 SELECT s.key, s.agent_id, s.summary, s.created_at, s.updated_at,
        COUNT(msg.id) AS msg_count,
@@ -439,6 +511,27 @@ ORDER BY s.updated_at DESC`
 	return result, rows.Err()
 }
 
+// GetSessionMeta returns metadata for a single session by key, or nil if not found.
+func (m *MemoryDB) GetSessionMeta(key string) *SessionRow {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var r SessionRow
+	var createdStr, updatedStr string
+	err := m.db.QueryRow(
+		`SELECT s.key, s.agent_id, s.summary, s.created_at, s.updated_at, COUNT(msg.id)
+		 FROM sessions s LEFT JOIN messages msg ON msg.session_key = s.key
+		 WHERE s.key = ? GROUP BY s.key`,
+		key,
+	).Scan(&r.Key, &r.AgentID, &r.Summary, &createdStr, &updatedStr, &r.MsgCount)
+	if err != nil {
+		return nil
+	}
+	r.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
+	r.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr)
+	return &r
+}
+
 // SearchMessageRow holds a single message result from SearchMessages.
 type SearchMessageRow struct {
 	SessionKey string
@@ -450,6 +543,9 @@ type SearchMessageRow struct {
 // SearchMessages returns user and assistant messages whose content contains the query substring
 // (case-insensitive). Results are ordered by recency. Pass limit <= 0 for no limit.
 func (m *MemoryDB) SearchMessages(query string, limit int) ([]SearchMessageRow, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	if limit <= 0 {
 		limit = 100
 	}
@@ -485,6 +581,9 @@ func (m *MemoryDB) SearchMessages(query string, limit int) ([]SearchMessageRow, 
 // GetNote returns the content of a memory note identified by (agentID, kind, dateKey).
 // Returns "" if the note does not exist.
 func (m *MemoryDB) GetNote(agentID, kind, dateKey string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	var content string
 	_ = m.db.QueryRow(
 		`SELECT content FROM memory_notes WHERE agent_id = ? AND kind = ? AND date_key = ?`,
@@ -495,6 +594,9 @@ func (m *MemoryDB) GetNote(agentID, kind, dateKey string) string {
 
 // SetNote upserts a memory note.
 func (m *MemoryDB) SetNote(agentID, kind, dateKey, content string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	now := time.Now().UTC()
 	_, err := m.db.Exec(
 		`INSERT INTO memory_notes (agent_id, kind, date_key, content, updated_at)
@@ -516,6 +618,9 @@ type NoteRow struct {
 
 // ListNotes returns all memory notes, ordered by agent_id, kind, date_key.
 func (m *MemoryDB) ListNotes() ([]NoteRow, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	const q = `SELECT agent_id, kind, date_key, content, updated_at
 	           FROM memory_notes ORDER BY agent_id, kind, date_key`
 	rows, err := m.db.Query(q)
@@ -541,7 +646,7 @@ func (m *MemoryDB) ListNotes() ([]NoteRow, error) {
 // Schema migration v2: semantic memory tables
 // ---------------------------------------------------------------------------
 
-func (m *MemoryDB) applyV2() error {
+func (m *MemoryDB) applyV2tx(tx *sql.Tx) error {
 	const ddl = `
 CREATE TABLE IF NOT EXISTS semantic_nodes (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -582,7 +687,7 @@ CREATE TABLE IF NOT EXISTS memory_stats (
 );
 CREATE INDEX IF NOT EXISTS idx_memory_stats_agent ON memory_stats(agent_id, event_type);
 `
-	_, err := m.db.Exec(ddl)
+	_, err := tx.Exec(ddl)
 	return err
 }
 
@@ -599,6 +704,7 @@ type SemanticNode struct {
 	Properties   string // JSON
 	AccessCount  int
 	LastAccessed *time.Time
+	QualityScore float64 // 0.0-1.0, computed by memory quality scorer
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -644,6 +750,9 @@ type NodeStatSummary struct {
 // UpsertNode inserts or updates a semantic node.
 // Returns the node ID.
 func (m *MemoryDB) UpsertNode(agentID, label, name, properties string) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if properties == "" {
 		properties = "{}"
 	}
@@ -679,8 +788,11 @@ func (m *MemoryDB) UpsertNode(agentID, label, name, properties string) (int64, e
 // GetNode returns a single semantic node by agent, label, and name.
 // Returns nil if not found.
 func (m *MemoryDB) GetNode(agentID, label, name string) (*SemanticNode, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	row := m.db.QueryRow(
-		`SELECT id, agent_id, label, name, properties, access_count, last_accessed, created_at, updated_at
+		`SELECT id, agent_id, label, name, properties, access_count, last_accessed, quality_score, created_at, updated_at
 		 FROM semantic_nodes WHERE agent_id = ? AND label = ? AND name = ?`,
 		agentID, label, name,
 	)
@@ -689,8 +801,11 @@ func (m *MemoryDB) GetNode(agentID, label, name string) (*SemanticNode, error) {
 
 // GetNodeByID returns a node by its ID.
 func (m *MemoryDB) GetNodeByID(nodeID int64) (*SemanticNode, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	row := m.db.QueryRow(
-		`SELECT id, agent_id, label, name, properties, access_count, last_accessed, created_at, updated_at
+		`SELECT id, agent_id, label, name, properties, access_count, last_accessed, quality_score, created_at, updated_at
 		 FROM semantic_nodes WHERE id = ?`,
 		nodeID,
 	)
@@ -702,7 +817,7 @@ func scanNode(row *sql.Row) (*SemanticNode, error) {
 	var lastAccessed sql.NullString
 	var created, updated string
 	err := row.Scan(&n.ID, &n.AgentID, &n.Label, &n.Name, &n.Properties,
-		&n.AccessCount, &lastAccessed, &created, &updated)
+		&n.AccessCount, &lastAccessed, &n.QualityScore, &created, &updated)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -718,11 +833,27 @@ func scanNode(row *sql.Row) (*SemanticNode, error) {
 	return &n, nil
 }
 
+// UpdateNodeQuality updates the quality score for a node.
+func (m *MemoryDB) UpdateNodeQuality(nodeID int64, score float64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, err := m.db.Exec(`UPDATE semantic_nodes SET quality_score = ? WHERE id = ?`, score, nodeID)
+	return err
+}
+
 // FindNodes searches nodes by agent and optional filters.
 // namePattern uses SQL LIKE syntax (% for wildcard).
 func (m *MemoryDB) FindNodes(agentID, label, namePattern string, limit int) ([]SemanticNode, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return m.findNodesLocked(agentID, label, namePattern, limit)
+}
+
+// findNodesLocked is the lock-free version of FindNodes; caller must hold mu.
+func (m *MemoryDB) findNodesLocked(agentID, label, namePattern string, limit int) ([]SemanticNode, error) {
 	var args []any
-	query := `SELECT id, agent_id, label, name, properties, access_count, last_accessed, created_at, updated_at
+	query := `SELECT id, agent_id, label, name, properties, access_count, last_accessed, quality_score, created_at, updated_at
 		 FROM semantic_nodes WHERE agent_id = ?`
 	args = append(args, agentID)
 
@@ -751,7 +882,7 @@ func (m *MemoryDB) FindNodes(agentID, label, namePattern string, limit int) ([]S
 		var lastAccessed sql.NullString
 		var created, updated string
 		if err = rows.Scan(&n.ID, &n.AgentID, &n.Label, &n.Name, &n.Properties,
-			&n.AccessCount, &lastAccessed, &created, &updated); err != nil {
+			&n.AccessCount, &lastAccessed, &n.QualityScore, &created, &updated); err != nil {
 			return nil, fmt.Errorf("memory: scan node row: %w", err)
 		}
 		n.CreatedAt, _ = time.Parse(time.RFC3339, created)
@@ -767,6 +898,9 @@ func (m *MemoryDB) FindNodes(agentID, label, namePattern string, limit int) ([]S
 
 // DeleteNode deletes a node and cascades to its edges.
 func (m *MemoryDB) DeleteNode(nodeID int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, err := m.db.Exec(`DELETE FROM semantic_nodes WHERE id = ?`, nodeID)
 	if err != nil {
 		return fmt.Errorf("memory: delete node: %w", err)
@@ -776,6 +910,9 @@ func (m *MemoryDB) DeleteNode(nodeID int64) error {
 
 // DeleteNodes batch-deletes nodes by IDs.
 func (m *MemoryDB) DeleteNodes(nodeIDs []int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if len(nodeIDs) == 0 {
 		return nil
 	}
@@ -796,6 +933,14 @@ func (m *MemoryDB) DeleteNodes(nodeIDs []int64) error {
 // TouchNode increments access_count and updates last_accessed.
 // Errors are intentionally ignored — this is a best-effort update.
 func (m *MemoryDB) TouchNode(nodeID int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.touchNodeLocked(nodeID)
+}
+
+// touchNodeLocked is the lock-free version of TouchNode; caller must hold mu.
+func (m *MemoryDB) touchNodeLocked(nodeID int64) {
 	_, _ = m.db.Exec( //nolint:errcheck // best-effort
 		`UPDATE semantic_nodes SET access_count = access_count + 1, last_accessed = ? WHERE id = ?`,
 		time.Now().UTC(), nodeID,
@@ -804,6 +949,9 @@ func (m *MemoryDB) TouchNode(nodeID int64) {
 
 // CountNodes returns the number of semantic nodes for an agent.
 func (m *MemoryDB) CountNodes(agentID string) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	var count int
 	_ = m.db.QueryRow(`SELECT COUNT(*) FROM semantic_nodes WHERE agent_id = ?`, agentID).Scan(&count)
 	return count
@@ -814,7 +962,16 @@ func (m *MemoryDB) CountNodes(agentID string) int {
 // ---------------------------------------------------------------------------
 
 // UpsertEdge inserts or updates an edge between two nodes.
-func (m *MemoryDB) UpsertEdge(agentID string, sourceID, targetID int64, relation string, weight float64, properties string) error {
+func (m *MemoryDB) UpsertEdge(
+	agentID string,
+	sourceID, targetID int64,
+	relation string,
+	weight float64,
+	properties string,
+) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if properties == "" {
 		properties = "{}"
 	}
@@ -832,7 +989,14 @@ func (m *MemoryDB) UpsertEdge(agentID string, sourceID, targetID int64, relation
 		   weight = excluded.weight,
 		   properties = excluded.properties,
 		   updated_at = excluded.updated_at`,
-		agentID, sourceID, targetID, relation, weight, properties, now, now,
+		agentID,
+		sourceID,
+		targetID,
+		relation,
+		weight,
+		properties,
+		now,
+		now,
 	)
 	if err != nil {
 		return fmt.Errorf("memory: upsert edge: %w", err)
@@ -842,6 +1006,14 @@ func (m *MemoryDB) UpsertEdge(agentID string, sourceID, targetID int64, relation
 
 // GetEdges returns all edges for a node (as source or target), with joined names.
 func (m *MemoryDB) GetEdges(agentID string, nodeID int64) ([]SemanticEdge, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return m.getEdgesLocked(agentID, nodeID)
+}
+
+// getEdgesLocked is the lock-free version of GetEdges; caller must hold mu.
+func (m *MemoryDB) getEdgesLocked(agentID string, nodeID int64) ([]SemanticEdge, error) {
 	rows, err := m.db.Query(
 		`SELECT e.id, e.agent_id, e.source_id, e.target_id, e.relation, e.weight, e.properties,
 		        e.created_at, e.updated_at,
@@ -876,6 +1048,9 @@ func (m *MemoryDB) GetEdges(agentID string, nodeID int64) ([]SemanticEdge, error
 
 // ListEdges returns all edges for an agent, with source/target names populated.
 func (m *MemoryDB) ListEdges(agentID string, limit int) ([]SemanticEdge, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	if limit <= 0 {
 		limit = 500
 	}
@@ -915,6 +1090,14 @@ func (m *MemoryDB) ListEdges(agentID string, limit int) ([]SemanticEdge, error) 
 // ReinforceEdge increases an edge's weight by delta (capped at 1.0).
 // Errors are intentionally ignored — this is a best-effort update.
 func (m *MemoryDB) ReinforceEdge(edgeID int64, delta float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.reinforceEdgeLocked(edgeID, delta)
+}
+
+// reinforceEdgeLocked is the lock-free version of ReinforceEdge; caller must hold mu.
+func (m *MemoryDB) reinforceEdgeLocked(edgeID int64, delta float64) {
 	_, _ = m.db.Exec( //nolint:errcheck // best-effort
 		`UPDATE semantic_edges SET weight = MIN(1.0, weight + ?), updated_at = ? WHERE id = ?`,
 		delta, time.Now().UTC(), edgeID,
@@ -928,19 +1111,22 @@ func (m *MemoryDB) ReinforceEdge(edgeID int64, delta float64) {
 // QueryGraph searches across nodes and their edges using LIKE matching.
 // Returns up to limit results with their connected edges.
 func (m *MemoryDB) QueryGraph(agentID, query string, limit int) ([]GraphResult, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if limit <= 0 {
 		limit = 10
 	}
 	pattern := "%" + query + "%"
 
-	nodes, err := m.FindNodes(agentID, "", pattern, limit)
+	nodes, err := m.findNodesLocked(agentID, "", pattern, limit)
 	if err != nil {
 		return nil, err
 	}
 
 	// Also search by label
 	labelNodes, err := m.db.Query(
-		`SELECT id, agent_id, label, name, properties, access_count, last_accessed, created_at, updated_at
+		`SELECT id, agent_id, label, name, properties, access_count, last_accessed, quality_score, created_at, updated_at
 		 FROM semantic_nodes WHERE agent_id = ? AND label LIKE ? ORDER BY access_count DESC LIMIT ?`,
 		agentID, pattern, limit,
 	)
@@ -955,7 +1141,7 @@ func (m *MemoryDB) QueryGraph(agentID, query string, limit int) ([]GraphResult, 
 			var lastAccessed sql.NullString
 			var created, updated string
 			if err = labelNodes.Scan(&n.ID, &n.AgentID, &n.Label, &n.Name, &n.Properties,
-				&n.AccessCount, &lastAccessed, &created, &updated); err == nil {
+				&n.AccessCount, &lastAccessed, &n.QualityScore, &created, &updated); err == nil {
 				n.CreatedAt, _ = time.Parse(time.RFC3339, created)
 				n.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
 				if lastAccessed.Valid {
@@ -978,16 +1164,16 @@ func (m *MemoryDB) QueryGraph(agentID, query string, limit int) ([]GraphResult, 
 	var results []GraphResult
 	for _, n := range nodes {
 		// Touch node for self-evolution tracking
-		m.TouchNode(n.ID)
+		m.touchNodeLocked(n.ID)
 
-		edges, edgeErr := m.GetEdges(agentID, n.ID)
+		edges, edgeErr := m.getEdgesLocked(agentID, n.ID)
 		if edgeErr != nil {
 			edges = nil
 		}
 
 		// Reinforce traversed edges
 		for _, e := range edges {
-			m.ReinforceEdge(e.ID, 0.01)
+			m.reinforceEdgeLocked(e.ID, 0.01)
 		}
 
 		results = append(results, GraphResult{Node: n, Edges: edges})
@@ -1001,9 +1187,12 @@ func (m *MemoryDB) QueryGraph(agentID, query string, limit int) ([]GraphResult, 
 
 // GetStaleNodes returns nodes that haven't been accessed recently and have low usage.
 func (m *MemoryDB) GetStaleNodes(agentID string, maxAge time.Duration, minAccessCount int) ([]SemanticNode, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	cutoff := time.Now().UTC().Add(-maxAge)
 	rows, err := m.db.Query(
-		`SELECT id, agent_id, label, name, properties, access_count, last_accessed, created_at, updated_at
+		`SELECT id, agent_id, label, name, properties, access_count, last_accessed, quality_score, created_at, updated_at
 		 FROM semantic_nodes
 		 WHERE agent_id = ?
 		   AND access_count < ?
@@ -1022,7 +1211,7 @@ func (m *MemoryDB) GetStaleNodes(agentID string, maxAge time.Duration, minAccess
 		var lastAccessed sql.NullString
 		var created, updated string
 		if err = rows.Scan(&n.ID, &n.AgentID, &n.Label, &n.Name, &n.Properties,
-			&n.AccessCount, &lastAccessed, &created, &updated); err != nil {
+			&n.AccessCount, &lastAccessed, &n.QualityScore, &created, &updated); err != nil {
 			return nil, fmt.Errorf("memory: scan stale node: %w", err)
 		}
 		n.CreatedAt, _ = time.Parse(time.RFC3339, created)
@@ -1041,7 +1230,11 @@ func (m *MemoryDB) GetStaleNodes(agentID string, maxAge time.Duration, minAccess
 // ---------------------------------------------------------------------------
 
 // RecordStat logs an event in memory_stats.
+// Every 100th call, old stats (>30 days) are pruned automatically.
 func (m *MemoryDB) RecordStat(agentID, eventType string, nodeID *int64, details string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, err := m.db.Exec(
 		`INSERT INTO memory_stats (agent_id, event_type, node_id, details, created_at)
 		 VALUES (?, ?, ?, ?, ?)`,
@@ -1050,11 +1243,27 @@ func (m *MemoryDB) RecordStat(agentID, eventType string, nodeID *int64, details 
 	if err != nil {
 		return fmt.Errorf("memory: record stat: %w", err)
 	}
+
+	// Prune old stats every 100 calls.
+	if m.statCount.Add(1)%100 == 0 {
+		m.pruneStatsLocked()
+	}
+
 	return nil
+}
+
+// pruneStatsLocked deletes memory_stats entries older than 30 days.
+// Caller must hold mu.
+func (m *MemoryDB) pruneStatsLocked() {
+	cutoff := time.Now().UTC().AddDate(0, 0, -30)
+	_, _ = m.db.Exec(`DELETE FROM memory_stats WHERE created_at < ?`, cutoff) //nolint:errcheck // best-effort
 }
 
 // GetNodeStats returns aggregated access statistics for an agent's nodes.
 func (m *MemoryDB) GetNodeStats(agentID string) ([]NodeStatSummary, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	rows, err := m.db.Query(
 		`SELECT n.id, n.name, n.label, n.access_count,
 		        COALESCE(SUM(CASE WHEN s.event_type = 'query' THEN 1 ELSE 0 END), 0) AS query_count,
@@ -1085,9 +1294,12 @@ func (m *MemoryDB) GetNodeStats(agentID string) ([]NodeStatSummary, error) {
 // FindDuplicateNodes returns groups of nodes with the same label and similar names.
 // Used by the consolidation process to merge duplicates.
 func (m *MemoryDB) FindDuplicateNodes(agentID string) ([][]SemanticNode, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	// Find exact label+name duplicates first (shouldn't exist due to unique index,
 	// but handles edge cases), then group by label for fuzzy matching.
-	nodes, err := m.FindNodes(agentID, "", "", 0)
+	nodes, err := m.findNodesLocked(agentID, "", "", 0)
 	if err != nil {
 		return nil, err
 	}
@@ -1176,6 +1388,9 @@ func levenshteinDistance(a, b string) int {
 
 // GetConflictingEdges returns edges between the same source+target with different relations.
 func (m *MemoryDB) GetConflictingEdges(agentID string) ([][]SemanticEdge, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	rows, err := m.db.Query(
 		`SELECT e.id, e.agent_id, e.source_id, e.target_id, e.relation, e.weight, e.properties,
 		        e.created_at, e.updated_at,
@@ -1229,6 +1444,9 @@ func (m *MemoryDB) GetConflictingEdges(agentID string) ([][]SemanticEdge, error)
 
 // DeleteEdge deletes a single edge by ID.
 func (m *MemoryDB) DeleteEdge(edgeID int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, err := m.db.Exec(`DELETE FROM semantic_edges WHERE id = ?`, edgeID)
 	return err
 }
@@ -1237,6 +1455,9 @@ func (m *MemoryDB) DeleteEdge(edgeID int64) error {
 // All edges pointing to/from secondary nodes are redirected to the primary.
 // Secondary nodes are then deleted.
 func (m *MemoryDB) MergeNodes(primaryID int64, secondaryIDs []int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if len(secondaryIDs) == 0 {
 		return nil
 	}
@@ -1272,7 +1493,7 @@ func (m *MemoryDB) MergeNodes(primaryID int64, secondaryIDs []int64) error {
 // Schema migration v3: reflections table
 // ---------------------------------------------------------------------------
 
-func (m *MemoryDB) applyV3() error {
+func (m *MemoryDB) applyV3tx(tx *sql.Tx) error {
 	const ddl = `
 CREATE TABLE IF NOT EXISTS reflections (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1290,7 +1511,7 @@ CREATE TABLE IF NOT EXISTS reflections (
 );
 CREATE INDEX IF NOT EXISTS idx_reflections_agent ON reflections(agent_id, created_at);
 `
-	_, err := m.db.Exec(ddl)
+	_, err := tx.Exec(ddl)
 	return err
 }
 
@@ -1316,6 +1537,9 @@ type ReflectionRecord struct {
 
 // SaveReflection inserts a new reflection record.
 func (m *MemoryDB) SaveReflection(r ReflectionRecord) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, err := m.db.Exec(
 		`INSERT INTO reflections
 		    (agent_id, session_key, task_summary, what_worked, what_failed, lessons,
@@ -1332,6 +1556,9 @@ func (m *MemoryDB) SaveReflection(r ReflectionRecord) error {
 
 // GetRecentReflections returns the last N reflections for an agent.
 func (m *MemoryDB) GetRecentReflections(agentID string, limit int) ([]ReflectionRecord, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	if limit <= 0 {
 		limit = 10
 	}
@@ -1364,6 +1591,9 @@ func (m *MemoryDB) GetRecentReflections(agentID string, limit int) ([]Reflection
 
 // GetFailedReflections returns reflections with a score below 0.5.
 func (m *MemoryDB) GetFailedReflections(agentID string, limit int) ([]ReflectionRecord, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	if limit <= 0 {
 		limit = 10
 	}
@@ -1396,6 +1626,9 @@ func (m *MemoryDB) GetFailedReflections(agentID string, limit int) ([]Reflection
 
 // SearchReflections searches past reflections matching a text query against lessons and what_failed.
 func (m *MemoryDB) SearchReflections(agentID, query string, limit int) ([]ReflectionRecord, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	if limit <= 0 {
 		limit = 5
 	}
@@ -1439,6 +1672,9 @@ type ReflectionStats struct {
 
 // GetReflectionStats returns aggregate performance stats for an agent over the last N days.
 func (m *MemoryDB) GetReflectionStats(agentID string, days int) (ReflectionStats, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	if days <= 0 {
 		days = 30
 	}
@@ -1460,7 +1696,7 @@ func (m *MemoryDB) GetReflectionStats(agentID string, days int) (ReflectionStats
 // Schema migration v4: plan templates table
 // ---------------------------------------------------------------------------
 
-func (m *MemoryDB) applyV4() error {
+func (m *MemoryDB) applyV4tx(tx *sql.Tx) error {
 	const ddl = `
 CREATE TABLE IF NOT EXISTS plan_templates (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1475,7 +1711,7 @@ CREATE TABLE IF NOT EXISTS plan_templates (
 );
 CREATE INDEX IF NOT EXISTS idx_plan_templates_name ON plan_templates(name);
 `
-	_, err := m.db.Exec(ddl)
+	_, err := tx.Exec(ddl)
 	return err
 }
 
@@ -1498,6 +1734,9 @@ type PlanTemplate struct {
 
 // SavePlanTemplate upserts a plan template.
 func (m *MemoryDB) SavePlanTemplate(name, goal string, steps []string, tags string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	stepsJSON, err := json.Marshal(steps)
 	if err != nil {
 		return fmt.Errorf("memory: marshal template steps: %w", err)
@@ -1521,6 +1760,9 @@ func (m *MemoryDB) SavePlanTemplate(name, goal string, steps []string, tags stri
 
 // GetPlanTemplate returns a single template by name.
 func (m *MemoryDB) GetPlanTemplate(name string) (*PlanTemplate, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	var t PlanTemplate
 	var stepsJSON, created, updated string
 	err := m.db.QueryRow(
@@ -1541,6 +1783,9 @@ func (m *MemoryDB) GetPlanTemplate(name string) (*PlanTemplate, error) {
 
 // FindPlanTemplates searches templates by name, goal, or tags using LIKE.
 func (m *MemoryDB) FindPlanTemplates(query string, limit int) ([]PlanTemplate, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	if limit <= 0 {
 		limit = 10
 	}
@@ -1578,6 +1823,9 @@ func (m *MemoryDB) FindPlanTemplates(query string, limit int) ([]PlanTemplate, e
 
 // IncrementTemplateUseCount bumps the use_count for a template.
 func (m *MemoryDB) IncrementTemplateUseCount(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, err := m.db.Exec(
 		`UPDATE plan_templates SET use_count = use_count + 1, updated_at = ? WHERE name = ?`,
 		time.Now().UTC(), name,
@@ -1589,7 +1837,7 @@ func (m *MemoryDB) IncrementTemplateUseCount(name string) error {
 // Schema V5: Checkpoints
 // ---------------------------------------------------------------------------
 
-func (m *MemoryDB) applyV5() error {
+func (m *MemoryDB) applyV5tx(tx *sql.Tx) error {
 	const ddl = `
 CREATE TABLE IF NOT EXISTS checkpoints (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1602,7 +1850,7 @@ CREATE TABLE IF NOT EXISTS checkpoints (
 );
 CREATE INDEX IF NOT EXISTS idx_checkpoints_session ON checkpoints(session_key, created_at);
 `
-	_, err := m.db.Exec(ddl)
+	_, err := tx.Exec(ddl)
 	return err
 }
 
@@ -1612,6 +1860,9 @@ CREATE INDEX IF NOT EXISTS idx_checkpoints_session ON checkpoints(session_key, c
 
 // CountMessages returns the number of messages in a session.
 func (m *MemoryDB) CountMessages(sessionKey string) (int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	var count int
 	err := m.db.QueryRow(
 		`SELECT COUNT(*) FROM messages WHERE session_key = ?`, sessionKey,
@@ -1621,6 +1872,9 @@ func (m *MemoryDB) CountMessages(sessionKey string) (int, error) {
 
 // CreateCheckpoint inserts a new checkpoint row and returns its ID.
 func (m *MemoryDB) CreateCheckpoint(sessionKey, agentID, name string, iteration, msgCount int) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	res, err := m.db.Exec(
 		`INSERT INTO checkpoints (session_key, agent_id, name, iteration, msg_count, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
@@ -1645,6 +1899,9 @@ type CheckpointRow struct {
 
 // GetCheckpoint retrieves a single checkpoint by ID.
 func (m *MemoryDB) GetCheckpoint(id int64) (*CheckpointRow, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	row := m.db.QueryRow(
 		`SELECT id, session_key, agent_id, name, iteration, msg_count, created_at
 		 FROM checkpoints WHERE id = ?`, id,
@@ -1661,6 +1918,9 @@ func (m *MemoryDB) GetCheckpoint(id int64) (*CheckpointRow, error) {
 
 // ListCheckpoints returns all checkpoints for a session, newest first.
 func (m *MemoryDB) ListCheckpoints(sessionKey string) ([]CheckpointRow, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	rows, err := m.db.Query(
 		`SELECT id, session_key, agent_id, name, iteration, msg_count, created_at
 		 FROM checkpoints WHERE session_key = ? ORDER BY created_at DESC`,
@@ -1675,7 +1935,15 @@ func (m *MemoryDB) ListCheckpoints(sessionKey string) ([]CheckpointRow, error) {
 	for rows.Next() {
 		var cp CheckpointRow
 		var created string
-		if err := rows.Scan(&cp.ID, &cp.SessionKey, &cp.AgentID, &cp.Name, &cp.Iteration, &cp.MsgCount, &created); err != nil {
+		if err := rows.Scan(
+			&cp.ID,
+			&cp.SessionKey,
+			&cp.AgentID,
+			&cp.Name,
+			&cp.Iteration,
+			&cp.MsgCount,
+			&created,
+		); err != nil {
 			return nil, fmt.Errorf("memory: scan checkpoint: %w", err)
 		}
 		cp.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
@@ -1687,6 +1955,9 @@ func (m *MemoryDB) ListCheckpoints(sessionKey string) ([]CheckpointRow, error) {
 // TruncateMessagesToCount keeps only the first `count` messages in a session
 // (by position order), deleting the rest.
 func (m *MemoryDB) TruncateMessagesToCount(sessionKey string, count int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, err := m.db.Exec(
 		`DELETE FROM messages
 		 WHERE session_key = ?
@@ -1698,6 +1969,9 @@ func (m *MemoryDB) TruncateMessagesToCount(sessionKey string, count int) error {
 
 // DeleteCheckpointsAfter removes all checkpoints for a session with ID > the given ID.
 func (m *MemoryDB) DeleteCheckpointsAfter(sessionKey string, afterID int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, err := m.db.Exec(
 		`DELETE FROM checkpoints WHERE session_key = ? AND id > ?`,
 		sessionKey, afterID,
@@ -1707,6 +1981,9 @@ func (m *MemoryDB) DeleteCheckpointsAfter(sessionKey string, afterID int64) erro
 
 // DeleteAllCheckpoints removes all checkpoints for a session.
 func (m *MemoryDB) DeleteAllCheckpoints(sessionKey string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, err := m.db.Exec(`DELETE FROM checkpoints WHERE session_key = ?`, sessionKey)
 	return err
 }
@@ -1715,7 +1992,7 @@ func (m *MemoryDB) DeleteAllCheckpoints(sessionKey string) error {
 // Schema V6: A/B Testing
 // ---------------------------------------------------------------------------
 
-func (m *MemoryDB) applyV6() error {
+func (m *MemoryDB) applyV6tx(tx *sql.Tx) error {
 	const ddl = `
 CREATE TABLE IF NOT EXISTS ab_experiments (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1757,7 +2034,7 @@ CREATE INDEX IF NOT EXISTS idx_ab_trials_experiment
 CREATE INDEX IF NOT EXISTS idx_ab_trials_variant
     ON ab_trials(variant_id);
 `
-	_, err := m.db.Exec(ddl)
+	_, err := tx.Exec(ddl)
 	return err
 }
 
@@ -1765,7 +2042,7 @@ CREATE INDEX IF NOT EXISTS idx_ab_trials_variant
 // Schema V7: Dynamic Tools
 // ---------------------------------------------------------------------------
 
-func (m *MemoryDB) applyV7() error {
+func (m *MemoryDB) applyV7tx(tx *sql.Tx) error {
 	const ddl = `
 CREATE TABLE IF NOT EXISTS dynamic_tools (
     name        TEXT PRIMARY KEY,
@@ -1774,11 +2051,11 @@ CREATE TABLE IF NOT EXISTS dynamic_tools (
     updated_at  DATETIME NOT NULL DEFAULT (datetime('now'))
 );
 `
-	_, err := m.db.Exec(ddl)
+	_, err := tx.Exec(ddl)
 	return err
 }
 
-func (m *MemoryDB) applyV8() error {
+func (m *MemoryDB) applyV8tx(tx *sql.Tx) error {
 	const ddl = `
 CREATE TABLE IF NOT EXISTS agent_reputation (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1800,18 +2077,22 @@ CREATE INDEX IF NOT EXISTS idx_reputation_agent_category
 CREATE INDEX IF NOT EXISTS idx_reputation_created
     ON agent_reputation(created_at DESC);
 `
-	_, err := m.db.Exec(ddl)
+	_, err := tx.Exec(ddl)
 	return err
 }
 
 // Schema migration v9: add tool_name column to messages for Gemini compatibility.
 // Gemini requires function_response.name to be non-empty.
+// Runs outside a transaction (ALTER TABLE) with idempotency check.
 func (m *MemoryDB) applyV9() error {
+	if m.columnExists("messages", "tool_name") {
+		return nil
+	}
 	_, err := m.db.Exec(`ALTER TABLE messages ADD COLUMN tool_name TEXT NOT NULL DEFAULT ''`)
 	return err
 }
 
-func (m *MemoryDB) applyV10() error {
+func (m *MemoryDB) applyV10tx(tx *sql.Tx) error {
 	const ddl = `
 CREATE TABLE IF NOT EXISTS evolution_agents (
     id          TEXT PRIMARY KEY,
@@ -1836,6 +2117,12 @@ CREATE INDEX IF NOT EXISTS idx_evolution_changelog_agent ON evolution_changelog(
 
 CREATE INDEX IF NOT EXISTS idx_reputation_agent_created ON agent_reputation(agent_id, created_at);
 `
-	_, err := m.db.Exec(ddl)
+	_, err := tx.Exec(ddl)
+	return err
+}
+
+func (m *MemoryDB) applyV11tx(tx *sql.Tx) error {
+	const ddl = `ALTER TABLE semantic_nodes ADD COLUMN quality_score REAL NOT NULL DEFAULT 0.5`
+	_, err := tx.Exec(ddl)
 	return err
 }

@@ -7,8 +7,8 @@ import (
 func TestSkillImprovementTypes(t *testing.T) {
 	// Test that SkillImprovement can be created
 	imp := SkillImprovement{
-		SkillName: "test-skill",
-		Issue:     "Missing error handling",
+		SkillName:  "test-skill",
+		Issue:      "Missing error handling",
 		Suggestion: "Add proper error handling for edge cases",
 		Priority:   5,
 	}

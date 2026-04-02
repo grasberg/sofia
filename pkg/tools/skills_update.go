@@ -103,10 +103,16 @@ func (t *UpdateSkillTool) Execute(ctx context.Context, args map[string]any) *Too
 	sb.WriteString("\n---\n\n")
 	sb.WriteString(content)
 
-	if err := fileutil.WriteFileAtomic(skillPath, []byte(sb.String()), 0644); err != nil {
+	if err := fileutil.WriteFileAtomic(skillPath, []byte(sb.String()), 0o644); err != nil {
 		logger.ErrorCF("tool", "Failed to update skill file", map[string]any{"error": err.Error(), "path": skillPath})
 		return ErrorResult(fmt.Sprintf("Failed to update skill file: %v", err))
 	}
 
-	return SilentResult(fmt.Sprintf("Successfully updated skill %q at %s\nThe new knowledge is now available for future tasks.", slug, skillPath))
+	return SilentResult(
+		fmt.Sprintf(
+			"Successfully updated skill %q at %s\nThe new knowledge is now available for future tasks.",
+			slug,
+			skillPath,
+		),
+	)
 }

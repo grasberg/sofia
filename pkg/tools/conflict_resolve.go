@@ -162,7 +162,9 @@ func (t *ConflictResolveTool) detectScratchpad(args map[string]any) *ToolResult 
 
 	keys := t.scratchpad.List(group)
 	if len(keys) < 2 {
-		return SilentResult(fmt.Sprintf("Scratchpad group %q has %d entries — no conflicts possible.", group, len(keys)))
+		return SilentResult(
+			fmt.Sprintf("Scratchpad group %q has %d entries — no conflicts possible.", group, len(keys)),
+		)
 	}
 
 	outputs := make([]conflict.Output, 0, len(keys))

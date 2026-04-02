@@ -34,11 +34,12 @@ type BudgetStatus struct {
 
 // BudgetManager tracks per-agent spending against configurable budget limits.
 type BudgetManager struct {
-	mu        sync.Mutex
-	limits    map[string]BudgetLimit                  // agentID -> limit
-	spending  map[string]*spendEntry                  // agentID -> current period spend
-	onWarning func(agentID string, status BudgetStatus) // callback at 80%
-	nowFunc   func() time.Time                        // injectable clock for testing
+	mu         sync.Mutex
+	limits     map[string]BudgetLimit                    // agentID -> limit
+	spending   map[string]*spendEntry                    // agentID -> current period spend
+	onWarning  func(agentID string, status BudgetStatus) // callback at 80%
+	onHardStop func(agentID string, status BudgetStatus) // callback at 100% — agent should be paused
+	nowFunc    func() time.Time                          // injectable clock for testing
 }
 
 type spendEntry struct {
@@ -46,7 +47,10 @@ type spendEntry struct {
 	PeriodStart time.Time
 }
 
-const warningThreshold = 0.80
+const (
+	warningThreshold  = 0.80
+	hardStopThreshold = 1.00
+)
 
 // NewBudgetManager creates a BudgetManager with the supplied per-agent limits.
 // Pass a nil map if no limits are needed (all agents will be allowed).
@@ -62,18 +66,29 @@ func NewBudgetManager(limits map[string]BudgetLimit) *BudgetManager {
 }
 
 // SetWarningCallback registers a function that is invoked when an agent's
-// spend crosses the 80 % threshold within its current period.
+// spend crosses the 80% threshold within its current period.
 func (bm *BudgetManager) SetWarningCallback(fn func(string, BudgetStatus)) {
 	bm.mu.Lock()
 	defer bm.mu.Unlock()
 	bm.onWarning = fn
 }
 
+// SetHardStopCallback registers a function that is invoked when an agent's
+// spend reaches 100% of its budget. The agent should be paused.
+func (bm *BudgetManager) SetHardStopCallback(fn func(string, BudgetStatus)) {
+	bm.mu.Lock()
+	defer bm.mu.Unlock()
+	bm.onHardStop = fn
+}
+
 // RecordSpend adds costUSD to the agent's current-period spend.
 // If the period has expired, spending is reset before the new cost is added.
 func (bm *BudgetManager) RecordSpend(agentID string, costUSD float64) {
+	var cb func(string, BudgetStatus)
+	var status BudgetStatus
+	var callbackAgentID string
+
 	bm.mu.Lock()
-	defer bm.mu.Unlock()
 
 	limit, hasLimit := bm.limits[agentID]
 	entry := bm.getOrCreateEntry(agentID, limit.Period)
@@ -86,18 +101,38 @@ func (bm *BudgetManager) RecordSpend(agentID string, costUSD float64) {
 
 	entry.Amount += costUSD
 
-	// Fire warning callback if crossing the 80 % line.
-	if hasLimit && limit.MaxCostUSD > 0 && bm.onWarning != nil {
+	// Collect callback data for threshold crossings.
+	var hardCb func(string, BudgetStatus)
+	var hardStatus BudgetStatus
+	var hardAgentID string
+
+	if hasLimit && limit.MaxCostUSD > 0 {
 		pct := entry.Amount / limit.MaxCostUSD
 		prevPct := (entry.Amount - costUSD) / limit.MaxCostUSD
-		if pct >= warningThreshold && prevPct < warningThreshold {
-			status := bm.buildStatus(agentID, entry, limit)
-			// Invoke outside the lock to avoid potential deadlocks.
-			cb := bm.onWarning
-			bm.mu.Unlock()
-			cb(agentID, status)
-			bm.mu.Lock()
+
+		// Hard stop at 100%
+		if pct >= hardStopThreshold && prevPct < hardStopThreshold && bm.onHardStop != nil {
+			hardCb = bm.onHardStop
+			hardStatus = bm.buildStatus(agentID, entry, limit)
+			hardAgentID = agentID
 		}
+
+		// Warning at 80%
+		if pct >= warningThreshold && prevPct < warningThreshold && bm.onWarning != nil {
+			cb = bm.onWarning
+			status = bm.buildStatus(agentID, entry, limit)
+			callbackAgentID = agentID
+		}
+	}
+
+	bm.mu.Unlock()
+
+	// Invoke callbacks entirely outside the lock to avoid deadlocks.
+	if cb != nil {
+		cb(callbackAgentID, status)
+	}
+	if hardCb != nil {
+		hardCb(hardAgentID, hardStatus)
 	}
 }
 

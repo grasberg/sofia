@@ -104,9 +104,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp);
 // set to time.Now().UTC() if it is zero. The returned entry's ID is populated
 // after a successful insert.
 func (al *AuditLogger) Log(entry AuditEntry) error {
+	// Prepare the entry data under the lock (fast, CPU-only work).
 	al.mu.Lock()
-	defer al.mu.Unlock()
-
 	if entry.Timestamp.IsZero() {
 		entry.Timestamp = time.Now().UTC()
 	}
@@ -114,16 +113,23 @@ func (al *AuditLogger) Log(entry AuditEntry) error {
 	// Validate metadata is valid JSON when non-empty.
 	if entry.Metadata != "" {
 		if !json.Valid([]byte(entry.Metadata)) {
+			al.mu.Unlock()
 			return fmt.Errorf("audit: metadata is not valid JSON")
 		}
 	}
 
+	// Snapshot the formatted timestamp while holding the lock.
+	ts := entry.Timestamp.UTC().Format(time.RFC3339Nano)
+	al.mu.Unlock()
+
+	// Perform the database insert outside the lock.
+	// The SQLite MaxOpenConns(1) already serializes DB access.
 	_, err := al.db.Exec(
 		`INSERT INTO audit_log
 			(timestamp, agent_id, session_key, channel, action, detail,
 			 input, output, duration_ms, success, metadata)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		entry.Timestamp.UTC().Format(time.RFC3339Nano),
+		ts,
 		entry.AgentID,
 		entry.SessionKey,
 		entry.Channel,

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/grasberg/sofia/pkg/logger"
@@ -17,6 +18,7 @@ type knowledgeGraphTool struct {
 	agentID string
 
 	// Track writes for auto-consolidation
+	mu            sync.Mutex
 	writeCount    int
 	consolidateAt int
 }
@@ -40,8 +42,17 @@ func (t *knowledgeGraphTool) Parameters() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"operation": map[string]any{
-				"type":        "string",
-				"enum":        []string{"add_entity", "add_relation", "query", "get_entity", "delete_entity", "consolidate", "prune", "stats"},
+				"type": "string",
+				"enum": []string{
+					"add_entity",
+					"add_relation",
+					"query",
+					"get_entity",
+					"delete_entity",
+					"consolidate",
+					"prune",
+					"stats",
+				},
 				"description": "The operation to perform on the knowledge graph",
 			},
 			"label": map[string]any{
@@ -160,7 +171,9 @@ func (t *knowledgeGraphTool) addRelation(args map[string]any) *ToolResult {
 	targetName, _ := args["target_name"].(string)
 
 	if sourceLabel == "" || sourceName == "" || relation == "" || targetLabel == "" || targetName == "" {
-		return ErrorResult("source_label, source_name, relation, target_label, target_name are all required for add_relation")
+		return ErrorResult(
+			"source_label, source_name, relation, target_label, target_name are all required for add_relation",
+		)
 	}
 
 	weight := 1.0
@@ -306,8 +319,15 @@ func (t *knowledgeGraphTool) consolidate() *ToolResult {
 
 	totalNodes := t.db.CountNodes(t.agentID)
 
-	return SilentResult(fmt.Sprintf("Consolidation complete: merged %d duplicate nodes, resolved %d edge conflicts. Total nodes: %d.\n%s",
-		merged, resolved, totalNodes, strings.Join(details, "\n")))
+	return SilentResult(
+		fmt.Sprintf(
+			"Consolidation complete: merged %d duplicate nodes, resolved %d edge conflicts. Total nodes: %d.\n%s",
+			merged,
+			resolved,
+			totalNodes,
+			strings.Join(details, "\n"),
+		),
+	)
 }
 
 func (t *knowledgeGraphTool) prune(args map[string]any) *ToolResult {
@@ -391,9 +411,15 @@ func (t *knowledgeGraphTool) stats() *ToolResult {
 }
 
 func (t *knowledgeGraphTool) maybeConsolidate() {
+	t.mu.Lock()
 	t.writeCount++
-	if t.writeCount >= t.consolidateAt {
+	shouldConsolidate := t.writeCount >= t.consolidateAt
+	if shouldConsolidate {
 		t.writeCount = 0
+	}
+	t.mu.Unlock()
+
+	if shouldConsolidate {
 		go func() {
 			duplicates, err := t.db.FindDuplicateNodes(t.agentID)
 			if err != nil || len(duplicates) == 0 {

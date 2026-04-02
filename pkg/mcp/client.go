@@ -85,7 +85,9 @@ func (m *GlobalManager) EnsureServers(ctx context.Context, cfg map[string]config
 			continue // Keep trying others, log failure
 		}
 
-		err = mcpClient.Ping(ctx) // In mcp-go, we might not need Connect(), but Stdio client starts implicitly. Let's ping instead to verify.
+		err = mcpClient.Ping(
+			ctx,
+		) // In mcp-go, we might not need Connect(), but Stdio client starts implicitly. Let's ping instead to verify.
 		if err != nil {
 			logger.ErrorCF("mcp", "Failed to connect to MCP server", map[string]any{
 				"server": name,

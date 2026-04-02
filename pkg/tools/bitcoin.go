@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/btcsuite/btcd/btcutil"
@@ -27,6 +30,19 @@ type BitcoinTool struct {
 	walletPath string // path to encrypted wallet file
 	passphrase string // wallet encryption passphrase
 	client     *http.Client
+
+	// Confirmation tokens for send operations
+	mu            sync.Mutex
+	pendingTokens map[string]pendingSend
+}
+
+// pendingSend holds the details of a send operation awaiting confirmation.
+type pendingSend struct {
+	ToAddr     string
+	AmountSats int64
+	AmountBTC  string
+	FeeRate    int64
+	Expires    time.Time
 }
 
 // NewBitcoinTool creates a new Bitcoin tool.
@@ -44,11 +60,12 @@ func NewBitcoinTool(network, walletPath, passphrase string) *BitcoinTool {
 	}
 
 	return &BitcoinTool{
-		network:    network,
-		mempoolAPI: mempoolAPI,
-		walletPath: walletPath,
-		passphrase: passphrase,
-		client:     &http.Client{Timeout: 30 * time.Second},
+		network:       network,
+		mempoolAPI:    mempoolAPI,
+		walletPath:    walletPath,
+		passphrase:    passphrase,
+		client:        &http.Client{Timeout: 30 * time.Second},
+		pendingTokens: make(map[string]pendingSend),
 	}
 }
 
@@ -105,6 +122,10 @@ func (t *BitcoinTool) Parameters() map[string]any {
 			"label": {
 				"type": "string",
 				"description": "Label for new address"
+			},
+			"confirmation_token": {
+				"type": "string",
+				"description": "Confirmation token for send action. First call to send returns a token with transaction details; pass this token back to confirm and broadcast."
 			}
 		},
 		"required": ["action"]
@@ -266,8 +287,8 @@ func (t *BitcoinTool) addressTransactions(ctx context.Context, args map[string]a
 			BlockHeight int64 `json:"block_height"`
 			BlockTime   int64 `json:"block_time"`
 		} `json:"status"`
-		Fee  int64 `json:"fee"`
-		VIn  []struct {
+		Fee int64 `json:"fee"`
+		VIn []struct {
 			Prevout struct {
 				ScriptPubKeyAddr string `json:"scriptpubkey_address"`
 				Value            int64  `json:"value"`
@@ -451,7 +472,9 @@ func (t *BitcoinTool) txInfo(ctx context.Context, args map[string]any) *ToolResu
 
 	sb.WriteString(fmt.Sprintf("**Inputs (%d):** %s BTC\n", len(tx.VIn), satsToBTC(totalIn)))
 	for i, vin := range tx.VIn {
-		sb.WriteString(fmt.Sprintf("  %d. `%s` — %s BTC\n", i+1, vin.Prevout.ScriptPubKeyAddr, satsToBTC(vin.Prevout.Value)))
+		sb.WriteString(
+			fmt.Sprintf("  %d. `%s` — %s BTC\n", i+1, vin.Prevout.ScriptPubKeyAddr, satsToBTC(vin.Prevout.Value)),
+		)
 	}
 
 	sb.WriteString(fmt.Sprintf("\n**Outputs (%d):** %s BTC\n", len(tx.VOut), satsToBTC(totalOut)))
@@ -536,7 +559,9 @@ func (t *BitcoinTool) btcPrice(ctx context.Context) *ToolResult {
 
 func (t *BitcoinTool) loadWallet() (*HDWallet, error) {
 	if t.walletPath == "" {
-		return nil, fmt.Errorf("no wallet configured — use create_wallet first, or set wallet path in Settings > Integrations > Bitcoin")
+		return nil, fmt.Errorf(
+			"no wallet configured — use create_wallet first, or set wallet path in Settings > Integrations > Bitcoin",
+		)
 	}
 	if t.passphrase == "" {
 		return nil, fmt.Errorf("wallet passphrase not set — configure it in Settings > Integrations > Bitcoin")
@@ -567,11 +592,33 @@ func (t *BitcoinTool) createWallet() *ToolResult {
 		return ErrorResult(fmt.Sprintf("save wallet: %v", err))
 	}
 
+	// Write mnemonic to a secure file instead of returning it in tool output.
+	recoveryPath := filepath.Join(filepath.Dir(t.walletPath), "wallet_recovery.txt")
+	recoveryContent := fmt.Sprintf(
+		"BITCOIN WALLET RECOVERY PHRASE\n"+
+			"==============================\n"+
+			"Network: %s\n"+
+			"Created: %s\n\n"+
+			"%s\n\n"+
+			"IMPORTANT: This is the ONLY way to recover your wallet.\n"+
+			"Store this file in a safe place and NEVER share it with anyone.\n"+
+			"Delete this file after you have securely backed up the phrase.\n",
+		t.network,
+		time.Now().Format("2006-01-02 15:04:05"),
+		mnemonic,
+	)
+	if mkErr := os.MkdirAll(filepath.Dir(recoveryPath), 0o700); mkErr != nil {
+		return ErrorResult(fmt.Sprintf("create recovery dir: %v", mkErr))
+	}
+	if writeErr := os.WriteFile(recoveryPath, []byte(recoveryContent), 0o600); writeErr != nil {
+		return ErrorResult(fmt.Sprintf("write recovery file: %v", writeErr))
+	}
+
 	var sb strings.Builder
 	sb.WriteString("**Wallet created successfully!**\n\n")
-	sb.WriteString("**IMPORTANT — Save your recovery phrase in a safe place:**\n\n")
-	sb.WriteString(fmt.Sprintf("```\n%s\n```\n\n", mnemonic))
-	sb.WriteString("**This is the ONLY way to recover your wallet. Never share it with anyone.**\n\n")
+	sb.WriteString(fmt.Sprintf("**Recovery phrase saved to:** `%s`\n", recoveryPath))
+	sb.WriteString("**IMPORTANT:** Open that file to back up your recovery phrase, then delete it.\n")
+	sb.WriteString("The recovery phrase is the ONLY way to recover your wallet. Never share it.\n\n")
 	sb.WriteString(fmt.Sprintf("**First receive address:** `%s`\n", addr))
 	sb.WriteString(fmt.Sprintf("**Network:** %s\n", t.network))
 	sb.WriteString(fmt.Sprintf("**Wallet file:** `%s`\n", t.walletPath))
@@ -714,7 +761,9 @@ func (t *BitcoinTool) walletBalance(ctx context.Context) *ToolResult {
 	sb.WriteString("**Wallet Balance:**\n\n")
 	sb.WriteString(fmt.Sprintf("**Confirmed:** %s BTC (%d sats)\n", satsToBTC(totalConfirmed), totalConfirmed))
 	if totalUnconfirmed != 0 {
-		sb.WriteString(fmt.Sprintf("**Unconfirmed:** %s BTC (%d sats)\n", satsToBTC(totalUnconfirmed), totalUnconfirmed))
+		sb.WriteString(
+			fmt.Sprintf("**Unconfirmed:** %s BTC (%d sats)\n", satsToBTC(totalUnconfirmed), totalUnconfirmed),
+		)
 	}
 	sb.WriteString(fmt.Sprintf("**Total:** %s BTC\n", satsToBTC(totalConfirmed+totalUnconfirmed)))
 	sb.WriteString(fmt.Sprintf("**Addresses scanned:** %d\n", len(addrs)))
@@ -724,6 +773,22 @@ func (t *BitcoinTool) walletBalance(ctx context.Context) *ToolResult {
 }
 
 func (t *BitcoinTool) sendBitcoin(ctx context.Context, args map[string]any) *ToolResult {
+	// Clean up expired tokens
+	t.mu.Lock()
+	now := time.Now()
+	for tok, ps := range t.pendingTokens {
+		if now.After(ps.Expires) {
+			delete(t.pendingTokens, tok)
+		}
+	}
+	t.mu.Unlock()
+
+	// Check if this is a confirmation of a previous send request.
+	confirmToken := getStr(args, "confirmation_token")
+	if confirmToken != "" {
+		return t.confirmSend(ctx, confirmToken)
+	}
+
 	toAddr := getStr(args, "to_address")
 	amountStr := getStr(args, "amount_btc")
 
@@ -739,6 +804,62 @@ func (t *BitcoinTool) sendBitcoin(ctx context.Context, args map[string]any) *Too
 		return ErrorResult("amount_btc must be a positive number (e.g. '0.001')")
 	}
 	amountSats := int64(amountBTC * 1e8)
+
+	// Get fee rate
+	feeRateSatVB := int64(2) // default
+	if rate, ok := args["fee_rate"].(float64); ok && rate > 0 {
+		feeRateSatVB = int64(rate)
+	} else {
+		body, err := t.mempoolGet(ctx, "/v1/fees/recommended")
+		if err == nil {
+			var fees struct {
+				HalfHourFee int `json:"halfHourFee"`
+			}
+			if json.Unmarshal(body, &fees) == nil && fees.HalfHourFee > 0 {
+				feeRateSatVB = int64(fees.HalfHourFee)
+			}
+		}
+	}
+
+	// Generate confirmation token and return transaction details for review.
+	token := fmt.Sprintf("btc_send_%d", time.Now().UnixNano()/1000)
+	t.mu.Lock()
+	t.pendingTokens[token] = pendingSend{
+		ToAddr:     toAddr,
+		AmountSats: amountSats,
+		AmountBTC:  amountStr,
+		FeeRate:    feeRateSatVB,
+		Expires:    time.Now().Add(5 * time.Minute),
+	}
+	t.mu.Unlock()
+
+	var sb strings.Builder
+	sb.WriteString("**Bitcoin send requires confirmation.**\n\n")
+	sb.WriteString(fmt.Sprintf("**To:** `%s`\n", toAddr))
+	sb.WriteString(fmt.Sprintf("**Amount:** %s BTC (%d sats)\n", amountStr, amountSats))
+	sb.WriteString(fmt.Sprintf("**Fee rate:** ~%d sat/vB\n", feeRateSatVB))
+	sb.WriteString(fmt.Sprintf("**Network:** %s\n\n", t.network))
+	sb.WriteString(fmt.Sprintf("To confirm and broadcast, call send again with confirmation_token: %q\n", token))
+	sb.WriteString("Token expires in 5 minutes.\n")
+
+	return ConfirmationResult(sb.String())
+}
+
+// confirmSend broadcasts a previously confirmed send transaction.
+func (t *BitcoinTool) confirmSend(ctx context.Context, token string) *ToolResult {
+	t.mu.Lock()
+	ps, valid := t.pendingTokens[token]
+	if valid {
+		delete(t.pendingTokens, token)
+	}
+	t.mu.Unlock()
+
+	if !valid {
+		return ErrorResult("Invalid or expired confirmation token. Please initiate a new send.")
+	}
+	if time.Now().After(ps.Expires) {
+		return ErrorResult("Confirmation token has expired. Please initiate a new send.")
+	}
 
 	// Load wallet
 	w, err := t.loadWallet()
@@ -787,23 +908,6 @@ func (t *BitcoinTool) sendBitcoin(ctx context.Context, args map[string]any) *Too
 		return ErrorResult("no confirmed UTXOs available in wallet")
 	}
 
-	// Get fee rate
-	feeRateSatVB := int64(2) // default
-	if rate, ok := args["fee_rate"].(float64); ok && rate > 0 {
-		feeRateSatVB = int64(rate)
-	} else {
-		// Fetch recommended fee
-		body, err := t.mempoolGet(ctx, "/v1/fees/recommended")
-		if err == nil {
-			var fees struct {
-				HalfHourFee int `json:"halfHourFee"`
-			}
-			if json.Unmarshal(body, &fees) == nil && fees.HalfHourFee > 0 {
-				feeRateSatVB = int64(fees.HalfHourFee)
-			}
-		}
-	}
-
 	// Estimate tx size: ~68 vB per input + ~31 vB per output + ~11 vB overhead
 	// Start with 2 outputs (destination + change)
 	estimateVSize := func(nInputs int) int64 {
@@ -818,17 +922,17 @@ func (t *BitcoinTool) sendBitcoin(ctx context.Context, args map[string]any) *Too
 	for _, u := range walletUTXOs {
 		selectedUTXOs = append(selectedUTXOs, u)
 		selectedTotal += u.Value
-		estimatedFee := estimateVSize(len(selectedUTXOs)) * feeRateSatVB
-		if selectedTotal >= amountSats+estimatedFee {
+		estimatedFee := estimateVSize(len(selectedUTXOs)) * ps.FeeRate
+		if selectedTotal >= ps.AmountSats+estimatedFee {
 			break
 		}
 	}
 
-	estimatedFee := estimateVSize(len(selectedUTXOs)) * feeRateSatVB
-	if selectedTotal < amountSats+estimatedFee {
+	estimatedFee := estimateVSize(len(selectedUTXOs)) * ps.FeeRate
+	if selectedTotal < ps.AmountSats+estimatedFee {
 		return ErrorResult(fmt.Sprintf(
 			"insufficient funds: need %d sats (amount) + %d sats (est. fee) = %d sats, have %d sats",
-			amountSats, estimatedFee, amountSats+estimatedFee, selectedTotal,
+			ps.AmountSats, estimatedFee, ps.AmountSats+estimatedFee, selectedTotal,
 		))
 	}
 
@@ -846,14 +950,14 @@ func (t *BitcoinTool) sendBitcoin(ctx context.Context, args map[string]any) *Too
 	}
 
 	// Add destination output
-	destScript, err := addressToScript(toAddr, w.netParams)
+	destScript, err := addressToScript(ps.ToAddr, w.netParams)
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("invalid destination address: %v", err))
 	}
-	tx.AddTxOut(wire.NewTxOut(amountSats, destScript))
+	tx.AddTxOut(wire.NewTxOut(ps.AmountSats, destScript))
 
 	// Add change output if needed
-	changeSats := selectedTotal - amountSats - estimatedFee
+	changeSats := selectedTotal - ps.AmountSats - estimatedFee
 	if changeSats > 546 { // dust threshold
 		changeAddr, err := w.nextChangeAddress()
 		if err != nil {
@@ -892,9 +996,9 @@ func (t *BitcoinTool) sendBitcoin(ctx context.Context, args map[string]any) *Too
 
 	var sb strings.Builder
 	sb.WriteString("**Bitcoin sent!**\n\n")
-	sb.WriteString(fmt.Sprintf("**To:** `%s`\n", toAddr))
-	sb.WriteString(fmt.Sprintf("**Amount:** %s BTC (%d sats)\n", amountStr, amountSats))
-	sb.WriteString(fmt.Sprintf("**Fee:** %d sats (~%d sat/vB)\n", estimatedFee, feeRateSatVB))
+	sb.WriteString(fmt.Sprintf("**To:** `%s`\n", ps.ToAddr))
+	sb.WriteString(fmt.Sprintf("**Amount:** %s BTC (%d sats)\n", ps.AmountBTC, ps.AmountSats))
+	sb.WriteString(fmt.Sprintf("**Fee:** %d sats (~%d sat/vB)\n", estimatedFee, ps.FeeRate))
 	sb.WriteString(fmt.Sprintf("**TXID:** `%s`\n", txid))
 	sb.WriteString(fmt.Sprintf("**Inputs used:** %d | **Change:** %d sats\n", len(selectedUTXOs), changeSats))
 	sb.WriteString(fmt.Sprintf("**Network:** %s\n", t.network))

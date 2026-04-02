@@ -34,12 +34,22 @@ var swedishNames = []string{
 }
 
 // usedNames tracks which names have already been assigned to avoid duplicates.
-var usedNames = map[string]bool{}
-var usedNamesMu sync.Mutex
+var (
+	usedNames   = map[string]bool{}
+	usedNamesMu sync.Mutex
+)
+
+// maxUsedNames is the cap on the usedNames map. When exceeded, the map is reset.
+const maxUsedNames = 100
 
 func pickSwedishName() string {
 	usedNamesMu.Lock()
 	defer usedNamesMu.Unlock()
+
+	// Cap: reset when map gets too large
+	if len(usedNames) >= maxUsedNames {
+		usedNames = map[string]bool{}
+	}
 
 	// Try to find an unused name
 	shuffled := make([]string, len(swedishNames))
@@ -56,6 +66,13 @@ func pickSwedishName() string {
 	name := fmt.Sprintf("%s-%d", base, rand.Intn(99)+1)
 	usedNames[name] = true
 	return name
+}
+
+// ResetNames clears the used names set, allowing names to be reused.
+func ResetNames() {
+	usedNamesMu.Lock()
+	defer usedNamesMu.Unlock()
+	usedNames = map[string]bool{}
 }
 
 // scoreCandidate computes a delegation score in [0,1] for a given sub-agent.
@@ -177,18 +194,25 @@ func (al *AgentLoop) semanticDelegateToAll(ctx context.Context, msg string) []de
 		agentDescs = append(agentDescs, desc)
 	}
 
-	prompt := fmt.Sprintf(`Which agents should handle this user message? Multiple agents can work in parallel on different aspects. Return ONLY a JSON object with "agent_ids" field (array of strings). Return {"agent_ids": []} if none fit.
+	prompt := fmt.Sprintf(
+		`Which agents should handle this user message? Multiple agents can work in parallel on different aspects. Return ONLY a JSON object with "agent_ids" field (array of strings). Return {"agent_ids": []} if none fit.
 
 Available agents:
 %s
 
-User message: %s`, strings.Join(agentDescs, "\n"), msg)
+User message: %s`,
+		strings.Join(agentDescs, "\n"),
+		msg,
+	)
 
 	delegateCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	resp, err := defaultAgent.Provider.Chat(delegateCtx, []providers.Message{
-		{Role: "system", Content: "You are a routing assistant. Reply with only valid JSON. Select ALL agents whose skills are relevant to any part of the message."},
+		{
+			Role:    "system",
+			Content: "You are a routing assistant. Reply with only valid JSON. Select ALL agents whose skills are relevant to any part of the message.",
+		},
 		{Role: "user", Content: prompt},
 	}, nil, defaultAgent.ModelID, map[string]any{
 		"max_tokens":  200,

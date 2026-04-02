@@ -3,6 +3,7 @@ package web
 import (
 	"archive/zip"
 	"context"
+	"crypto/subtle"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -72,6 +73,9 @@ var settingsEvolutionHTML []byte
 //go:embed templates/settings/autonomy.html
 var settingsAutonomyHTML []byte
 
+//go:embed templates/settings/intelligence.html
+var settingsIntelligenceHTML []byte
+
 //go:embed templates/settings/budget.html
 var settingsBudgetHTML []byte
 
@@ -130,6 +134,99 @@ func (s *Server) RegisterWebhooks(registrar WebhookRegistrar) {
 	if registrar != nil && s.mux != nil {
 		registrar.RegisterWebhooks(s.mux)
 	}
+}
+
+// maxRequestBody is the maximum allowed size for JSON request bodies (10 MB).
+const maxRequestBody = 10 << 20
+
+// authMiddleware checks for a valid bearer token when WebUI.AuthToken is
+// configured. If the token is empty, authentication is skipped for backward
+// compatibility. It also enforces a CSRF check: mutating methods (POST, PUT,
+// DELETE) must include the X-Requested-With header, which browsers will not
+// send cross-origin without a CORS preflight.
+func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Auth check — skip when no token is configured.
+		token := s.cfg.WebUI.AuthToken
+		if token != "" {
+			provided := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
+				s.sendJSONError(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+		}
+
+		// CSRF check for mutating methods.
+		if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodDelete {
+			if r.Header.Get("X-Requested-With") == "" {
+				s.sendJSONError(w, "Missing X-Requested-With header", http.StatusForbidden)
+				return
+			}
+		}
+
+		next(w, r)
+	}
+}
+
+// limitBody wraps the request body with http.MaxBytesReader to cap the
+// payload size at maxRequestBody bytes.
+func limitBody(r *http.Request) {
+	r.Body = http.MaxBytesReader(nil, r.Body, maxRequestBody)
+}
+
+// sensitiveJSONFields lists the JSON field names whose values must be masked
+// before returning configuration data to the client.
+var sensitiveJSONFields = map[string]bool{
+	"api_key":        true,
+	"token":          true,
+	"password":       true,
+	"passphrase":     true,
+	"secret_api_key": true,
+	"secret":         true,
+	"auth_token":     true,
+	"api_token":      true,
+}
+
+// maskSecrets takes a JSON-serialisable value as a map/slice/etc. and
+// replaces the values of sensitive fields with "********".
+func maskSecrets(v any) any {
+	switch val := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(val))
+		for k, child := range val {
+			if sensitiveJSONFields[k] {
+				if s, ok := child.(string); ok && s != "" {
+					out[k] = "********"
+					continue
+				}
+			}
+			out[k] = maskSecrets(child)
+		}
+		return out
+	case []any:
+		out := make([]any, len(val))
+		for i, child := range val {
+			out[i] = maskSecrets(child)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+// configToMaskedJSON marshals a config to JSON, decodes into a generic
+// map, masks secrets, then re-encodes. This avoids modifying the original.
+func configToMaskedJSON(cfg *config.Config) ([]byte, error) {
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+	var generic any
+	if err := json.Unmarshal(raw, &generic); err != nil {
+		return nil, err
+	}
+	masked := maskSecrets(generic)
+	return json.Marshal(masked)
 }
 
 func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *Server {
@@ -214,6 +311,10 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(settingsAutonomyHTML)
 	})
+	mux.HandleFunc("/ui/settings/intelligence", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsIntelligenceHTML)
+	})
 	mux.HandleFunc("/ui/settings/budget", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(settingsBudgetHTML)
@@ -263,40 +364,40 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 		w.Write(historyHTML)
 	})
 
-	mux.HandleFunc("/api/status", s.handleStatus)
-	mux.HandleFunc("/api/config", s.handleConfig)
-	mux.HandleFunc("/api/chat", s.handleChat)
-	mux.HandleFunc("/api/logs", s.handleLogs)
-	mux.HandleFunc("/api/skills/add", s.handleSkillAdd)
-	mux.HandleFunc("/api/agents", s.handleAgents)
-	mux.HandleFunc("/api/agent-templates", s.handleAgentTemplates)
-	mux.HandleFunc("/api/agent-templates/", s.handleAgentTemplateByName)
-	mux.HandleFunc("/api/workspace-docs", s.handleWorkspaceDocs)
-	mux.HandleFunc("/api/restart", s.handleRestart)
-	mux.HandleFunc("/api/update", s.handleUpdate)
-	mux.HandleFunc("/api/sessions", s.handleSessions)
-	mux.HandleFunc("/api/sessions/", s.handleSessionDetail)
-	mux.HandleFunc("/api/goals", s.handleGoals)
-	mux.HandleFunc("/api/reset", s.handleReset)
-	mux.HandleFunc("GET /api/search", s.handleSearch)
-	mux.HandleFunc("GET /api/presence", s.handlePresence)
-	mux.HandleFunc("GET /api/audit", s.handleAudit)
-	mux.HandleFunc("GET /api/approvals", s.handleApprovals)
-	mux.HandleFunc("/api/approvals/", s.handleApprovalAction)
-	mux.HandleFunc("/api/cron", s.handleCron)
-	mux.HandleFunc("/api/cron/toggle", s.handleCronToggle)
-	mux.HandleFunc("GET /api/memory/notes", s.handleMemoryNotes)
-	mux.HandleFunc("GET /api/memory/graph", s.handleMemoryGraph)
-	mux.HandleFunc("GET /api/memory/reflections", s.handleMemoryReflections)
-	mux.HandleFunc("GET /api/plan", s.handlePlan)
-	mux.HandleFunc("GET /api/backup", s.handleBackupExport)
-	mux.HandleFunc("GET /api/evolution/status", s.handleEvolutionStatus)
-	mux.HandleFunc("GET /api/evolution/changelog", s.handleEvolutionChangelog)
-	mux.HandleFunc("/ws/dashboard", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/status", s.authMiddleware(s.handleStatus))
+	mux.HandleFunc("/api/config", s.authMiddleware(s.handleConfig))
+	mux.HandleFunc("/api/chat", s.authMiddleware(s.handleChat))
+	mux.HandleFunc("/api/logs", s.authMiddleware(s.handleLogs))
+	mux.HandleFunc("/api/skills/add", s.authMiddleware(s.handleSkillAdd))
+	mux.HandleFunc("/api/agents", s.authMiddleware(s.handleAgents))
+	mux.HandleFunc("/api/agent-templates", s.authMiddleware(s.handleAgentTemplates))
+	mux.HandleFunc("/api/agent-templates/", s.authMiddleware(s.handleAgentTemplateByName))
+	mux.HandleFunc("/api/workspace-docs", s.authMiddleware(s.handleWorkspaceDocs))
+	mux.HandleFunc("/api/restart", s.authMiddleware(s.handleRestart))
+	mux.HandleFunc("/api/update", s.authMiddleware(s.handleUpdate))
+	mux.HandleFunc("/api/sessions", s.authMiddleware(s.handleSessions))
+	mux.HandleFunc("/api/sessions/", s.authMiddleware(s.handleSessionDetail))
+	mux.HandleFunc("/api/goals", s.authMiddleware(s.handleGoals))
+	mux.HandleFunc("/api/reset", s.authMiddleware(s.handleReset))
+	mux.HandleFunc("GET /api/search", s.authMiddleware(s.handleSearch))
+	mux.HandleFunc("GET /api/presence", s.authMiddleware(s.handlePresence))
+	mux.HandleFunc("GET /api/audit", s.authMiddleware(s.handleAudit))
+	mux.HandleFunc("GET /api/approvals", s.authMiddleware(s.handleApprovals))
+	mux.HandleFunc("/api/approvals/", s.authMiddleware(s.handleApprovalAction))
+	mux.HandleFunc("/api/cron", s.authMiddleware(s.handleCron))
+	mux.HandleFunc("/api/cron/toggle", s.authMiddleware(s.handleCronToggle))
+	mux.HandleFunc("GET /api/memory/notes", s.authMiddleware(s.handleMemoryNotes))
+	mux.HandleFunc("GET /api/memory/graph", s.authMiddleware(s.handleMemoryGraph))
+	mux.HandleFunc("GET /api/memory/reflections", s.authMiddleware(s.handleMemoryReflections))
+	mux.HandleFunc("GET /api/plan", s.authMiddleware(s.handlePlan))
+	mux.HandleFunc("GET /api/backup", s.authMiddleware(s.handleBackupExport))
+	mux.HandleFunc("GET /api/evolution/status", s.authMiddleware(s.handleEvolutionStatus))
+	mux.HandleFunc("GET /api/evolution/changelog", s.authMiddleware(s.handleEvolutionChangelog))
+	mux.HandleFunc("/ws/dashboard", s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		s.agentLoop.DashboardHub().RegisterClient(w, r, func() any {
 			return s.agentLoop.GetStartupInfo()
 		})
-	})
+	}))
 
 	s.mux = mux
 	s.server = &http.Server{
@@ -355,11 +456,17 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		cfgCopy := *s.cfg
 		s.mu.RUnlock()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(cfgCopy)
+		masked, err := configToMaskedJSON(&cfgCopy)
+		if err != nil {
+			s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Write(masked)
 		return
 	}
 
 	if r.Method == http.MethodPost {
+		limitBody(r)
 		var newCfg config.Config
 		if err := json.NewDecoder(r.Body).Decode(&newCfg); err != nil {
 			s.sendJSONError(w, err.Error(), http.StatusBadRequest)
@@ -400,6 +507,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	limitBody(r)
 	var req struct {
 		Message    string `json:"message"`
 		SessionKey string `json:"session_key"`
@@ -539,6 +647,7 @@ func (s *Server) handleSkillAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	limitBody(r)
 	var req struct {
 		Name    string `json:"name"`
 		Content string `json:"content"`
@@ -582,6 +691,7 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodPost {
+		limitBody(r)
 		var agent config.AgentConfig
 		if err := json.NewDecoder(r.Body).Decode(&agent); err != nil {
 			s.sendJSONError(w, err.Error(), http.StatusBadRequest)
@@ -750,6 +860,7 @@ func (s *Server) handleWorkspaceDocs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodPost {
+		limitBody(r)
 		var req struct {
 			Identity  string `json:"identity"`
 			Soul      string `json:"soul"`
@@ -1200,6 +1311,7 @@ func (s *Server) handleCron(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(jobs)
 
 	case http.MethodPost:
+		limitBody(r)
 		var req struct {
 			Name     string `json:"name"`
 			Schedule string `json:"schedule"`
@@ -1265,6 +1377,7 @@ func (s *Server) handleCronToggle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	limitBody(r)
 	var req struct {
 		Name    string `json:"name"`
 		Enabled bool   `json:"enabled"`

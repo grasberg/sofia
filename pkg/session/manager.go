@@ -1,6 +1,7 @@
 package session
 
 import (
+	"log"
 	"sort"
 	"strings"
 	"time"
@@ -44,8 +45,14 @@ func NewSessionManager(db *memory.MemoryDB, agentID string) *SessionManager {
 // GetOrCreate ensures a session exists for the given key and returns it.
 // The returned Session has its Messages populated from the DB.
 func (sm *SessionManager) GetOrCreate(key string) *Session {
-	summary, _ := sm.db.GetOrCreateSession(key, sm.agentID)
-	msgs, _ := sm.db.GetMessages(key)
+	summary, err := sm.db.GetOrCreateSession(key, sm.agentID)
+	if err != nil {
+		log.Printf("session: GetOrCreate(%q): %v", key, err)
+	}
+	msgs, err := sm.db.GetMessages(key)
+	if err != nil {
+		log.Printf("session: GetOrCreate(%q) messages: %v", key, err)
+	}
 	if msgs == nil {
 		msgs = []providers.Message{}
 	}
@@ -68,13 +75,20 @@ func (sm *SessionManager) AddMessage(sessionKey, role, content string) {
 // directly to the database.
 func (sm *SessionManager) AddFullMessage(sessionKey string, msg providers.Message) {
 	// Ensure the session row exists before appending.
-	_, _ = sm.db.GetOrCreateSession(sessionKey, sm.agentID)
-	_ = sm.db.AppendMessage(sessionKey, msg)
+	if _, err := sm.db.GetOrCreateSession(sessionKey, sm.agentID); err != nil {
+		log.Printf("session: AddFullMessage(%q) ensure session: %v", sessionKey, err)
+	}
+	if err := sm.db.AppendMessage(sessionKey, msg); err != nil {
+		log.Printf("session: AddFullMessage(%q) append: %v", sessionKey, err)
+	}
 }
 
 // GetHistory returns all messages for the session, ordered oldest first.
 func (sm *SessionManager) GetHistory(key string) []providers.Message {
-	msgs, _ := sm.db.GetMessages(key)
+	msgs, err := sm.db.GetMessages(key)
+	if err != nil {
+		log.Printf("session: GetHistory(%q): %v", key, err)
+	}
 	if msgs == nil {
 		return []providers.Message{}
 	}
@@ -88,13 +102,17 @@ func (sm *SessionManager) GetSummary(key string) string {
 
 // SetSummary updates the compression summary for a session.
 func (sm *SessionManager) SetSummary(key string, summary string) {
-	_ = sm.db.SetSummary(key, summary)
+	if err := sm.db.SetSummary(key, summary); err != nil {
+		log.Printf("session: SetSummary(%q): %v", key, err)
+	}
 }
 
 // TruncateHistory keeps only the last keepLast messages.
 // If keepLast <= 0, all messages are deleted.
 func (sm *SessionManager) TruncateHistory(key string, keepLast int) {
-	_ = sm.db.TruncateMessages(key, keepLast)
+	if err := sm.db.TruncateMessages(key, keepLast); err != nil {
+		log.Printf("session: TruncateHistory(%q, %d): %v", key, keepLast, err)
+	}
 }
 
 // Save is a no-op: writes are immediate via AddFullMessage.
@@ -106,8 +124,12 @@ func (sm *SessionManager) Save(_ string) error {
 // SetHistory replaces all messages in a session with the provided slice.
 func (sm *SessionManager) SetHistory(key string, history []providers.Message) {
 	// Ensure the session row exists before replacing messages.
-	_, _ = sm.db.GetOrCreateSession(key, sm.agentID)
-	_ = sm.db.SetMessages(key, history)
+	if _, err := sm.db.GetOrCreateSession(key, sm.agentID); err != nil {
+		log.Printf("session: SetHistory(%q) ensure session: %v", key, err)
+	}
+	if err := sm.db.SetMessages(key, history); err != nil {
+		log.Printf("session: SetHistory(%q) set messages: %v", key, err)
+	}
 }
 
 // inferChannel extracts a human-readable channel name from a session key.
@@ -136,6 +158,7 @@ func inferChannel(key string) string {
 func (sm *SessionManager) ListSessions() []SessionMeta {
 	rows, err := sm.db.ListSessions()
 	if err != nil {
+		log.Printf("session: ListSessions: %v", err)
 		return nil
 	}
 
@@ -165,4 +188,73 @@ func (sm *SessionManager) ListSessions() []SessionMeta {
 // DeleteSession removes a session and all its messages from the database.
 func (sm *SessionManager) DeleteSession(key string) error {
 	return sm.db.DeleteSession(key)
+}
+
+// SessionRotationPolicy defines when a session should be rotated to a fresh one.
+type SessionRotationPolicy struct {
+	MaxTokenEstimate int           // Rotate when estimated tokens exceed this (0 = disabled)
+	MaxAge           time.Duration // Rotate when session age exceeds this (0 = disabled)
+	MaxMessages      int           // Rotate when message count exceeds this (0 = disabled)
+}
+
+// ShouldRotate checks if a session should be rotated based on the given policy.
+// Returns true if any threshold is exceeded.
+func (sm *SessionManager) ShouldRotate(key string, policy SessionRotationPolicy) bool {
+	if policy.MaxTokenEstimate <= 0 && policy.MaxAge <= 0 && policy.MaxMessages <= 0 {
+		return false
+	}
+
+	msgs := sm.GetHistory(key)
+
+	// Check message count
+	if policy.MaxMessages > 0 && len(msgs) > policy.MaxMessages {
+		return true
+	}
+
+	// Check token estimate (rough: 1 token ≈ 4 chars)
+	if policy.MaxTokenEstimate > 0 {
+		totalChars := 0
+		for _, m := range msgs {
+			totalChars += len(m.Content)
+		}
+		estimatedTokens := totalChars / 4
+		if estimatedTokens > policy.MaxTokenEstimate {
+			return true
+		}
+	}
+
+	// Check age
+	if policy.MaxAge > 0 {
+		meta := sm.db.GetSessionMeta(key)
+		if meta != nil && !meta.CreatedAt.IsZero() && time.Since(meta.CreatedAt) > policy.MaxAge {
+			return true
+		}
+	}
+
+	return false
+}
+
+// RotateSession archives the current session and creates a fresh one.
+// The old session's summary is carried forward to the new session as context.
+func (sm *SessionManager) RotateSession(oldKey, newKey string) {
+	// Carry forward the summary from the old session
+	summary := sm.GetSummary(oldKey)
+	if summary == "" {
+		// Generate a minimal summary from the last few messages
+		msgs := sm.GetHistory(oldKey)
+		if len(msgs) > 0 {
+			last := msgs[len(msgs)-1]
+			if len(last.Content) > 200 {
+				summary = "Previous session context: " + last.Content[:200] + "..."
+			} else if last.Content != "" {
+				summary = "Previous session context: " + last.Content
+			}
+		}
+	}
+
+	// Create new session with carried-forward summary
+	sm.GetOrCreate(newKey)
+	if summary != "" {
+		sm.SetSummary(newKey, summary)
+	}
 }

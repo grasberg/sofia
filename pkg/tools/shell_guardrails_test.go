@@ -31,7 +31,7 @@ func TestExecTool_ActionConfirmation(t *testing.T) {
 	// Wait, we can set it in config.
 	// Confirmation in ExecTool is controlled by cfg.Tools.Exec.ConfirmPatterns
 	cfg.Tools.Exec.EnableDenyPatterns = false
-	cfg.Tools.Exec.ConfirmPatterns = []string{`^rm\s+`}
+	cfg.Tools.Exec.ConfirmPatterns = []string{`^mv\s+`}
 
 	// Re-init with new config
 	tool = NewExecToolWithConfig(cfg.Agents.Defaults.Workspace, false, cfg)
@@ -39,14 +39,14 @@ func TestExecTool_ActionConfirmation(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. First execution should require confirmation
-	args := map[string]any{"command": "rm -rf /tmp/fake"}
+	args := map[string]any{"command": "mv /tmp/fake /tmp/fake2"}
 	result := tool.Execute(ctx, args)
 
 	if !result.ConfirmationRequired {
-		t.Fatalf("Expected confirmation to be required for 'rm' command")
+		t.Fatalf("Expected confirmation to be required for 'mv' command")
 	}
 
-	if !strings.Contains(result.ConfirmationPrompt, "rm -rf") {
+	if !strings.Contains(result.ConfirmationPrompt, "mv /tmp/fake") {
 		t.Fatalf("Confirmation prompt should contain the command")
 	}
 
@@ -59,7 +59,7 @@ func TestExecTool_ActionConfirmation(t *testing.T) {
 
 	// 2. Second execution with invalid token should fail or require confirmation again (depends on implementation)
 	argsInvalidToken := map[string]any{
-		"command":        "rm -rf /tmp/fake",
+		"command":        "mv /tmp/fake /tmp/fake2",
 		"approval_token": "invalid_123",
 	}
 	resultInvalid := tool.Execute(ctx, argsInvalidToken)
@@ -67,11 +67,10 @@ func TestExecTool_ActionConfirmation(t *testing.T) {
 		t.Fatalf("Expected execution to fail with invalid token or re-require confirmation")
 	}
 
-	// 3. Second execution with valid token should succeed (or error out safely because we're running `rm /tmp/fake`)
-	// Since we mock execution actually running on host, it will try to run `rm -rf /tmp/fake`.
+	// 3. Second execution with valid token should succeed (or error out safely because the source doesn't exist).
 	// We will look for ConfirmationRequired == false to prove it passed the guard.
 	argsValidToken := map[string]any{
-		"command":        "rm -rf /tmp/fake",
+		"command":        "mv /tmp/fake /tmp/fake2",
 		"approval_token": approvalToken,
 	}
 	resultValid := tool.Execute(ctx, argsValidToken)

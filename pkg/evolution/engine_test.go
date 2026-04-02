@@ -101,7 +101,7 @@ func TestEvolutionEngine_NewAndStart(t *testing.T) {
 
 	err := engine.Start(ctx)
 	require.NoError(t, err)
-	assert.True(t, engine.running.Load())
+	assert.True(t, engine.IsRunning())
 
 	// Starting again should fail.
 	err = engine.Start(ctx)
@@ -109,7 +109,7 @@ func TestEvolutionEngine_NewAndStart(t *testing.T) {
 	assert.Contains(t, err.Error(), "already running")
 
 	engine.Stop()
-	assert.False(t, engine.running.Load())
+	assert.False(t, engine.IsRunning())
 }
 
 func TestEvolutionEngine_StartDisabled(t *testing.T) {
@@ -118,7 +118,7 @@ func TestEvolutionEngine_StartDisabled(t *testing.T) {
 
 	err := engine.Start(context.Background())
 	require.NoError(t, err)
-	assert.False(t, engine.running.Load())
+	assert.False(t, engine.IsRunning())
 }
 
 func TestEvolutionEngine_StopGraceful(t *testing.T) {
@@ -135,7 +135,7 @@ func TestEvolutionEngine_StopGraceful(t *testing.T) {
 
 	// Stop should not panic.
 	engine.Stop()
-	assert.False(t, engine.running.Load())
+	assert.False(t, engine.IsRunning())
 }
 
 func TestEvolutionEngine_ConcurrencyGuard(t *testing.T) {

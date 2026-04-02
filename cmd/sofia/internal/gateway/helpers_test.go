@@ -4,10 +4,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/grasberg/sofia/pkg/bus"
-	"github.com/grasberg/sofia/pkg/cron"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grasberg/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/cron"
 )
 
 func TestCronServiceCreation(t *testing.T) {
@@ -41,9 +42,9 @@ func TestCronPathConstruction(t *testing.T) {
 
 func TestMessageBusInitialization(t *testing.T) {
 	msgBus := bus.NewMessageBus()
-	
+
 	require.NotNil(t, msgBus)
-	
+
 	// Verify bus is functional
 	msg := bus.InboundMessage{
 		Channel:  "test",
@@ -51,7 +52,7 @@ func TestMessageBusInitialization(t *testing.T) {
 		ChatID:   "chat1",
 		Content:  "test message",
 	}
-	
+
 	msgBus.PublishInbound(msg)
 	assert.NotNil(t, msgBus)
 }

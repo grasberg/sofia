@@ -21,10 +21,10 @@ import (
 
 // ExportData is the top-level envelope written to/read from JSON.
 type ExportData struct {
-	Version   int              `json:"version"`
+	Version    int             `json:"version"`
 	ExportedAt time.Time       `json:"exported_at"`
-	Sessions  []ExportSession  `json:"sessions"`
-	Memory    []ExportMemory   `json:"memory,omitempty"`
+	Sessions   []ExportSession `json:"sessions"`
+	Memory     []ExportMemory  `json:"memory,omitempty"`
 }
 
 // ExportSession holds a single conversation session with its messages.

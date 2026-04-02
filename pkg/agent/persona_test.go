@@ -9,7 +9,7 @@ import (
 
 func TestPersonaManager_Switch(t *testing.T) {
 	pm := NewPersonaManager(map[string]*Persona{
-		"coder": {Name: "coder", SystemPrompt: "You are a coding assistant.", Description: "Coding persona"},
+		"coder":  {Name: "coder", SystemPrompt: "You are a coding assistant.", Description: "Coding persona"},
 		"writer": {Name: "writer", SystemPrompt: "You are a creative writer.", Description: "Writing persona"},
 	})
 

@@ -160,3 +160,34 @@ func (ms *MemoryStore) GetMemoryContext() string {
 
 	return sb.String()
 }
+
+// GetRelevantLessonsFormatted returns formatted lessons relevant to the given query.
+// This complements GetMemoryContext (which returns the N most recent lessons) by
+// returning lessons that semantically match the current user message.
+func (ms *MemoryStore) GetRelevantLessonsFormatted(query string, limit int) string {
+	if ms.db == nil || query == "" {
+		return ""
+	}
+	if limit <= 0 {
+		limit = 3
+	}
+	engine := NewReflectionEngine(ms.db, ms.agentID)
+	records, err := engine.GetRelevantLessons(query, limit)
+	if err != nil || len(records) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("## Relevant Past Lessons\n\n")
+	for _, r := range records {
+		if r.Lessons == "" {
+			continue
+		}
+		sb.WriteString(fmt.Sprintf("- (score=%.1f) %s\n", r.Score, r.Lessons))
+	}
+	result := sb.String()
+	if result == "## Relevant Past Lessons\n\n" {
+		return ""
+	}
+	return result
+}

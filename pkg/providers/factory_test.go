@@ -31,7 +31,7 @@ func TestResolveProviderSelection(t *testing.T) {
 				cfg.Agents.Defaults.Provider = "copilot"
 			},
 			wantType:    providerTypeGitHubCopilot,
-			wantAPIBase: "localhost:4321",
+			wantAPIBase: "http://localhost:4321",
 		},
 		{
 			name: "explicit deepseek provider uses deepseek defaults",

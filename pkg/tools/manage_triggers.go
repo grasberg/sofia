@@ -60,7 +60,7 @@ func (t *ManageTriggersTool) Parameters() map[string]any {
 }
 
 // Execute performs trigger manipulations
-func (t *ManageTriggersTool) Execute(ctx context.Context, args map[string]interface{}) *ToolResult {
+func (t *ManageTriggersTool) Execute(ctx context.Context, args map[string]any) *ToolResult {
 	if t.mgr == nil {
 		return ErrorResult("manage_triggers not configured: TriggerManager is nil")
 	}
@@ -91,7 +91,10 @@ func (t *ManageTriggersTool) Execute(ctx context.Context, args map[string]interf
 		b, _ := json.Marshal(trigAny)
 		var trig map[string]any
 		json.Unmarshal(b, &trig)
-		return NewToolResult(fmt.Sprintf("Trigger successfully added. ID: %.0f", trig["id"].(float64)))
+		if id, ok := trig["id"].(float64); ok {
+			return NewToolResult(fmt.Sprintf("Trigger successfully added. ID: %.0f", id))
+		}
+		return NewToolResult("Trigger successfully added.")
 
 	case "toggle":
 		if parsedArgs.TriggerID == 0 {
@@ -104,7 +107,11 @@ func (t *ManageTriggersTool) Execute(ctx context.Context, args map[string]interf
 		b, _ := json.Marshal(trigAny)
 		var trig map[string]any
 		json.Unmarshal(b, &trig)
-		return NewToolResult(fmt.Sprintf("Trigger %.0f active state set to %v", trig["id"].(float64), trig["is_active"]))
+		id, _ := trig["id"].(float64)
+		isActive, _ := trig["is_active"].(bool)
+		return NewToolResult(
+			fmt.Sprintf("Trigger %.0f active state set to %v", id, isActive),
+		)
 
 	case "list":
 		triggersAny, err := t.mgr.ListActiveTriggers(t.agentID)
@@ -119,7 +126,19 @@ func (t *ManageTriggersTool) Execute(ctx context.Context, args map[string]interf
 			b, _ := json.Marshal(trigAny)
 			var trig map[string]any
 			json.Unmarshal(b, &trig)
-			out.WriteString(fmt.Sprintf("- ID: %.0f | Name: %s\n  Condition: %s\n  Action: %s\n", trig["id"].(float64), trig["name"], trig["condition"], trig["action"]))
+			id, _ := trig["id"].(float64)
+			name, _ := trig["name"].(string)
+			condition, _ := trig["condition"].(string)
+			action, _ := trig["action"].(string)
+			out.WriteString(
+				fmt.Sprintf(
+					"- ID: %.0f | Name: %s\n  Condition: %s\n  Action: %s\n",
+					id,
+					name,
+					condition,
+					action,
+				),
+			)
 		}
 		return NewToolResult(out.String())
 

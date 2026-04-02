@@ -32,7 +32,15 @@ func (mb *MessageBus) PublishInbound(msg InboundMessage) {
 	select {
 	case mb.inbound <- msg:
 	default:
-		log.Printf("[bus] WARNING: inbound buffer full, dropping message from %s/%s", msg.Channel, msg.SenderID)
+		log.Printf("[bus] WARNING: inbound buffer full, waiting to deliver message from %s/%s", msg.Channel, msg.SenderID)
+		timer := time.NewTimer(5 * time.Second)
+		defer timer.Stop()
+		select {
+		case mb.inbound <- msg:
+		case <-timer.C:
+			log.Printf("[bus] ERROR: inbound buffer full for 5s, dropping message from %s/%s",
+				msg.Channel, msg.SenderID)
+		}
 	}
 }
 

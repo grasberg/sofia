@@ -12,8 +12,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const plistName = "com.sofia.gateway.plist"
-const systemdUnit = "sofia-gateway.service"
+const (
+	plistName   = "com.sofia.gateway.plist"
+	systemdUnit = "sofia-gateway.service"
+)
 
 var plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
