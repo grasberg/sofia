@@ -52,9 +52,34 @@ type DetectResult struct {
 	Agreement    float64    `json:"agreement"` // 0.0 to 1.0
 }
 
+// DefaultMaxOutputs is the maximum number of outputs to compare in conflict detection.
+// If more outputs are provided, only the first DefaultMaxOutputs are considered.
+const DefaultMaxOutputs = 20
+
+// DetectWithLimit analyzes outputs for conflicts, capping at maxOutputs.
+// Use maxOutputs <= 0 to apply the DefaultMaxOutputs limit.
+func DetectWithLimit(outputs []Output, maxOutputs int) DetectResult {
+	if maxOutputs <= 0 {
+		maxOutputs = DefaultMaxOutputs
+	}
+	if len(outputs) > maxOutputs {
+		outputs = outputs[:maxOutputs]
+	}
+	return detectOutputs(outputs)
+}
+
 // Detect analyzes a set of outputs for conflicts.
 // It compares outputs pairwise using content similarity and contradiction heuristics.
+// Outputs are capped at DefaultMaxOutputs to bound computation.
 func Detect(outputs []Output) DetectResult {
+	if len(outputs) > DefaultMaxOutputs {
+		outputs = outputs[:DefaultMaxOutputs]
+	}
+	return detectOutputs(outputs)
+}
+
+// detectOutputs is the internal implementation for conflict detection.
+func detectOutputs(outputs []Output) DetectResult {
 	if len(outputs) <= 1 {
 		return DetectResult{Agreement: 1.0}
 	}
@@ -85,10 +110,14 @@ func Detect(outputs []Output) DetectResult {
 			// Low similarity = divergence
 			if sim < 0.3 {
 				conflicts = append(conflicts, Conflict{
-					Type:        "divergence",
-					Description: fmt.Sprintf("Agents %s and %s produced significantly different outputs", a.AgentID, b.AgentID),
-					Outputs:     []Output{a, b},
-					Severity:    divergenceSeverity(sim),
+					Type: "divergence",
+					Description: fmt.Sprintf(
+						"Agents %s and %s produced significantly different outputs",
+						a.AgentID,
+						b.AgentID,
+					),
+					Outputs:  []Output{a, b},
+					Severity: divergenceSeverity(sim),
 				})
 			} else {
 				// Moderate similarity — partial overlap
@@ -246,7 +275,12 @@ func resolveByLength(outputs []Output, shortest bool) Resolution {
 	return Resolution{
 		Strategy: strategy,
 		Winner:   &winner,
-		Reason:   fmt.Sprintf("selected %s output (%d chars) from agent %s", strategy, len(winner.Content), winner.AgentID),
+		Reason: fmt.Sprintf(
+			"selected %s output (%d chars) from agent %s",
+			strategy,
+			len(winner.Content),
+			winner.AgentID,
+		),
 		Rejected: sorted[1:],
 	}
 }
@@ -331,8 +365,9 @@ func detectContradiction(a, b Output) *Conflict {
 	numsA := extractNumbers(contentA)
 	numsB := extractNumbers(contentB)
 	if len(numsA) > 0 && len(numsB) > 0 {
-		// If the texts are about similar topics but have different key numbers
-		if contentSimilarity(a.Content, b.Content) > 0.3 {
+		// If the texts are about similar topics but have different key numbers.
+		// Use 0.5 word overlap threshold to reduce false positives.
+		if contentSimilarity(a.Content, b.Content) > 0.5 {
 			for _, na := range numsA {
 				for _, nb := range numsB {
 					if na != nb && math.Abs(na-nb) > 0.01 {

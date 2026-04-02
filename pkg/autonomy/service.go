@@ -24,22 +24,33 @@ type TaskRunner func(ctx context.Context, agentID, sessionKey, task, originChann
 // LastChannelFunc returns "channel:chatID" for the user's last active channel.
 type LastChannelFunc func() string
 
+// proactiveSuggestionMinInterval is the minimum time between proactive suggestions.
+const proactiveSuggestionMinInterval = 30 * time.Minute
+
+// defaultAutonomyMaxCostPerDay is the default daily budget for autonomy LLM calls.
+const defaultAutonomyMaxCostPerDay = 1.0
+
 // Service configures and runs periodic autonomy operations (Proactive Suggestions, Research, Goal Pursuit).
 type Service struct {
-	cfg            *config.AutonomyConfig
-	memDB          *memory.MemoryDB
-	bus            *bus.MessageBus
-	provider       providers.LLMProvider
-	subMgr         *tools.SubagentManager
-	modelID        string
-	agentID        string
-	workspace      string
-	lastChannelFn  LastChannelFunc
-	push       *notifications.PushService
-	hub        *dashboard.Hub
-	taskRunner TaskRunner
-	mu         sync.Mutex
-	cancelFunc context.CancelFunc
+	cfg           *config.AutonomyConfig
+	memDB         *memory.MemoryDB
+	bus           *bus.MessageBus
+	provider      providers.LLMProvider
+	subMgr        *tools.SubagentManager
+	modelID       string
+	agentID       string
+	workspace     string
+	lastChannelFn LastChannelFunc
+	push          *notifications.PushService
+	hub           *dashboard.Hub
+	taskRunner    TaskRunner
+	mu            sync.Mutex
+	cancelFunc    context.CancelFunc
+
+	// Budget tracking (#20)
+	budgetSpent         float64
+	budgetResetDate     time.Time
+	lastProactiveSuggestion time.Time
 }
 
 // NewService instantiates the autonomy service for a specific agent.
@@ -150,7 +161,40 @@ func (s *Service) runLoop(ctx context.Context, interval time.Duration) {
 	}
 }
 
+// checkBudget resets the daily budget if needed and returns true if budget is available.
+func (s *Service) checkBudget() bool {
+	today := time.Now().Truncate(24 * time.Hour)
+	if s.budgetResetDate.IsZero() || !today.Equal(s.budgetResetDate) {
+		s.budgetSpent = 0
+		s.budgetResetDate = today
+	}
+
+	maxCost := s.cfg.MaxCostPerDay
+	if maxCost <= 0 {
+		maxCost = defaultAutonomyMaxCostPerDay
+	}
+
+	if s.budgetSpent >= maxCost {
+		logger.InfoCF("autonomy", "Daily budget exceeded, skipping cycle", map[string]any{
+			"spent": s.budgetSpent,
+			"limit": maxCost,
+		})
+		return false
+	}
+	return true
+}
+
+// trackCost adds an estimated cost based on token usage ($0.01 per 1K tokens as safe default).
+func (s *Service) trackCost(totalTokens int) {
+	s.budgetSpent += float64(totalTokens) / 1000.0 * 0.01
+}
+
 func (s *Service) performAutonomyTasks(ctx context.Context) {
+	// Budget check before performing any work.
+	if !s.checkBudget() {
+		return
+	}
+
 	// 1. Goal pursuit — work toward active goals
 	if s.cfg.Goals {
 		s.pursueGoals(ctx)
@@ -159,6 +203,11 @@ func (s *Service) performAutonomyTasks(ctx context.Context) {
 	// 2. Proactive Suggestions & Autonomous Research
 	if s.cfg.Suggestions || s.cfg.Research {
 		s.evaluateRecentActivity(ctx)
+	}
+
+	// 3. Context trigger evaluation — check recent messages against triggers
+	if s.cfg.ContextTriggers {
+		s.evaluateContextTriggers(ctx)
 	}
 }
 
@@ -289,6 +338,11 @@ Or respond with NO_ACTION if nothing to do.`, goalsSummary.String())
 		{Role: "user", Content: prompt},
 	}
 
+	// Budget check before LLM call.
+	if !s.checkBudget() {
+		return stepResultError
+	}
+
 	resp, err := s.provider.Chat(ctx, messages, nil, s.modelID, map[string]any{
 		"max_tokens":  500,
 		"temperature": 0.3,
@@ -296,6 +350,11 @@ Or respond with NO_ACTION if nothing to do.`, goalsSummary.String())
 	if err != nil || len(resp.Content) == 0 {
 		logger.WarnCF("autonomy", "Goal planner LLM call failed", map[string]any{"error": fmt.Sprintf("%v", err)})
 		return stepResultError
+	}
+
+	// Track cost of this LLM call.
+	if resp.Usage != nil {
+		s.trackCost(resp.Usage.TotalTokens)
 	}
 
 	content := strings.TrimSpace(resp.Content)
@@ -498,6 +557,19 @@ func (s *Service) broadcast(data map[string]any) {
 }
 
 func (s *Service) evaluateRecentActivity(ctx context.Context) {
+	// Rate limit proactive suggestions (#21).
+	if !s.lastProactiveSuggestion.IsZero() && time.Since(s.lastProactiveSuggestion) < proactiveSuggestionMinInterval {
+		logger.DebugCF("autonomy", "Proactive suggestion skipped, too recent", map[string]any{
+			"last": s.lastProactiveSuggestion.Format(time.RFC3339),
+		})
+		return
+	}
+
+	// Budget check before LLM call (#20).
+	if !s.checkBudget() {
+		return
+	}
+
 	// Look at recent sessions to see if there is an open question or idle state where a proactive tip helps.
 	sessions, err := s.memDB.ListSessions()
 	if err != nil || len(sessions) == 0 {
@@ -532,7 +604,8 @@ func (s *Service) evaluateRecentActivity(ctx context.Context) {
 		sb.WriteString(fmt.Sprintf("%s: %s\n", m.Role, m.Content))
 	}
 
-	prompt := fmt.Sprintf(`Analyze the recent conversation context and determine if a proactive suggestion or autonomous research would be highly beneficial to the user right now.
+	prompt := fmt.Sprintf(
+		`Analyze the recent conversation context and determine if a proactive suggestion or autonomous research would be highly beneficial to the user right now.
 
 Recent Context:
 %s
@@ -542,7 +615,9 @@ Instructions:
 2. If the user was building something, suggest the next logical component.
 3. If there is no obvious high-value proactive action to take, reply ONLY with "NO_SUGGESTION".
 4. If you DO have a proactive plan, outline it briefly.
-`, sb.String())
+`,
+		sb.String(),
+	)
 
 	messagesToLLM := []providers.Message{
 		{Role: "user", Content: prompt},
@@ -558,32 +633,46 @@ Instructions:
 		return
 	}
 
+	// Track cost of this LLM call.
+	if resp.Usage != nil {
+		s.trackCost(resp.Usage.TotalTokens)
+	}
+
 	content := resp.Content
 	if content == "NO_SUGGESTION" || strings.TrimSpace(content) == "" {
 		return
 	}
 
+	// Update last suggestion timestamp for rate limiting.
+	s.lastProactiveSuggestion = time.Now()
+
 	logger.InfoCF("autonomy", "Proactive generation triggered", map[string]any{"response": content})
 
 	// Inject this thought into the memory bus so the agent wakes up and messages the user
 	s.bus.PublishInbound(bus.InboundMessage{
-		Channel:    "cli", // Assuming we route to cli/default or similar system channel
-		ChatID:     "proactive",
-		SenderID:   "autonomy_service",
-		Content:    fmt.Sprintf("[PROACTIVE THOUGHT] Based on recent activity, I've had an idea:\n%s\n\nTake action on this using your tools, or simply send the suggestion to the user.", content),
+		Channel:  "cli", // Assuming we route to cli/default or similar system channel
+		ChatID:   "proactive",
+		SenderID: "autonomy_service",
+		Content: fmt.Sprintf(
+			"[PROACTIVE THOUGHT] Based on recent activity, I've had an idea:\n%s\n\nTake action on this using your tools, or simply send the suggestion to the user.",
+			content,
+		),
 		SessionKey: topSession.Key, // inject directly into their ongoing session
 	})
 
 	// Broadcast to web UI so the notification inbox captures it
 	s.broadcast(map[string]any{
-		"type":    "proactive_suggestion",
-		"content": content,
+		"type":     "proactive_suggestion",
+		"content":  content,
 		"agent_id": s.agentID,
 	})
 
 	// Send an OS desktop push notification so the user knows Sofia is thinking about them
 	if s.push != nil {
-		_ = s.push.Send("Sofia: Proactive Suggestion", "I have an idea based on your recent activity. Check the web UI to review.")
+		_ = s.push.Send(
+			"Sofia: Proactive Suggestion",
+			"I have an idea based on your recent activity. Check the web UI to review.",
+		)
 	}
 }
 
@@ -592,4 +681,78 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// evaluateContextTriggers checks recent session messages against active context triggers.
+// When a trigger's condition matches, its action is executed via the task runner.
+func (s *Service) evaluateContextTriggers(ctx context.Context) {
+	tm := NewTriggerManager(s.memDB)
+	triggers, err := tm.ListActiveTriggers(s.agentID)
+	if err != nil || len(triggers) == 0 {
+		return
+	}
+
+	// Get recent messages from last active session
+	lastCh := ""
+	if s.lastChannelFn != nil {
+		lastCh = s.lastChannelFn()
+	}
+	if lastCh == "" {
+		return
+	}
+
+	sessionKey := fmt.Sprintf("%s:%s", s.agentID, lastCh)
+	recentContent := s.getRecentSessionContent(sessionKey, 5)
+	if recentContent == "" {
+		return
+	}
+
+	for _, triggerAny := range triggers {
+		t, ok := triggerAny.(*ContextTrigger)
+		if !ok {
+			continue
+		}
+		if matchesTriggerCondition(recentContent, t.Condition) {
+			logger.InfoCF("autonomy", "Context trigger fired",
+				map[string]any{"trigger": t.Name, "condition": t.Condition})
+
+			if s.taskRunner != nil {
+				taskCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+				_, err := s.taskRunner(taskCtx, s.agentID, sessionKey, t.Action, "", "")
+				cancel()
+				if err != nil {
+					logger.WarnCF("autonomy", "Context trigger action failed",
+						map[string]any{"trigger": t.Name, "error": err.Error()})
+				}
+			}
+		}
+	}
+}
+
+// getRecentSessionContent returns concatenated content of recent user messages.
+func (s *Service) getRecentSessionContent(sessionKey string, count int) string {
+	if s.memDB == nil {
+		return ""
+	}
+	messages, err := s.memDB.GetMessages(sessionKey)
+	if err != nil || len(messages) == 0 {
+		return ""
+	}
+	// Take only the last N user messages
+	var parts []string
+	for i := len(messages) - 1; i >= 0 && len(parts) < count; i-- {
+		if messages[i].Role == "user" {
+			parts = append(parts, messages[i].Content)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// matchesTriggerCondition checks if content matches the trigger's condition string.
+// Uses case-insensitive substring matching.
+func matchesTriggerCondition(content, condition string) bool {
+	return strings.Contains(
+		strings.ToLower(content),
+		strings.ToLower(condition),
+	)
 }

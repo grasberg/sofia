@@ -224,8 +224,8 @@ func (al *AgentLoop) ProcessHeartbeat(ctx context.Context, content, channel, cha
 		DefaultResponse: defaultResponse,
 		EnableSummary:   false,
 		SendResponse:    false,
-		NoHistory:       true,                    // Don't load session history for heartbeat
-		ModelOverride:   al.cfg.Heartbeat.Model,  // Use dedicated heartbeat model if configured
+		NoHistory:       true,                   // Don't load session history for heartbeat
+		ModelOverride:   al.cfg.Heartbeat.Model, // Use dedicated heartbeat model if configured
 	})
 }
 
@@ -287,7 +287,11 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 				pattern := re.String()
 				if al.cfg.Guardrails.PromptInjection.Action == "block" {
 					errMsg := "Error: input rejected due to potential prompt injection attempt."
-					logger.WarnCF("agent:main", "Guardrail blocked input: prompt injection blocked", map[string]any{"pattern": pattern})
+					logger.WarnCF(
+						"agent:main",
+						"Guardrail blocked input: prompt injection blocked",
+						map[string]any{"pattern": pattern},
+					)
 					logger.Audit("Prompt Injection Blocked", map[string]any{
 						"pattern": pattern,
 						"sender":  msg.SenderID,
@@ -296,7 +300,11 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 					return errMsg, nil
 				} else {
 					// Warn action - just log it and maybe append a strong warning to the system prompt later
-					logger.WarnCF("agent:main", "Guardrail detected potential prompt injection", map[string]any{"pattern": pattern})
+					logger.WarnCF(
+						"agent:main",
+						"Guardrail detected potential prompt injection",
+						map[string]any{"pattern": pattern},
+					)
 					logger.Audit("Prompt Injection Detected (Warn)", map[string]any{
 						"pattern": pattern,
 						"sender":  msg.SenderID,
@@ -624,11 +632,25 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 				copy.ModelID = modelID
 				copy.Provider = prov
 				agent = &copy
-				logger.InfoCF(fmt.Sprintf("agent:%s", agent.ID),
-					fmt.Sprintf("Model override applied: %s (%s) with dedicated provider", opts.ModelOverride, modelID), nil)
+				logger.InfoCF(
+					fmt.Sprintf("agent:%s", agent.ID),
+					fmt.Sprintf(
+						"Model override applied: %s (%s) with dedicated provider",
+						opts.ModelOverride,
+						modelID,
+					),
+					nil,
+				)
 			} else {
-				logger.WarnCF(fmt.Sprintf("agent:%s", agent.ID),
-					fmt.Sprintf("Failed to create provider for override model %s: %v", opts.ModelOverride, provErr), nil)
+				logger.WarnCF(
+					fmt.Sprintf("agent:%s", agent.ID),
+					fmt.Sprintf(
+						"Failed to create provider for override model %s: %v",
+						opts.ModelOverride,
+						provErr,
+					),
+					nil,
+				)
 			}
 		} else {
 			// Not in model_list — resolve as a raw model ID on the existing provider
@@ -737,11 +759,66 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 				"session_key": opts.SessionKey,
 			})
 	}
+	// 4a. Auto-escalation: adjust iteration limits and model based on message complexity
+	if al.cfg.Agents.Defaults.AutoEscalation.Enabled {
+		complexity := DetectComplexity(opts.UserMessage)
+		needsCopy := false
+		agentCopy := *agent
+
+		if complexity.MaxIterations > 0 && complexity.MaxIterations != agent.MaxIterations {
+			agentCopy.MaxIterations = complexity.MaxIterations
+			needsCopy = true
+		}
+
+		// Smart model routing: use fallback model for simple messages
+		if al.cfg.Agents.Defaults.AutoEscalation.SmartModelRouting &&
+			complexity.ModelTier == ModelTierFallback &&
+			len(agent.Fallbacks) > 0 {
+			fallbackModel := agent.Fallbacks[0]
+			mc, mcErr := al.cfg.GetModelConfig(fallbackModel)
+			if mcErr == nil && mc != nil {
+				prov, modelID, provErr := providers.CreateProviderFromConfig(mc)
+				if provErr == nil {
+					agentCopy.Model = fallbackModel
+					agentCopy.ModelID = modelID
+					agentCopy.Provider = prov
+					needsCopy = true
+					logger.InfoCF(agentComp, "Smart routing: using fallback model for simple message",
+						map[string]any{"model": fallbackModel})
+				}
+			}
+		}
+
+		if needsCopy {
+			agent = &agentCopy
+			logger.DebugCF(agentComp, "Auto-escalation applied",
+				map[string]any{
+					"level":          complexity.Level,
+					"max_iterations": agentCopy.MaxIterations,
+					"model":          agentCopy.Model,
+				})
+		}
+	}
+
 	llmStart := time.Now()
 	finalContent, iteration, errorCount, err := al.runLLMIteration(ctx, agent, messages, opts)
 	llmDur := time.Since(llmStart).Milliseconds()
 	if err != nil {
 		return "", err
+	}
+
+	// 4b. Evaluation loop — score response and retry if below threshold
+	if al.cfg.Agents.Defaults.EvaluationLoop.Enabled && !opts.NoHistory && finalContent != "" {
+		evalLoop := NewEvaluationLoop(al.memDB, agent.ID, al.cfg.Agents.Defaults.EvaluationLoop)
+		improved, evalErr := evalLoop.EvaluateAndRetry(
+			ctx, agent, messages, opts, al, finalContent, iteration, errorCount, llmDur,
+		)
+		if evalErr != nil {
+			logger.WarnCF(agentComp, "Evaluation loop error, keeping original response",
+				map[string]any{"error": evalErr.Error()})
+		} else if improved != "" {
+			finalContent = improved
+		}
 	}
 
 	// If last tool had ForUser content and we already sent it, we might not need to send final response
@@ -768,7 +845,7 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 
 	// 7b. Learn from feedback (#8) — detect correction patterns in user message
 	if al.cfg.Agents.Defaults.LearnFromFeedback {
-		al.maybLearnFromFeedback(agent, opts.UserMessage)
+		al.maybeLearnFromFeedback(agent, opts.UserMessage)
 	}
 
 	// 7c. Post-task self-reflection
@@ -786,14 +863,22 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 			if al.cfg.Guardrails.OutputFiltering.Action == "block" {
 				if re.MatchString(finalContent) {
 					finalContent = "[CONTENT BLOCKED BY OUTPUT FILTER]"
-					logger.WarnCF(agentComp, "Guardrail blocked output: pattern match", map[string]any{"pattern": pattern})
+					logger.WarnCF(
+						agentComp,
+						"Guardrail blocked output: pattern match",
+						map[string]any{"pattern": pattern},
+					)
 					break
 				}
 			} else {
 				// Default to redact
 				if re.MatchString(finalContent) {
 					finalContent = re.ReplaceAllString(finalContent, "[REDACTED]")
-					logger.WarnCF(agentComp, "Guardrail redacted output: pattern match", map[string]any{"pattern": pattern})
+					logger.WarnCF(
+						agentComp,
+						"Guardrail redacted output: pattern match",
+						map[string]any{"pattern": pattern},
+					)
 				}
 			}
 		}

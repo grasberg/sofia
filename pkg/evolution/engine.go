@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/grasberg/sofia/pkg/config"
@@ -19,6 +22,14 @@ import (
 	"github.com/grasberg/sofia/pkg/reputation"
 	"github.com/grasberg/sofia/pkg/utils"
 )
+
+// Proposal represents a pending evolution action that requires human approval.
+type Proposal struct {
+	ID        string          `json:"id"`
+	Action    EvolutionAction `json:"action"`
+	CreatedAt time.Time       `json:"created_at"`
+	Status    string          `json:"status"` // "pending", "approved", "rejected"
+}
 
 // EvolutionEngine implements the 5-phase observe-diagnose-plan-act-verify loop
 // that continuously evolves the agent system.
@@ -37,12 +48,15 @@ type EvolutionEngine struct {
 	cfg        *config.EvolutionConfig
 	bus        *bus.MessageBus
 
-	mu          sync.Mutex
-	cancelFunc  context.CancelFunc
-	running     atomic.Bool
-	budgetSpent float64
-	lastRun     time.Time
-	paused      atomic.Bool
+	mu                  sync.Mutex
+	cancelFunc          context.CancelFunc
+	running             bool
+	budgetSpent         float64
+	budgetResetDate     time.Time
+	lastRun             time.Time
+	lastConsolidation   time.Time
+	paused              atomic.Bool
+	pendingProposals    []Proposal
 }
 
 // NewEvolutionEngine creates a new EvolutionEngine wired to all required dependencies.
@@ -85,13 +99,16 @@ func (e *EvolutionEngine) Start(ctx context.Context) error {
 		return nil
 	}
 
-	if e.running.Load() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.running {
 		return fmt.Errorf("evolution engine already running")
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	e.cancelFunc = cancel
-	e.running.Store(true)
+	e.running = true
 
 	interval := e.cfg.IntervalMinutes
 	if interval <= 0 {
@@ -110,17 +127,30 @@ func (e *EvolutionEngine) Start(ctx context.Context) error {
 
 // Stop shuts down the evolution engine gracefully.
 func (e *EvolutionEngine) Stop() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	if e.cancelFunc != nil {
 		e.cancelFunc()
 		e.cancelFunc = nil
 	}
-	e.running.Store(false)
+	e.running = false
 	logger.InfoCF("evolution", "Evolution engine stopped", nil)
+}
+
+// IsRunning returns whether the evolution engine is currently running.
+func (e *EvolutionEngine) IsRunning() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.running
 }
 
 // runLoop is the background goroutine that drives periodic evolution cycles.
 func (e *EvolutionEngine) runLoop(ctx context.Context, interval time.Duration) {
-	defer e.running.Store(false)
+	defer func() {
+		e.mu.Lock()
+		e.running = false
+		e.mu.Unlock()
+	}()
 
 	// 2-minute initial delay to let the system warm up.
 	select {
@@ -158,7 +188,14 @@ func (e *EvolutionEngine) runCycle(ctx context.Context) {
 		return
 	}
 
-	// Budget check: reset at midnight, skip if exceeded.
+	// Reset budget at the start of a new day.
+	today := time.Now().Truncate(24 * time.Hour)
+	if e.budgetResetDate.IsZero() || !today.Equal(e.budgetResetDate) {
+		e.budgetSpent = 0
+		e.budgetResetDate = today
+	}
+
+	// Budget check: skip if exceeded.
 	if e.cfg.MaxCostPerDay > 0 && e.budgetSpent >= e.cfg.MaxCostPerDay {
 		logger.InfoCF("evolution", "Daily budget exceeded, skipping cycle", map[string]any{
 			"spent": e.budgetSpent,
@@ -191,6 +228,16 @@ func (e *EvolutionEngine) runCycle(ctx context.Context) {
 
 	// Phase 5: Verify
 	e.verify(ctx)
+
+	// Phase 6: Periodic memory consolidation
+	if e.cfg.MemoryConsolidation {
+		e.maybeConsolidate()
+	}
+
+	// Phase 7: Skill auto-improvement
+	if e.cfg.SkillAutoImprove && e.cfg.SelfModifyEnabled {
+		e.improveSkills(ctx)
+	}
 
 	e.lastRun = time.Now()
 	logger.InfoCF("evolution", "Evolution cycle complete", map[string]any{
@@ -288,9 +335,9 @@ func (e *EvolutionEngine) diagnose(ctx context.Context, report ObservationReport
 		return Diagnosis{}, fmt.Errorf("diagnosis LLM call: %w", err)
 	}
 
-	// Estimate cost from response tokens (rough: $0.003 per 1K tokens for typical models)
+	// Estimate cost from response tokens ($0.01 per 1K tokens as safe default).
 	if resp.Usage != nil {
-		estimatedCost := float64(resp.Usage.TotalTokens) / 1000.0 * 0.003
+		estimatedCost := float64(resp.Usage.TotalTokens) / 1000.0 * 0.01
 		e.budgetSpent += estimatedCost
 	}
 
@@ -344,9 +391,9 @@ func (e *EvolutionEngine) plan(ctx context.Context, diagnosis Diagnosis) ([]Evol
 		return nil, fmt.Errorf("planning LLM call: %w", err)
 	}
 
-	// Estimate cost from response tokens (rough: $0.003 per 1K tokens for typical models)
+	// Estimate cost from response tokens ($0.01 per 1K tokens as safe default).
 	if resp.Usage != nil {
-		estimatedCost := float64(resp.Usage.TotalTokens) / 1000.0 * 0.003
+		estimatedCost := float64(resp.Usage.TotalTokens) / 1000.0 * 0.01
 		e.budgetSpent += estimatedCost
 	}
 
@@ -364,30 +411,107 @@ func (e *EvolutionEngine) plan(ctx context.Context, diagnosis Diagnosis) ([]Evol
 	return actions, nil
 }
 
+// isDestructiveAction returns true for action types that require human approval.
+func isDestructiveAction(t ActionType) bool {
+	switch t {
+	case ActionCreateAgent, ActionRetireAgent, ActionModifyWorkspace:
+		return true
+	default:
+		return false
+	}
+}
+
 // act executes each planned action and logs results to the changelog.
+// Destructive actions are queued as proposals when RequireApproval is enabled.
 func (e *EvolutionEngine) act(ctx context.Context, actions []EvolutionAction) {
 	for _, action := range actions {
-		switch action.Type {
-		case ActionCreateAgent:
-			e.actCreateAgent(ctx, action)
-		case ActionRetireAgent:
-			e.actRetireAgent(action)
-		case ActionTuneAgent:
-			e.actTuneAgent(action)
-		case ActionCreateSkill:
-			e.actCreateSkill(ctx, action)
-		case ActionModifyWorkspace:
-			e.actModifyWorkspace(ctx, action)
-		case ActionNoAction:
-			logger.DebugCF("evolution", "No action required", map[string]any{
-				"reason": action.Reason,
+		// Queue destructive actions as proposals when approval is required.
+		if e.cfg.RequireApproval && isDestructiveAction(action.Type) {
+			proposal := Proposal{
+				ID:        uuid.NewString(),
+				Action:    action,
+				CreatedAt: time.Now().UTC(),
+				Status:    "pending",
+			}
+			e.pendingProposals = append(e.pendingProposals, proposal)
+			logger.InfoCF("evolution", "Action queued as pending proposal", map[string]any{
+				"proposal_id": proposal.ID,
+				"type":        string(action.Type),
+				"reason":      action.Reason,
 			})
-		default:
-			logger.WarnCF("evolution", "Unknown action type", map[string]any{
-				"type": string(action.Type),
-			})
+			continue
+		}
+
+		e.executeAction(ctx, action)
+	}
+}
+
+// executeAction runs a single evolution action immediately.
+func (e *EvolutionEngine) executeAction(ctx context.Context, action EvolutionAction) {
+	switch action.Type {
+	case ActionCreateAgent:
+		e.actCreateAgent(ctx, action)
+	case ActionRetireAgent:
+		e.actRetireAgent(action)
+	case ActionTuneAgent:
+		e.actTuneAgent(action)
+	case ActionCreateSkill:
+		e.actCreateSkill(ctx, action)
+	case ActionModifyWorkspace:
+		e.actModifyWorkspace(ctx, action)
+	case ActionNoAction:
+		logger.DebugCF("evolution", "No action required", map[string]any{
+			"reason": action.Reason,
+		})
+	default:
+		logger.WarnCF("evolution", "Unknown action type", map[string]any{
+			"type": string(action.Type),
+		})
+	}
+}
+
+// GetPendingProposals returns all proposals awaiting human approval.
+func (e *EvolutionEngine) GetPendingProposals() []Proposal {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var pending []Proposal
+	for _, p := range e.pendingProposals {
+		if p.Status == "pending" {
+			pending = append(pending, p)
 		}
 	}
+	return pending
+}
+
+// ApproveProposal approves and executes a pending proposal.
+func (e *EvolutionEngine) ApproveProposal(ctx context.Context, id string) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for i := range e.pendingProposals {
+		if e.pendingProposals[i].ID == id && e.pendingProposals[i].Status == "pending" {
+			e.pendingProposals[i].Status = "approved"
+			e.executeAction(ctx, e.pendingProposals[i].Action)
+			return nil
+		}
+	}
+	return fmt.Errorf("proposal %s not found or not pending", id)
+}
+
+// RejectProposal rejects a pending proposal without executing it.
+func (e *EvolutionEngine) RejectProposal(id string) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for i := range e.pendingProposals {
+		if e.pendingProposals[i].ID == id && e.pendingProposals[i].Status == "pending" {
+			e.pendingProposals[i].Status = "rejected"
+			logger.InfoCF("evolution", "Proposal rejected", map[string]any{
+				"proposal_id": id,
+				"type":        string(e.pendingProposals[i].Action.Type),
+			})
+			return nil
+		}
+	}
+	return fmt.Errorf("proposal %s not found or not pending", id)
 }
 
 func (e *EvolutionEngine) actCreateAgent(ctx context.Context, action EvolutionAction) {
@@ -659,11 +783,23 @@ func (e *EvolutionEngine) Resume() {
 
 // FormatStatus returns a human-readable status summary.
 func (e *EvolutionEngine) FormatStatus() string {
+	e.mu.Lock()
+	running := e.running
+	spent := e.budgetSpent
+	lastRun := e.lastRun
+	pendingCount := 0
+	for _, p := range e.pendingProposals {
+		if p.Status == "pending" {
+			pendingCount++
+		}
+	}
+	e.mu.Unlock()
+
 	var sb strings.Builder
 	sb.WriteString("Evolution Engine Status\n")
 	sb.WriteString("======================\n")
 
-	if e.running.Load() {
+	if running {
 		sb.WriteString("State: running\n")
 	} else {
 		sb.WriteString("State: stopped\n")
@@ -675,17 +811,21 @@ func (e *EvolutionEngine) FormatStatus() string {
 		sb.WriteString("Paused: no\n")
 	}
 
-	if !e.lastRun.IsZero() {
-		sb.WriteString(fmt.Sprintf("Last run: %s\n", e.lastRun.Format(time.RFC3339)))
+	if !lastRun.IsZero() {
+		sb.WriteString(fmt.Sprintf("Last run: %s\n", lastRun.Format(time.RFC3339)))
 	} else {
 		sb.WriteString("Last run: never\n")
 	}
 
 	if e.cfg.MaxCostPerDay > 0 {
-		sb.WriteString(fmt.Sprintf("Budget: $%.2f / $%.2f\n", e.budgetSpent, e.cfg.MaxCostPerDay))
+		sb.WriteString(fmt.Sprintf("Budget: $%.2f / $%.2f\n", spent, e.cfg.MaxCostPerDay))
 	}
 
 	sb.WriteString(fmt.Sprintf("Interval: %d minutes\n", e.cfg.IntervalMinutes))
+
+	if pendingCount > 0 {
+		sb.WriteString(fmt.Sprintf("Pending proposals: %d\n", pendingCount))
+	}
 
 	return sb.String()
 }
@@ -804,10 +944,137 @@ func (e *EvolutionEngine) sendDailySummary(_ context.Context) {
 	})
 }
 
+// improveSkills runs the skill analyzer and auto-deploys high-priority improvements.
+// If RequireApproval is enabled, improvements are queued as proposals.
+func (e *EvolutionEngine) improveSkills(ctx context.Context) {
+	agentIDs := e.registrar.ListAgentIDs()
+	for _, agentID := range agentIDs {
+		analyzer := NewSkillAnalyzer(e.memDB, agentID, e.provider, "")
+		improvements, err := analyzer.AnalyzeAndSuggestImprovements(ctx, 10)
+		if err != nil || len(improvements) == 0 {
+			continue
+		}
+
+		for _, imp := range improvements {
+			if imp.Priority < 3 {
+				continue // Only auto-apply high-priority improvements
+			}
+
+			skillPath := filepath.Join(e.architect.workspace, "skills", imp.SkillName, "SKILL.md")
+			existingContent, readErr := os.ReadFile(skillPath)
+			if readErr != nil {
+				continue // Skill doesn't exist — skip, don't create
+			}
+
+			prompter := NewSkillImprovementPrompts(e.provider, "")
+			improved, genErr := prompter.GenerateSkillImprovement(ctx,
+				Suggestion{Issue: string(existingContent), Suggestion: ""},
+				Suggestion{Issue: imp.Issue, Suggestion: imp.Suggestion},
+			)
+			if genErr != nil || improved == "" {
+				continue
+			}
+
+			if e.cfg.RequireApproval {
+				e.pendingProposals = append(e.pendingProposals, Proposal{
+					ID: uuid.NewString(),
+					Action: EvolutionAction{
+						Type: ActionModifyWorkspace,
+						Params: map[string]any{
+							"path":    skillPath,
+							"content": improved,
+						},
+						Reason: fmt.Sprintf("Skill improvement: %s — %s", imp.SkillName, imp.Issue),
+					},
+					CreatedAt: time.Now().UTC(),
+					Status:    "pending",
+				})
+				logger.InfoCF("evolution", "Skill improvement queued for approval",
+					map[string]any{"skill": imp.SkillName, "issue": imp.Issue})
+				continue
+			}
+
+			if modErr := e.modifier.ModifyFile(ctx, skillPath, improved); modErr != nil {
+				logger.WarnCF("evolution", "Failed to auto-improve skill",
+					map[string]any{"skill": imp.SkillName, "error": modErr.Error()})
+			} else {
+				logger.InfoCF("evolution", "Skill auto-improved",
+					map[string]any{"skill": imp.SkillName, "issue": imp.Issue})
+			}
+		}
+	}
+}
+
 // abs returns the absolute value of an integer.
 func abs(x int) int {
 	if x < 0 {
 		return -x
 	}
 	return x
+}
+
+// maybeConsolidate runs memory consolidation if enough time has passed since
+// the last consolidation. Interval is configurable (default 6 hours).
+func (e *EvolutionEngine) maybeConsolidate() {
+	intervalH := e.cfg.ConsolidationIntervalH
+	if intervalH <= 0 {
+		intervalH = 6
+	}
+	interval := time.Duration(intervalH) * time.Hour
+	if !e.lastConsolidation.IsZero() && time.Since(e.lastConsolidation) < interval {
+		return
+	}
+
+	agentIDs := e.registrar.ListAgentIDs()
+	totalMerged, totalPruned := 0, 0
+
+	for _, agentID := range agentIDs {
+		// Step 1: Merge duplicate nodes
+		duplicates, err := e.memDB.FindDuplicateNodes(agentID)
+		if err != nil {
+			logger.WarnCF("evolution", "Consolidation: find duplicates failed",
+				map[string]any{"agent_id": agentID, "error": err.Error()})
+			continue
+		}
+		for _, cluster := range duplicates {
+			if len(cluster) < 2 {
+				continue
+			}
+			primaryIdx := 0
+			for i, n := range cluster {
+				if n.AccessCount > cluster[primaryIdx].AccessCount {
+					primaryIdx = i
+				}
+			}
+			secondaryIDs := make([]int64, 0, len(cluster)-1)
+			for i := range cluster {
+				if i != primaryIdx {
+					secondaryIDs = append(secondaryIDs, cluster[i].ID)
+				}
+			}
+			if mergeErr := e.memDB.MergeNodes(cluster[primaryIdx].ID, secondaryIDs); mergeErr == nil {
+				totalMerged += len(secondaryIDs)
+			}
+		}
+
+		// Step 2: Prune stale nodes
+		staleNodes, err := e.memDB.GetStaleNodes(agentID, 30*24*time.Hour, 2)
+		if err != nil {
+			continue
+		}
+		for _, node := range staleNodes {
+			if node.QualityScore < 0.2 && node.AccessCount < 2 {
+				if delErr := e.memDB.DeleteNode(node.ID); delErr == nil {
+					totalPruned++
+				}
+			}
+		}
+	}
+
+	e.lastConsolidation = time.Now()
+
+	if totalMerged > 0 || totalPruned > 0 {
+		logger.InfoCF("evolution", "Scheduled memory consolidation complete",
+			map[string]any{"merged": totalMerged, "pruned": totalPruned})
+	}
 }

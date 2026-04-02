@@ -71,14 +71,24 @@ func (t *ScreenshotTool) Execute(ctx context.Context, args map[string]any) *Tool
 			return ErrorResult("screenshot: no screenshot tool found. Install scrot or gnome-screenshot.")
 		}
 	case "windows":
-		// Use PowerShell to take a screenshot
+		// Use PowerShell to take a screenshot.
+		// Sanitize the output path to prevent command injection: use a fixed temp
+		// filename, then rename after capture.
+		tempName := fmt.Sprintf("sofia_screenshot_%d.png", time.Now().UnixNano())
+		tempPath := filepath.Join(os.TempDir(), tempName)
 		psCmd := fmt.Sprintf(`Add-Type -AssemblyName System.Windows.Forms; `+
 			`$bmp = New-Object System.Drawing.Bitmap([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width, [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height); `+
 			`$g = [System.Drawing.Graphics]::FromImage($bmp); `+
 			`$g.CopyFromScreen(0, 0, 0, 0, $bmp.Size); `+
 			`$bmp.Save('%s'); `+
-			`$g.Dispose(); $bmp.Dispose()`, strings.ReplaceAll(outPath, "'", "''"))
+			`$g.Dispose(); $bmp.Dispose()`, strings.ReplaceAll(tempPath, "'", "''"))
 		cmd = exec.CommandContext(ctx, "powershell", "-Command", psCmd)
+		// After running the command, rename temp file to the actual outPath.
+		defer func() {
+			if _, err := os.Stat(tempPath); err == nil {
+				_ = os.Rename(tempPath, outPath)
+			}
+		}()
 	default:
 		return ErrorResult("screenshot: unsupported platform " + runtime.GOOS)
 	}
@@ -93,6 +103,10 @@ func (t *ScreenshotTool) Execute(ctx context.Context, args map[string]any) *Tool
 		return ErrorResult("screenshot: file was not created")
 	}
 
-	result := fmt.Sprintf("Screenshot saved to: %s (%d KB)\nUse image_analyze tool to examine the screenshot content.", outPath, info.Size()/1024)
+	result := fmt.Sprintf(
+		"Screenshot saved to: %s (%d KB)\nUse image_analyze tool to examine the screenshot content.",
+		outPath,
+		info.Size()/1024,
+	)
 	return &ToolResult{ForLLM: result, ForUser: result, IsError: false}
 }

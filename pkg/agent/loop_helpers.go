@@ -19,13 +19,13 @@ import (
 )
 
 func (al *AgentLoop) startAutonomyServices(provider providers.LLMProvider, pushService *notifications.PushService) {
-	al.registryMu.RLock()
-	defer al.registryMu.RUnlock()
+	al.autonomyMu.Lock()
+	defer al.autonomyMu.Unlock()
 
 	ctx := context.Background()
 
-	for _, agentID := range al.registry.ListAgentIDs() {
-		agent, ok := al.registry.GetAgent(agentID)
+	for _, agentID := range al.getRegistry().ListAgentIDs() {
+		agent, ok := al.getRegistry().GetAgent(agentID)
 		if !ok {
 			continue
 		}
@@ -58,8 +58,8 @@ func (al *AgentLoop) startAutonomyServices(provider providers.LLMProvider, pushS
 }
 
 func (al *AgentLoop) stopAutonomyServices() {
-	al.registryMu.Lock()
-	defer al.registryMu.Unlock()
+	al.autonomyMu.Lock()
+	defer al.autonomyMu.Unlock()
 
 	for _, svc := range al.autonomyServices {
 		if svc != nil {
@@ -105,9 +105,9 @@ var correctionPatterns = []string{
 	"that is wrong",
 }
 
-// maybLearnFromFeedback checks if the user message contains correction patterns
+// maybeLearnFromFeedback checks if the user message contains correction patterns
 // and extracts preferences to store in long-term memory.
-func (al *AgentLoop) maybLearnFromFeedback(agent *AgentInstance, userMsg string) {
+func (al *AgentLoop) maybeLearnFromFeedback(agent *AgentInstance, userMsg string) {
 	if userMsg == "" || al.memDB == nil {
 		return
 	}
@@ -159,11 +159,18 @@ func (al *AgentLoop) maybLearnFromFeedback(agent *AgentInstance, userMsg string)
 
 	// Feedback-Driven Evolution: Also append directly to USER.md
 	userMDPath := filepath.Join(agent.Workspace, "USER.md")
-	f, err := os.OpenFile(userMDPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err == nil {
-		defer f.Close()
-		if _, writeErr := f.WriteString(fmt.Sprintf("\n- Auto-learned preference from feedback: %s\n", preference)); writeErr != nil {
-			logger.WarnCF("agent", "Failed to append to USER.md", map[string]any{"error": writeErr.Error()})
+	if info, statErr := os.Stat(userMDPath); statErr == nil && info.Size() > 5*1024 {
+		logger.WarnCF("agent", "USER.md exceeds 5KB, skipping append",
+			map[string]any{"size": info.Size()})
+	} else {
+		f, err := os.OpenFile(userMDPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if err == nil {
+			defer f.Close()
+			if _, writeErr := f.WriteString(
+				fmt.Sprintf("\n- Auto-learned preference from feedback: %s\n", preference),
+			); writeErr != nil {
+				logger.WarnCF("agent", "Failed to append to USER.md", map[string]any{"error": writeErr.Error()})
+			}
 		}
 	}
 }
@@ -352,19 +359,21 @@ func (al *AgentLoop) dispatchPendingSteps(ctx context.Context) {
 			map[string]any{"plan_id": planID, "step": stepIdx, "agent": agentID})
 
 		al.dashboardHub.Broadcast(map[string]any{
-			"type":            "plan_step_assigned",
-			"agent_id":        agentID,
-			"agent_name":      agentName,
-			"plan_id":         planID,
-			"step_index":      stepIdx,
+			"type":             "plan_step_assigned",
+			"agent_id":         agentID,
+			"agent_name":       agentName,
+			"plan_id":          planID,
+			"step_index":       stepIdx,
 			"step_description": utils.Truncate(description, 120),
-			"from_agent_id":   routing.DefaultAgentID,
-			"to_agent_id":     agentID,
-			"to_agent_name":   agentName,
-			"reason":          "plan_dispatch",
+			"from_agent_id":    routing.DefaultAgentID,
+			"to_agent_id":      agentID,
+			"to_agent_name":    agentName,
+			"reason":           "plan_dispatch",
 		})
 
+		al.dispatchWg.Add(1)
 		go func(pID string, sIdx int, desc, aID, aName string) {
+			defer al.dispatchWg.Done()
 			start := time.Now()
 			result, err := al.runSpawnedTaskAsAgent(ctx, aID, "", desc, "cli", "plan")
 			dur := time.Since(start).Milliseconds()
@@ -403,4 +412,3 @@ func (al *AgentLoop) dispatchPendingSteps(ctx context.Context) {
 		}(planID, stepIdx, description, agentID, agentName)
 	}
 }
-

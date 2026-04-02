@@ -11,7 +11,8 @@ import (
 // EditFileTool edits a file by replacing old_text with new_text.
 // The old_text must exist exactly in the file.
 type EditFileTool struct {
-	fs fileSystem
+	fs               fileSystem
+	stalenessTracker *FileStalenessTracker
 }
 
 // NewEditFileTool creates a new EditFileTool with optional directory restriction.
@@ -70,14 +71,31 @@ func (t *EditFileTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 		return ErrorResult("new_text is required")
 	}
 
+	if t.stalenessTracker != nil {
+		if warning := t.stalenessTracker.CheckBeforeWrite(path); warning != "" {
+			return NewToolResult(warning)
+		}
+	}
+
 	if err := editFile(t.fs, path, oldText, newText); err != nil {
 		return ErrorResult(err.Error())
 	}
+
+	if t.stalenessTracker != nil {
+		t.stalenessTracker.UpdateAfterWrite(path)
+	}
+
 	return SilentResult(fmt.Sprintf("File edited: %s", path))
 }
 
+// SetStalenessTracker sets the file staleness tracker for write checking.
+func (t *EditFileTool) SetStalenessTracker(tracker *FileStalenessTracker) {
+	t.stalenessTracker = tracker
+}
+
 type AppendFileTool struct {
-	fs fileSystem
+	fs               fileSystem
+	stalenessTracker *FileStalenessTracker
 }
 
 func NewAppendFileTool(workspace string, restrict bool) *AppendFileTool {
@@ -126,10 +144,26 @@ func (t *AppendFileTool) Execute(ctx context.Context, args map[string]any) *Tool
 		return ErrorResult("content is required")
 	}
 
+	if t.stalenessTracker != nil {
+		if warning := t.stalenessTracker.CheckBeforeWrite(path); warning != "" {
+			return NewToolResult(warning)
+		}
+	}
+
 	if err := appendFile(t.fs, path, content); err != nil {
 		return ErrorResult(err.Error())
 	}
+
+	if t.stalenessTracker != nil {
+		t.stalenessTracker.UpdateAfterWrite(path)
+	}
+
 	return SilentResult(fmt.Sprintf("Appended to %s", path))
+}
+
+// SetStalenessTracker sets the file staleness tracker for write checking.
+func (t *AppendFileTool) SetStalenessTracker(tracker *FileStalenessTracker) {
+	t.stalenessTracker = tracker
 }
 
 // editFile reads the file via sysFs, performs the replacement, and writes back.

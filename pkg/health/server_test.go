@@ -110,7 +110,8 @@ func TestRegisterCheck(t *testing.T) {
 		return true, "all good"
 	})
 
-	check, exists := s.checks["test_check"]
+	checks := s.evaluateChecks()
+	check, exists := checks["test_check"]
 	if !exists {
 		t.Fatal("expected check to be registered")
 	}

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -373,7 +374,9 @@ func (t *CpanelTool) fileUpload(ctx context.Context, args map[string]any) *ToolR
 		return ErrorResult(fmt.Sprintf("Upload error: %v", err))
 	}
 
-	return NewToolResult(fmt.Sprintf("**Uploaded** `%s` → `%s/%s`", filepath.Base(localFile), remotePath, filepath.Base(localFile)))
+	return NewToolResult(
+		fmt.Sprintf("**Uploaded** `%s` → `%s/%s`", filepath.Base(localFile), remotePath, filepath.Base(localFile)),
+	)
 }
 
 func (t *CpanelTool) fileList(ctx context.Context, args map[string]any) *ToolResult {
@@ -935,6 +938,10 @@ func (t *CpanelTool) sslInstall(ctx context.Context, args map[string]any) *ToolR
 
 // ── Generic UAPI ─────────────────────────────────────────────────────
 
+// uapiNameRe validates UAPI module and function names: must start with a letter,
+// followed by alphanumerics or underscores only. No path separators or dots allowed.
+var uapiNameRe = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
+
 func (t *CpanelTool) uapiGeneric(ctx context.Context, args map[string]any) *ToolResult {
 	module := getStr(args, "module")
 	function := getStr(args, "function")
@@ -943,6 +950,14 @@ func (t *CpanelTool) uapiGeneric(ctx context.Context, args map[string]any) *Tool
 	}
 	if function == "" {
 		return ErrorResult("function is required for uapi action (e.g. 'list_pops', 'add_pop')")
+	}
+
+	// Validate module and function names to prevent path traversal or injection.
+	if !uapiNameRe.MatchString(module) {
+		return ErrorResult("invalid module name: must start with a letter and contain only alphanumeric characters or underscores")
+	}
+	if !uapiNameRe.MatchString(function) {
+		return ErrorResult("invalid function name: must start with a letter and contain only alphanumeric characters or underscores")
 	}
 
 	params := url.Values{}

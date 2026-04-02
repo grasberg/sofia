@@ -196,9 +196,12 @@
                     <button hx-get="/ui/settings/autonomy" hx-target="#subtab-content"
                         onclick="setActiveSettingsTab(this)" id="settings-tab-autonomy"
                         class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Autonomy</button>
-                    <button hx-get="/ui/settings/budget" hx-target="#subtab-content"
+                    <button hx-get="/ui/settings/intelligence" hx-target="#subtab-content"
+                        onclick="setActiveSettingsTab(this)" id="settings-tab-intelligence"
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Intelligence</button>
+                    <!-- <button hx-get="/ui/settings/budget" hx-target="#subtab-content"
                         onclick="setActiveSettingsTab(this)" id="settings-tab-budget"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Budget</button>
+                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Budget</button> -->
                     <button hx-get="/ui/settings/tts" hx-target="#subtab-content"
                         onclick="setActiveSettingsTab(this)" id="settings-tab-tts"
                         class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">TTS</button>
@@ -355,17 +358,15 @@
                 { label: "Grok 2", model_id: "grok/grok-2-1212", api_base: "https://api.x.ai/v1" },
             ],
             "Z.ai": [
-                { label: "GLM-5", model_id: "zai/glm-5", api_base: "https://api.z.ai/api/paas/v4" },
-                { label: "GLM-4.7 FlashX", model_id: "zai/glm-4.7-flashx", api_base: "https://api.z.ai/api/paas/v4" },
-                { label: "GLM-4.5", model_id: "zai/glm-4.5", api_base: "https://api.z.ai/api/paas/v4" },
-                { label: "GLM-4.5 Air", model_id: "zai/glm-4.5-air", api_base: "https://api.z.ai/api/paas/v4" },
+                { label: "glm-5.1", model_id: "zai/glm-5.1", api_base: "https://api.z.ai/api/paas/v4" },
+                { label: "glm-4.7-flash", model_id: "zai/glm-4.7-flash", api_base: "https://api.z.ai/api/paas/v4" },
+                { label: "glm-4.5-air", model_id: "zai/glm-4.5-air", api_base: "https://api.z.ai/api/paas/v4" },
             ],
             "MiniMax": [
-                { label: "MiniMax M2.7", model_id: "minimax/MiniMax-M2.7", api_base: "https://api.minimax.io/v1" },
-                { label: "MiniMax M2.5", model_id: "minimax/MiniMax-M2.5", api_base: "https://api.minimax.io/v1" },
-                { label: "MiniMax M1 80k", model_id: "minimax/MiniMax-M1-80k", api_base: "https://api.minimax.io/v1" },
-                { label: "abab7", model_id: "minimax/abab7", api_base: "https://api.minimax.io/v1" },
-                { label: "abab6.5s", model_id: "minimax/abab6.5s", api_base: "https://api.minimax.io/v1" },
+                { label: "MiniMax-M2.7", model_id: "minimax/MiniMax-M2.7", api_base: "https://api.minimax.io/v1" },
+                { label: "MiniMax-M2.7-highspeed", model_id: "minimax/MiniMax-M2.7-highspeed", api_base: "https://api.minimax.io/v1" },
+                { label: "MiniMax-M2.5", model_id: "minimax/MiniMax-M2.5", api_base: "https://api.minimax.io/v1" },
+                { label: "MiniMax-M2.5-highspeed", model_id: "minimax/MiniMax-M2.5-highspeed", api_base: "https://api.minimax.io/v1" },
             ],
             "OpenRouter": [],
             "Custom": [],
@@ -1351,6 +1352,10 @@
         // ── Custom Skills Tag UI ──────────────────────────────────────────
         let agentCustomSkills = [];
 
+        function escapeAttr(str) {
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
         function renderSkillTags() {
             const container = document.getElementById("agent-custom-skills-tags");
             if (!container) return;
@@ -1359,8 +1364,9 @@
                 return;
             }
             container.innerHTML = agentCustomSkills.map(function (s) {
-                return "<span class='inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-sofia/10 border border-sofia/20 text-[10px] font-medium text-sofia'>" + s +
-                    "<button type='button' onclick='removeCustomSkill(\"" + s + "\")' class='ml-0.5 text-sofia/60 hover:text-red-400 transition leading-none'>&times;</button></span>";
+                var safe = escapeAttr(s);
+                return "<span class='inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-sofia/10 border border-sofia/20 text-[10px] font-medium text-sofia'>" + safe +
+                    "<button type='button' onclick='removeCustomSkill(\"" + safe + "\")' class='ml-0.5 text-sofia/60 hover:text-red-400 transition leading-none'>&times;</button></span>";
             }).join("");
         }
 
@@ -1757,6 +1763,28 @@
                     if (el('cfg-evolution-summary-time')) el('cfg-evolution-summary-time').value = cfg.evolution.daily_summary_time || '';
                     if (el('cfg-evolution-summary-channel')) el('cfg-evolution-summary-channel').value = cfg.evolution.daily_summary_channel || '';
                     if (el('cfg-evolution-summary-chatid')) el('cfg-evolution-summary-chatid').value = cfg.evolution.daily_summary_chat_id || '';
+                    if (el('cfg-evolution-memory-consolidation')) el('cfg-evolution-memory-consolidation').checked = !!cfg.evolution.memory_consolidation;
+                    if (el('cfg-evolution-consolidation-interval')) { el('cfg-evolution-consolidation-interval').value = cfg.evolution.consolidation_interval_h || 6; if (el('cfg-evolution-consolidation-interval-val')) el('cfg-evolution-consolidation-interval-val').textContent = cfg.evolution.consolidation_interval_h || 6; }
+                    if (el('cfg-evolution-skill-auto-improve')) el('cfg-evolution-skill-auto-improve').checked = !!cfg.evolution.skill_auto_improve;
+                }
+
+                // Populate Intelligence settings (agent defaults)
+                if (cfg.agents && cfg.agents.defaults) {
+                    const el = (id) => document.getElementById(id);
+                    const d = cfg.agents.defaults;
+                    if (d.evaluation_loop) {
+                        if (el('cfg-eval-loop-enabled')) el('cfg-eval-loop-enabled').checked = !!d.evaluation_loop.enabled;
+                        if (el('cfg-eval-loop-threshold')) el('cfg-eval-loop-threshold').value = d.evaluation_loop.threshold || '';
+                        if (el('cfg-eval-loop-max-retries')) el('cfg-eval-loop-max-retries').value = d.evaluation_loop.max_retries || '';
+                    }
+                    if (d.doom_loop_detection) {
+                        if (el('cfg-doom-loop-enabled')) el('cfg-doom-loop-enabled').checked = !!d.doom_loop_detection.enabled;
+                        if (el('cfg-doom-loop-threshold')) { el('cfg-doom-loop-threshold').value = d.doom_loop_detection.repetition_threshold || 3; if (el('cfg-doom-loop-threshold-val')) el('cfg-doom-loop-threshold-val').textContent = d.doom_loop_detection.repetition_threshold || 3; }
+                    }
+                    if (d.auto_escalation) {
+                        if (el('cfg-auto-escalation-enabled')) el('cfg-auto-escalation-enabled').checked = !!d.auto_escalation.enabled;
+                        if (el('cfg-smart-model-routing')) el('cfg-smart-model-routing').checked = !!d.auto_escalation.smart_model_routing;
+                    }
                 }
 
                 // Populate Autonomy settings
@@ -2607,11 +2635,12 @@
                 indicator.classList.remove("text-amber-400", "text-[10px]", "px-2", "py-0.5", "bg-amber-400/10", "border", "border-amber-400/40", "rounded");
                 indicator.classList.add("text-sofia", "text-[9px]", "hidden");
                 indicator.textContent = "Sofia is thinking...";
+                const errText = (err.message || "Unknown error").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
                 const errHtml =
                     "<div class='flex flex-col items-center py-4'>" +
                     "<div class='px-4 py-2 rounded-xl bg-red-900/10 border border-red-900/30 text-[11px] text-red-400 flex items-center gap-2'>" +
                     "<i data-lucide='alert-circle' class='w-3.5 h-3.5'></i>" +
-                    "Critical error: " + err.message +
+                    "Critical error: " + errText +
                     "</div>" +
                     "</div>";
                 chatHistory.push(errHtml);
@@ -2722,6 +2751,37 @@
                     if (evoSummaryChannel) cfg.evolution.daily_summary_channel = evoSummaryChannel.value;
                     const evoSummaryChatId = document.getElementById("cfg-evolution-summary-chatid");
                     if (evoSummaryChatId) cfg.evolution.daily_summary_chat_id = evoSummaryChatId.value.trim();
+                    const evoMemConsolidation = document.getElementById("cfg-evolution-memory-consolidation");
+                    if (evoMemConsolidation) cfg.evolution.memory_consolidation = evoMemConsolidation.checked;
+                    const evoConsolidationInterval = document.getElementById("cfg-evolution-consolidation-interval");
+                    if (evoConsolidationInterval) cfg.evolution.consolidation_interval_h = parseInt(evoConsolidationInterval.value, 10) || 6;
+                    const evoSkillAutoImprove = document.getElementById("cfg-evolution-skill-auto-improve");
+                    if (evoSkillAutoImprove) cfg.evolution.skill_auto_improve = evoSkillAutoImprove.checked;
+                }
+
+                // Save Intelligence settings (agent defaults)
+                const evalLoopEnabled = document.getElementById("cfg-eval-loop-enabled");
+                if (evalLoopEnabled) {
+                    if (!cfg.agents.defaults.evaluation_loop) cfg.agents.defaults.evaluation_loop = {};
+                    cfg.agents.defaults.evaluation_loop.enabled = evalLoopEnabled.checked;
+                    const evalThreshold = document.getElementById("cfg-eval-loop-threshold");
+                    if (evalThreshold) cfg.agents.defaults.evaluation_loop.threshold = parseFloat(evalThreshold.value) || 0.7;
+                    const evalMaxRetries = document.getElementById("cfg-eval-loop-max-retries");
+                    if (evalMaxRetries) cfg.agents.defaults.evaluation_loop.max_retries = parseInt(evalMaxRetries.value, 10) || 3;
+                }
+                const doomLoopEnabled = document.getElementById("cfg-doom-loop-enabled");
+                if (doomLoopEnabled) {
+                    if (!cfg.agents.defaults.doom_loop_detection) cfg.agents.defaults.doom_loop_detection = {};
+                    cfg.agents.defaults.doom_loop_detection.enabled = doomLoopEnabled.checked;
+                    const doomThreshold = document.getElementById("cfg-doom-loop-threshold");
+                    if (doomThreshold) cfg.agents.defaults.doom_loop_detection.repetition_threshold = parseInt(doomThreshold.value, 10) || 3;
+                }
+                const autoEscalationEnabled = document.getElementById("cfg-auto-escalation-enabled");
+                if (autoEscalationEnabled) {
+                    if (!cfg.agents.defaults.auto_escalation) cfg.agents.defaults.auto_escalation = {};
+                    cfg.agents.defaults.auto_escalation.enabled = autoEscalationEnabled.checked;
+                    const smartRouting = document.getElementById("cfg-smart-model-routing");
+                    if (smartRouting) cfg.agents.defaults.auto_escalation.smart_model_routing = smartRouting.checked;
                 }
 
                 // Save Autonomy settings

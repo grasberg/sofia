@@ -11,10 +11,10 @@ import (
 
 // DigestConfig configures digest generation.
 type DigestConfig struct {
-	Period        string `json:"period"`           // "daily", "weekly"
-	Channel       string `json:"channel"`          // target channel for delivery
-	ChatID        string `json:"chat_id"`          // target chat
-	AgentID       string `json:"agent_id"`         // which agent generates
+	Period        string `json:"period"`   // "daily", "weekly"
+	Channel       string `json:"channel"`  // target channel for delivery
+	ChatID        string `json:"chat_id"`  // target chat
+	AgentID       string `json:"agent_id"` // which agent generates
 	IncludeMemory bool   `json:"include_memory"`
 	IncludeUsage  bool   `json:"include_usage"`
 }

@@ -375,12 +375,28 @@ func (m *Manager) ConcludeExperiment(name, winner string) error {
 	return err
 }
 
-// DeleteExperiment removes an experiment and all related data.
+// DeleteExperiment removes an experiment and all related data (variants and trials).
 func (m *Manager) DeleteExperiment(name string) error {
-	_, err := m.db.Exec(
-		`DELETE FROM ab_experiments WHERE name = ?`, name,
-	)
-	return err
+	// Look up the experiment ID first.
+	row := m.db.QueryRow(`SELECT id FROM ab_experiments WHERE name = ?`, name)
+	var expID int64
+	if err := row.Scan(&expID); err != nil {
+		return fmt.Errorf("experiment %q not found", name)
+	}
+
+	// Delete child rows explicitly, then the experiment itself.
+	// The MemoryDB has foreign_keys ON with ON DELETE CASCADE, but we delete
+	// explicitly to be safe regardless of PRAGMA state.
+	if _, err := m.db.Exec(`DELETE FROM ab_trials WHERE experiment_id = ?`, expID); err != nil {
+		return fmt.Errorf("delete trials: %w", err)
+	}
+	if _, err := m.db.Exec(`DELETE FROM ab_variants WHERE experiment_id = ?`, expID); err != nil {
+		return fmt.Errorf("delete variants: %w", err)
+	}
+	if _, err := m.db.Exec(`DELETE FROM ab_experiments WHERE id = ?`, expID); err != nil {
+		return fmt.Errorf("delete experiment: %w", err)
+	}
+	return nil
 }
 
 func (m *Manager) getVariants(experimentID int64) ([]Variant, error) {

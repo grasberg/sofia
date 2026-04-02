@@ -28,7 +28,7 @@ func TestAgentStore_SaveAndGet(t *testing.T) {
 			Name: "Test Agent",
 		},
 		PurposePrompt: "help with testing",
-		ModelID:        "gpt-4o",
+		ModelID:       "gpt-4o",
 	}
 
 	err := store.Save("test-agent", cfg)

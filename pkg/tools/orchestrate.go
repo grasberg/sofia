@@ -151,9 +151,10 @@ func (t *OrchestrateTool) Execute(ctx context.Context, args map[string]any) *Too
 
 	// Execute in dependency order
 	completed := make(map[string]bool)
+	failed := make(map[string]bool)
 	var mu sync.Mutex
 
-	for len(completed) < len(tasks) {
+	for len(completed)+len(failed) < len(tasks) {
 		// Find tasks ready to run (all dependencies satisfied)
 		var ready []*OrchestrationTask
 		for i := range tasks {
@@ -161,6 +162,22 @@ func (t *OrchestrateTool) Execute(ctx context.Context, args map[string]any) *Too
 			if task.Status != "pending" {
 				continue
 			}
+
+			// Check if any dependency has failed
+			depFailed := false
+			for _, dep := range task.DependsOn {
+				if failed[dep] {
+					depFailed = true
+					break
+				}
+			}
+			if depFailed {
+				task.Status = "failed"
+				task.Result = "Skipped: dependency failed"
+				failed[task.ID] = true
+				continue
+			}
+
 			allDepsSatisfied := true
 			for _, dep := range task.DependsOn {
 				if !completed[dep] {
@@ -210,6 +227,7 @@ func (t *OrchestrateTool) Execute(ctx context.Context, args map[string]any) *Too
 				if err != nil {
 					ot.Status = "failed"
 					ot.Result = fmt.Sprintf("Error: %v", err)
+					failed[ot.ID] = true
 				} else {
 					ot.Status = "completed"
 					ot.Result = result
@@ -257,6 +275,9 @@ func (t *OrchestrateTool) Execute(ctx context.Context, args map[string]any) *Too
 		sb.WriteString(fmt.Sprintf("All %d tasks completed successfully.", len(tasks)))
 	} else {
 		sb.WriteString(fmt.Sprintf("Completed %d/%d tasks.", len(completed), len(tasks)))
+		if len(failed) > 0 {
+			sb.WriteString(fmt.Sprintf(" %d task(s) failed.", len(failed)))
+		}
 	}
 
 	// Conflict detection: analyze completed task outputs for disagreements
@@ -278,7 +299,11 @@ func (t *OrchestrateTool) Execute(ctx context.Context, args map[string]any) *Too
 			sb.WriteString("\nUse the conflict_resolve tool to resolve these conflicts, ")
 			sb.WriteString("or review the outputs manually to determine the correct result.")
 		} else {
-			fmt.Fprintf(&sb, "\n\nNo conflicts detected among task outputs (agreement: %.0f%%).", detection.Agreement*100)
+			fmt.Fprintf(
+				&sb,
+				"\n\nNo conflicts detected among task outputs (agreement: %.0f%%).",
+				detection.Agreement*100,
+			)
 		}
 	}
 

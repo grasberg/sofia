@@ -266,8 +266,18 @@ func (hs *HeartbeatService) isScheduleActive() bool {
 				// Convert current time to a comparable time of day limit (same 0 year trick)
 				nowTime, _ := time.Parse("15:04", now.Format("15:04"))
 
-				if nowTime.Before(startParsed) || nowTime.After(endParsed) {
-					return false
+				if endParsed.Before(startParsed) {
+					// Midnight-crossing range (e.g. "22:00-06:00"):
+					// active if now >= start OR now <= end.
+					if nowTime.Before(startParsed) && nowTime.After(endParsed) {
+						return false
+					}
+				} else {
+					// Normal range (e.g. "09:00-17:00"):
+					// active if now >= start AND now <= end.
+					if nowTime.Before(startParsed) || nowTime.After(endParsed) {
+						return false
+					}
 				}
 			}
 		}

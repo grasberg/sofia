@@ -127,6 +127,12 @@ func (sl *SkillsLoader) ListSkills() []SkillInfo {
 }
 
 func (sl *SkillsLoader) LoadSkill(name string) (string, bool) {
+	// Reject names that could escape the skills directory.
+	if !namePattern.MatchString(name) || strings.Contains(name, "/") ||
+		strings.Contains(name, "\\") || strings.Contains(name, "..") {
+		return "", false
+	}
+
 	// 1. load from workspace skills first (project-level)
 	if sl.workspaceSkills != "" {
 		skillFile := filepath.Join(sl.workspaceSkills, name, "SKILL.md")

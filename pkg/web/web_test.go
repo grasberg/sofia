@@ -116,6 +116,6 @@ func TestDashboardHubBroadcastInvalidJSON(t *testing.T) {
 	hub := NewDashboardHub()
 
 	// Channel that returns error on marshal
-	ch := make(chan interface{})
+	ch := make(chan any)
 	hub.Broadcast(ch) // This should fail to marshal but not panic
 }

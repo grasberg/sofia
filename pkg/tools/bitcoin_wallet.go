@@ -26,24 +26,24 @@ import (
 type walletFile struct {
 	Version          int    `json:"version"`
 	Network          string `json:"network"`
-	EncryptedSeed    string `json:"encrypted_seed"`    // hex AES-256-GCM ciphertext
-	Salt             string `json:"salt"`               // hex scrypt salt
-	Nonce            string `json:"nonce"`              // hex GCM nonce
+	EncryptedSeed    string `json:"encrypted_seed"` // hex AES-256-GCM ciphertext
+	Salt             string `json:"salt"`           // hex scrypt salt
+	Nonce            string `json:"nonce"`          // hex GCM nonce
 	NextReceiveIndex uint32 `json:"next_receive_index"`
 	NextChangeIndex  uint32 `json:"next_change_index"`
 }
 
 // HDWallet is an in-memory BIP84 HD wallet.
 type HDWallet struct {
-	mu           sync.Mutex
-	seed         []byte
-	masterKey    *hdkeychain.ExtendedKey
-	network      string
-	netParams    *chaincfg.Params
-	filePath     string
-	passphrase   string
-	nextReceive  uint32
-	nextChange   uint32
+	mu          sync.Mutex
+	seed        []byte
+	masterKey   *hdkeychain.ExtendedKey
+	network     string
+	netParams   *chaincfg.Params
+	filePath    string
+	passphrase  string
+	nextReceive uint32
+	nextChange  uint32
 }
 
 // netParamsFor returns chaincfg params for the given network name.
@@ -398,8 +398,9 @@ type walletUTXO struct {
 // ── Encryption helpers ───────────────────────────────────────────────
 
 // deriveKey derives a 32-byte AES key from a passphrase using scrypt.
+// N=1<<17 (131072), r=8, p=1 provides strong resistance against brute-force attacks.
 func deriveKey(passphrase string, salt []byte) ([]byte, error) {
-	return scrypt.Key([]byte(passphrase), salt, 1<<15, 8, 1, 32)
+	return scrypt.Key([]byte(passphrase), salt, 1<<17, 8, 1, 32)
 }
 
 // encryptAESGCM encrypts plaintext with AES-256-GCM.

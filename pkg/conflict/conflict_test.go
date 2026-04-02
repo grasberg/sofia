@@ -198,9 +198,9 @@ func TestResolveEmpty(t *testing.T) {
 
 func TestContentSimilarity(t *testing.T) {
 	tests := []struct {
-		a, b     string
-		minSim   float64
-		maxSim   float64
+		a, b   string
+		minSim float64
+		maxSim float64
 	}{
 		{"hello world", "hello world", 1.0, 1.0},
 		{"", "", 1.0, 1.0},
@@ -243,8 +243,10 @@ func TestFormatDetectResult(t *testing.T) {
 	dr := DetectResult{
 		HasConflicts: true,
 		Conflicts: []Conflict{
-			{Type: "contradiction", Severity: "high", Description: "test conflict",
-				Outputs: []Output{{AgentID: "a1", Content: "yes"}, {AgentID: "a2", Content: "no"}}},
+			{
+				Type: "contradiction", Severity: "high", Description: "test conflict",
+				Outputs: []Output{{AgentID: "a1", Content: "yes"}, {AgentID: "a2", Content: "no"}},
+			},
 		},
 		Agreement: 0.5,
 	}

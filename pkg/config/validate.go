@@ -7,7 +7,10 @@ import (
 
 // Validate checks the configuration for common errors and returns the first issue found.
 // It is called automatically after loading config from disk.
+// Zero-value fields are given sensible defaults before validation runs.
 func (c *Config) Validate() error {
+	c.applyDefaults()
+
 	if err := c.validateAgents(); err != nil {
 		return fmt.Errorf("agents: %w", err)
 	}
@@ -24,6 +27,53 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("guardrails: %w", err)
 	}
 
+	if err := c.validatePorts(); err != nil {
+		return err
+	}
+
+	if err := c.validateIntervals(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// applyDefaults fills in zero-value config fields with sensible defaults.
+func (c *Config) applyDefaults() {
+	if c.Agents.Defaults.MaxTokens == 0 {
+		c.Agents.Defaults.MaxTokens = 4096
+	}
+	if c.Agents.Defaults.MaxToolIterations == 0 {
+		c.Agents.Defaults.MaxToolIterations = 25
+	}
+}
+
+// validatePorts checks that configured ports are in the valid range 1-65535.
+func (c *Config) validatePorts() error {
+	if c.WebUI.Enabled && c.WebUI.Port != 0 {
+		if c.WebUI.Port < 1 || c.WebUI.Port > 65535 {
+			return fmt.Errorf("webui.port must be between 1 and 65535, got %d", c.WebUI.Port)
+		}
+	}
+	if c.RemoteAccess.Enabled && c.RemoteAccess.Port != 0 {
+		if c.RemoteAccess.Port < 1 || c.RemoteAccess.Port > 65535 {
+			return fmt.Errorf("remote_access.port must be between 1 and 65535, got %d", c.RemoteAccess.Port)
+		}
+	}
+	return nil
+}
+
+// validateIntervals checks that enabled features have sane minimum intervals.
+func (c *Config) validateIntervals() error {
+	if c.Heartbeat.Enabled && c.Heartbeat.Interval != 0 && c.Heartbeat.Interval < 5 {
+		return fmt.Errorf("heartbeat.interval must be at least 5 minutes, got %d", c.Heartbeat.Interval)
+	}
+	if c.Autonomy.Enabled && c.Autonomy.IntervalMinutes != 0 && c.Autonomy.IntervalMinutes < 1 {
+		return fmt.Errorf("autonomy.interval_minutes must be at least 1, got %d", c.Autonomy.IntervalMinutes)
+	}
+	if c.Evolution.Enabled && c.Evolution.IntervalMinutes != 0 && c.Evolution.IntervalMinutes < 5 {
+		return fmt.Errorf("evolution.interval_minutes must be at least 5, got %d", c.Evolution.IntervalMinutes)
+	}
 	return nil
 }
 

@@ -8,7 +8,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"sync"
 	"time"
 
 	"github.com/grasberg/sofia/pkg/logger"
@@ -28,8 +31,8 @@ const (
 // WebhookConfig configures an outbound webhook.
 type WebhookConfig struct {
 	URL     string   `json:"url"`
-	Secret  string   `json:"secret,omitempty"`  // for HMAC signing
-	Events  []string `json:"events"`            // which events to send
+	Secret  string   `json:"secret,omitempty"` // for HMAC signing
+	Events  []string `json:"events"`           // which events to send
 	Enabled bool     `json:"enabled"`
 }
 
@@ -44,9 +47,11 @@ type WebhookPayload struct {
 
 // WebhookDispatcher sends events to configured webhook endpoints.
 type WebhookDispatcher struct {
-	webhooks []WebhookConfig
-	client   *http.Client
-	sem      chan struct{} // concurrency limiter
+	webhooks     []WebhookConfig
+	client       *http.Client
+	sem          chan struct{} // concurrency limiter
+	wg           sync.WaitGroup
+	allowPrivate bool // skip private IP check (for tests)
 }
 
 // NewWebhookDispatcher creates a dispatcher for the given webhook configs.
@@ -58,6 +63,11 @@ func NewWebhookDispatcher(webhooks []WebhookConfig) *WebhookDispatcher {
 		},
 		sem: make(chan struct{}, 10), // max 10 concurrent webhook deliveries
 	}
+}
+
+// Close waits for all in-flight webhook dispatches to complete.
+func (wd *WebhookDispatcher) Close() {
+	wd.wg.Wait()
 }
 
 // Dispatch sends an event to all matching, enabled webhooks asynchronously.
@@ -79,7 +89,9 @@ func (wd *WebhookDispatcher) Dispatch(event string, agentID, channel string, dat
 		}
 		select {
 		case wd.sem <- struct{}{}:
+			wd.wg.Add(1)
 			go func(wh WebhookConfig, payload WebhookPayload) {
+				defer wd.wg.Done()
 				defer func() { <-wd.sem }()
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
@@ -102,9 +114,14 @@ func (wd *WebhookDispatcher) Dispatch(event string, agentID, channel string, dat
 }
 
 // dispatchSingle sends a single webhook POST with optional HMAC-SHA256 signing.
+// The URL is validated (scheme and host) before sending to prevent SSRF.
 func (wd *WebhookDispatcher) dispatchSingle(
 	ctx context.Context, wh WebhookConfig, payload WebhookPayload,
 ) error {
+	if err := validateWebhookURL(wh.URL, wd.allowPrivate); err != nil {
+		return fmt.Errorf("webhook URL rejected: %w", err)
+	}
+
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal payload: %w", err)
@@ -133,6 +150,65 @@ func (wd *WebhookDispatcher) dispatchSingle(
 		return fmt.Errorf("unexpected status %d from %s", resp.StatusCode, wh.URL)
 	}
 	return nil
+}
+
+// validateWebhookURL checks that a webhook URL uses http(s) and does not
+// resolve to a private/loopback IP address (SSRF protection).
+// When allowPrivate is true, the private IP check is skipped.
+func validateWebhookURL(rawURL string, allowPrivate bool) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("unsupported scheme %q: must be http or https", u.Scheme)
+	}
+	host := u.Hostname()
+	if host == "" {
+		return fmt.Errorf("missing hostname")
+	}
+	if !allowPrivate {
+		addrs, err := net.LookupHost(host)
+		if err != nil {
+			return fmt.Errorf("DNS lookup failed for %q: %w", host, err)
+		}
+		for _, addr := range addrs {
+			ip := net.ParseIP(addr)
+			if ip == nil {
+				continue
+			}
+			if isPrivateIP(ip) {
+				return fmt.Errorf("webhook URL resolves to private IP %s", addr)
+			}
+		}
+	}
+	return nil
+}
+
+// isPrivateIP returns true for loopback, link-local, and RFC-1918 private addresses.
+func isPrivateIP(ip net.IP) bool {
+	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+		return true
+	}
+	privateRanges := []struct {
+		network *net.IPNet
+	}{
+		{parseCIDR("10.0.0.0/8")},
+		{parseCIDR("172.16.0.0/12")},
+		{parseCIDR("192.168.0.0/16")},
+		{parseCIDR("fc00::/7")},
+	}
+	for _, r := range privateRanges {
+		if r.network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func parseCIDR(s string) *net.IPNet {
+	_, n, _ := net.ParseCIDR(s)
+	return n
 }
 
 // eventMatches returns true if event is present in the allowed list.

@@ -3,6 +3,7 @@ package dashboard
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,7 +13,38 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true // Non-browser clients (curl, etc.) may not send Origin.
+		}
+		host := r.Host // Host header includes hostname and optional port.
+		// Accept if the origin matches the request host.
+		// Typical origins: "http://localhost:8080", "http://127.0.0.1:8080".
+		allowed := []string{
+			"http://" + host,
+			"https://" + host,
+		}
+		// When the Host is "0.0.0.0:<port>", also allow localhost variants.
+		if strings.HasPrefix(host, "0.0.0.0") {
+			port := ""
+			if idx := strings.LastIndex(host, ":"); idx >= 0 {
+				port = host[idx:]
+			}
+			allowed = append(allowed,
+				"http://localhost"+port,
+				"http://127.0.0.1"+port,
+				"https://localhost"+port,
+				"https://127.0.0.1"+port,
+			)
+		}
+		for _, a := range allowed {
+			if origin == a {
+				return true
+			}
+		}
+		return false
+	},
 }
 
 // writeTimeout is applied to every WebSocket write to prevent

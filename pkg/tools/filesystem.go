@@ -84,7 +84,8 @@ func isWithinWorkspace(candidate, workspace string) bool {
 }
 
 type ReadFileTool struct {
-	fs fileSystem
+	fs               fileSystem
+	stalenessTracker *FileStalenessTracker
 }
 
 func NewReadFileTool(workspace string, restrict bool) *ReadFileTool {
@@ -128,11 +129,20 @@ func (t *ReadFileTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 	if err != nil {
 		return ErrorResult(err.Error())
 	}
+	if t.stalenessTracker != nil {
+		t.stalenessTracker.RecordRead(path)
+	}
 	return NewToolResult(string(content))
 }
 
+// SetStalenessTracker sets the file staleness tracker for read recording.
+func (t *ReadFileTool) SetStalenessTracker(tracker *FileStalenessTracker) {
+	t.stalenessTracker = tracker
+}
+
 type WriteFileTool struct {
-	fs fileSystem
+	fs               fileSystem
+	stalenessTracker *FileStalenessTracker
 }
 
 func NewWriteFileTool(workspace string, restrict bool) *WriteFileTool {
@@ -181,11 +191,27 @@ func (t *WriteFileTool) Execute(ctx context.Context, args map[string]any) *ToolR
 		return ErrorResult("content is required")
 	}
 
+	// File staleness check: warn if file was modified since last read
+	if t.stalenessTracker != nil {
+		if warning := t.stalenessTracker.CheckBeforeWrite(path); warning != "" {
+			return NewToolResult(warning)
+		}
+	}
+
 	if err := t.fs.WriteFile(path, []byte(content)); err != nil {
 		return ErrorResult(err.Error())
 	}
 
+	if t.stalenessTracker != nil {
+		t.stalenessTracker.UpdateAfterWrite(path)
+	}
+
 	return SilentResult(fmt.Sprintf("File written: %s", path))
+}
+
+// SetStalenessTracker sets the file staleness tracker for write checking.
+func (t *WriteFileTool) SetStalenessTracker(tracker *FileStalenessTracker) {
+	t.stalenessTracker = tracker
 }
 
 type ListDirTool struct {

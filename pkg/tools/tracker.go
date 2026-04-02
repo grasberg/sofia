@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grasberg/sofia/pkg/fileutil"
 	"github.com/grasberg/sofia/pkg/logger"
 )
 
@@ -122,9 +123,13 @@ func (t *ToolTracker) saveNoLock() {
 		return
 	}
 
-	err = os.WriteFile(t.path, data, 0644)
+	err = fileutil.WriteFileAtomic(t.path, data, 0o644)
 	if err != nil {
-		logger.ErrorCF("tool:tracker", "Failed to save tool stats", map[string]any{"error": err.Error(), "path": t.path})
+		logger.ErrorCF(
+			"tool:tracker",
+			"Failed to save tool stats",
+			map[string]any{"error": err.Error(), "path": t.path},
+		)
 	}
 }
 
@@ -139,7 +144,11 @@ func (t *ToolTracker) Load() {
 		if os.IsNotExist(err) {
 			return // Normal on first run
 		}
-		logger.ErrorCF("tool:tracker", "Failed to load tool stats", map[string]any{"error": err.Error(), "path": t.path})
+		logger.ErrorCF(
+			"tool:tracker",
+			"Failed to load tool stats",
+			map[string]any{"error": err.Error(), "path": t.path},
+		)
 		return
 	}
 

@@ -23,6 +23,9 @@ type SubagentTask struct {
 	Created       int64
 }
 
+// GoalContextFunc returns formatted active goal context for injection into subagent prompts.
+type GoalContextFunc func() string
+
 type SubagentManager struct {
 	tasks           map[string]*SubagentTask
 	mu              sync.RWMutex
@@ -39,6 +42,7 @@ type SubagentManager struct {
 	hasTemperature  bool
 	skillsLoader    *skills.SkillsLoader
 	semanticMatcher *SemanticMatcher
+	goalContextFn   GoalContextFunc
 	nextID          int
 }
 
@@ -67,6 +71,13 @@ func (sm *SubagentManager) SetLLMOptions(maxTokens int, temperature float64) {
 	sm.hasMaxTokens = true
 	sm.temperature = temperature
 	sm.hasTemperature = true
+}
+
+// SetGoalContext sets a function that provides active goal context for subagent prompts.
+func (sm *SubagentManager) SetGoalContext(fn GoalContextFunc) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.goalContextFn = fn
 }
 
 // SetSkillsLoader sets the skills loader for injecting skills into dynamic subagents.
@@ -102,6 +113,18 @@ func (sm *SubagentManager) SetAgentTaskRunner(
 	sm.agentTaskRunner = runner
 }
 
+func (sm *SubagentManager) cleanupOldTasksLocked() {
+	if len(sm.tasks) <= 100 {
+		return
+	}
+	cutoff := time.Now().Add(-1 * time.Hour).UnixMilli()
+	for id, t := range sm.tasks {
+		if (t.Status == "completed" || t.Status == "failed" || t.Status == "canceled") && t.Created < cutoff {
+			delete(sm.tasks, id)
+		}
+	}
+}
+
 func (sm *SubagentManager) Spawn(
 	ctx context.Context,
 	task, label, agentID string,
@@ -111,6 +134,8 @@ func (sm *SubagentManager) Spawn(
 ) (string, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
+
+	sm.cleanupOldTasksLocked()
 
 	taskID := fmt.Sprintf("subagent-%d", sm.nextID)
 	sm.nextID++
@@ -136,23 +161,47 @@ func (sm *SubagentManager) Spawn(
 	return fmt.Sprintf("Spawned subagent for task: %s", task), nil
 }
 
-func (sm *SubagentManager) runTask(ctx context.Context, task *SubagentTask, skillsFilter []string, callback AsyncCallback) {
+func (sm *SubagentManager) runTask(
+	ctx context.Context,
+	task *SubagentTask,
+	skillsFilter []string,
+	callback AsyncCallback,
+) {
 	task.Status = "running"
 	task.Created = time.Now().UnixMilli()
 
 	// Build system prompt for subagent
-	systemPrompt := `You are a subagent. Complete the given task independently and report the result.
-You have access to tools - use them as needed to complete your task.
-After completing the task, provide a clear summary of what was done.`
+	systemPrompt := `You are a focused subagent executing a specific task delegated by a coordinator.
+
+## Rules
+1. **Complete the task independently** — do not ask clarifying questions. Make reasonable assumptions.
+2. **Use tools for every action** — read files before editing, verify results after changes.
+3. **Read before write** — always read a file before modifying it. Never edit blindly.
+4. **Minimal changes** — change only what the task requires. Don't refactor, add features, or "improve" beyond scope.
+5. **Report evidence** — when done, provide a clear summary with specific file paths, line numbers, and actual outputs from tool calls. No speculation.
+6. **Fail honestly** — if you cannot complete the task, explain what you tried and what blocked you.
+7. **Be terse** — lead with results, not reasoning. Skip preamble.`
 
 	sm.mu.RLock()
 	sLoader := sm.skillsLoader
+	goalFn := sm.goalContextFn
 	sm.mu.RUnlock()
+
+	// Inject active goal context so the subagent understands WHY this task exists
+	if goalFn != nil {
+		goalCtx := goalFn()
+		if goalCtx != "" {
+			systemPrompt += "\n\n# Active Goals\n\nThis task contributes to the following goals:\n" + goalCtx
+		}
+	}
 
 	if len(skillsFilter) > 0 && sLoader != nil {
 		skillsSummary := sLoader.BuildSkillsSummaryFor(skillsFilter)
 		if skillsSummary != "" {
-			systemPrompt += fmt.Sprintf("\n\n# Skills\n\nThe following skills extend your capabilities. To use a skill, read its SKILL.md file using the read_file tool.\n\n%s", skillsSummary)
+			systemPrompt += fmt.Sprintf(
+				"\n\n# Skills\n\nThe following skills extend your capabilities. To use a skill, read its SKILL.md file using the read_file tool.\n\n%s",
+				skillsSummary,
+			)
 		}
 	}
 
@@ -342,6 +391,7 @@ func (sm *SubagentManager) ListTasks() []*SubagentTask {
 // and returns the result directly in the ToolResult.
 type SubagentTool struct {
 	manager       *SubagentManager
+	mu            sync.Mutex
 	originChannel string
 	originChatID  string
 }
@@ -387,6 +437,8 @@ func (t *SubagentTool) Parameters() map[string]any {
 }
 
 func (t *SubagentTool) SetContext(channel, chatID string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	t.originChannel = channel
 	t.originChatID = chatID
 }
@@ -412,6 +464,11 @@ func (t *SubagentTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 		return ErrorResult("Subagent manager not configured").WithError(fmt.Errorf("manager is nil"))
 	}
 
+	// Read origin context under lock
+	t.mu.Lock()
+	originChannel := t.originChannel
+	originChatID := t.originChatID
+	t.mu.Unlock()
 	systemPrompt := "You are a subagent. Complete the given task independently and provide a clear, concise result."
 
 	t.manager.mu.RLock()
@@ -421,7 +478,10 @@ func (t *SubagentTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 	if len(skillsFilter) > 0 && sLoader != nil {
 		skillsSummary := sLoader.BuildSkillsSummaryFor(skillsFilter)
 		if skillsSummary != "" {
-			systemPrompt += fmt.Sprintf("\n\n# Skills\n\nThe following skills extend your capabilities. To use a skill, read its SKILL.md file using the read_file tool.\n\n%s", skillsSummary)
+			systemPrompt += fmt.Sprintf(
+				"\n\n# Skills\n\nThe following skills extend your capabilities. To use a skill, read its SKILL.md file using the read_file tool.\n\n%s",
+				skillsSummary,
+			)
 		}
 	}
 
@@ -465,7 +525,7 @@ func (t *SubagentTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 		Tools:         tools,
 		MaxIterations: maxIter,
 		LLMOptions:    llmOptions,
-	}, messages, t.originChannel, t.originChatID)
+	}, messages, originChannel, originChatID)
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("Subagent execution failed: %v", err)).WithError(err)
 	}

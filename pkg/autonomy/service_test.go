@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/providers"
-	"github.com/stretchr/testify/assert"
 )
 
 // MockProvider is a simple mock provider to simulate LLM responses for autonomy.
@@ -20,7 +21,13 @@ func (m *MockProvider) GetDefaultModel() string {
 	return "mock-model"
 }
 
-func (m *MockProvider) Chat(ctx context.Context, messages []providers.Message, tools []providers.ToolDefinition, model string, options map[string]any) (*providers.LLMResponse, error) {
+func (m *MockProvider) Chat(
+	ctx context.Context,
+	messages []providers.Message,
+	tools []providers.ToolDefinition,
+	model string,
+	options map[string]any,
+) (*providers.LLMResponse, error) {
 	return &providers.LLMResponse{
 		Content: m.ResponseContent,
 	}, nil
@@ -43,7 +50,11 @@ func TestAutonomyService_EvaluateRecentActivity(t *testing.T) {
 
 	// Override session UpdatedAt to let it trigger (otherwise tests might fail due to SQLite rounding or default time.Now() usage).
 	// To reliably test without DB hacking, we just rely on `AddMessage` touching the session. We simulate time passing using monkey patching or just accept that the query needs mockable time.
-	db.Exec("UPDATE sessions SET updated_at = ? WHERE key = ?", time.Now().Add(-1*time.Hour).UTC().Format(time.RFC3339), sessionKey)
+	db.Exec(
+		"UPDATE sessions SET updated_at = ? WHERE key = ?",
+		time.Now().Add(-1*time.Hour).UTC().Format(time.RFC3339),
+		sessionKey,
+	)
 
 	// We'll capture outbound messages to verify the bus is hit
 	published := make(chan bus.InboundMessage, 1)
@@ -99,7 +110,11 @@ func TestAutonomyService_NoSuggestion(t *testing.T) {
 		Role:    "user",
 		Content: "Looking good.",
 	})
-	db.Exec("UPDATE sessions SET updated_at = ? WHERE key = ?", time.Now().Add(-1*time.Hour).UTC().Format(time.RFC3339), sessionKey)
+	db.Exec(
+		"UPDATE sessions SET updated_at = ? WHERE key = ?",
+		time.Now().Add(-1*time.Hour).UTC().Format(time.RFC3339),
+		sessionKey,
+	)
 
 	published := make(chan bus.InboundMessage, 1)
 	go func() {

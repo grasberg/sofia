@@ -48,43 +48,43 @@ func (f *FlexibleStringSlice) UnmarshalJSON(data []byte) error {
 }
 
 type Config struct {
-	Agents     AgentsConfig     `json:"agents"`
-	Bindings   []AgentBinding   `json:"bindings,omitempty"`
-	Session    SessionConfig    `json:"session,omitempty"`
-	Channels   ChannelsConfig   `json:"channels"`
-	Providers  ProvidersConfig  `json:"providers,omitempty"`
-	ModelList  []ModelConfig    `json:"model_list"` // New model-centric provider configuration
-	Gateway    GatewayConfig    `json:"gateway"`
-	Tools      ToolsConfig      `json:"tools"`
-	Triggers   TriggersConfig   `json:"triggers,omitempty"`
-	Heartbeat  HeartbeatConfig  `json:"heartbeat"`
-	Autonomy   AutonomyConfig   `json:"autonomy,omitempty"`
-	Evolution  EvolutionConfig  `json:"evolution,omitempty"`
-	Devices    DevicesConfig    `json:"devices"`
-	WebUI        WebUIConfig        `json:"webui"`
-	TTS          TTSConfig          `json:"tts"`
-	RemoteAccess RemoteAccessConfig `json:"remote_access,omitempty"`
-	Guardrails   GuardrailsConfig     `json:"guardrails,omitempty"`
+	Agents       AgentsConfig          `json:"agents"`
+	Bindings     []AgentBinding        `json:"bindings,omitempty"`
+	Session      SessionConfig         `json:"session,omitempty"`
+	Channels     ChannelsConfig        `json:"channels"`
+	Providers    ProvidersConfig       `json:"providers,omitempty"`
+	ModelList    []ModelConfig         `json:"model_list"` // New model-centric provider configuration
+	Gateway      GatewayConfig         `json:"gateway"`
+	Tools        ToolsConfig           `json:"tools"`
+	Triggers     TriggersConfig        `json:"triggers,omitempty"`
+	Heartbeat    HeartbeatConfig       `json:"heartbeat"`
+	Autonomy     AutonomyConfig        `json:"autonomy,omitempty"`
+	Evolution    EvolutionConfig       `json:"evolution,omitempty"`
+	Devices      DevicesConfig         `json:"devices"`
+	WebUI        WebUIConfig           `json:"webui"`
+	TTS          TTSConfig             `json:"tts"`
+	RemoteAccess RemoteAccessConfig    `json:"remote_access,omitempty"`
+	Guardrails   GuardrailsConfig      `json:"guardrails,omitempty"`
 	Webhooks     []WebhookNotifyConfig `json:"webhooks,omitempty"`
 	Digests      []DigestConfig        `json:"digests,omitempty"`
-	UserName   string           `json:"user_name"           env:"SOFIA_USER_NAME"`
-	MemoryDB   string           `json:"memory_db"           env:"SOFIA_MEMORY_DB"` // Path to SQLite memory database (default: ~/.sofia/memory.db)
+	UserName     string                `json:"user_name"               env:"SOFIA_USER_NAME"`
+	MemoryDB     string                `json:"memory_db"               env:"SOFIA_MEMORY_DB"` // Path to SQLite memory database (default: ~/.sofia/memory.db)
 }
 
 // WebhookNotifyConfig configures an outbound notification webhook.
 type WebhookNotifyConfig struct {
 	URL     string   `json:"url"`
-	Secret  string   `json:"secret,omitempty"`  // HMAC-SHA256 signing secret
-	Events  []string `json:"events"`            // event types to deliver
+	Secret  string   `json:"secret,omitempty"` // HMAC-SHA256 signing secret
+	Events  []string `json:"events"`           // event types to deliver
 	Enabled bool     `json:"enabled"`
 }
 
 // DigestConfig configures a scheduled digest report.
 type DigestConfig struct {
-	Period        string `json:"period"`                    // "daily", "weekly"
-	Channel       string `json:"channel"`                   // target channel for delivery
-	ChatID        string `json:"chat_id"`                   // target chat
-	AgentID       string `json:"agent_id"`                  // which agent generates
+	Period        string `json:"period"`   // "daily", "weekly"
+	Channel       string `json:"channel"`  // target channel for delivery
+	ChatID        string `json:"chat_id"`  // target chat
+	AgentID       string `json:"agent_id"` // which agent generates
 	IncludeMemory bool   `json:"include_memory,omitempty"`
 	IncludeUsage  bool   `json:"include_usage,omitempty"`
 }
@@ -123,31 +123,31 @@ type PIIDetectionConfig struct {
 }
 
 type InputValidationConfig struct {
-	Enabled          bool     `json:"enabled" env:"SOFIA_GUARDRAILS_INPUT_ENABLED"`
+	Enabled          bool     `json:"enabled"            env:"SOFIA_GUARDRAILS_INPUT_ENABLED"`
 	MaxMessageLength int      `json:"max_message_length" env:"SOFIA_GUARDRAILS_INPUT_MAX_LENGTH"`
-	DenyPatterns     []string `json:"deny_patterns" env:"SOFIA_GUARDRAILS_INPUT_DENY_PATTERNS"`
+	DenyPatterns     []string `json:"deny_patterns"      env:"SOFIA_GUARDRAILS_INPUT_DENY_PATTERNS"`
 }
 
 type OutputFilteringConfig struct {
-	Enabled        bool     `json:"enabled" env:"SOFIA_GUARDRAILS_OUTPUT_ENABLED"`
+	Enabled        bool     `json:"enabled"         env:"SOFIA_GUARDRAILS_OUTPUT_ENABLED"`
 	RedactPatterns []string `json:"redact_patterns" env:"SOFIA_GUARDRAILS_OUTPUT_REDACT_PATTERNS"`
-	Action         string   `json:"action" env:"SOFIA_GUARDRAILS_OUTPUT_ACTION"` // "redact" or "block"
+	Action         string   `json:"action"          env:"SOFIA_GUARDRAILS_OUTPUT_ACTION"` // "redact" or "block"
 }
 
 type RateLimitingConfig struct {
-	Enabled          bool `json:"enabled" env:"SOFIA_GUARDRAILS_RATELIMIT_ENABLED"`
-	MaxRPM           int  `json:"max_rpm" env:"SOFIA_GUARDRAILS_RATELIMIT_RPM"`
+	Enabled          bool `json:"enabled"             env:"SOFIA_GUARDRAILS_RATELIMIT_ENABLED"`
+	MaxRPM           int  `json:"max_rpm"             env:"SOFIA_GUARDRAILS_RATELIMIT_RPM"`
 	MaxTokensPerHour int  `json:"max_tokens_per_hour" env:"SOFIA_GUARDRAILS_RATELIMIT_TOKENS"`
 }
 
 type SandboxedExecConfig struct {
-	Enabled     bool   `json:"enabled" env:"SOFIA_GUARDRAILS_SANDBOX_ENABLED"`
+	Enabled     bool   `json:"enabled"      env:"SOFIA_GUARDRAILS_SANDBOX_ENABLED"`
 	DockerImage string `json:"docker_image" env:"SOFIA_GUARDRAILS_SANDBOX_DOCKER_IMAGE"` // e.g., "alpine:latest"
 }
 
 type PromptInjectionConfig struct {
-	Enabled      bool   `json:"enabled" env:"SOFIA_GUARDRAILS_INJECTION_ENABLED"`
-	Action       string `json:"action" env:"SOFIA_GUARDRAILS_INJECTION_ACTION"` // "block" or "warn"
+	Enabled      bool   `json:"enabled"       env:"SOFIA_GUARDRAILS_INJECTION_ENABLED"`
+	Action       string `json:"action"        env:"SOFIA_GUARDRAILS_INJECTION_ACTION"` // "block" or "warn"
 	SystemSuffix string `json:"system_suffix" env:"SOFIA_GUARDRAILS_INJECTION_SUFFIX"`
 }
 
@@ -182,9 +182,10 @@ type PatternTriggerConfig struct {
 }
 
 type WebUIConfig struct {
-	Enabled bool   `json:"enabled" env:"SOFIA_WEBUI_ENABLED"`
-	Host    string `json:"host"    env:"SOFIA_WEBUI_HOST"`
-	Port    int    `json:"port"    env:"SOFIA_WEBUI_PORT"`
+	Enabled   bool   `json:"enabled"              env:"SOFIA_WEBUI_ENABLED"`
+	Host      string `json:"host"                 env:"SOFIA_WEBUI_HOST"`
+	Port      int    `json:"port"                 env:"SOFIA_WEBUI_PORT"`
+	AuthToken string `json:"auth_token,omitempty" env:"SOFIA_WEBUI_AUTH_TOKEN"`
 }
 
 // TTSConfig configures text-to-speech synthesis.
@@ -312,25 +313,50 @@ type SessionConfig struct {
 }
 
 type AgentDefaults struct {
-	Workspace           string                    `json:"workspace"                       env:"SOFIA_AGENTS_DEFAULTS_WORKSPACE"`
-	RestrictToWorkspace bool                      `json:"restrict_to_workspace"           env:"SOFIA_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE"`
-	UseOpenCode         bool                      `json:"use_opencode"                    env:"SOFIA_AGENTS_DEFAULTS_USE_OPENCODE"`
-	Provider            string                    `json:"provider"                        env:"SOFIA_AGENTS_DEFAULTS_PROVIDER"`
-	ModelName           string                    `json:"model_name,omitempty"            env:"SOFIA_AGENTS_DEFAULTS_MODEL_NAME"`
-	Model               string                    `json:"model,omitempty"                 env:"SOFIA_AGENTS_DEFAULTS_MODEL"` // Deprecated: use model_name instead
-	ModelFallbacks      []string                  `json:"model_fallbacks,omitempty"`
-	ImageModel          string                    `json:"image_model,omitempty"           env:"SOFIA_AGENTS_DEFAULTS_IMAGE_MODEL"`
-	ImageModelFallbacks []string                  `json:"image_model_fallbacks,omitempty"`
-	MaxTokens           int                       `json:"max_tokens"                      env:"SOFIA_AGENTS_DEFAULTS_MAX_TOKENS"`
-	Temperature         *float64                  `json:"temperature,omitempty"           env:"SOFIA_AGENTS_DEFAULTS_TEMPERATURE"`
-	MaxToolIterations   int                       `json:"max_tool_iterations"             env:"SOFIA_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS"`
-	ReflectionInterval  int                       `json:"reflection_interval,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_REFLECTION_INTERVAL"`
-	LearnFromFeedback   bool                      `json:"learn_from_feedback,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_LEARN_FROM_FEEDBACK"`
-	ParallelToolCalls   bool                      `json:"parallel_tool_calls,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_PARALLEL_TOOL_CALLS"`
-	PostTaskReflection  bool                      `json:"post_task_reflection,omitempty"  env:"SOFIA_AGENTS_DEFAULTS_POST_TASK_REFLECTION"`
-	PerformanceScoring  bool                      `json:"performance_scoring,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_PERFORMANCE_SCORING"`
-	Personas            map[string]PersonaConfig  `json:"personas,omitempty"`
-	Budget              *BudgetConfig             `json:"budget,omitempty"`
+	Workspace           string                   `json:"workspace"                       env:"SOFIA_AGENTS_DEFAULTS_WORKSPACE"`
+	RestrictToWorkspace bool                     `json:"restrict_to_workspace"           env:"SOFIA_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE"`
+	UseOpenCode         bool                     `json:"use_opencode"                    env:"SOFIA_AGENTS_DEFAULTS_USE_OPENCODE"`
+	Provider            string                   `json:"provider"                        env:"SOFIA_AGENTS_DEFAULTS_PROVIDER"`
+	ModelName           string                   `json:"model_name,omitempty"            env:"SOFIA_AGENTS_DEFAULTS_MODEL_NAME"`
+	Model               string                   `json:"model,omitempty"                 env:"SOFIA_AGENTS_DEFAULTS_MODEL"` // Deprecated: use model_name instead
+	ModelFallbacks      []string                 `json:"model_fallbacks,omitempty"`
+	ImageModel          string                   `json:"image_model,omitempty"           env:"SOFIA_AGENTS_DEFAULTS_IMAGE_MODEL"`
+	ImageModelFallbacks []string                 `json:"image_model_fallbacks,omitempty"`
+	MaxTokens           int                      `json:"max_tokens"                      env:"SOFIA_AGENTS_DEFAULTS_MAX_TOKENS"`
+	Temperature         *float64                 `json:"temperature,omitempty"           env:"SOFIA_AGENTS_DEFAULTS_TEMPERATURE"`
+	MaxToolIterations   int                      `json:"max_tool_iterations"             env:"SOFIA_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS"`
+	ReflectionInterval  int                      `json:"reflection_interval,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_REFLECTION_INTERVAL"`
+	LearnFromFeedback   bool                     `json:"learn_from_feedback,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_LEARN_FROM_FEEDBACK"`
+	ParallelToolCalls   bool                     `json:"parallel_tool_calls,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_PARALLEL_TOOL_CALLS"`
+	PostTaskReflection  bool                     `json:"post_task_reflection,omitempty"  env:"SOFIA_AGENTS_DEFAULTS_POST_TASK_REFLECTION"`
+	PerformanceScoring  bool                     `json:"performance_scoring,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_PERFORMANCE_SCORING"`
+	EvaluationLoop      EvaluationLoopConfig     `json:"evaluation_loop,omitempty"`
+	DoomLoopDetection   DoomLoopConfig           `json:"doom_loop_detection,omitempty"`
+	AutoEscalation      AutoEscalationConfig     `json:"auto_escalation,omitempty"`
+	Personas            map[string]PersonaConfig `json:"personas,omitempty"`
+	Budget              *BudgetConfig            `json:"budget,omitempty"`
+}
+
+// EvaluationLoopConfig enables iterative response improvement.
+// After each LLM response, it is scored; if below threshold the LLM is
+// re-run with feedback until the threshold is met or max retries exhausted.
+type EvaluationLoopConfig struct {
+	Enabled    bool    `json:"enabled"     env:"SOFIA_EVAL_LOOP_ENABLED"`
+	Threshold  float64 `json:"threshold"   env:"SOFIA_EVAL_LOOP_THRESHOLD"`   // default 0.7
+	MaxRetries int     `json:"max_retries" env:"SOFIA_EVAL_LOOP_MAX_RETRIES"` // default 3
+}
+
+// DoomLoopConfig enables detection of stuck agent loops with graduated recovery.
+type DoomLoopConfig struct {
+	Enabled             bool `json:"enabled"              env:"SOFIA_DOOM_LOOP_ENABLED"`
+	RepetitionThreshold int  `json:"repetition_threshold" env:"SOFIA_DOOM_LOOP_REP_THRESHOLD"` // default 3
+}
+
+// AutoEscalationConfig enables automatic adjustment of iteration limits
+// and model selection based on detected message complexity.
+type AutoEscalationConfig struct {
+	Enabled          bool `json:"enabled"            env:"SOFIA_AUTO_ESCALATION_ENABLED"`
+	SmartModelRouting bool `json:"smart_model_routing" env:"SOFIA_SMART_MODEL_ROUTING"` // Route simple messages to fallback model
 }
 
 // PersonaConfig defines a switchable persona in the config file.
@@ -358,29 +384,29 @@ type ChannelsConfig struct {
 
 // EmailConfig holds email channel configuration.
 type EmailConfig struct {
-	Enabled      bool     `json:"enabled"            env:"SOFIA_CHANNELS_EMAIL_ENABLED"`
-	IMAPServer   string   `json:"imap_server"        env:"SOFIA_CHANNELS_EMAIL_IMAP_SERVER"`
-	SMTPServer   string   `json:"smtp_server"        env:"SOFIA_CHANNELS_EMAIL_SMTP_SERVER"`
-	Username     string   `json:"username"            env:"SOFIA_CHANNELS_EMAIL_USERNAME"`
-	Password     string   `json:"password"            env:"SOFIA_CHANNELS_EMAIL_PASSWORD"`
-	PollInterval int      `json:"poll_interval_sec"  env:"SOFIA_CHANNELS_EMAIL_POLL_INTERVAL"`
+	Enabled      bool     `json:"enabled"              env:"SOFIA_CHANNELS_EMAIL_ENABLED"`
+	IMAPServer   string   `json:"imap_server"          env:"SOFIA_CHANNELS_EMAIL_IMAP_SERVER"`
+	SMTPServer   string   `json:"smtp_server"          env:"SOFIA_CHANNELS_EMAIL_SMTP_SERVER"`
+	Username     string   `json:"username"             env:"SOFIA_CHANNELS_EMAIL_USERNAME"`
+	Password     string   `json:"password"             env:"SOFIA_CHANNELS_EMAIL_PASSWORD"`
+	PollInterval int      `json:"poll_interval_sec"    env:"SOFIA_CHANNELS_EMAIL_POLL_INTERVAL"`
 	AllowFrom    []string `json:"allow_from,omitempty"`
 }
 
 type TelegramConfig struct {
-	Enabled   bool                `json:"enabled"              env:"SOFIA_CHANNELS_TELEGRAM_ENABLED"`
-	Token     string              `json:"token"                env:"SOFIA_CHANNELS_TELEGRAM_TOKEN"`
-	Proxy     string              `json:"proxy"                env:"SOFIA_CHANNELS_TELEGRAM_PROXY"`
-	AllowFrom FlexibleStringSlice `json:"allow_from"           env:"SOFIA_CHANNELS_TELEGRAM_ALLOW_FROM"`
-	DMPolicy  string              `json:"dm_policy,omitempty"  env:"SOFIA_CHANNELS_TELEGRAM_DM_POLICY"`
+	Enabled   bool                `json:"enabled"             env:"SOFIA_CHANNELS_TELEGRAM_ENABLED"`
+	Token     string              `json:"token"               env:"SOFIA_CHANNELS_TELEGRAM_TOKEN"`
+	Proxy     string              `json:"proxy"               env:"SOFIA_CHANNELS_TELEGRAM_PROXY"`
+	AllowFrom FlexibleStringSlice `json:"allow_from"          env:"SOFIA_CHANNELS_TELEGRAM_ALLOW_FROM"`
+	DMPolicy  string              `json:"dm_policy,omitempty" env:"SOFIA_CHANNELS_TELEGRAM_DM_POLICY"`
 }
 
 type DiscordConfig struct {
-	Enabled     bool                `json:"enabled"              env:"SOFIA_CHANNELS_DISCORD_ENABLED"`
-	Token       string              `json:"token"                env:"SOFIA_CHANNELS_DISCORD_TOKEN"`
-	AllowFrom   FlexibleStringSlice `json:"allow_from"           env:"SOFIA_CHANNELS_DISCORD_ALLOW_FROM"`
-	MentionOnly bool                `json:"mention_only"         env:"SOFIA_CHANNELS_DISCORD_MENTION_ONLY"`
-	DMPolicy    string              `json:"dm_policy,omitempty"  env:"SOFIA_CHANNELS_DISCORD_DM_POLICY"`
+	Enabled     bool                `json:"enabled"             env:"SOFIA_CHANNELS_DISCORD_ENABLED"`
+	Token       string              `json:"token"               env:"SOFIA_CHANNELS_DISCORD_TOKEN"`
+	AllowFrom   FlexibleStringSlice `json:"allow_from"          env:"SOFIA_CHANNELS_DISCORD_ALLOW_FROM"`
+	MentionOnly bool                `json:"mention_only"        env:"SOFIA_CHANNELS_DISCORD_MENTION_ONLY"`
+	DMPolicy    string              `json:"dm_policy,omitempty" env:"SOFIA_CHANNELS_DISCORD_DM_POLICY"`
 }
 
 type HeartbeatConfig struct {
@@ -393,29 +419,34 @@ type HeartbeatConfig struct {
 
 // AutonomyConfig configures proactive behaviors, goal persistence, and autonomous research.
 type AutonomyConfig struct {
-	Enabled         bool `json:"enabled"          env:"SOFIA_AUTONOMY_ENABLED"`
-	Suggestions     bool `json:"suggestions"      env:"SOFIA_AUTONOMY_SUGGESTIONS"`
-	Goals           bool `json:"goals"            env:"SOFIA_AUTONOMY_GOALS"`
-	Research        bool `json:"research"         env:"SOFIA_AUTONOMY_RESEARCH"`
-	ContextTriggers bool `json:"context_triggers" env:"SOFIA_AUTONOMY_CONTEXT_TRIGGERS"`
-	IntervalMinutes int  `json:"interval_minutes" env:"SOFIA_AUTONOMY_INTERVAL"`
+	Enabled         bool    `json:"enabled"          env:"SOFIA_AUTONOMY_ENABLED"`
+	Suggestions     bool    `json:"suggestions"      env:"SOFIA_AUTONOMY_SUGGESTIONS"`
+	Goals           bool    `json:"goals"            env:"SOFIA_AUTONOMY_GOALS"`
+	Research        bool    `json:"research"         env:"SOFIA_AUTONOMY_RESEARCH"`
+	ContextTriggers bool    `json:"context_triggers" env:"SOFIA_AUTONOMY_CONTEXT_TRIGGERS"`
+	IntervalMinutes int     `json:"interval_minutes" env:"SOFIA_AUTONOMY_INTERVAL"`
+	MaxCostPerDay   float64 `json:"max_cost_per_day" env:"SOFIA_AUTONOMY_MAX_COST"`
 }
 
 // EvolutionConfig configures the self-improving evolution engine.
 type EvolutionConfig struct {
-	Enabled                bool     `json:"enabled"                env:"SOFIA_EVOLUTION_ENABLED"`
-	IntervalMinutes        int      `json:"interval_minutes"       env:"SOFIA_EVOLUTION_INTERVAL"`
-	MaxCostPerDay          float64  `json:"max_cost_per_day"       env:"SOFIA_EVOLUTION_MAX_COST"`
-	DailySummary           bool     `json:"daily_summary"          env:"SOFIA_EVOLUTION_DAILY_SUMMARY"`
-	DailySummaryTime       string   `json:"daily_summary_time"     env:"SOFIA_EVOLUTION_SUMMARY_TIME"`
-	DailySummaryChannel    string   `json:"daily_summary_channel"  env:"SOFIA_EVOLUTION_SUMMARY_CHANNEL"`
-	DailySummaryChatID     string   `json:"daily_summary_chat_id"  env:"SOFIA_EVOLUTION_SUMMARY_CHAT_ID"`
+	Enabled                bool     `json:"enabled"                   env:"SOFIA_EVOLUTION_ENABLED"`
+	IntervalMinutes        int      `json:"interval_minutes"          env:"SOFIA_EVOLUTION_INTERVAL"`
+	MaxCostPerDay          float64  `json:"max_cost_per_day"          env:"SOFIA_EVOLUTION_MAX_COST"`
+	DailySummary           bool     `json:"daily_summary"             env:"SOFIA_EVOLUTION_DAILY_SUMMARY"`
+	DailySummaryTime       string   `json:"daily_summary_time"        env:"SOFIA_EVOLUTION_SUMMARY_TIME"`
+	DailySummaryChannel    string   `json:"daily_summary_channel"     env:"SOFIA_EVOLUTION_SUMMARY_CHANNEL"`
+	DailySummaryChatID     string   `json:"daily_summary_chat_id"     env:"SOFIA_EVOLUTION_SUMMARY_CHAT_ID"`
 	RetirementThreshold    float64  `json:"retirement_threshold"`
 	RetirementMinTasks     int      `json:"retirement_min_tasks"`
 	RetirementInactiveDays int      `json:"retirement_inactive_days"`
 	SelfModifyEnabled      bool     `json:"self_modify_enabled"`
 	ImmutableFiles         []string `json:"immutable_files,omitempty"`
 	MaxAgents              int      `json:"max_agents"`
+	RequireApproval        bool     `json:"require_approval"`
+	MemoryConsolidation    bool     `json:"memory_consolidation"      env:"SOFIA_EVOLUTION_MEMORY_CONSOLIDATION"`
+	ConsolidationIntervalH int      `json:"consolidation_interval_h"  env:"SOFIA_EVOLUTION_CONSOLIDATION_INTERVAL"` // default 6
+	SkillAutoImprove       bool     `json:"skill_auto_improve"        env:"SOFIA_EVOLUTION_SKILL_AUTO_IMPROVE"`
 }
 
 type DevicesConfig struct {
@@ -627,10 +658,10 @@ type CpanelConfig struct {
 
 // BitcoinConfig configures the Bitcoin wallet and blockchain tool.
 type BitcoinConfig struct {
-	Enabled    bool   `json:"enabled"      env:"SOFIA_TOOLS_BITCOIN_ENABLED"`
-	Network    string `json:"network"      env:"SOFIA_TOOLS_BITCOIN_NETWORK"`    // mainnet, testnet, signet
-	WalletPath string `json:"wallet_path"  env:"SOFIA_TOOLS_BITCOIN_WALLET_PATH"` // path to encrypted wallet file
-	Passphrase string `json:"passphrase"   env:"SOFIA_TOOLS_BITCOIN_PASSPHRASE"` // wallet encryption passphrase
+	Enabled    bool   `json:"enabled"     env:"SOFIA_TOOLS_BITCOIN_ENABLED"`
+	Network    string `json:"network"     env:"SOFIA_TOOLS_BITCOIN_NETWORK"`     // mainnet, testnet, signet
+	WalletPath string `json:"wallet_path" env:"SOFIA_TOOLS_BITCOIN_WALLET_PATH"` // path to encrypted wallet file
+	Passphrase string `json:"passphrase"  env:"SOFIA_TOOLS_BITCOIN_PASSPHRASE"`  // wallet encryption passphrase
 }
 
 // PorkbunConfig configures the Porkbun domain management tool.
@@ -645,7 +676,7 @@ type VercelConfig struct {
 	Enabled         bool     `json:"enabled"          env:"SOFIA_TOOLS_VERCEL_ENABLED"`
 	BinaryPath      string   `json:"binary_path"      env:"SOFIA_TOOLS_VERCEL_BINARY_PATH"`
 	TimeoutSeconds  int      `json:"timeout_seconds"  env:"SOFIA_TOOLS_VERCEL_TIMEOUT_SECONDS"`
-	AllowedCommands []string `json:"allowed_commands"  env:"SOFIA_TOOLS_VERCEL_ALLOWED_COMMANDS"`
+	AllowedCommands []string `json:"allowed_commands" env:"SOFIA_TOOLS_VERCEL_ALLOWED_COMMANDS"`
 }
 
 type ToolsConfig struct {

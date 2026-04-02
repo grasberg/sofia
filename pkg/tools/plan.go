@@ -21,6 +21,38 @@ const (
 	PlanStatusFailed     PlanStatus = "failed"
 )
 
+// validTransitions defines allowed status transitions for plan steps.
+var validTransitions = map[PlanStatus][]PlanStatus{
+	PlanStatusPending:    {PlanStatusInProgress, PlanStatusCompleted, PlanStatusFailed},
+	PlanStatusInProgress: {PlanStatusCompleted, PlanStatusFailed, PlanStatusPending},
+	PlanStatusCompleted:  {}, // terminal state
+	PlanStatusFailed:     {PlanStatusPending, PlanStatusInProgress}, // allow retry
+}
+
+// isValidTransition checks whether transitioning from -> to is allowed.
+func isValidTransition(from, to PlanStatus) bool {
+	allowed, ok := validTransitions[from]
+	if !ok {
+		return false
+	}
+	for _, s := range allowed {
+		if s == to {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidStatus checks whether the given status is a known PlanStatus constant.
+func isValidStatus(s PlanStatus) bool {
+	switch s {
+	case PlanStatusPending, PlanStatusInProgress, PlanStatusCompleted, PlanStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
 // PlanStep represents a single step in a plan.
 type PlanStep struct {
 	Index       int        `json:"index"`
@@ -144,13 +176,22 @@ func (pm *PlanManager) SetPersistPath(path string) {
 	pm.persistPath = path
 }
 
-// autoSave saves to persistPath if set. Safe to call while lock is held —
-// it spawns the save in a goroutine to avoid deadlock with Save's RLock.
+// autoSave saves to persistPath if set. It collects state under RLock
+// and writes to disk outside the lock to avoid deadlock.
 func (pm *PlanManager) autoSave() {
-	if pm.persistPath != "" {
-		path := pm.persistPath
-		go func() { _ = pm.Save(path) }()
+	if pm.persistPath == "" {
+		return
 	}
+	// Collect the data under RLock.
+	pm.mu.RLock()
+	state := planPersistState{Plans: pm.plans, NextID: pm.nextID}
+	pm.mu.RUnlock()
+
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(pm.persistPath, data, 0o600)
 }
 
 // planPersistState is the JSON-serializable snapshot of the PlanManager.
@@ -387,7 +428,12 @@ func (pm *PlanManager) ReorderStep(planID string, oldIndex, newIndex int) error 
 }
 
 // CreateSubPlan creates a child plan linked to a parent step.
-func (pm *PlanManager) CreateSubPlan(parentPlanID string, parentStepIndex int, goal string, stepDescs []string) (*Plan, error) {
+func (pm *PlanManager) CreateSubPlan(
+	parentPlanID string,
+	parentStepIndex int,
+	goal string,
+	stepDescs []string,
+) (*Plan, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
@@ -448,8 +494,18 @@ func (t *PlanTool) Parameters() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"operation": map[string]any{
-				"type":        "string",
-				"enum":        []string{"create", "update_step", "get_status", "replan", "create_subplan", "save_template", "find_templates", "use_template", "evaluate"},
+				"type": "string",
+				"enum": []string{
+					"create",
+					"update_step",
+					"get_status",
+					"replan",
+					"create_subplan",
+					"save_template",
+					"find_templates",
+					"use_template",
+					"evaluate",
+				},
 				"description": "The operation to perform",
 			},
 			"goal": map[string]any{
@@ -646,6 +702,11 @@ func (t *PlanTool) updateStep(args map[string]any) *ToolResult {
 		return ErrorResult("status is required for update_step")
 	}
 
+	newStatus := PlanStatus(status)
+	if !isValidStatus(newStatus) {
+		return ErrorResult(fmt.Sprintf("invalid status %q: must be pending, in_progress, completed, or failed", status))
+	}
+
 	result, _ := args["result"].(string)
 
 	t.manager.mu.Lock()
@@ -662,7 +723,13 @@ func (t *PlanTool) updateStep(args map[string]any) *ToolResult {
 		return ErrorResult(fmt.Sprintf("step_index %d out of range (0-%d)", idx, len(plan.Steps)-1))
 	}
 
-	plan.Steps[idx].Status = PlanStatus(status)
+	currentStatus := plan.Steps[idx].Status
+	if !isValidTransition(currentStatus, newStatus) {
+		t.manager.mu.Unlock()
+		return ErrorResult(fmt.Sprintf("invalid transition from %q to %q for step %d", currentStatus, newStatus, idx))
+	}
+
+	plan.Steps[idx].Status = newStatus
 	if result != "" {
 		plan.Steps[idx].Result = result
 	}
@@ -1014,5 +1081,7 @@ func (t *PlanTool) evaluate(args map[string]any) *ToolResult {
 		recommendation = "RECONSIDER — Low confidence or unfavorable cost/benefit ratio."
 	}
 
-	return SilentResult(fmt.Sprintf("%s\n\n%s\nScore: %.2f (higher is better)", plan.FormatStatus(), recommendation, score))
+	return SilentResult(
+		fmt.Sprintf("%s\n\n%s\nScore: %.2f (higher is better)", plan.FormatStatus(), recommendation, score),
+	)
 }

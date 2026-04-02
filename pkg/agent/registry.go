@@ -1,10 +1,9 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"sync"
-
-	"context"
 
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/logger"

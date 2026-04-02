@@ -12,7 +12,11 @@ type MockEmbeddingProvider struct {
 	embeddings map[string][]float32
 }
 
-func (m *MockEmbeddingProvider) Embeddings(ctx context.Context, texts []string, model string) ([]providers.EmbeddingResult, error) {
+func (m *MockEmbeddingProvider) Embeddings(
+	ctx context.Context,
+	texts []string,
+	model string,
+) ([]providers.EmbeddingResult, error) {
 	results := make([]providers.EmbeddingResult, len(texts))
 	for i, text := range texts {
 		if emb, ok := m.embeddings[text]; ok {
@@ -31,7 +35,13 @@ func (m *MockEmbeddingProvider) Embeddings(ctx context.Context, texts []string, 
 	return results, nil
 }
 
-func (m *MockEmbeddingProvider) Chat(ctx context.Context, messages []providers.Message, tools []providers.ToolDefinition, model string, options map[string]any) (*providers.LLMResponse, error) {
+func (m *MockEmbeddingProvider) Chat(
+	ctx context.Context,
+	messages []providers.Message,
+	tools []providers.ToolDefinition,
+	model string,
+	options map[string]any,
+) (*providers.LLMResponse, error) {
 	return nil, nil
 }
 
@@ -187,15 +197,15 @@ func TestSemanticMatcher_Caching(t *testing.T) {
 	callCount := 0
 	provider := &MockEmbeddingProvider{
 		embeddings: map[string][]float32{
-			"intent1":     {0.9, 0.1},
-			"tool1_desc":  {0.8, 0.2},
+			"intent1":    {0.9, 0.1},
+			"tool1_desc": {0.8, 0.2},
 		},
 	}
 	matcher := NewSemanticMatcher(provider, "test")
 	tools := []Tool{
 		&MockTool{name: "tool1", description: "tool1_desc"},
 	}
-	
+
 	// Pre-populate cache
 	matcher.mu.Lock()
 	matcher.cache["tool1"] = []float32{0.8, 0.2}
@@ -204,7 +214,7 @@ func TestSemanticMatcher_Caching(t *testing.T) {
 	// First call should use cache
 	result := matcher.MatchTools(context.Background(), "intent1", tools, 1)
 	_ = callCount // Use variable to avoid lint warning
-	
+
 	if len(result) != 1 {
 		t.Errorf("expected 1 tool, got %d", len(result))
 	}

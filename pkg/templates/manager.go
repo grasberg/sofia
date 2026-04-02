@@ -21,10 +21,10 @@ var (
 type PromptTemplate struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
-	Content     string   `json:"content"`          // template text with {{.VarName}} placeholders
-	Variables   []string `json:"variables"`         // required variable names
+	Content     string   `json:"content"`   // template text with {{.VarName}} placeholders
+	Variables   []string `json:"variables"` // required variable names
 	Tags        []string `json:"tags,omitempty"`
-	FilePath    string   `json:"-"`                 // source file path
+	FilePath    string   `json:"-"` // source file path
 }
 
 // TemplateManager loads and manages prompt templates.

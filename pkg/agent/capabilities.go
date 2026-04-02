@@ -17,7 +17,8 @@ type AgentCapability struct {
 var builtinCapabilities = []AgentCapability{
 	// === Development ===
 	{
-		ID: "frontend-dev", Name: "Frontend Developer",
+		ID:          "frontend-dev",
+		Name:        "Frontend Developer",
 		Description: "Build React components, responsive layouts, and client-side state management",
 		Skills:      []string{"react", "frontend", "css", "html", "components", "responsive", "ui"},
 		Instructions: "You are an expert frontend developer. Build React components with modern patterns (hooks, context). " +
@@ -25,7 +26,8 @@ var builtinCapabilities = []AgentCapability{
 			"Write clean, reusable UI code.",
 	},
 	{
-		ID: "backend-dev", Name: "Backend Architect",
+		ID:          "backend-dev",
+		Name:        "Backend Architect",
 		Description: "Design RESTful APIs, microservices, and database schemas",
 		Skills:      []string{"api", "backend", "rest", "microservices", "database", "schema", "server"},
 		Instructions: "You are an expert backend architect. Design clean RESTful APIs and microservice architectures. " +
@@ -46,14 +48,16 @@ var builtinCapabilities = []AgentCapability{
 			"Focus on simplicity, performance, and proper error handling. Follow Go conventions and best practices.",
 	},
 	{
-		ID: "python-pro", Name: "Python Expert",
+		ID:          "python-pro",
+		Name:        "Python Expert",
 		Description: "Idiomatic Python with advanced features and async programming",
 		Skills:      []string{"python", "django", "flask", "async", "pip"},
 		Instructions: "You are a Python expert. Write idiomatic Python using modern patterns, type hints, and async/await. " +
 			"Leverage the standard library effectively. Focus on clean, readable, and performant Python code.",
 	},
 	{
-		ID: "typescript-pro", Name: "TypeScript Expert",
+		ID:          "typescript-pro",
+		Name:        "TypeScript Expert",
 		Description: "Advanced TypeScript with strict type safety and modern patterns",
 		Skills:      []string{"typescript", "types", "generics", "type-safety"},
 		Instructions: "You are a TypeScript expert. Write strictly typed code using advanced generics, utility types, and discriminated unions. " +
@@ -69,7 +73,8 @@ var builtinCapabilities = []AgentCapability{
 
 	// === Quality & Testing ===
 	{
-		ID: "code-reviewer", Name: "Code Reviewer",
+		ID:          "code-reviewer",
+		Name:        "Code Reviewer",
 		Description: "Expert code review for quality, security, and maintainability",
 		Skills:      []string{"review", "code-review", "quality", "maintainability"},
 		Instructions: "You are an expert code reviewer. Analyze code for bugs, security vulnerabilities, performance issues, " +
@@ -77,14 +82,16 @@ var builtinCapabilities = []AgentCapability{
 			"Check for OWASP top 10, proper error handling, and adherence to best practices.",
 	},
 	{
-		ID: "test-automator", Name: "Test Automator",
+		ID:          "test-automator",
+		Name:        "Test Automator",
 		Description: "Create comprehensive test suites: unit, integration, and e2e tests",
 		Skills:      []string{"test", "testing", "unit-test", "integration-test", "e2e", "coverage"},
 		Instructions: "You are a test automation expert. Write comprehensive test suites covering unit, integration, and end-to-end tests. " +
 			"Maximize code coverage. Use appropriate testing frameworks and patterns (mocks, fixtures, table-driven tests).",
 	},
 	{
-		ID: "debugger", Name: "Debugger",
+		ID:          "debugger",
+		Name:        "Debugger",
 		Description: "Debug errors, test failures, and unexpected behavior with root cause analysis",
 		Skills:      []string{"debug", "debugging", "error", "fix", "troubleshoot", "bug"},
 		Instructions: "You are an expert debugger. Systematically diagnose errors, test failures, and unexpected behavior. " +
@@ -107,7 +114,8 @@ var builtinCapabilities = []AgentCapability{
 			"manage Kubernetes deployments, and automate infrastructure. Focus on reliability, reproducibility, and security.",
 	},
 	{
-		ID: "cloud-architect", Name: "Cloud Architect",
+		ID:          "cloud-architect",
+		Name:        "Cloud Architect",
 		Description: "Design AWS/Azure/GCP infrastructure, optimize costs, and ensure scalability",
 		Skills:      []string{"cloud", "aws", "azure", "gcp", "terraform", "serverless"},
 		Instructions: "You are a cloud architect. Design scalable, cost-effective cloud infrastructure on AWS/Azure/GCP. " +
@@ -137,7 +145,8 @@ var builtinCapabilities = []AgentCapability{
 			"and implement streaming architectures. Focus on data quality, scalability, and reliability.",
 	},
 	{
-		ID: "data-scientist", Name: "Data Scientist",
+		ID:          "data-scientist",
+		Name:        "Data Scientist",
 		Description: "Data analysis, statistical modeling, SQL expertise, and generating insights",
 		Skills:      []string{"analytics", "statistics", "sql", "insights", "visualization", "pandas"},
 		Instructions: "You are a data scientist. Analyze datasets, build statistical models, write complex SQL queries, " +
@@ -151,7 +160,8 @@ var builtinCapabilities = []AgentCapability{
 			"optimize prompts, and integrate AI capabilities. Focus on accuracy, latency, and cost efficiency.",
 	},
 	{
-		ID: "db-optimizer", Name: "Database Optimizer",
+		ID:          "db-optimizer",
+		Name:        "Database Optimizer",
 		Description: "Optimize SQL queries, design indexes, and handle database migrations",
 		Skills:      []string{"database", "sql", "index", "migration", "postgres", "mysql", "query-optimization"},
 		Instructions: "You are a database optimization expert. Analyze and optimize SQL queries, design efficient indexes, " +
@@ -195,7 +205,8 @@ var builtinCapabilities = []AgentCapability{
 
 	// === Document & Media ===
 	{
-		ID: "doc-generator", Name: "Document Generator",
+		ID:          "doc-generator",
+		Name:        "Document Generator",
 		Description: "Create reports, spreadsheets, invoices, and documents in HTML, CSV, and Markdown formats",
 		Skills:      []string{"document", "report", "spreadsheet", "invoice", "csv", "pdf", "excel", "word"},
 		Instructions: "You are a document generation specialist. Create professional reports, spreadsheets, invoices, " +
@@ -215,21 +226,24 @@ var builtinCapabilities = []AgentCapability{
 
 	// === Additional Language Specialists (from VoltAgent) ===
 	{
-		ID: "rust-engineer", Name: "Rust Engineer",
+		ID:          "rust-engineer",
+		Name:        "Rust Engineer",
 		Description: "Systems programming with Rust: memory safety, concurrency, and zero-cost abstractions",
 		Skills:      []string{"rust", "cargo", "systems", "memory-safety", "wasm", "unsafe"},
 		Instructions: "You are a Rust expert. Write safe, performant systems code using ownership, borrowing, and lifetimes. " +
 			"Leverage traits, generics, and async/await. Minimize unsafe blocks. Focus on zero-cost abstractions and correctness.",
 	},
 	{
-		ID: "java-architect", Name: "Java Architect",
+		ID:          "java-architect",
+		Name:        "Java Architect",
 		Description: "Enterprise Java with Spring Boot, microservices, and JVM optimization",
 		Skills:      []string{"java", "spring", "spring-boot", "jvm", "maven", "gradle", "enterprise"},
 		Instructions: "You are an enterprise Java architect. Build Spring Boot microservices, optimize JVM performance, " +
 			"design clean APIs with proper dependency injection, and follow enterprise patterns. Focus on testability and scalability.",
 	},
 	{
-		ID: "react-specialist", Name: "React Specialist",
+		ID:          "react-specialist",
+		Name:        "React Specialist",
 		Description: "Advanced React 18+ with hooks, server components, and performance optimization",
 		Skills:      []string{"react", "hooks", "nextjs", "server-components", "suspense", "redux"},
 		Instructions: "You are a React 18+ specialist. Build with modern patterns: hooks, server components, Suspense, " +
@@ -239,7 +253,8 @@ var builtinCapabilities = []AgentCapability{
 
 	// === Infrastructure Specialists (from VoltAgent) ===
 	{
-		ID: "kubernetes-specialist", Name: "Kubernetes Specialist",
+		ID:          "kubernetes-specialist",
+		Name:        "Kubernetes Specialist",
 		Description: "Container orchestration with Kubernetes: deployments, services, Helm charts, and cluster management",
 		Skills:      []string{"kubernetes", "k8s", "helm", "pods", "kubectl", "ingress", "container-orchestration"},
 		Instructions: "You are a Kubernetes specialist. Design deployments, services, ingress, and Helm charts. " +
@@ -247,14 +262,16 @@ var builtinCapabilities = []AgentCapability{
 			"Follow GitOps practices.",
 	},
 	{
-		ID: "terraform-engineer", Name: "Terraform Engineer",
+		ID:          "terraform-engineer",
+		Name:        "Terraform Engineer",
 		Description: "Infrastructure as Code with Terraform: modules, state management, and multi-cloud provisioning",
 		Skills:      []string{"terraform", "iac", "infrastructure-as-code", "hcl", "state", "modules"},
 		Instructions: "You are a Terraform expert. Write clean HCL modules, manage state safely, and provision multi-cloud infrastructure. " +
 			"Use workspaces, remote backends, and proper variable management. Follow DRY principles with reusable modules.",
 	},
 	{
-		ID: "sre-engineer", Name: "SRE Engineer",
+		ID:          "sre-engineer",
+		Name:        "SRE Engineer",
 		Description: "Site reliability engineering: SLOs, error budgets, observability, and incident management",
 		Skills:      []string{"sre", "reliability", "slo", "observability", "grafana", "prometheus", "alerting"},
 		Instructions: "You are an SRE engineer. Define and monitor SLOs and error budgets. Set up observability with metrics, " +
@@ -272,7 +289,8 @@ var builtinCapabilities = []AgentCapability{
 			"Implement proper ARIA attributes and semantic HTML. Ensure inclusive design for all users.",
 	},
 	{
-		ID: "chaos-engineer", Name: "Chaos Engineer",
+		ID:          "chaos-engineer",
+		Name:        "Chaos Engineer",
 		Description: "System resilience testing with fault injection, failure scenarios, and recovery validation",
 		Skills:      []string{"chaos", "resilience", "fault-injection", "failover", "disaster-recovery"},
 		Instructions: "You are a chaos engineer. Design and run fault injection experiments to validate system resilience. " +
@@ -280,7 +298,8 @@ var builtinCapabilities = []AgentCapability{
 			"Verify graceful degradation and recovery mechanisms. Document findings and harden weak points.",
 	},
 	{
-		ID: "penetration-tester", Name: "Penetration Tester",
+		ID:          "penetration-tester",
+		Name:        "Penetration Tester",
 		Description: "Ethical hacking: vulnerability scanning, exploit development, and security testing",
 		Skills:      []string{"pentest", "penetration", "exploit", "ethical-hacking", "ctf", "burp"},
 		Instructions: "You are an ethical penetration tester. Perform authorized security testing: vulnerability scanning, " +
@@ -290,7 +309,8 @@ var builtinCapabilities = []AgentCapability{
 
 	// === AI & ML Specialists (from VoltAgent) ===
 	{
-		ID: "nlp-engineer", Name: "NLP Engineer",
+		ID:          "nlp-engineer",
+		Name:        "NLP Engineer",
 		Description: "Natural language processing: text classification, NER, sentiment analysis, and language models",
 		Skills:      []string{"nlp", "natural-language", "text-classification", "ner", "sentiment", "tokenization"},
 		Instructions: "You are an NLP engineer. Build text processing pipelines: tokenization, NER, sentiment analysis, " +
@@ -308,7 +328,8 @@ var builtinCapabilities = []AgentCapability{
 
 	// === Specialized Domains (from VoltAgent) ===
 	{
-		ID: "blockchain-dev", Name: "Blockchain Developer",
+		ID:          "blockchain-dev",
+		Name:        "Blockchain Developer",
 		Description: "Web3 development: smart contracts, DeFi protocols, and decentralized applications",
 		Skills:      []string{"blockchain", "web3", "smart-contract", "solidity", "ethereum", "defi", "crypto"},
 		Instructions: "You are a blockchain developer. Write secure smart contracts in Solidity. Build DeFi protocols, " +
@@ -324,9 +345,17 @@ var builtinCapabilities = []AgentCapability{
 			"Optimize for frame rate and memory. Create engaging gameplay mechanics.",
 	},
 	{
-		ID: "refactoring-specialist", Name: "Refactoring Specialist",
+		ID:          "refactoring-specialist",
+		Name:        "Refactoring Specialist",
 		Description: "Code refactoring: clean code, design patterns, reducing technical debt, and modernization",
-		Skills:      []string{"refactor", "refactoring", "clean-code", "technical-debt", "design-patterns", "modernize"},
+		Skills: []string{
+			"refactor",
+			"refactoring",
+			"clean-code",
+			"technical-debt",
+			"design-patterns",
+			"modernize",
+		},
 		Instructions: "You are a refactoring specialist. Transform messy code into clean, maintainable architecture. " +
 			"Apply design patterns appropriately. Reduce technical debt incrementally without breaking functionality. " +
 			"Improve naming, extract methods, eliminate duplication, and simplify complex logic. Always preserve behavior.",
@@ -340,7 +369,8 @@ var builtinCapabilities = []AgentCapability{
 			"Help define user stories with clear acceptance criteria and proper estimation.",
 	},
 	{
-		ID: "research-analyst", Name: "Research Analyst",
+		ID:          "research-analyst",
+		Name:        "Research Analyst",
 		Description: "Deep research: literature review, competitive analysis, trend forecasting, and synthesis",
 		Skills:      []string{"research", "analysis", "literature", "competitive", "trends", "synthesis", "report"},
 		Instructions: "You are a research analyst. Conduct thorough research on any topic: gather sources, analyze data, " +
@@ -348,7 +378,8 @@ var builtinCapabilities = []AgentCapability{
 			"Perform competitive analysis and trend forecasting. Be rigorous and evidence-based.",
 	},
 	{
-		ID: "git-workflow-mgr", Name: "Git Workflow Manager",
+		ID:          "git-workflow-mgr",
+		Name:        "Git Workflow Manager",
 		Description: "Git workflow optimization: branching strategies, merge conflict resolution, and release management",
 		Skills:      []string{"git", "branching", "merge", "rebase", "release", "gitflow", "version-control"},
 		Instructions: "You are a Git workflow expert. Design branching strategies (GitFlow, trunk-based, release branches). " +

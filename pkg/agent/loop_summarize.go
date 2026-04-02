@@ -28,53 +28,88 @@ func (al *AgentLoop) maybeSummarize(agent *AgentInstance, sessionKey, channel, c
 	}
 }
 
-// forceCompression aggressively reduces context when the limit is hit.
-// It drops the oldest 50% of messages (keeping system prompt and last user message).
-// The cut point is adjusted to a safe message boundary so that tool-result
-// messages are never orphaned from their preceding assistant tool-call message.
+// forceCompression reduces context using a protected-region approach:
+// 1. Protect head (first 2 messages — system + initial user) and tail (last 30% of messages)
+// 2. Truncate tool results in the compressible middle to placeholders
+// 3. If still too large, drop the compressible middle entirely with a summary note
 func (al *AgentLoop) forceCompression(agent *AgentInstance, sessionKey string) {
 	history := agent.Sessions.GetHistory(sessionKey)
-	if len(history) <= 4 {
+	if len(history) <= 6 {
 		return
 	}
 
-	// Keep system prompt (usually [0]) and the very last message (user's trigger)
-	// We want to drop the oldest half of the *conversation*
-	// Assuming [0] is system, [1:] is conversation
-	conversation := history[1 : len(history)-1]
-	if len(conversation) == 0 {
+	// Protected regions: head (first 2) and tail (last ~30%, min 4)
+	headSize := 2
+	if headSize > len(history) {
+		headSize = 1
+	}
+	tailSize := len(history) * 30 / 100
+	if tailSize < 4 {
+		tailSize = 4
+	}
+	if headSize+tailSize >= len(history) {
+		// Nothing to compress
 		return
 	}
 
-	// Find the mid-point, then adjust forward to a safe boundary.
-	// A "safe" cut means the kept portion doesn't start with a tool
-	// result or an assistant message whose tool results would be dropped.
-	mid := len(conversation) / 2
-	mid = safeCutPoint(conversation, mid)
+	// Adjust tail start to a safe boundary
+	tailStart := len(history) - tailSize
+	tailStart = safeCutPoint(history[headSize:], tailStart-headSize) + headSize
 
-	droppedCount := mid
-	keptConversation := conversation[mid:]
+	head := history[:headSize]
+	middle := history[headSize:tailStart]
+	tail := history[tailStart:]
 
-	newHistory := make([]providers.Message, 0, 1+len(keptConversation)+1)
+	// Phase 1: Truncate tool results in the middle to placeholders
+	truncatedCount := 0
+	for i := range middle {
+		if middle[i].Role == "tool" && len(middle[i].Content) > 200 {
+			middle[i].Content = fmt.Sprintf("[Tool result truncated — originally %d chars]",
+				utf8.RuneCountInString(middle[i].Content))
+			truncatedCount++
+		}
+	}
 
-	// Append compression note to the original system prompt instead of adding a new system message
-	// This avoids having two consecutive system messages which some APIs (like Zhipu) reject
+	// Check if truncation was enough
+	newHistory := make([]providers.Message, 0, len(head)+len(middle)+len(tail))
+	newHistory = append(newHistory, head...)
+	newHistory = append(newHistory, middle...)
+	newHistory = append(newHistory, tail...)
+
+	tokenEstimate := al.estimateTokens(newHistory)
+	threshold := agent.ContextWindow * 90 / 100
+
+	if tokenEstimate <= threshold {
+		// Tool result truncation was sufficient
+		agent.Sessions.SetHistory(sessionKey, newHistory)
+		agent.Sessions.Save(sessionKey)
+		logger.InfoCF("agent", "Context compression: truncated tool results", map[string]any{
+			"session_key": sessionKey,
+			"truncated":   truncatedCount,
+			"new_count":   len(newHistory),
+		})
+		return
+	}
+
+	// Phase 2: Drop the compressible middle entirely
+	droppedCount := len(middle)
 	compressionNote := fmt.Sprintf(
-		"\n\n[System Note: Emergency compression dropped %d oldest messages due to context limit]",
+		"\n\n[System Note: Context compression dropped %d messages from the middle of the conversation. "+
+			"Recent context and initial context are preserved.]",
 		droppedCount,
 	)
-	enhancedSystemPrompt := history[0]
-	enhancedSystemPrompt.Content = enhancedSystemPrompt.Content + compressionNote
-	newHistory = append(newHistory, enhancedSystemPrompt)
+	enhancedHead := make([]providers.Message, len(head))
+	copy(enhancedHead, head)
+	enhancedHead[0].Content = enhancedHead[0].Content + compressionNote
 
-	newHistory = append(newHistory, keptConversation...)
-	newHistory = append(newHistory, history[len(history)-1]) // Last message
+	newHistory = make([]providers.Message, 0, len(enhancedHead)+len(tail))
+	newHistory = append(newHistory, enhancedHead...)
+	newHistory = append(newHistory, tail...)
 
-	// Update session
 	agent.Sessions.SetHistory(sessionKey, newHistory)
 	agent.Sessions.Save(sessionKey)
 
-	logger.WarnCF("agent", "Forced compression executed", map[string]any{
+	logger.WarnCF("agent", "Forced compression: dropped middle region", map[string]any{
 		"session_key":  sessionKey,
 		"dropped_msgs": droppedCount,
 		"new_count":    len(newHistory),

@@ -1,0 +1,106 @@
+<div id="settings-subtab-intelligence" class="h-full flex flex-col">
+    <div class="flex-grow min-h-0 overflow-y-auto pr-2 space-y-4">
+        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-4">Evaluation Loop</h3>
+
+            <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                <div class="flex items-start justify-between">
+                    <div class="space-y-1 pr-6">
+                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable Evaluation Loop</h4>
+                        <p class="text-[11px] leading-relaxed text-zinc-500">
+                            After each response, score it with the reflection engine. If below threshold, re-run with feedback until quality is met.
+                        </p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                        <input type="checkbox" id="cfg-eval-loop-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Quality Threshold (0-1)</label>
+                    <input type="number" id="cfg-eval-loop-threshold" step="0.05" min="0" max="1" placeholder="0.7"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    <p class="text-[10px] text-zinc-500 ml-1">Responses scoring below this are re-run with feedback.</p>
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Max Retries</label>
+                    <input type="number" id="cfg-eval-loop-max-retries" min="1" max="10" placeholder="3"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    <p class="text-[10px] text-zinc-500 ml-1">Maximum re-evaluation attempts before accepting best result.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-4">Doom Loop Detection</h3>
+
+            <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                <div class="flex items-start justify-between">
+                    <div class="space-y-1 pr-6">
+                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable Doom Loop Detection</h4>
+                        <p class="text-[11px] leading-relaxed text-zinc-500">
+                            Detect when agents are stuck repeating the same actions. Applies graduated recovery: redirect, model switch, ask for help, abort.
+                        </p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                        <input type="checkbox" id="cfg-doom-loop-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="mt-4 space-y-2">
+                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Repetition Threshold</label>
+                <input type="range" id="cfg-doom-loop-threshold" min="2" max="10" value="3"
+                    oninput="document.getElementById('cfg-doom-loop-threshold-val').textContent=this.value"
+                    onchange="saveConfig()"
+                    class="w-full h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-sofia">
+                <div class="text-[11px] text-zinc-400 font-mono text-right">
+                    Trigger after <span id="cfg-doom-loop-threshold-val">3</span> consecutive repetitions
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-4">Auto-Escalation</h3>
+
+            <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                <div class="flex items-start justify-between">
+                    <div class="space-y-1 pr-6">
+                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable Auto-Escalation</h4>
+                        <p class="text-[11px] leading-relaxed text-zinc-500">
+                            Automatically adjust iteration limits based on message complexity. Simple questions get fewer iterations, complex tasks get more.
+                        </p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                        <input type="checkbox" id="cfg-auto-escalation-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)] mt-3">
+                <div class="flex items-start justify-between">
+                    <div class="space-y-1 pr-6">
+                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Smart Model Routing</h4>
+                        <p class="text-[11px] leading-relaxed text-zinc-500">
+                            Route simple messages to a cheaper/faster fallback model. Complex messages use the primary model. Requires auto-escalation and model fallbacks configured.
+                        </p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                        <input type="checkbox" id="cfg-smart-model-routing" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <button onclick="saveConfig()" class="mt-2 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            Save changes
+        </button>
+    </div>
+</div>

@@ -33,6 +33,10 @@ var regexCache = struct {
 	cache: make(map[string]*regexp.Regexp),
 }
 
+// maxRegexCacheSize is the maximum number of entries in the regex cache.
+// When exceeded, the cache is cleared to prevent unbounded growth.
+const maxRegexCacheSize = 100
+
 // getCachedRegex returns a compiled regex for the given pattern, using a cache
 // to avoid recompilation. Returns nil if the pattern is invalid.
 func getCachedRegex(pattern string) *regexp.Regexp {
@@ -49,6 +53,9 @@ func getCachedRegex(pattern string) *regexp.Regexp {
 	}
 
 	regexCache.mu.Lock()
+	if len(regexCache.cache) >= maxRegexCacheSize {
+		regexCache.cache = make(map[string]*regexp.Regexp)
+	}
 	regexCache.cache[pattern] = re
 	regexCache.mu.Unlock()
 	return re

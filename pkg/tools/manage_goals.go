@@ -60,7 +60,7 @@ func (t *ManageGoalsTool) Parameters() map[string]any {
 }
 
 // Execute performs goal manipulations
-func (t *ManageGoalsTool) Execute(ctx context.Context, args map[string]interface{}) *ToolResult {
+func (t *ManageGoalsTool) Execute(ctx context.Context, args map[string]any) *ToolResult {
 	if t.mgr == nil {
 		return ErrorResult("manage_goals not configured: GoalManager is nil")
 	}
@@ -92,7 +92,10 @@ func (t *ManageGoalsTool) Execute(ctx context.Context, args map[string]interface
 		b, _ := json.Marshal(gAny)
 		var g map[string]any
 		json.Unmarshal(b, &g)
-		return NewToolResult(fmt.Sprintf("Goal successfully added. ID: %.0f", g["id"].(float64)))
+		if id, ok := g["id"].(float64); ok {
+			return NewToolResult(fmt.Sprintf("Goal successfully added. ID: %.0f", id))
+		}
+		return NewToolResult("Goal successfully added.")
 
 	case "update_status":
 		if parsedArgs.GoalID == 0 || parsedArgs.Status == "" {
@@ -112,7 +115,9 @@ func (t *ManageGoalsTool) Execute(ctx context.Context, args map[string]interface
 		b, _ := json.Marshal(gAny)
 		var g map[string]any
 		json.Unmarshal(b, &g)
-		return NewToolResult(fmt.Sprintf("Goal %.0f status updated to %s", g["id"].(float64), g["status"]))
+		id, _ := g["id"].(float64)
+		status, _ := g["status"].(string)
+		return NewToolResult(fmt.Sprintf("Goal %.0f status updated to %s", id, status))
 
 	case "list":
 		goalsAny, err := t.mgr.ListActiveGoals(t.agentID)
@@ -127,7 +132,19 @@ func (t *ManageGoalsTool) Execute(ctx context.Context, args map[string]interface
 			b, _ := json.Marshal(gAny)
 			var g map[string]any
 			json.Unmarshal(b, &g)
-			out.WriteString(fmt.Sprintf("- ID: %.0f | Name: %s | Priority: %s\n  %s\n", g["id"].(float64), g["name"], g["priority"], g["description"]))
+			id, _ := g["id"].(float64)
+			name, _ := g["name"].(string)
+			priority, _ := g["priority"].(string)
+			description, _ := g["description"].(string)
+			out.WriteString(
+				fmt.Sprintf(
+					"- ID: %.0f | Name: %s | Priority: %s\n  %s\n",
+					id,
+					name,
+					priority,
+					description,
+				),
+			)
 		}
 		return NewToolResult(out.String())
 

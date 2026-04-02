@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -12,6 +13,12 @@ import (
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/providers"
 	pt "github.com/grasberg/sofia/pkg/providers/protocoltypes"
+)
+
+// dangerousPatterns matches content that should never be written by the evolution engine.
+var dangerousPatterns = regexp.MustCompile(
+	`(?i)(ignore\s+previous|override\s+safety|disable\s+guardrail|rm\s+-rf|DROP\s+TABLE|` +
+		`delete\s+from\s+\w+|truncate\s+table|exec\s*\(|eval\s*\(|os\.RemoveAll|os\.Remove)`,
 )
 
 // SafeModifier handles file modifications with versioning, immutability checks,
@@ -90,6 +97,15 @@ func (sm *SafeModifier) ModifyFile(ctx context.Context, path, newContent string)
 		return fmt.Errorf("evolution: path %q is immutable", path)
 	}
 
+	// Primary gate: structural regex check for dangerous patterns.
+	if match := dangerousPatterns.FindString(newContent); match != "" {
+		logger.WarnCF("evolution", "Content blocked by structural safety check", map[string]any{
+			"path":    path,
+			"pattern": match,
+		})
+		return fmt.Errorf("blocked_by_safety: content for %q contains dangerous pattern %q", path, match)
+	}
+
 	// Version the existing file if it exists.
 	if _, err := os.Stat(path); err == nil {
 		if _, err := sm.VersionFile(path); err != nil {
@@ -97,14 +113,18 @@ func (sm *SafeModifier) ModifyFile(ctx context.Context, path, newContent string)
 		}
 	}
 
-	// Semantic safety check via LLM (fail-closed).
+	// Secondary gate: semantic safety check via LLM (fail-closed).
 	if sm.provider != nil {
 		blocked, err := sm.checkSafety(ctx, newContent)
 		if err != nil {
-			logger.WarnCF("evolution", "Safety validation LLM call failed, blocking write as precaution", map[string]any{
-				"path":  path,
-				"error": err.Error(),
-			})
+			logger.WarnCF(
+				"evolution",
+				"Safety validation LLM call failed, blocking write as precaution",
+				map[string]any{
+					"path":  path,
+					"error": err.Error(),
+				},
+			)
 			return fmt.Errorf("safety validation unavailable, write blocked: %w", err)
 		} else if blocked {
 			return fmt.Errorf("blocked_by_safety: content for %q was flagged as unsafe", path)

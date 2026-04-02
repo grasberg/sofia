@@ -3,9 +3,10 @@ package agent
 import (
 	"testing"
 
-	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grasberg/sofia/pkg/memory"
 )
 
 func TestPerformanceScore_Perfect(t *testing.T) {

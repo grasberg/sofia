@@ -17,6 +17,7 @@ import (
 
 	"github.com/playwright-community/playwright-go"
 
+	"github.com/grasberg/sofia/pkg/audit"
 	"github.com/grasberg/sofia/pkg/autonomy"
 	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/grasberg/sofia/pkg/channels"
@@ -60,10 +61,12 @@ type AgentLoop struct {
 	tokenCounts    map[string]int       // AgentID -> tokens this hour
 	tokenResetTime map[string]time.Time // AgentID -> next reset time
 
+	autonomyMu       sync.Mutex // protects autonomyServices map
 	autonomyServices map[string]*autonomy.Service
 	pushService      *notifications.PushService
 	dashboardHub     *dashboard.Hub
 	toolTracker      *tools.ToolTracker
+	auditLogger      *audit.AuditLogger
 	evolutionEngine  *evolution.EvolutionEngine
 	usageTracker     *UsageTracker
 	verboseMode      sync.Map // sessionKey -> bool
@@ -73,9 +76,17 @@ type AgentLoop struct {
 	branchManager    *session.BranchManager
 	approvalGate     *ApprovalGate
 
+	agentModelMu sync.RWMutex // protects defaultAgent.Model writes/reads
+
+	dispatchWg sync.WaitGroup // tracks goroutines from dispatchPendingSteps
+
+	evolveRunning atomic.Bool // prevents duplicate /evolve run goroutines
+
 	// processCancelMu protects processCancel
 	processCancelMu sync.Mutex
 	processCancel   context.CancelFunc // cancels the current in-flight LLM processing
+
+	playwrightCancel context.CancelFunc // cancels playwright install goroutine
 }
 
 // processOptions configures how a message is processed
@@ -124,7 +135,10 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	// Set up semantic tool matcher if provider supports embeddings
 	var semanticMatcher *tools.SemanticMatcher
 	if embProvider, ok := provider.(providers.EmbeddingProvider); ok {
-		semanticMatcher = tools.NewSemanticMatcher(embProvider, "text-embedding-3-small") // Defaulting for OpenAI-compat
+		semanticMatcher = tools.NewSemanticMatcher(
+			embProvider,
+			"text-embedding-3-small",
+		) // Defaulting for OpenAI-compat
 	}
 
 	// Create state manager using default agent's workspace for channel recording
@@ -157,6 +171,14 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	// Set up Tool Performance Tracker
 	toolStatsPath := filepath.Join(filepath.Dir(memDBPath), "tool_stats.json")
 	toolTracker := tools.NewToolTracker(toolStatsPath)
+
+	// Set up Audit Logger for tool call tracing
+	auditDBPath := filepath.Join(filepath.Dir(memDBPath), "audit.db")
+	auditLog, auditErr := audit.NewAuditLogger(auditDBPath)
+	if auditErr != nil {
+		logger.WarnCF("agent", "Failed to open audit logger",
+			map[string]any{"path": auditDBPath, "error": auditErr.Error()})
+	}
 
 	// Build persona definitions from config.
 	personaMap := make(map[string]*Persona, len(cfg.Agents.Defaults.Personas))
@@ -191,6 +213,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		pushService:      pushService,
 		dashboardHub:     dashboard.NewHub(),
 		toolTracker:      toolTracker,
+		auditLogger:      auditLog,
 		usageTracker:     NewUsageTracker(),
 		elevatedMgr:      NewElevatedManager(),
 		personaManager:   NewPersonaManager(personaMap),
@@ -212,7 +235,10 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	// Ensure Playwright browser binaries are installed.
 	// This is a no-op if they are already present. Timeout prevents
 	// goroutine leak if download hangs.
+	pwCtx, pwCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	al.playwrightCancel = pwCancel
 	go func() {
+		defer pwCancel()
 		installDone := make(chan error, 1)
 		go func() {
 			installDone <- playwright.Install(
@@ -232,16 +258,29 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 				logger.InfoCF("agent",
 					"Playwright chromium ready", nil)
 			}
-		case <-time.After(5 * time.Minute):
+		case <-pwCtx.Done():
 			logger.WarnCF("agent",
-				"Playwright install timed out after 5m", nil)
+				"Playwright install cancelled or timed out", nil)
 		}
 	}()
 
 	al.startAutonomyServices(provider, pushService)
 
 	// Register shared tools to all agents.
-	registerSharedTools(cfg, msgBus, registry, provider, al.runSpawnedTaskAsAgent, planMgr, scratchpad, checkpointMgr, memDB, a2aRouter, pushService, toolTracker)
+	registerSharedTools(
+		cfg,
+		msgBus,
+		registry,
+		provider,
+		al.runSpawnedTaskAsAgent,
+		planMgr,
+		scratchpad,
+		checkpointMgr,
+		memDB,
+		a2aRouter,
+		pushService,
+		toolTracker,
+	)
 
 	al.activeAgentID.Store("")
 	al.activeStatus.Store("Idle")
@@ -364,10 +403,25 @@ func (al *AgentLoop) Run(ctx context.Context) error {
 
 func (al *AgentLoop) Stop() {
 	al.running.Store(false)
+	if al.playwrightCancel != nil {
+		al.playwrightCancel()
+	}
 	if al.evolutionEngine != nil {
 		al.evolutionEngine.Stop()
 	}
 	al.stopAutonomyServices()
+
+	// Wait for dispatched goroutines with a timeout
+	done := make(chan struct{})
+	go func() {
+		al.dispatchWg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		logger.WarnCF("agent", "Timed out waiting for dispatched goroutines to finish", nil)
+	}
 }
 
 // Reset cancels any in-flight processing, clears all sessions, and resets all goals.
@@ -486,15 +540,29 @@ func (al *AgentLoop) ReloadAgents() {
 	}
 
 	toolStatsPath := filepath.Join(filepath.Dir(al.memDB.Path()), "tool_stats.json")
-	var toolTracker *tools.ToolTracker
+	var newToolTracker *tools.ToolTracker
 	if al.registry != nil {
-		toolTracker = tools.NewToolTracker(toolStatsPath)
+		newToolTracker = tools.NewToolTracker(toolStatsPath)
 	}
 
-	registerSharedTools(al.cfg, al.bus, newRegistry, provider, al.runSpawnedTaskAsAgent, al.planManager, al.scratchpad, al.checkpointMgr, al.memDB, al.a2aRouter, al.pushService, toolTracker)
+	registerSharedTools(
+		al.cfg,
+		al.bus,
+		newRegistry,
+		provider,
+		al.runSpawnedTaskAsAgent,
+		al.planManager,
+		al.scratchpad,
+		al.checkpointMgr,
+		al.memDB,
+		al.a2aRouter,
+		al.pushService,
+		newToolTracker,
+	)
 
 	al.registryMu.Lock()
 	al.registry = newRegistry
+	al.toolTracker = newToolTracker
 	al.registryMu.Unlock()
 
 	al.stopAutonomyServices()

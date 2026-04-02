@@ -62,7 +62,8 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 					sel.providerType = providerTypeCodexCLIToken
 					return sel, nil
 				}
-				if cfg.Providers.OpenAI.AuthMethod == AuthMethodOAuth || cfg.Providers.OpenAI.AuthMethod == AuthMethodToken {
+				if cfg.Providers.OpenAI.AuthMethod == AuthMethodOAuth ||
+					cfg.Providers.OpenAI.AuthMethod == AuthMethodToken {
 					sel.providerType = providerTypeCodexAuth
 					return sel, nil
 				}
@@ -75,7 +76,8 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 			}
 		case "anthropic", "claude":
 			if cfg.Providers.Anthropic.APIKey != "" || cfg.Providers.Anthropic.AuthMethod != "" {
-				if cfg.Providers.Anthropic.AuthMethod == AuthMethodOAuth || cfg.Providers.Anthropic.AuthMethod == AuthMethodToken {
+				if cfg.Providers.Anthropic.AuthMethod == AuthMethodOAuth ||
+					cfg.Providers.Anthropic.AuthMethod == AuthMethodToken {
 					sel.apiBase = cfg.Providers.Anthropic.APIBase
 					if sel.apiBase == "" {
 						sel.apiBase = DefaultAnthropicAPIBase
@@ -271,7 +273,8 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 			}
 		case (strings.Contains(lowerModel, "claude") || strings.HasPrefix(model, "anthropic/")) &&
 			(cfg.Providers.Anthropic.APIKey != "" || cfg.Providers.Anthropic.AuthMethod != ""):
-			if cfg.Providers.Anthropic.AuthMethod == AuthMethodOAuth || cfg.Providers.Anthropic.AuthMethod == AuthMethodToken {
+			if cfg.Providers.Anthropic.AuthMethod == AuthMethodOAuth ||
+				cfg.Providers.Anthropic.AuthMethod == AuthMethodToken {
 				sel.apiBase = cfg.Providers.Anthropic.APIBase
 				if sel.apiBase == "" {
 					sel.apiBase = DefaultAnthropicAPIBase
@@ -292,7 +295,8 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 				sel.providerType = providerTypeCodexCLIToken
 				return sel, nil
 			}
-			if cfg.Providers.OpenAI.AuthMethod == AuthMethodOAuth || cfg.Providers.OpenAI.AuthMethod == AuthMethodToken {
+			if cfg.Providers.OpenAI.AuthMethod == AuthMethodOAuth ||
+				cfg.Providers.OpenAI.AuthMethod == AuthMethodToken {
 				sel.providerType = providerTypeCodexAuth
 				return sel, nil
 			}

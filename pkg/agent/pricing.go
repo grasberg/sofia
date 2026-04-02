@@ -30,22 +30,35 @@ var pricingTable = map[string]ModelPricing{
 	"llama":            {InputPer1M: 0.05, OutputPer1M: 0.08},
 	"mixtral":          {InputPer1M: 0.24, OutputPer1M: 0.24},
 	"qwen":             {InputPer1M: 0.30, OutputPer1M: 0.30},
+	"glm-5.1":          {InputPer1M: 1.00, OutputPer1M: 3.20},
+	"glm-5":            {InputPer1M: 1.00, OutputPer1M: 3.20},
+	"glm-4.7":          {InputPer1M: 0.60, OutputPer1M: 2.20},
+	"glm-4.7-flash":    {InputPer1M: 0.00, OutputPer1M: 0.00},
+	"glm-4.5-air":      {InputPer1M: 0.20, OutputPer1M: 1.10},
+	"glm-4.5":          {InputPer1M: 0.60, OutputPer1M: 2.20},
+	"MiniMax-M2.7":     {InputPer1M: 0.15, OutputPer1M: 0.60},
+	"MiniMax-M2.5":     {InputPer1M: 0.10, OutputPer1M: 0.40},
 }
 
 // GetPricing returns pricing for a model using substring matching.
+// Both the model name and pricing table keys are compared in lowercase.
 // Returns zero pricing if no match found.
 func GetPricing(model string) ModelPricing {
+	modelLower := strings.ToLower(model)
 	// Try exact match first
-	if p, ok := pricingTable[model]; ok {
-		return p
+	for key, p := range pricingTable {
+		if strings.ToLower(key) == modelLower {
+			return p
+		}
 	}
 	// Substring match — longest match wins
 	var best ModelPricing
 	bestLen := 0
 	for key, p := range pricingTable {
-		if len(key) > bestLen && strings.Contains(model, key) {
+		keyLower := strings.ToLower(key)
+		if len(keyLower) > bestLen && strings.Contains(modelLower, keyLower) {
 			best = p
-			bestLen = len(key)
+			bestLen = len(keyLower)
 		}
 	}
 	return best
@@ -61,4 +74,3 @@ func EstimateCost(usage *SessionUsage, model string) float64 {
 	outputCost := float64(usage.CompletionTokens) / 1_000_000 * p.OutputPer1M
 	return inputCost + outputCost
 }
-

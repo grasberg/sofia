@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -166,6 +167,13 @@ func registerSharedTools(
 		subagentManager.SetLLMOptions(agent.MaxTokens, agent.Temperature)
 		subagentManager.SetAgentTaskRunner(agentTaskRunner)
 		subagentManager.SetSkillsLoader(agent.ContextBuilder.GetSkillsLoader())
+		// Inject goal context so subagents know WHY they're doing a task
+		if memDB != nil {
+			capturedAgentID := agentID
+			subagentManager.SetGoalContext(func() string {
+				return formatActiveGoals(memDB, capturedAgentID)
+			})
+		}
 		spawnTool := tools.NewSpawnTool(subagentManager)
 		currentAgentID := agentID
 		spawnTool.SetAllowlistChecker(func(targetAgentID string) bool {
@@ -314,4 +322,24 @@ func registerSharedTools(
 		cwd, _ := os.Getwd()
 		agent.Tools.Register(tools.NewSelfModifyTool(cwd))
 	}
+}
+
+// formatActiveGoals returns a formatted string of active goals for an agent,
+// used to inject goal context into subagent prompts.
+func formatActiveGoals(db *memory.MemoryDB, agentID string) string {
+	nodes, err := db.FindNodes(agentID, "Goal", "", 10)
+	if err != nil || len(nodes) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	for _, n := range nodes {
+		// Only include active goals
+		props := n.Properties
+		if !strings.Contains(props, `"active"`) {
+			continue
+		}
+		sb.WriteString(fmt.Sprintf("- [%d] %s\n", n.ID, n.Name))
+	}
+	return sb.String()
 }

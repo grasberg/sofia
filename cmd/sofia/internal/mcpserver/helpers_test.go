@@ -3,9 +3,10 @@ package mcpserver
 import (
 	"testing"
 
-	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grasberg/sofia/pkg/bus"
 )
 
 func TestMessageBusInitialization(t *testing.T) {
@@ -48,9 +49,9 @@ func TestTransportValidation(t *testing.T) {
 
 func TestAddressFormat(t *testing.T) {
 	tests := []struct {
-		addr   string
-		name   string
-		valid  bool
+		addr  string
+		name  string
+		valid bool
 	}{
 		{":9090", "default sse address", true},
 		{":8080", "custom port", true},

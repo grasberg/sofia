@@ -347,6 +347,13 @@ func (cs *CronService) AddJob(
 	deliver bool,
 	channel, to string,
 ) (*CronJob, error) {
+	// Validate cron expression before accepting the job.
+	if schedule.Kind == "cron" && schedule.Expr != "" {
+		if !gronx.IsValid(schedule.Expr) {
+			return nil, fmt.Errorf("invalid cron expression: %q", schedule.Expr)
+		}
+	}
+
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 
@@ -455,7 +462,9 @@ func (cs *CronService) ListJobs(includeDisabled bool) []CronJob {
 	defer cs.mu.RUnlock()
 
 	if includeDisabled {
-		return cs.store.Jobs
+		result := make([]CronJob, len(cs.store.Jobs))
+		copy(result, cs.store.Jobs)
+		return result
 	}
 
 	var enabled []CronJob

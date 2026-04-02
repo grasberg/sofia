@@ -13,24 +13,29 @@ import (
 
 // SkillImprovement represents a suggested improvement to a skill.
 type SkillImprovement struct {
-	SkillName    string    `json:"skill_name"`
-	Issue        string    `json:"issue"`
-	Suggestion   string    `json:"suggestion"`
-	Priority     int       `json:"priority"` // 1-5, 5 being highest
-	SourceTask   string    `json:"source_task"`
-	Timestamp    time.Time `json:"timestamp"`
+	SkillName  string    `json:"skill_name"`
+	Issue      string    `json:"issue"`
+	Suggestion string    `json:"suggestion"`
+	Priority   int       `json:"priority"` // 1-5, 5 being highest
+	SourceTask string    `json:"source_task"`
+	Timestamp  time.Time `json:"timestamp"`
 }
 
 // SkillAnalyzer analyzes agent performance and suggests skill improvements.
 type SkillAnalyzer struct {
-	db        *memory.MemoryDB
-	agentID   string
-	provider  providers.LLMProvider
-	modelID   string
+	db       *memory.MemoryDB
+	agentID  string
+	provider providers.LLMProvider
+	modelID  string
 }
 
 // NewSkillAnalyzer creates a new SkillAnalyzer.
-func NewSkillAnalyzer(db *memory.MemoryDB, agentID string, provider providers.LLMProvider, modelID string) *SkillAnalyzer {
+func NewSkillAnalyzer(
+	db *memory.MemoryDB,
+	agentID string,
+	provider providers.LLMProvider,
+	modelID string,
+) *SkillAnalyzer {
 	return &SkillAnalyzer{
 		db:       db,
 		agentID:  agentID,
@@ -67,7 +72,8 @@ func (sa *SkillAnalyzer) AnalyzeAndSuggestImprovements(ctx context.Context, limi
 		return nil, nil
 	}
 
-	prompt := fmt.Sprintf(`Analyze these failed or suboptimal task executions and identify patterns that suggest skill gaps.
+	prompt := fmt.Sprintf(
+		`Analyze these failed or suboptimal task executions and identify patterns that suggest skill gaps.
 
 Failed/Poor Executions:
 %s
@@ -84,14 +90,16 @@ Respond in this exact JSON format (no markdown, code fences, or extra text):
   }
 ]
 
-Focus on actionable skill improvements. If no clear skill improvements emerge, respond with "[]".`, strings.Join(problematic, "\n\n"))
+Focus on actionable skill improvements. If no clear skill improvements emerge, respond with "[]".`,
+		strings.Join(problematic, "\n\n"),
+	)
 
 	messages := []providers.Message{
 		{Role: "user", Content: prompt},
 	}
 
 	resp, err := sa.provider.Chat(ctx, messages, nil, sa.modelID, map[string]any{
-		"max_tokens": 1500,
+		"max_tokens":  1500,
 		"temperature": 0.3,
 	})
 	if err != nil || resp.Content == "" {
@@ -206,7 +214,10 @@ func NewSkillImprovementPrompts(provider providers.LLMProvider, modelID string) 
 }
 
 // GenerateSkillImprovement creates improved skill content based on the improvement suggestion.
-func (sip *SkillImprovementPrompts) GenerateSkillImprovement(ctx context.Context, existingContent, improvement Suggestion) (string, error) {
+func (sip *SkillImprovementPrompts) GenerateSkillImprovement(
+	ctx context.Context,
+	existingContent, improvement Suggestion,
+) (string, error) {
 	prompt := fmt.Sprintf(`Improve this skill based on the following improvement suggestion.
 
 Existing Skill Content:
@@ -227,7 +238,7 @@ Respond ONLY with the improved skill content (no explanations, no markdown code 
 	}
 
 	resp, err := sip.provider.Chat(ctx, messages, nil, sip.modelID, map[string]any{
-		"max_tokens": 4000,
+		"max_tokens":  4000,
 		"temperature": 0.4,
 	})
 	if err != nil {
