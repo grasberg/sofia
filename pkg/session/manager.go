@@ -36,6 +36,8 @@ type SessionManager struct {
 	agentID string
 }
 
+const sessionPreviewMaxLen = 80
+
 // NewSessionManager creates a SessionManager using the given MemoryDB.
 // agentID is stored with newly created sessions and memory notes.
 func NewSessionManager(db *memory.MemoryDB, agentID string) *SessionManager {
@@ -153,6 +155,14 @@ func inferChannel(key string) string {
 	}
 }
 
+func truncatePreview(preview string, maxLen int) string {
+	if maxLen > 0 && len(preview) > maxLen {
+		return preview[:maxLen] + "…"
+	}
+
+	return preview
+}
+
 // ListSessions returns lightweight metadata for all sessions, sorted
 // by Updated descending (most recent first).
 func (sm *SessionManager) ListSessions() []SessionMeta {
@@ -164,14 +174,10 @@ func (sm *SessionManager) ListSessions() []SessionMeta {
 
 	metas := make([]SessionMeta, 0, len(rows))
 	for _, r := range rows {
-		preview := r.Preview
-		if len(preview) > 80 {
-			preview = preview[:80] + "…"
-		}
 		metas = append(metas, SessionMeta{
 			Key:          r.Key,
 			Channel:      inferChannel(r.Key),
-			Preview:      preview,
+			Preview:      truncatePreview(r.Preview, sessionPreviewMaxLen),
 			MessageCount: r.MsgCount,
 			Created:      r.CreatedAt,
 			Updated:      r.UpdatedAt,
@@ -197,6 +203,31 @@ type SessionRotationPolicy struct {
 	MaxMessages      int           // Rotate when message count exceeds this (0 = disabled)
 }
 
+func shouldRotateByMessageCount(messageCount, maxMessages int) bool {
+	return maxMessages > 0 && messageCount > maxMessages
+}
+
+func estimateTokenCount(msgs []providers.Message) int {
+	totalChars := 0
+	for _, msg := range msgs {
+		totalChars += len(msg.Content)
+	}
+
+	return totalChars / 4
+}
+
+func shouldRotateByTokenEstimate(msgs []providers.Message, maxTokenEstimate int) bool {
+	return maxTokenEstimate > 0 && estimateTokenCount(msgs) > maxTokenEstimate
+}
+
+func shouldRotateByAge(createdAt time.Time, maxAge time.Duration, now time.Time) bool {
+	if maxAge <= 0 || createdAt.IsZero() {
+		return false
+	}
+
+	return now.Sub(createdAt) > maxAge
+}
+
 // ShouldRotate checks if a session should be rotated based on the given policy.
 // Returns true if any threshold is exceeded.
 func (sm *SessionManager) ShouldRotate(key string, policy SessionRotationPolicy) bool {
@@ -206,27 +237,17 @@ func (sm *SessionManager) ShouldRotate(key string, policy SessionRotationPolicy)
 
 	msgs := sm.GetHistory(key)
 
-	// Check message count
-	if policy.MaxMessages > 0 && len(msgs) > policy.MaxMessages {
+	if shouldRotateByMessageCount(len(msgs), policy.MaxMessages) {
 		return true
 	}
 
-	// Check token estimate (rough: 1 token ≈ 4 chars)
-	if policy.MaxTokenEstimate > 0 {
-		totalChars := 0
-		for _, m := range msgs {
-			totalChars += len(m.Content)
-		}
-		estimatedTokens := totalChars / 4
-		if estimatedTokens > policy.MaxTokenEstimate {
-			return true
-		}
+	if shouldRotateByTokenEstimate(msgs, policy.MaxTokenEstimate) {
+		return true
 	}
 
-	// Check age
 	if policy.MaxAge > 0 {
 		meta := sm.db.GetSessionMeta(key)
-		if meta != nil && !meta.CreatedAt.IsZero() && time.Since(meta.CreatedAt) > policy.MaxAge {
+		if meta != nil && shouldRotateByAge(meta.CreatedAt, policy.MaxAge, time.Now()) {
 			return true
 		}
 	}

@@ -954,10 +954,14 @@ func (t *CpanelTool) uapiGeneric(ctx context.Context, args map[string]any) *Tool
 
 	// Validate module and function names to prevent path traversal or injection.
 	if !uapiNameRe.MatchString(module) {
-		return ErrorResult("invalid module name: must start with a letter and contain only alphanumeric characters or underscores")
+		return ErrorResult(
+			"invalid module name: must start with a letter and contain only alphanumeric characters or underscores",
+		)
 	}
 	if !uapiNameRe.MatchString(function) {
-		return ErrorResult("invalid function name: must start with a letter and contain only alphanumeric characters or underscores")
+		return ErrorResult(
+			"invalid function name: must start with a letter and contain only alphanumeric characters or underscores",
+		)
 	}
 
 	params := url.Values{}

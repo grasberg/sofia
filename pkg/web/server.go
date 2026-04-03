@@ -97,6 +97,12 @@ var settingsCronHTML []byte
 //go:embed templates/settings/personas.html
 var settingsPersonasHTML []byte
 
+//go:embed templates/settings_ai.html
+var settingsAIHTML []byte
+
+//go:embed templates/settings_platform.html
+var settingsPlatformHTML []byte
+
 //go:embed templates/calendar.html
 var calendarHTML []byte
 
@@ -229,6 +235,51 @@ func configToMaskedJSON(cfg *config.Config) ([]byte, error) {
 	return json.Marshal(masked)
 }
 
+// maskedPlaceholder is the value used to replace sensitive fields in API responses.
+const maskedPlaceholder = "********"
+
+// restoreMaskedSecrets walks two generic JSON trees (incoming and original)
+// in lockstep. Wherever a sensitive field in incoming still contains the
+// maskedPlaceholder, it is replaced with the real value from original.
+// This prevents the Web UI "save config" flow from overwriting real API
+// keys with the masked placeholder.
+func restoreMaskedSecrets(incoming, original any) any {
+	switch inc := incoming.(type) {
+	case map[string]any:
+		orig, _ := original.(map[string]any)
+		for k, child := range inc {
+			if sensitiveJSONFields[k] {
+				if s, ok := child.(string); ok && s == maskedPlaceholder {
+					if orig != nil {
+						if origVal, exists := orig[k]; exists {
+							inc[k] = origVal
+							continue
+						}
+					}
+				}
+			}
+			var origChild any
+			if orig != nil {
+				origChild = orig[k]
+			}
+			inc[k] = restoreMaskedSecrets(child, origChild)
+		}
+		return inc
+	case []any:
+		origSlice, _ := original.([]any)
+		for i, child := range inc {
+			var origChild any
+			if i < len(origSlice) {
+				origChild = origSlice[i]
+			}
+			inc[i] = restoreMaskedSecrets(child, origChild)
+		}
+		return inc
+	default:
+		return incoming
+	}
+}
+
 func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *Server {
 	s := &Server{
 		cfg:            cfg,
@@ -266,6 +317,14 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	</div>
 </div>
 		`))
+	})
+	mux.HandleFunc("/ui/ai", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsAIHTML)
+	})
+	mux.HandleFunc("/ui/platform", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(settingsPlatformHTML)
 	})
 	mux.HandleFunc("/ui/settings/models", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -369,6 +428,8 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/api/chat", s.authMiddleware(s.handleChat))
 	mux.HandleFunc("/api/logs", s.authMiddleware(s.handleLogs))
 	mux.HandleFunc("/api/skills/add", s.authMiddleware(s.handleSkillAdd))
+	mux.HandleFunc("GET /api/skills", s.authMiddleware(s.handleSkillsList))
+	mux.HandleFunc("POST /api/skills/toggle", s.authMiddleware(s.handleSkillsToggle))
 	mux.HandleFunc("/api/agents", s.authMiddleware(s.handleAgents))
 	mux.HandleFunc("/api/agent-templates", s.authMiddleware(s.handleAgentTemplates))
 	mux.HandleFunc("/api/agent-templates/", s.authMiddleware(s.handleAgentTemplateByName))
@@ -467,8 +528,42 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		limitBody(r)
+
+		// Decode the incoming config into a generic map first so we
+		// can restore any masked secrets before unmarshalling into
+		// the typed struct.
+		var incomingRaw any
+		if err := json.NewDecoder(r.Body).Decode(&incomingRaw); err != nil {
+			s.sendJSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Build a generic map of the current config to use as the
+		// source of truth for masked fields.
+		s.mu.RLock()
+		origBytes, err := json.Marshal(s.cfg)
+		s.mu.RUnlock()
+		if err != nil {
+			s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		var originalRaw any
+		if err := json.Unmarshal(origBytes, &originalRaw); err != nil {
+			s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Replace "********" placeholders with the real values.
+		restoreMaskedSecrets(incomingRaw, originalRaw)
+
+		// Re-encode and decode into the typed config struct.
+		merged, err := json.Marshal(incomingRaw)
+		if err != nil {
+			s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		var newCfg config.Config
-		if err := json.NewDecoder(r.Body).Decode(&newCfg); err != nil {
+		if err := json.Unmarshal(merged, &newCfg); err != nil {
 			s.sendJSONError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -665,6 +760,156 @@ func (s *Server) handleSkillAdd(w http.ResponseWriter, r *http.Request) {
 	if err := s.skillInstaller.InstallFromMarkdown(req.Name, []byte(req.Content)); err != nil {
 		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"ok"}`))
+}
+
+func (s *Server) handleSkillsList(w http.ResponseWriter, r *http.Request) {
+	var allSkills []skills.SkillInfo
+	if s.agentLoop != nil {
+		info := s.agentLoop.GetStartupInfo()
+		skillsInfo, _ := info["skills"].(map[string]any)
+		allSkills, _ = skillsInfo["list"].([]skills.SkillInfo)
+	}
+
+	// Find the default agent's skills filter from config.
+	var enabledSkills []string
+	for _, a := range s.cfg.Agents.List {
+		if a.Default || routing.NormalizeAgentID(a.ID) == routing.DefaultAgentID {
+			enabledSkills = a.Skills
+			break
+		}
+	}
+
+	// Build response with enabled status.
+	type skillResponse struct {
+		Name        string `json:"name"`
+		Path        string `json:"path"`
+		Source      string `json:"source"`
+		Description string `json:"description"`
+		Enabled     bool   `json:"enabled"`
+	}
+
+	enabledSet := make(map[string]bool, len(enabledSkills))
+	for _, name := range enabledSkills {
+		enabledSet[name] = true
+	}
+
+	result := make([]skillResponse, 0, len(allSkills))
+	for _, sk := range allSkills {
+		enabled := true
+		if len(enabledSkills) > 0 {
+			// When a skills filter is set, only listed skills are enabled.
+			enabled = enabledSet[sk.Name]
+		}
+		result = append(result, skillResponse{
+			Name:        sk.Name,
+			Path:        sk.Path,
+			Source:      sk.Source,
+			Description: sk.Description,
+			Enabled:     enabled,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func (s *Server) handleSkillsToggle(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	limitBody(r)
+	var req struct {
+		Skill   string `json:"skill"`
+		Enabled bool   `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if req.Skill == "" {
+		s.sendJSONError(w, "Skill name is required", http.StatusBadRequest)
+		return
+	}
+
+	// Find the default agent config.
+	defaultIdx := -1
+	for i, a := range s.cfg.Agents.List {
+		if a.Default || routing.NormalizeAgentID(a.ID) == routing.DefaultAgentID {
+			defaultIdx = i
+			break
+		}
+	}
+	if defaultIdx == -1 {
+		s.sendJSONError(w, "Default agent not found", http.StatusInternalServerError)
+		return
+	}
+
+	agentCfg := &s.cfg.Agents.List[defaultIdx]
+
+	// If skills filter is empty (all enabled) and we're disabling one,
+	// populate with all skills minus the toggled one.
+	if len(agentCfg.Skills) == 0 && !req.Enabled {
+		var allSkills []skills.SkillInfo
+		if s.agentLoop != nil {
+			info := s.agentLoop.GetStartupInfo()
+			skillsInfo, _ := info["skills"].(map[string]any)
+			allSkills, _ = skillsInfo["list"].([]skills.SkillInfo)
+		}
+		for _, sk := range allSkills {
+			if sk.Name != req.Skill {
+				agentCfg.Skills = append(agentCfg.Skills, sk.Name)
+			}
+		}
+	} else if req.Enabled {
+		// Add skill to the filter if not already present.
+		found := false
+		for _, name := range agentCfg.Skills {
+			if name == req.Skill {
+				found = true
+				break
+			}
+		}
+		if !found {
+			agentCfg.Skills = append(agentCfg.Skills, req.Skill)
+		}
+		// If all skills are now enabled, clear the filter back to nil (means "all").
+		if s.agentLoop != nil {
+			info := s.agentLoop.GetStartupInfo()
+			skillsInfo, _ := info["skills"].(map[string]any)
+			allSkills, _ := skillsInfo["list"].([]skills.SkillInfo)
+			if len(agentCfg.Skills) >= len(allSkills) {
+				agentCfg.Skills = nil
+			}
+		}
+	} else {
+		// Remove skill from the filter.
+		newSkills := make([]string, 0, len(agentCfg.Skills))
+		for _, name := range agentCfg.Skills {
+			if name != req.Skill {
+				newSkills = append(newSkills, name)
+			}
+		}
+		agentCfg.Skills = newSkills
+	}
+
+	// Save config.
+	home, _ := os.UserHomeDir()
+	configPath := os.Getenv("SOFIA_CONFIG")
+	if configPath == "" {
+		configPath = home + "/.sofia/config.json"
+	}
+	if err := config.SaveConfig(configPath, s.cfg); err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Reload agents so the skills filter takes effect.
+	if s.agentLoop != nil {
+		s.agentLoop.ReloadAgents()
 	}
 
 	w.WriteHeader(http.StatusOK)

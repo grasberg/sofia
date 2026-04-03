@@ -41,9 +41,9 @@ type StatusResponse struct {
 func NewServer(host string, port int) *Server {
 	mux := http.NewServeMux()
 	s := &Server{
-		ready:    false,
-		checkFns: make(map[string]func() (bool, string)),
-		cache:    make(map[string]cachedCheck),
+		ready:     false,
+		checkFns:  make(map[string]func() (bool, string)),
+		cache:     make(map[string]cachedCheck),
 		startTime: time.Now(),
 	}
 

@@ -23,36 +23,25 @@ var (
 // Invalid characters are collapsed to "-". Leading/trailing dashes stripped.
 // Empty input returns DefaultAgentID ("main").
 func NormalizeAgentID(id string) string {
-	trimmed := strings.TrimSpace(id)
-	if trimmed == "" {
-		return DefaultAgentID
-	}
-	lower := strings.ToLower(trimmed)
-	if validIDRe.MatchString(lower) {
-		return lower
-	}
-	result := invalidCharsRe.ReplaceAllString(lower, "-")
-	result = leadingDashRe.ReplaceAllString(result, "")
-	result = trailingDashRe.ReplaceAllString(result, "")
-	if len(result) > MaxAgentIDLength {
-		result = result[:MaxAgentIDLength]
-	}
-	if result == "" {
-		return DefaultAgentID
-	}
-	return result
+	return normalizeID(id, DefaultAgentID)
 }
 
 // NormalizeAccountID sanitizes an account ID. Empty returns DefaultAccountID.
 func NormalizeAccountID(id string) string {
+	return normalizeID(id, DefaultAccountID)
+}
+
+func normalizeID(id, fallback string) string {
 	trimmed := strings.TrimSpace(id)
 	if trimmed == "" {
-		return DefaultAccountID
+		return fallback
 	}
+
 	lower := strings.ToLower(trimmed)
 	if validIDRe.MatchString(lower) {
 		return lower
 	}
+
 	result := invalidCharsRe.ReplaceAllString(lower, "-")
 	result = leadingDashRe.ReplaceAllString(result, "")
 	result = trailingDashRe.ReplaceAllString(result, "")
@@ -60,7 +49,8 @@ func NormalizeAccountID(id string) string {
 		result = result[:MaxAgentIDLength]
 	}
 	if result == "" {
-		return DefaultAccountID
+		return fallback
 	}
+
 	return result
 }

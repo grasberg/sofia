@@ -576,3 +576,70 @@ func TestWebTool_TavilySearch_Success(t *testing.T) {
 		t.Errorf("Expected 'via Tavily' in output, got: %s", result.ForUser)
 	}
 }
+
+func TestExecuteSearchRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("Expected POST request, got %s", r.Method)
+		}
+		if r.Header.Get("X-Test") != "value" {
+			t.Errorf("Expected X-Test header, got %q", r.Header.Get("X-Test"))
+		}
+
+		var payload map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("Failed to decode payload: %v", err)
+		}
+		if payload["name"] != "sofia" {
+			t.Errorf("Expected request payload name=sofia, got %q", payload["name"])
+		}
+
+		w.WriteHeader(http.StatusAccepted)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	response, err := executeSearchRequest(context.Background(), searchRequest{
+		method: http.MethodPost,
+		url:    server.URL,
+		body:   []byte(`{"name":"sofia"}`),
+		headers: map[string]string{
+			"Content-Type": "application/json",
+			"X-Test":       "value",
+		},
+		timeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("executeSearchRequest() error: %v", err)
+	}
+	if response.statusCode != http.StatusAccepted {
+		t.Fatalf("statusCode = %d, want %d", response.statusCode, http.StatusAccepted)
+	}
+	if string(response.body) != `{"ok":true}` {
+		t.Fatalf("body = %q, want %q", string(response.body), `{"ok":true}`)
+	}
+}
+
+func TestFormatWebSearchResults(t *testing.T) {
+	formatted := formatWebSearchResults("test query", "Tavily", []searchResult{
+		{
+			title:   "Result 1",
+			url:     "https://example.com/1",
+			summary: "Summary 1",
+		},
+		{
+			title: "Result 2",
+			url:   "https://example.com/2",
+		},
+	}, 1)
+
+	if !strings.Contains(formatted, "Results for: test query (via Tavily)") {
+		t.Fatalf("formatted output missing header: %s", formatted)
+	}
+	if !strings.Contains(formatted, "1. Result 1") {
+		t.Fatalf("formatted output missing first result: %s", formatted)
+	}
+	if strings.Contains(formatted, "Result 2") {
+		t.Fatalf("formatted output should respect count limit: %s", formatted)
+	}
+}

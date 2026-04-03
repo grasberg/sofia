@@ -145,3 +145,53 @@ func TestValidate_ValidFullConfig(t *testing.T) {
 	err := cfg.Validate()
 	require.NoError(t, err)
 }
+
+func TestValidate_InvalidWebUIPort(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.WebUI.Enabled = true
+	cfg.WebUI.Port = 70000
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "webui.port")
+}
+
+func TestValidate_InvalidRemoteAccessPort(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.RemoteAccess.Enabled = true
+	cfg.RemoteAccess.Port = -1
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "remote_access.port")
+}
+
+func TestValidate_InvalidHeartbeatInterval(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Heartbeat.Enabled = true
+	cfg.Heartbeat.Interval = 4
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "heartbeat.interval")
+}
+
+func TestValidate_InvalidAutonomyInterval(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Autonomy.Enabled = true
+	cfg.Autonomy.IntervalMinutes = -1
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "autonomy.interval_minutes")
+}
+
+func TestValidate_InvalidEvolutionInterval(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Evolution.Enabled = true
+	cfg.Evolution.IntervalMinutes = 4
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "evolution.interval_minutes")
+}

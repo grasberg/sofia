@@ -48,15 +48,15 @@ type EvolutionEngine struct {
 	cfg        *config.EvolutionConfig
 	bus        *bus.MessageBus
 
-	mu                  sync.Mutex
-	cancelFunc          context.CancelFunc
-	running             bool
-	budgetSpent         float64
-	budgetResetDate     time.Time
-	lastRun             time.Time
-	lastConsolidation   time.Time
-	paused              atomic.Bool
-	pendingProposals    []Proposal
+	mu                sync.Mutex
+	cancelFunc        context.CancelFunc
+	running           bool
+	budgetSpent       float64
+	budgetResetDate   time.Time
+	lastRun           time.Time
+	lastConsolidation time.Time
+	paused            atomic.Bool
+	pendingProposals  []Proposal
 }
 
 // NewEvolutionEngine creates a new EvolutionEngine wired to all required dependencies.

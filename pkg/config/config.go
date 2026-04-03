@@ -335,6 +335,16 @@ type AgentDefaults struct {
 	AutoEscalation      AutoEscalationConfig     `json:"auto_escalation,omitempty"`
 	Personas            map[string]PersonaConfig `json:"personas,omitempty"`
 	Budget              *BudgetConfig            `json:"budget,omitempty"`
+	PromptOptimization  PromptOptimizationConfig `json:"prompt_optimization,omitempty"`
+}
+
+// PromptOptimizationConfig configures automatic prompt refinement via A/B testing.
+type PromptOptimizationConfig struct {
+	Enabled          bool    `json:"enabled"            env:"SOFIA_PROMPT_OPT_ENABLED"`
+	ScoreThreshold   float64 `json:"score_threshold"    env:"SOFIA_PROMPT_OPT_THRESHOLD"`    // trigger below this (default 0.6)
+	MinTraces        int     `json:"min_traces"         env:"SOFIA_PROMPT_OPT_MIN_TRACES"`   // minimum traces before evaluating (default 20)
+	MaxVariants      int     `json:"max_variants"       env:"SOFIA_PROMPT_OPT_MAX_VARIANTS"` // variants to generate (default 2)
+	TrialsPerVariant int     `json:"trials_per_variant" env:"SOFIA_PROMPT_OPT_TRIALS"`       // interactions per variant (default 10)
 }
 
 // EvaluationLoopConfig enables iterative response improvement.
@@ -355,7 +365,7 @@ type DoomLoopConfig struct {
 // AutoEscalationConfig enables automatic adjustment of iteration limits
 // and model selection based on detected message complexity.
 type AutoEscalationConfig struct {
-	Enabled          bool `json:"enabled"            env:"SOFIA_AUTO_ESCALATION_ENABLED"`
+	Enabled           bool `json:"enabled"             env:"SOFIA_AUTO_ESCALATION_ENABLED"`
 	SmartModelRouting bool `json:"smart_model_routing" env:"SOFIA_SMART_MODEL_ROUTING"` // Route simple messages to fallback model
 }
 

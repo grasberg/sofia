@@ -25,7 +25,7 @@ const (
 var validTransitions = map[PlanStatus][]PlanStatus{
 	PlanStatusPending:    {PlanStatusInProgress, PlanStatusCompleted, PlanStatusFailed},
 	PlanStatusInProgress: {PlanStatusCompleted, PlanStatusFailed, PlanStatusPending},
-	PlanStatusCompleted:  {}, // terminal state
+	PlanStatusCompleted:  {},                                        // terminal state
 	PlanStatusFailed:     {PlanStatusPending, PlanStatusInProgress}, // allow retry
 }
 

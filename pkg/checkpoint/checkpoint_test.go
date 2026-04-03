@@ -108,6 +108,27 @@ func TestRollback(t *testing.T) {
 	assert.Equal(t, "cp1", list[0].Name)
 }
 
+func TestRollbackRestoresSummary(t *testing.T) {
+	db := setupTestDB(t)
+	mgr := NewManager(db)
+
+	seedSession(t, db, "sess1", []providers.Message{
+		{Role: "user", Content: "hello"},
+		{Role: "assistant", Content: "hi"},
+	})
+	require.NoError(t, db.SetSummary("sess1", "summary before checkpoint"))
+
+	cp, err := mgr.Create("sess1", "agent1", "cp1", 1)
+	require.NoError(t, err)
+
+	require.NoError(t, db.AppendMessage("sess1", providers.Message{Role: "user", Content: "new task"}))
+	require.NoError(t, db.SetSummary("sess1", "summary after checkpoint"))
+
+	_, err = mgr.Rollback("sess1", cp.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "summary before checkpoint", db.GetSummary("sess1"))
+}
+
 func TestRollbackToLatest(t *testing.T) {
 	db := setupTestDB(t)
 	mgr := NewManager(db)

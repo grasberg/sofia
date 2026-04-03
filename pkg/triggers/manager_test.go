@@ -159,6 +159,34 @@ func TestVerifyHMAC(t *testing.T) {
 	}
 }
 
+func TestNormalizeTriggerPath(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{input: "/webhook/test", want: "/webhook/test"},
+		{input: "webhook/test", want: "/webhook/test"},
+		{input: "", want: "/"},
+	}
+
+	for _, tt := range tests {
+		if got := normalizeTriggerPath(tt.input); got != tt.want {
+			t.Errorf("normalizeTriggerPath(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestInterpolateTriggerPrompt(t *testing.T) {
+	prompt := interpolateTriggerPrompt("File {{.File}} was {{.Event}}", map[string]string{
+		"{{.File}}":  "notes.txt",
+		"{{.Event}}": "created",
+	})
+
+	if prompt != "File notes.txt was created" {
+		t.Fatalf("interpolateTriggerPrompt() = %q, want %q", prompt, "File notes.txt was created")
+	}
+}
+
 func TestRegisterWebhooks(t *testing.T) {
 	cfg := &config.Config{
 		Triggers: config.TriggersConfig{

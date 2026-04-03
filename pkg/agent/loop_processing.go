@@ -14,6 +14,7 @@ import (
 	"github.com/grasberg/sofia/pkg/reputation"
 	"github.com/grasberg/sofia/pkg/routing"
 	"github.com/grasberg/sofia/pkg/tools"
+	"github.com/grasberg/sofia/pkg/trace"
 	"github.com/grasberg/sofia/pkg/utils"
 )
 
@@ -21,6 +22,10 @@ func (al *AgentLoop) runSpawnedTaskAsAgent(
 	ctx context.Context,
 	agentID, sessionKey, task, originChannel, originChatID string,
 ) (string, error) {
+	if al.killed.Load() {
+		return "", context.Canceled
+	}
+
 	target, ok := al.getRegistry().GetAgent(agentID)
 	if !ok || target == nil {
 		return "", fmt.Errorf("target agent %q not found", agentID)
@@ -53,6 +58,16 @@ func (al *AgentLoop) runSpawnedTaskAsAgent(
 		"session_key": sessionKey,
 	})
 
+	// Trace: delegation span (if a parent trace exists from the caller, we don't have
+	// it here since this is a standalone spawn — start a fresh trace)
+	var delegationSpan *trace.Span
+	if al.tracer != nil {
+		delegationSpan = al.tracer.StartTrace(agentID, sessionKey, "delegation:"+agentName)
+		delegationSpan.Kind = trace.SpanDelegation
+		delegationSpan.Attributes["task_preview"] = taskPreview
+		delegationSpan.Attributes["origin_channel"] = originChannel
+	}
+
 	start := time.Now()
 	result, err := al.runAgentLoop(ctx, target, processOptions{
 		SessionKey:      sessionKey,
@@ -63,8 +78,20 @@ func (al *AgentLoop) runSpawnedTaskAsAgent(
 		EnableSummary:   false,
 		SendResponse:    false,
 		NoHistory:       true,
+		ParentSpan:      delegationSpan,
 	})
 	dur := time.Since(start).Milliseconds()
+
+	// End delegation span
+	if al.tracer != nil && delegationSpan != nil {
+		status := trace.StatusOK
+		attrs := map[string]any{"duration_ms": dur, "result_len": len(result)}
+		if err != nil {
+			status = trace.StatusError
+			attrs["error"] = err.Error()
+		}
+		al.tracer.EndSpan(delegationSpan, status, attrs)
+	}
 
 	if err != nil {
 		logger.WarnCF(agentComp, fmt.Sprintf("SUBAGENT: task failed after %dms", dur),
@@ -229,7 +256,12 @@ func (al *AgentLoop) ProcessHeartbeat(ctx context.Context, content, channel, cha
 	})
 }
 
-func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage) (string, error) {
+func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage) (result string, err error) {
+	// Killswitch check — abort immediately if Reset() was called.
+	if al.killed.Load() {
+		return "", context.Canceled
+	}
+
 	preview := utils.Truncate(msg.Content, 120)
 	logger.InfoCF("agent:main", fmt.Sprintf("SOFIA: message received — %s", preview),
 		map[string]any{
@@ -416,6 +448,7 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 	if agentName == "" {
 		agentName = agent.ID
 	}
+
 	al.dashboardHub.Broadcast(map[string]any{
 		"type":       "agent_thinking",
 		"agent_id":   agent.ID,
@@ -434,6 +467,23 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 	sessionKey := route.SessionKey
 	if msg.SessionKey != "" && strings.HasPrefix(msg.SessionKey, "agent:") {
 		sessionKey = msg.SessionKey
+	}
+
+	// Trace: create root span for this request
+	var rootSpan *trace.Span
+	if al.tracer != nil {
+		rootSpan = al.tracer.StartTrace(agent.ID, sessionKey, "processMessage")
+		rootSpan.Attributes["channel"] = msg.Channel
+		rootSpan.Attributes["sender_id"] = msg.SenderID
+		rootSpan.Attributes["content_preview"] = utils.Truncate(msg.Content, 200)
+		defer func() {
+			status := trace.StatusOK
+			if err != nil {
+				status = trace.StatusError
+				rootSpan.Attributes["error"] = err.Error()
+			}
+			al.tracer.EndSpan(rootSpan, status, nil)
+		}()
 	}
 
 	agentComp := fmt.Sprintf("agent:%s", agent.ID)
@@ -535,6 +585,7 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 				DefaultResponse: defaultResponse,
 				EnableSummary:   true,
 				SendResponse:    false,
+				ParentSpan:      rootSpan,
 			})
 		}
 	}
@@ -547,6 +598,7 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 		DefaultResponse: defaultResponse,
 		EnableSummary:   true,
 		SendResponse:    false,
+		ParentSpan:      rootSpan,
 	})
 }
 
@@ -617,6 +669,29 @@ func (al *AgentLoop) processSystemMessage(ctx context.Context, msg bus.InboundMe
 }
 
 func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opts processOptions) (string, error) {
+	// Killswitch check — abort immediately if Reset() was called.
+	if al.killed.Load() {
+		return "", context.Canceled
+	}
+
+	// Wrap context so Reset() can cancel this call. Use the session key
+	// as the tracking key (unique enough for concurrent calls).
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	trackKey := opts.SessionKey
+	if trackKey == "" {
+		trackKey = fmt.Sprintf("direct-%d", time.Now().UnixNano())
+	}
+	al.directCancelsMu.Lock()
+	al.directCancels[trackKey] = cancel
+	al.directCancelsMu.Unlock()
+	defer func() {
+		al.directCancelsMu.Lock()
+		delete(al.directCancels, trackKey)
+		al.directCancelsMu.Unlock()
+	}()
+
 	// Apply model override (e.g. heartbeat using a cheaper model).
 	// Shallow-copy the agent so the shared instance isn't mutated.
 	// If the override model has its own provider config in model_list,
@@ -800,9 +875,32 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 		}
 	}
 
+	// Trace: wrap LLM iteration in a span
+	var llmSpan *trace.Span
+	if al.tracer != nil && opts.ParentSpan != nil {
+		llmSpan = al.tracer.StartSpan(opts.ParentSpan, trace.SpanLLMCall, "runLLMIteration")
+		llmSpan.Attributes["model"] = agent.Model
+		llmSpan.Attributes["model_id"] = agent.ModelID
+		llmSpan.Attributes["max_iterations"] = agent.MaxIterations
+	}
+
 	llmStart := time.Now()
 	finalContent, iteration, errorCount, err := al.runLLMIteration(ctx, agent, messages, opts)
 	llmDur := time.Since(llmStart).Milliseconds()
+
+	if al.tracer != nil && llmSpan != nil {
+		status := trace.StatusOK
+		attrs := map[string]any{
+			"iterations":  iteration,
+			"errors":      errorCount,
+			"duration_ms": llmDur,
+		}
+		if err != nil {
+			status = trace.StatusError
+			attrs["error"] = err.Error()
+		}
+		al.tracer.EndSpan(llmSpan, status, attrs)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -851,6 +949,19 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 	// 7c. Post-task self-reflection
 	if al.cfg.Agents.Defaults.PostTaskReflection && !opts.NoHistory {
 		go al.maybeReflect(agent, opts.SessionKey, finalContent, iteration, errorCount, llmDur)
+	}
+
+	// 7d. Attach multi-dimensional scores to the trace root span
+	if al.tracer != nil && opts.ParentSpan != nil {
+		scorer := NewPerformanceScorer()
+		scores := scorer.MultiScore(iteration, errorCount, finalContent != "")
+		scores["model"] = 0 // placeholder so model name is on the span attrs instead
+		opts.ParentSpan.Attributes["model"] = agent.Model
+		for dim, val := range scores {
+			if dim != "model" {
+				al.tracer.SetScore(opts.ParentSpan, dim, val)
+			}
+		}
 	}
 
 	// Guardrail: Output Filtering

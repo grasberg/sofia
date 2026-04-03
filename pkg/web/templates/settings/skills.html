@@ -4,10 +4,13 @@
                     <div class="flex flex-col h-full overflow-hidden">
                         <div class="flex items-center justify-between mb-4">
                             <h2 class="text-lg font-bold text-[var(--text-main)]">Installed Skills</h2>
-                            <div class="relative w-48">
-                                <input type="text" id="skill-search" onkeyup="filterSkills()" placeholder="Search skills..." 
-                                    class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]">
-                                <i data-lucide="search" class="absolute right-3 top-2 w-3.5 h-3.5 text-zinc-600"></i>
+                            <div class="flex items-center gap-3">
+                                <span id="skills-enabled-count" class="text-[10px] text-zinc-500"></span>
+                                <div class="relative w-48">
+                                    <input type="text" id="skill-search" onkeyup="filterSkills()" placeholder="Search skills..." 
+                                        class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-sofia/50 transition-all text-[var(--text-main)]">
+                                    <i data-lucide="search" class="absolute right-3 top-2 w-3.5 h-3.5 text-zinc-600"></i>
+                                </div>
                             </div>
                         </div>
                         <div id="skills-list" class="flex-grow overflow-y-auto pr-2 space-y-4">

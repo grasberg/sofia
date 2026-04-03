@@ -1,7 +1,9 @@
 package session
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
@@ -206,5 +208,66 @@ func TestInferChannel(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("inferChannel(%q) = %q, want %q", tt.key, got, tt.want)
 		}
+	}
+}
+
+func TestTruncatePreview(t *testing.T) {
+	short := truncatePreview("short", sessionPreviewMaxLen)
+	if short != "short" {
+		t.Fatalf("truncatePreview short = %q, want %q", short, "short")
+	}
+
+	longInput := strings.Repeat("a", sessionPreviewMaxLen+5)
+	truncated := truncatePreview(longInput, sessionPreviewMaxLen)
+	if len(truncated) != sessionPreviewMaxLen+len("…") {
+		t.Fatalf("truncatePreview length = %d, want %d", len(truncated), sessionPreviewMaxLen+len("…"))
+	}
+	if !strings.HasSuffix(truncated, "…") {
+		t.Fatalf("truncatePreview should append ellipsis, got %q", truncated)
+	}
+}
+
+func TestShouldRotateHelpers(t *testing.T) {
+	if !shouldRotateByMessageCount(6, 5) {
+		t.Fatal("shouldRotateByMessageCount should rotate when over threshold")
+	}
+	if shouldRotateByMessageCount(5, 5) {
+		t.Fatal("shouldRotateByMessageCount should not rotate at threshold")
+	}
+
+	msgs := []providers.Message{{Content: strings.Repeat("a", 40)}}
+	if !shouldRotateByTokenEstimate(msgs, 9) {
+		t.Fatal("shouldRotateByTokenEstimate should rotate when estimate exceeds threshold")
+	}
+	if shouldRotateByTokenEstimate(msgs, 10) {
+		t.Fatal("shouldRotateByTokenEstimate should not rotate at threshold")
+	}
+
+	now := time.Now()
+	if !shouldRotateByAge(now.Add(-2*time.Hour), time.Hour, now) {
+		t.Fatal("shouldRotateByAge should rotate when session is older than max age")
+	}
+	if shouldRotateByAge(now.Add(-30*time.Minute), time.Hour, now) {
+		t.Fatal("shouldRotateByAge should not rotate when session is newer than max age")
+	}
+}
+
+func TestShouldRotate(t *testing.T) {
+	sm := NewSessionManager(testDB(t), "agent1")
+	sessionKey := "rotate-test"
+	sm.GetOrCreate(sessionKey)
+
+	for i := 0; i < 3; i++ {
+		sm.AddMessage(sessionKey, "user", strings.Repeat("a", 40))
+	}
+
+	if !sm.ShouldRotate(sessionKey, SessionRotationPolicy{MaxMessages: 2}) {
+		t.Fatal("ShouldRotate should rotate on message-count threshold")
+	}
+	if !sm.ShouldRotate(sessionKey, SessionRotationPolicy{MaxTokenEstimate: 20}) {
+		t.Fatal("ShouldRotate should rotate on token-estimate threshold")
+	}
+	if sm.ShouldRotate(sessionKey, SessionRotationPolicy{MaxMessages: 10, MaxTokenEstimate: 1000}) {
+		t.Fatal("ShouldRotate should not rotate when thresholds are not exceeded")
 	}
 }
