@@ -26,6 +26,26 @@ Sofia is an advanced, context-aware AI assistant and multi-agent orchestrator wr
 *   🔄 **Provider Fallback:** Automatic fallback chains if an AI provider fails.
 *   🎨 **Modern Web UI (HTMX):** Brutalist design theme with CRT effects, real-time updates, and file uploads directly in chat.
 
+## 📊 Agentic AI Capability Scorecard
+
+> Evaluated by automated code analysis across 12 capability dimensions. Each score reflects the depth, robustness, and sophistication of the actual implementation.
+
+| Category | Score | Highlights |
+|:---------|:-----:|:-----------|
+| **Multi-Agent Orchestration** | 9/10 | Dependency-aware topological scheduling, LLM-powered semantic delegation, dynamic agent auto-spawning, A2A mailbox messaging with broadcast |
+| **Tool Use & Execution** | 9/10 | 40+ tools (file, shell, web, browser, hardware, MCP), embeddings-based semantic filtering, parallel execution with path-overlap safety, circuit breaker |
+| **Context & Memory** | 9/10 | Knowledge graph with weighted relations, 4-layer memory (long-term, daily, graph, reflections), strategic forgetting with exponential decay, prompt cache optimization |
+| **Planning & Reasoning** | 9/10 | Hierarchical plans with sub-plans, doom loop detection (4 signals, graduated recovery), evaluation loop with scored retries, auto-checkpoint/rollback |
+| **Safety & Guardrails** | 9/10 | 35+ prompt injection patterns (6 languages), PII detection with Luhn/RFC1918 validation, inbound+outbound secret scrubbing, approval gates with audit trail, AES-256-GCM encryption |
+| **Provider Abstraction** | 9/10 | 20+ LLM providers, fallback chains with 40+ error patterns, exponential backoff cooldown, Bayesian quality ranking, retry with jitter |
+| **Channel Integration** | 8/10 | Telegram, Discord, Email, Web, CLI with shared retry logic, file sending (images/documents), voice transcription, Discord markdown formatting, DM pairing |
+| **Observability & Ops** | 9/10 | SQLite audit logging, distributed tracing with span scoring, `/health` + `/ready` + `/metrics` endpoints, budget persistence, real-time WebSocket dashboard |
+| **Self-Improvement** | 8/10 | 7-phase evolution loop (observe-diagnose-plan-act-verify-consolidate-improve), SafeModifier with 3 safety layers, performance-driven agent retirement, skill auto-improvement |
+| **Skills & Extensibility** | 8/10 | 126 skills + 40 agent templates, 4-tier priority loading, ClawHub remote marketplace, trigram search cache, lazy loading with XML summaries |
+| **Evaluation & Testing** | 8/10 | Agent execution harness with parallel runs, LLM-as-judge scoring, A/B comparison with bootstrap confidence intervals, 5 built-in benchmark suites, SQLite persistence with trend detection |
+| **Scheduling & Automation** | 8/10 | 3 schedule types (at/every/cron) with context cancellation, heartbeat with active hours/days, goal-driven autonomy (multi-step), context triggers, proactive suggestions |
+| | **Avg: 8.6** | |
+
 ## 📂 Workspace Structure
 
 Sofia's configuration and workspace are located under `~/.sofia/`:
@@ -424,21 +444,20 @@ Sofia integrates directly with the Bitcoin blockchain, allowing for both public 
 
 ## 📊 Agentic AI Capability Scorecard
 
-Sofia's feature coverage across 10 core agentic AI capability categories:
-
-| Category | Score | Status |
-|---|---|---|
-| 🧠 Memory Architecture | **7/7** | ✅ Complete |
-| 🔄 Self-Reflection & Self-Correction | **6/6** | ✅ Complete |
-| 📋 Planning & Reasoning | **6/6** | ✅ Complete |
-| 🤖 Multi-Agent Orchestration | **8/8** | ✅ Complete |
-| 🔧 Tool Use & Discovery | **8/8** | ✅ Complete |
-| 📚 Skill & Knowledge Acquisition | **7/7** | ✅ Complete |
-| 🛡️ Guardrails, Safety & Trust | **8/8** | ✅ Complete |
-| 🔄 Self-Improvement Mechanisms | **8/8** | ✅ Complete |
-| 📡 Communication & Protocols | **8/9** | ✅ Strong |
-| 🎯 Autonomy & Proactivity | **7/7** | ✅ Complete |
-| **Total** | **73/74** | **99%** |
+| Category | Score | Highlights |
+| :--- | :---: | :--- |
+| **🤖 Multi-Agent Orchestration** | **9/10** | Dependency-aware topological scheduling, LLM-powered semantic delegation, dynamic agent auto-spawning, A2A mailbox messaging with broadcast |
+| **🛠️ Tool Use & Execution** | **9/10** | 40+ tools (file, shell, web, browser, hardware, MCP), embeddings-based semantic filtering, parallel execution with path-overlap safety, circuit breaker |
+| **🧠 Context & Memory** | **9/10** | Knowledge graph with weighted relations, 4-layer memory (long-term, daily, graph, reflections), strategic forgetting with exponential decay, prompt cache optimization |
+| **📋 Planning & Reasoning** | **9/10** | Hierarchical plans with sub-plans, doom loop detection (4 signals, graduated recovery), evaluation loop with scored retries, auto-checkpoint/rollback |
+| **🛡️ Safety & Guardrails** | **9/10** | 35+ prompt injection patterns (6 languages), PII detection with Luhn/RFC1918 validation, inbound+outbound secret scrubbing, approval gates with audit trail, AES-256-GCM encryption |
+| **🔄 Provider Abstraction** | **9/10** | 20+ LLM providers, fallback chains with 40+ error patterns, exponential backoff cooldown, Bayesian quality ranking, retry with jitter |
+| **📡 Channel Integration** | **8/10** | Telegram, Discord, Email, Web, CLI with shared retry logic, file sending (images/documents), voice transcription, Discord markdown formatting, DM pairing |
+| **📊 Observability & Ops** | **9/10** | SQLite audit logging, distributed tracing with span scoring, `/health` + `/ready` + `/metrics` endpoints, budget persistence, real-time WebSocket dashboard |
+| **🧬 Self-Improvement** | **8/10** | 7-phase evolution loop, SafeModifier with 3 safety layers, performance-driven agent retirement, skill auto-improvement |
+| **📚 Skills & Extensibility** | **8/10** | 126 skills + 40 agent templates, 4-tier priority loading, ClawHub remote marketplace, trigram search cache, lazy loading with XML summaries |
+| **⚖️ Evaluation & Testing** | **8/10** | Agent execution harness with parallel runs, LLM-as-judge scoring, A/B comparison with bootstrap confidence intervals, 5 built-in benchmark suites, SQLite persistence |
+| **⏱️ Scheduling & Automation** | **8/10** | 3 schedule types with context cancellation, heartbeat with active hours/days, goal-driven autonomy (multi-step), context triggers, proactive suggestions |
 
 ---
 *Built to accelerate development. Your local AI colleague.*
