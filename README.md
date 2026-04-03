@@ -65,10 +65,9 @@ git clone https://github.com/grasberg/sofia.git
 cd sofia
 make deps
 make build
-make install
 ```
 
-Den kompilerade binären hamnar direkt i projektets rotmapp som `./sofia`.
+Den kompilerade binären hamnar direkt i projektets rotmapp som `./build/sofia`.
 
 ### Quick Start
 
