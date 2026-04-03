@@ -65,6 +65,7 @@ git clone https://github.com/grasberg/sofia.git
 cd sofia
 make deps
 make build
+make install
 ```
 
 Den kompilerade binären hamnar direkt i projektets rotmapp som `./sofia`.
@@ -73,12 +74,12 @@ Den kompilerade binären hamnar direkt i projektets rotmapp som `./sofia`.
 
 1. **Initiera konfiguration och workspace:**
 ```bash
-sofia onboard
+./build/sofia onboard
 ```
 
 2. **Starta Gateway (för chatt/webb-gränssnitt):**
 ```bash
-sofia gateway
+./build/sofia gateway
 ```
 
 3. **Öppna Sofias kontrollpanel:**
