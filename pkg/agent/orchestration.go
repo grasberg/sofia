@@ -17,13 +17,24 @@ type OrchestrationResult struct {
 	IsComplete bool
 }
 
+// SubtaskStatus represents the execution state of an orchestration subtask.
+type SubtaskStatus string
+
+const (
+	SubtaskPending   SubtaskStatus = "pending"
+	SubtaskRunning   SubtaskStatus = "running"
+	SubtaskCompleted SubtaskStatus = "completed"
+	SubtaskFailed    SubtaskStatus = "failed"
+	SubtaskSkipped   SubtaskStatus = "skipped"
+)
+
 // OrchestrationSubtask represents a decomposed subtask for orchestration.
 type OrchestrationSubtask struct {
 	ID          string
 	Description string
 	AgentID     string
 	DependsOn   []string
-	Status      string // "pending", "running", "completed", "failed", "skipped"
+	Status      SubtaskStatus
 	Result      string
 }
 
@@ -116,9 +127,12 @@ func (al *AgentLoop) OrchestrateSubtasks(
 	// Index subtasks by ID for mutable access
 	taskByID := make(map[string]*OrchestrationSubtask, len(subtasks))
 	for i := range subtasks {
-		subtasks[i].Status = "pending"
+		subtasks[i].Status = SubtaskPending
 		taskByID[subtasks[i].ID] = &subtasks[i]
 	}
+
+	// Build dependents map once (the dependency graph is static).
+	dependentsMap := buildDependentsMap(subtasks)
 
 	// Execute wave by wave
 	for waveIdx, wave := range waves {
@@ -138,7 +152,7 @@ func (al *AgentLoop) OrchestrateSubtasks(
 			st := taskByID[taskID]
 
 			// Skip tasks whose dependencies failed (cascade)
-			if st.Status == "skipped" {
+			if st.Status == SubtaskSkipped {
 				results[i] = taskResult{id: taskID, err: fmt.Errorf("skipped: upstream dependency failed")}
 				continue
 			}
@@ -147,7 +161,7 @@ func (al *AgentLoop) OrchestrateSubtasks(
 			taskDesc := st.Description
 			for _, dep := range st.DependsOn {
 				depTask := taskByID[dep]
-				if depTask.Status == "completed" && depTask.Result != "" {
+				if depTask.Status == SubtaskCompleted && depTask.Result != "" {
 					taskDesc += fmt.Sprintf(
 						"\n\n[Context from prerequisite task %q]:\n%s", dep, depTask.Result)
 				}
@@ -172,12 +186,11 @@ func (al *AgentLoop) OrchestrateSubtasks(
 		for _, r := range results {
 			st := taskByID[r.id]
 			if r.err != nil {
-				st.Status = "failed"
+				st.Status = SubtaskFailed
 				st.Result = r.err.Error()
-				// Mark all transitive dependents as skipped
-				cascadeSkip(taskByID, r.id, buildDependentsMap(subtasks))
+				cascadeSkip(taskByID, r.id, dependentsMap)
 			} else {
-				st.Status = "completed"
+				st.Status = SubtaskCompleted
 				st.Result = r.result
 			}
 		}
@@ -191,12 +204,12 @@ func (al *AgentLoop) OrchestrateSubtasks(
 	for _, st := range subtasks {
 		usedAgents = append(usedAgents, st.AgentID)
 		switch st.Status {
-		case "completed":
+		case SubtaskCompleted:
 			sb.WriteString(fmt.Sprintf("Task %s (agent %s):\n%s\n\n", st.ID, st.AgentID, st.Result))
 			completedCount++
-		case "failed":
+		case SubtaskFailed:
 			sb.WriteString(fmt.Sprintf("Task %s (agent %s): FAILED — %s\n\n", st.ID, st.AgentID, st.Result))
-		case "skipped":
+		case SubtaskSkipped:
 			sb.WriteString(fmt.Sprintf("Task %s (agent %s): SKIPPED — upstream dependency failed\n\n",
 				st.ID, st.AgentID))
 		}
@@ -224,8 +237,8 @@ func buildDependentsMap(subtasks []OrchestrationSubtask) map[string][]string {
 func cascadeSkip(taskByID map[string]*OrchestrationSubtask, failedID string, dependents map[string][]string) {
 	for _, childID := range dependents[failedID] {
 		child := taskByID[childID]
-		if child.Status == "pending" {
-			child.Status = "skipped"
+		if child.Status == SubtaskPending {
+			child.Status = SubtaskSkipped
 			child.Result = fmt.Sprintf("upstream task %q failed", failedID)
 			cascadeSkip(taskByID, childID, dependents)
 		}

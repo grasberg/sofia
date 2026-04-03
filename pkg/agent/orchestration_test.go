@@ -124,10 +124,10 @@ func TestTopoSort_PartialDependencies(t *testing.T) {
 
 func TestCascadeSkip(t *testing.T) {
 	subtasks := []OrchestrationSubtask{
-		{ID: "a", Status: "failed"},
-		{ID: "b", Status: "pending", DependsOn: []string{"a"}},
-		{ID: "c", Status: "pending", DependsOn: []string{"b"}},
-		{ID: "d", Status: "pending"},
+		{ID: "a", Status: SubtaskFailed},
+		{ID: "b", Status: SubtaskPending, DependsOn: []string{"a"}},
+		{ID: "c", Status: SubtaskPending, DependsOn: []string{"b"}},
+		{ID: "d", Status: SubtaskPending},
 	}
 
 	taskByID := make(map[string]*OrchestrationSubtask, len(subtasks))
@@ -138,16 +138,16 @@ func TestCascadeSkip(t *testing.T) {
 
 	cascadeSkip(taskByID, "a", deps)
 
-	assert.Equal(t, "skipped", taskByID["b"].Status, "direct dependent should be skipped")
-	assert.Equal(t, "skipped", taskByID["c"].Status, "transitive dependent should be skipped")
-	assert.Equal(t, "pending", taskByID["d"].Status, "unrelated task should remain pending")
+	assert.Equal(t, SubtaskSkipped, taskByID["b"].Status, "direct dependent should be skipped")
+	assert.Equal(t, SubtaskSkipped, taskByID["c"].Status, "transitive dependent should be skipped")
+	assert.Equal(t, SubtaskPending, taskByID["d"].Status, "unrelated task should remain pending")
 }
 
 func TestCascadeSkip_AlreadySkippedNotReprocessed(t *testing.T) {
 	subtasks := []OrchestrationSubtask{
-		{ID: "a", Status: "failed"},
-		{ID: "b", Status: "skipped", DependsOn: []string{"a"}},
-		{ID: "c", Status: "pending", DependsOn: []string{"b"}},
+		{ID: "a", Status: SubtaskFailed},
+		{ID: "b", Status: SubtaskSkipped, DependsOn: []string{"a"}},
+		{ID: "c", Status: SubtaskPending, DependsOn: []string{"b"}},
 	}
 
 	taskByID := make(map[string]*OrchestrationSubtask, len(subtasks))
@@ -159,8 +159,8 @@ func TestCascadeSkip_AlreadySkippedNotReprocessed(t *testing.T) {
 	cascadeSkip(taskByID, "a", deps)
 
 	// b was already skipped, so c should remain pending (cascade stops at already-skipped nodes)
-	assert.Equal(t, "skipped", taskByID["b"].Status)
-	assert.Equal(t, "pending", taskByID["c"].Status,
+	assert.Equal(t, SubtaskSkipped, taskByID["b"].Status)
+	assert.Equal(t, SubtaskPending, taskByID["c"].Status,
 		"cascade should stop at already-skipped nodes to avoid reprocessing")
 }
 

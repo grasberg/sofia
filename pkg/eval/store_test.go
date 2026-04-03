@@ -127,7 +127,7 @@ func TestEvalStore_TrendImproving(t *testing.T) {
 
 	trend, err := store.GetTrend("s")
 	require.NoError(t, err)
-	assert.Equal(t, "improving", trend)
+	assert.Equal(t, TrendImproving, trend)
 }
 
 func TestEvalStore_TrendDeclining(t *testing.T) {
@@ -139,7 +139,7 @@ func TestEvalStore_TrendDeclining(t *testing.T) {
 
 	trend, err := store.GetTrend("s")
 	require.NoError(t, err)
-	assert.Equal(t, "declining", trend)
+	assert.Equal(t, TrendDeclining, trend)
 }
 
 func TestEvalStore_TrendStable(t *testing.T) {
@@ -151,7 +151,7 @@ func TestEvalStore_TrendStable(t *testing.T) {
 
 	trend, err := store.GetTrend("s")
 	require.NoError(t, err)
-	assert.Equal(t, "stable", trend)
+	assert.Equal(t, TrendStable, trend)
 }
 
 func TestEvalStore_TrendInsufficientData(t *testing.T) {
@@ -160,14 +160,14 @@ func TestEvalStore_TrendInsufficientData(t *testing.T) {
 	// Zero runs.
 	trend, err := store.GetTrend("empty")
 	require.NoError(t, err)
-	assert.Equal(t, "insufficient_data", trend)
+	assert.Equal(t, TrendInsufficientData, trend)
 
 	// One run.
 	_, _ = store.SaveRun("one", "", "", makeReport(1, 0, 1.0))
 
 	trend, err = store.GetTrend("one")
 	require.NoError(t, err)
-	assert.Equal(t, "insufficient_data", trend)
+	assert.Equal(t, TrendInsufficientData, trend)
 }
 
 func TestEvalStore_SaveRunWithErrors(t *testing.T) {

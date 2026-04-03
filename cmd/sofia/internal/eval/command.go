@@ -55,6 +55,10 @@ Examples:
 				return fmt.Errorf("no test suites found (use --suite, --suite-dir, or --builtin)")
 			}
 
+			if listOnly {
+				return printSuiteList(suites, tags, filter)
+			}
+
 			// Collect all cases (with suite context for reporting).
 			type suiteCase struct {
 				suiteName string
@@ -97,10 +101,6 @@ Examples:
 						tc:        tc,
 					})
 				}
-			}
-
-			if listOnly {
-				return printSuiteList(suites, tags, filter)
 			}
 
 			if len(allCases) == 0 {
@@ -161,7 +161,7 @@ Examples:
 						fmt.Fprintf(os.Stdout, "  Saved run #%d to %s\n", runID, dbPath)
 
 						trend, err := store.GetTrend(sr.name)
-						if err == nil && trend != "insufficient_data" {
+						if err == nil && trend != eval.TrendInsufficientData {
 							fmt.Fprintf(os.Stdout, "  Trend: %s\n", trend)
 						}
 					}

@@ -789,7 +789,6 @@ func (al *AgentLoop) runLLMIteration(
 				if outContent != "" {
 					outContent = al.applyOutputFilter(agentComp, tcr.tc.Name, outContent)
 				}
-				// Guardrail: Scrub secrets from tool output before sending to user
 				if outContent != "" {
 					if scrubbed, secretTypes := guardrails.ScrubSecrets(outContent); len(secretTypes) > 0 {
 						logger.WarnCF(agentComp, "Guardrail scrubbed secrets from tool ForUser output", map[string]any{
@@ -990,7 +989,6 @@ func (al *AgentLoop) applyOutputFilter(agentComp, source, content string) string
 		}
 	}
 
-	// Secret scrubbing: detect and redact common secret patterns
 	scrubbed, secretTypes := guardrails.ScrubSecrets(filteredContent)
 	if len(secretTypes) > 0 {
 		logger.WarnCF(agentComp, "Guardrail scrubbed secrets from output", map[string]any{

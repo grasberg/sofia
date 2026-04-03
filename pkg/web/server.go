@@ -362,7 +362,7 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/ui/settings/personas", servePartial(settingsPersonasHTML))
 	mux.HandleFunc("/ui/calendar", servePartial(calendarHTML))
 	mux.HandleFunc("/ui/memory", servePartial(memoryHTML))
-mux.HandleFunc("/ui/goals", servePartial(goalsHTML))
+	mux.HandleFunc("/ui/goals", servePartial(goalsHTML))
 	mux.HandleFunc("/ui/history", servePartial(historyHTML))
 	mux.HandleFunc("/ui/eval", servePartial(evalHTML))
 
