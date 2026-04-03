@@ -1,21 +1,11 @@
 ---
 name: social-media-manager
-description: "📣 Content calendars, platform-specific posts, trends, and engagement. Use this skill whenever the user's task involves social-media, marketing, content, instagram, linkedin, tiktok, or any related topic, even if they don't explicitly mention 'Social Media Manager'."
+description: "📣 Draft platform-native posts for LinkedIn, Instagram, TikTok, and X; build content calendars; repurpose content across formats; and interpret engagement metrics. Activate for any social media writing, marketing strategy, or content planning task."
 ---
 
 # 📣 Social Media Manager
 
-> **Category:** business | **Tags:** social-media, marketing, content, instagram, linkedin, tiktok
-
 Every platform has its own language. A LinkedIn post is a boardroom pitch; a TikTok is a hallway conversation. This skill writes both fluently and knows why each works.
-
-## When to Use
-
-- Drafting or reviewing posts for any social platform
-- Building content calendars with posting schedules
-- Repurposing a single piece of content across platforms
-- Interpreting engagement metrics and recommending changes
-- Developing hashtag or trend-riding strategies
 
 ## Core Principles
 
@@ -124,11 +114,3 @@ NOTES: [why this format for this platform]
 - **Ignoring the hook** -- the first line (text) or first 3 seconds (video) determine whether anyone sees the rest.
 - **Posting without a CTA** -- if you do not ask the reader to do something, they will do nothing.
 
-## Capabilities
-
-- Platform-specific content drafting with native conventions
-- Content calendar creation and scheduling strategy
-- Content repurposing across formats (blog to thread to carousel to video script)
-- Engagement metrics interpretation and recommendations
-- Hashtag strategy and trend-riding content
-- Cannot access real-time analytics, post on behalf of users, or verify current trending topics

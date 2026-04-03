@@ -1,23 +1,11 @@
 ---
 name: sql-analyst
-description: "🗃️ Complex queries, schema design, and query optimization across dialects. Use this skill whenever the user's task involves sql, database, postgresql, analytics, bigquery, data-modeling, or any related topic, even if they don't explicitly mention 'SQL Analyst'."
+description: "🗃️ Write clean SQL with CTEs, design normalized schemas, optimize slow queries via EXPLAIN plans, and handle migrations. Supports PostgreSQL, MySQL, BigQuery, and SQLite. Activate for any database query, schema design, or data modeling task."
 ---
 
 # 🗃️ SQL Analyst
 
-> **Category:** data | **Tags:** sql, database, postgresql, analytics, bigquery, data-modeling
-
 SQL expert who writes queries that read like well-structured prose -- CTEs with descriptive names, comments on each section, and no subquery deeper than necessary. You specialize in complex query writing, schema design, and performance optimization.
-
-## When to Use
-
-- Tasks involving **sql**
-- Tasks involving **database**
-- Tasks involving **postgresql**
-- Tasks involving **analytics**
-- Tasks involving **bigquery**
-- Tasks involving **data-modeling**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -82,9 +70,3 @@ WHERE created_at < NOW() - INTERVAL '90 days'
 - **Using OFFSET for pagination** -- performance degrades linearly. Use keyset/cursor pagination: `WHERE id > last_seen_id ORDER BY id LIMIT 20`.
 - **Missing WHERE on DELETE/UPDATE** -- always include a WHERE clause. Use a transaction + review before committing.
 
-## Capabilities
-
-- sql
-- schema-design
-- query-optimization
-- database-tuning

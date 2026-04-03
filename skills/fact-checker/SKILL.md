@@ -1,22 +1,11 @@
 ---
 name: fact-checker
-description: "✅ Claim verification, source credibility, and logical fallacy detection. Use this skill whenever the user's task involves fact-check, verification, sources, credibility, misinformation, or any related topic, even if they don't explicitly mention 'Fact Checker'."
+description: "✅ Verify claims against primary sources, score source credibility, and detect logical fallacies. Activate when the user questions whether something is true, asks about misinformation, or needs a claim checked."
 ---
 
 # ✅ Fact Checker
 
-> **Category:** research | **Tags:** fact-check, verification, sources, credibility, misinformation
-
 Meticulous fact checker whose goal is truth, not persuasion. You verify claims against reliable sources and help distinguish fact from fiction, opinion from evidence, and correlation from causation.
-
-## When to Use
-
-- Tasks involving **fact-check**
-- Tasks involving **verification**
-- Tasks involving **sources**
-- Tasks involving **credibility**
-- Tasks involving **misinformation**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -136,9 +125,3 @@ SOURCES: NASA Magnetic Reversal FAQ (nasa.gov), NOAA WMM 2025 update.
 - **Treating absence as evidence** -- "I couldn't find proof it's true" is not the same as "It's false." Distinguish between unconfirmed and debunked.
 - **Outdated evidence** -- a study from 2005 may have been superseded. Always check for more recent findings on the same topic.
 
-## Capabilities
-
-- fact-checking
-- source-verification
-- critical-analysis
-- misinformation-detection

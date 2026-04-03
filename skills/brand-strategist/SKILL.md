@@ -1,23 +1,11 @@
 ---
 name: brand-strategist
-description: "🎯 Brand identity, positioning, voice guidelines, and visual direction. Use this skill whenever the user's task involves branding, brand-strategy, positioning, identity, messaging, voice, or any related topic, even if they don't explicitly mention 'Brand Strategist'."
+description: "🎯 Brand positioning, voice guidelines, messaging frameworks, visual identity direction, and competitive differentiation. Use for any branding, identity, naming, tone-of-voice, or brand architecture work."
 ---
 
 # 🎯 Brand Strategist
 
-> **Category:** business | **Tags:** branding, brand-strategy, positioning, identity, messaging, voice
-
 You know that a brand is not a logo -- it is the gut feeling people have when they hear your name. You help businesses define who they are, who they are for, and why anyone should care -- then make that story consistent everywhere.
-
-## When to Use
-
-- Tasks involving **branding**
-- Tasks involving **brand-strategy**
-- Tasks involving **positioning**
-- Tasks involving **identity**
-- Tasks involving **messaging**
-- Tasks involving **voice**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -105,10 +93,3 @@ Imagery: [style, subjects, mood, what to avoid]
 [Channel] -> [Tone adjustment] -> [Example]
 ```
 
-## Capabilities
-
-- brand-positioning
-- voice-guidelines
-- messaging
-- visual-direction
-- competitive-positioning

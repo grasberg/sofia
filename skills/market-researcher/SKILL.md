@@ -1,21 +1,11 @@
 ---
 name: market-researcher
-description: "📈 Competitive intel, market sizing, trend analysis, and strategic frameworks. Use this skill whenever the user's task involves market, competitive, analysis, strategy, swot, tam, or any related topic, even if they don't explicitly mention 'Market Researcher'."
+description: "📈 Sizes markets (TAM/SAM/SOM), builds competitive scoring matrices, runs evidence-based SWOTs, and produces structured research reports with recommendations. Activate for any market analysis, competitor research, or strategic assessment."
 ---
 
 # 📈 Market Researcher
 
-> **Category:** business | **Tags:** market, competitive, analysis, strategy, swot, tam
-
 Market research that ends with "here are some frameworks" is not research -- it is a textbook summary. This skill walks through each framework step-by-step with real numbers, produces structured outputs, and connects findings to decisions.
-
-## When to Use
-
-- Sizing a market opportunity (TAM/SAM/SOM)
-- Analyzing competitors with a structured scoring matrix
-- Running a SWOT assessment for a product or business
-- Preparing a market research report for stakeholders
-- Evaluating market trends and their strategic implications
 
 ## Core Principles
 
@@ -151,12 +141,3 @@ SOURCES: [Numbered list]
 - **Presenting research without recommendations** -- research that does not inform a decision is an academic exercise.
 - **Hiding uncertainty** -- flag assumptions and confidence levels; false precision is worse than honest ranges.
 
-## Capabilities
-
-- TAM/SAM/SOM calculation with top-down and bottom-up methods
-- Competitive analysis with weighted scoring matrices
-- SWOT assessments with evidence-based entries and strategic implications
-- Market research report structuring
-- Trend analysis with timeline and impact assessment
-- Clearly distinguishes verified data from estimates and assumptions
-- Cannot access proprietary databases or real-time market data; works from user-provided data and general knowledge

@@ -6,15 +6,6 @@ description: "UI/UX design intelligence. 67 styles, 96 palettes, 57 font pairing
 
 Comprehensive design guide for web and mobile applications. Contains 67 styles, 96 color palettes, 57 font pairings, 99 UX guidelines, and 25 chart types across 13 technology stacks. Searchable database with priority-based recommendations.
 
-## When to Apply
-
-Reference these guidelines when:
-- Designing new UI components or pages
-- Choosing color palettes and typography
-- Reviewing code for UX issues
-- Building landing pages or dashboards
-- Implementing accessibility requirements
-
 ## Rule Categories by Priority
 
 | Priority | Category | Impact | Domain |

@@ -1,21 +1,11 @@
 ---
 name: debugger
-description: "Systematic root-cause analysis expert. Use this skill whenever the user's task involves debugging, bug investigation, error analysis, crash diagnosis, or fixing broken behavior, even if they don't explicitly mention 'Debugger'."
+description: "Systematic root-cause analysis for bugs, errors, crashes, and broken behavior. Activate for anything that is not working, failing, or behaving unexpectedly -- investigate first, fix the cause, add a regression test."
 ---
 
 # Debugger
 
-> **Category:** development | **Tags:** debug, bug, error, crash, fix, investigate, broken, root-cause
-
 Systematic debugging expert who investigates, not guesses. You find the root cause, fix it, and add safeguards so it never happens again.
-
-## When to Use
-
-- Tasks involving **debugging** or **bug fixing**
-- Tasks involving **error investigation** or **crash analysis**
-- When something is **broken**, **not working**, or **behaving unexpectedly**
-- When the user says "fix", "investigate", "why is this happening"
-- Post-mortem analysis of production incidents
 
 ## Core Philosophy
 
@@ -105,11 +95,3 @@ When investigating, answer these questions:
 - Skipping the regression test
 - Guessing without measuring
 
-## Capabilities
-
-- debugging
-- root-cause-analysis
-- error-investigation
-- crash-diagnosis
-- git-bisect
-- performance-debugging

@@ -1,22 +1,11 @@
 ---
 name: code-reviewer
-description: "🔍 Catch bugs, security holes, and performance issues before production. Use this skill whenever the user's task involves review, security, quality, best-practices, code-review, or any related topic, even if they don't explicitly mention 'Code Reviewer'."
+description: "🔍 Review code for bugs, security vulnerabilities, performance bottlenecks, and maintainability issues with severity-rated findings and fix suggestions. Activate for any code review, PR feedback, security audit, or quality check."
 ---
 
 # 🔍 Code Reviewer
 
-> **Category:** development | **Tags:** review, security, quality, best-practices, code-review
-
 Meticulous code reviewer who catches issues before they reach production. You review the code, not the coder -- and you always explain *why* something matters.
-
-## When to Use
-
-- Tasks involving **review**
-- Tasks involving **security**
-- Tasks involving **quality**
-- Tasks involving **best-practices**
-- Tasks involving **code-review**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -105,9 +94,3 @@ def append_to(item, target=None):
 - Blocking PRs on personal preference -- if it works and is readable, approve it.
 - Reviewing only the diff without understanding the surrounding code.
 
-## Capabilities
-
-- code-review
-- security-audit
-- performance
-- maintainability

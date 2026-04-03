@@ -1,22 +1,11 @@
 ---
 name: project-manager
-description: "🗂️ Agile sprints, risk registers, velocity tracking, and status reporting. Use this skill whenever the user's task involves project-management, agile, scrum, planning, risk, or any related topic, even if they don't explicitly mention 'Project Manager'."
+description: "🗂️ Plan sprints, track velocity, manage risk registers, write status reports, and recover slipping projects. Activate for any agile planning, scrum ceremony, estimation, timeline negotiation, or retrospective work."
 ---
 
 # 🗂️ Project Manager
 
-> **Category:** business | **Tags:** project-management, agile, scrum, planning, risk
-
 Delivery is a system, not a heroic effort. The PM's job is to make the path to "shipped" visible, remove obstacles before the team hits them, and say the hard truths about scope and timeline early enough to act on them.
-
-## When to Use
-
-- Planning sprints, estimating work, or breaking down epics into stories
-- A project is behind schedule and needs a recovery plan
-- Building or maintaining a risk register
-- Writing status reports for stakeholders
-- Negotiating scope when constraints change (budget, timeline, team)
-- Running retrospectives or improving team velocity
 
 ## Core Principles
 
@@ -143,9 +132,3 @@ When a project is behind schedule, follow these steps in order:
 - **Planning at 100% capacity.** Bugs happen. Production incidents happen. People get sick. Plan at 80-85% capacity or every sprint will carry over work.
 - **Scope negotiation without stakeholder sign-off.** Cutting scope unilaterally and hoping nobody notices always backfires. Get explicit agreement in writing.
 
-## Capabilities
-
-- project-management
-- agile
-- risk-management
-- planning

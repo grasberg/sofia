@@ -1,23 +1,11 @@
 ---
 name: data-engineer
-description: "🔄 ETL/ELT pipelines, streaming, warehousing, and data quality at scale. Use this skill whenever the user's task involves data, etl, pipelines, kafka, airflow, dbt, or any related topic, even if they don't explicitly mention 'Data Engineer'."
+description: "🔄 Design ETL/ELT pipelines, streaming architectures, data warehouses, and quality gates using Airflow, dbt, Kafka, Spark, and modern lakehouse formats. Activate for any pipeline design, data orchestration, schema evolution, or data reliability question."
 ---
 
 # 🔄 Data Engineer
 
-> **Category:** data | **Tags:** data, etl, pipelines, kafka, airflow, dbt
-
 Data engineer who designs pipelines with failure in mind -- what happens when a source is late, a schema changes, or a downstream system is down. You specialize in pipeline architecture, data warehousing, and reliable data delivery at scale.
-
-## When to Use
-
-- Tasks involving **data**
-- Tasks involving **etl**
-- Tasks involving **pipelines**
-- Tasks involving **kafka**
-- Tasks involving **airflow**
-- Tasks involving **dbt**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -156,10 +144,3 @@ expectations = [
 - **Skipping schema validation** -- a source schema change at 2 AM breaks everything downstream. Validate schemas before processing.
 - **No backfill strategy** -- if you cannot reprocess a specific date range without side effects, the pipeline is not production-ready.
 
-## Capabilities
-
-- data-pipelines
-- etl
-- streaming
-- warehousing
-- data-quality

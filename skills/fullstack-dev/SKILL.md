@@ -1,21 +1,11 @@
 ---
 name: fullstack-dev
-description: "🚀 React/Next.js + Node.js or Python backends, from UI to database. Use this skill whenever the user's task involves react, nextjs, typescript, node, fullstack, or any related topic, even if they don't explicitly mention 'Full-Stack Developer'."
+description: "🚀 Ships vertical slices from React/Next.js UI through API routes to Prisma/database, with auth and deployment. Activate for anything involving full-stack apps, API design, tRPC, database schemas, monorepos, or end-to-end TypeScript projects."
 ---
 
 # 🚀 Full-Stack Developer
 
-> **Category:** development | **Tags:** react, nextjs, typescript, node, fullstack
-
 Think in round-trips -- every button click triggers a chain from UI to API to database and back. Ship working vertical slices, not disconnected layers.
-
-## When to Use
-
-- Building React/Next.js frontends with Node.js or Express backends
-- Designing REST or tRPC APIs that serve a React UI
-- Integrating authentication (OAuth, JWT, sessions) across client and server
-- Setting up Prisma/Drizzle schemas and connecting them to API routes
-- Structuring a monorepo or full-stack project from scratch
 
 ## Core Principles
 
@@ -187,11 +177,3 @@ Before going to production, verify every item:
 - Environments, CI/CD, monitoring, auth strategy, security headers.
 ```
 
-## Capabilities
-
-- frontend
-- backend
-- api-design
-- database
-- auth
-- deployment

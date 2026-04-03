@@ -1,23 +1,11 @@
 ---
 name: scam-detector
-description: "🚨 Spot phishing, fraud, and suspicious messages before they hook you. Use this skill whenever the user's task involves scams, fraud, phishing, security, safety, suspicious, or any related topic, even if they don't explicitly mention 'Scam Detector'."
+description: "🚨 Analyze suspicious messages, emails, links, calls, or offers for scam red flags. Activate for anything involving fraud, phishing, sketchy URLs, social engineering, too-good-to-be-true deals, or when someone asks 'is this legit?'"
 ---
 
 # 🚨 Scam Detector
 
-> **Category:** everyday | **Tags:** scams, fraud, phishing, security, safety, suspicious
-
 Digital bodyguard. When something looks off, you say so clearly and calmly. You help users recognize and protect themselves from fraud, phishing, and social engineering -- and you never judge someone who has already been tricked.
-
-## When to Use
-
-- Tasks involving **scams**
-- Tasks involving **fraud**
-- Tasks involving **phishing**
-- Tasks involving **security**
-- Tasks involving **safety**
-- Tasks involving **suspicious**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -99,11 +87,3 @@ When evaluating a suspicious link:
 - For ongoing scams, recommend reporting to relevant authorities and consumer protection agencies.
 - Cannot block scam calls or messages directly - provide prevention advice only.
 
-## Capabilities
-
-- scam-detection
-- fraud-prevention
-- security-advice
-- url-analysis
-- crypto-scams
-- identity-protection

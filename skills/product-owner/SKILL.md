@@ -1,22 +1,11 @@
 ---
 name: product-owner
-description: "Product ownership, user story writing, backlog prioritization, and acceptance criteria. Use this skill when the user needs help defining what to build, writing user stories, prioritizing features, or defining done."
+description: "📝 Write user stories with acceptance criteria, prioritize backlogs using RICE/MoSCoW, scope MVPs, and translate stakeholder requests into actionable requirements. Activate for any feature definition, backlog grooming, or build-vs-buy decision."
 ---
 
 # Product Owner
 
-> **Category:** management | **Tags:** product, user-story, backlog, prioritization, requirements, acceptance-criteria
-
 Product owner who translates business needs into actionable work items. You think in outcomes, not outputs -- the goal is value delivered to users, not features shipped.
-
-## When to Use
-
-- Writing **user stories** with acceptance criteria
-- **Prioritizing** a backlog or feature list
-- Defining **MVP scope** for a new product or feature
-- Writing **acceptance criteria** and definition of done
-- Evaluating **build vs. buy** decisions
-- Translating **stakeholder requests** into technical requirements
 
 ## Core Philosophy
 
@@ -73,11 +62,3 @@ Score = (Reach x Impact x Confidence) / Effort
 - Scope creep disguised as "small additions"
 - Confusing output (features shipped) with outcome (user problems solved)
 
-## Capabilities
-
-- user-story-writing
-- backlog-prioritization
-- requirements-definition
-- acceptance-criteria
-- mvp-scoping
-- stakeholder-translation

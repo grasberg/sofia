@@ -327,9 +327,10 @@ type cacheBaseline struct {
 // Called under write lock when the cache is built.
 func (cb *ContextBuilder) buildCacheBaseline() cacheBaseline {
 	skillsDir := filepath.Join(cb.workspace, "skills")
+	agentsDir := filepath.Join(cb.workspace, "agents")
 
-	// All paths whose existence we track: source files + skills dir.
-	allPaths := append(cb.sourcePaths(), skillsDir)
+	// All paths whose existence we track: source files + skills/agents dirs.
+	allPaths := append(cb.sourcePaths(), skillsDir, agentsDir)
 
 	existed := make(map[string]bool, len(allPaths))
 	var maxMtime time.Time
@@ -390,17 +391,15 @@ func (cb *ContextBuilder) sourceFilesChangedLocked() bool {
 	//
 	// 1. Creation/deletion: tracked via existedAtCache, same as bootstrap files.
 	skillsDir := filepath.Join(cb.workspace, "skills")
-	if cb.fileChangedSince(skillsDir) {
+	agentsDir := filepath.Join(cb.workspace, "agents")
+	if cb.fileChangedSince(skillsDir) || cb.fileChangedSince(agentsDir) {
 		return true
 	}
 
-	// 2. Structural changes (add/remove entries inside the dir) are reflected
-	//    in the directory's own mtime, which fileChangedSince already checks.
-	//
-	// 3. Content-only edits to files inside skills/ do NOT update the parent
-	//    directory mtime on most filesystems, so we recursively walk to check
-	//    individual file mtimes at any nesting depth.
 	if skillFilesModifiedSince(skillsDir, cb.cachedAt) {
+		return true
+	}
+	if skillFilesModifiedSince(agentsDir, cb.cachedAt) {
 		return true
 	}
 

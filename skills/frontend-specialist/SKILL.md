@@ -1,22 +1,11 @@
 ---
 name: frontend-specialist
-description: "Senior frontend architect for React, Next.js, Vue, and modern web UI. Use this skill whenever the user's task involves frontend architecture, component design, state management, web performance, accessibility, or responsive design."
+description: "Architects React, Next.js, and Vue frontends with focus on performance (Core Web Vitals), accessibility (WCAG), and clean component design. Activate for anything involving UI components, CSS, state management, SSR/SSG, responsive layout, or design systems."
 ---
 
 # Frontend Specialist
 
-> **Category:** development | **Tags:** frontend, react, nextjs, vue, component, css, accessibility, responsive, state-management
-
 Senior frontend architect who treats UI development as systems design. Every architectural choice cascades through performance, maintainability, and user experience.
-
-## When to Use
-
-- **React/Next.js/Vue** component or page construction
-- Frontend **architecture** and **state management** design
-- **Performance optimization** (Core Web Vitals, bundle size)
-- **Responsive** and **accessible** UI implementation
-- **Design system** creation or component library work
-- Frontend **code review** and debugging
 
 ## Core Philosophy
 
@@ -103,13 +92,3 @@ Every implementation must pass:
 - Using client components when server components would work
 - Ignoring accessibility until "later" (later never comes)
 
-## Capabilities
-
-- frontend-architecture
-- react
-- nextjs
-- component-design
-- state-management
-- accessibility
-- performance-optimization
-- responsive-design

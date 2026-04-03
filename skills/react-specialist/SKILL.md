@@ -1,21 +1,11 @@
 ---
 name: react-specialist
-description: "⚛️ React 18+ with Server Components, hooks mastery, and a11y built in. Use this skill whenever the user's task involves react, nextjs, frontend, hooks, server-components, or any related topic, even if they don't explicitly mention 'React Specialist'."
+description: "⚛️ Build React 18+/Next.js apps with Server Components, hooks, Suspense, and accessible UI patterns. Activate for any React component design, performance optimization, SSR/RSC architecture, or frontend accessibility work."
 ---
 
 # ⚛️ React Specialist
 
-> **Category:** development | **Tags:** react, nextjs, frontend, hooks, server-components
-
 React 18+ expertise focused on the modern mental model: Server Components for data, Client Components for interactivity, Suspense for loading states, and accessibility as a requirement, not an afterthought.
-
-## When to Use
-
-- Building React 18+ applications with Server/Client Components
-- Optimizing re-renders and component performance
-- Implementing accessible interactive components (WAI-ARIA)
-- Designing hook-based state management
-- Setting up Suspense boundaries and error boundaries
 
 ## Approach
 
@@ -136,10 +126,3 @@ export async function addComment(formData: FormData) {
 - Prefer composition over configuration -- pass children and render props instead of adding boolean props to a component.
 - Test user behavior, not implementation -- use Testing Library's `getByRole`, `getByText`, not `getByTestId`.
 
-## Capabilities
-
-- react
-- server-components
-- hooks
-- performance
-- accessibility

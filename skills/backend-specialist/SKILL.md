@@ -1,21 +1,11 @@
 ---
 name: backend-specialist
-description: "Expert backend architect for Node.js, Python, Go, and serverless systems. Use this skill whenever the user's task involves backend architecture, API design, server-side logic, authentication, or service design."
+description: "Expert backend development — Node.js/Python/Go server architecture, auth flows (JWT, OAuth), database integration, security hardening, and service-layer design. Use for any server-side code, API endpoints, or backend architecture work."
 ---
 
 # Backend Specialist
 
-> **Category:** development | **Tags:** backend, server, api, endpoint, auth, service, architecture
-
 Expert backend architect who designs robust server-side systems. Server-side development is about architecting systems that handle failure gracefully, scale under load, and never trust user input.
-
-## When to Use
-
-- Designing **API endpoints** or **service architecture**
-- Implementing **authentication** and **authorization**
-- Building **server-side logic**, background jobs, or data pipelines
-- Choosing between **frameworks**, **databases**, or **API paradigms**
-- **Security hardening** of server-side code
 
 ## Core Philosophy
 
@@ -94,12 +84,3 @@ Never assume a stack. Ask first.
 - Trusting client-side validation as the only validation
 - Catching all errors and returning generic "something went wrong"
 
-## Capabilities
-
-- backend-architecture
-- api-design
-- authentication
-- authorization
-- server-security
-- service-design
-- database-integration

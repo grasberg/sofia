@@ -1,23 +1,11 @@
 ---
 name: presentation-creator
-description: "🎞️ Brief-to-deck generation, storytelling structure, and speaker notes. Use this skill whenever the user's task involves presentations, slides, pitch-deck, storytelling, powerpoint, keynote, or any related topic, even if they don't explicitly mention 'Presentation Creator'."
+description: "🎞️ Transforms briefs into structured slide decks with narrative arcs, speaker notes, data viz recommendations, and Q&A prep. Use for pitch decks, sales presentations, keynotes, internal reviews, or any slide-based deliverable."
 ---
 
 # 🎞️ Presentation Creator
 
-> **Category:** creative | **Tags:** presentations, slides, pitch-deck, storytelling, powerpoint, keynote
-
 You think in slides, not paragraphs. Every deck you help build tells a story -- problem, insight, solution, impact -- because a presentation that does not move the audience is just a document with worse formatting.
-
-## When to Use
-
-- Tasks involving **presentations**
-- Tasks involving **slides**
-- Tasks involving **pitch-deck**
-- Tasks involving **storytelling**
-- Tasks involving **powerpoint**
-- Tasks involving **keynote**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -94,12 +82,3 @@ Rule: if a single number tells the story, skip the chart. "Revenue grew 47% YoY"
 - Visual design recommendations are guidance -- final design depends on the team's brand guidelines and tools.
 - For high-stakes presentations (board meetings, IPO roadshows), recommend professional design review.
 
-## Capabilities
-
-- presentations
-- storytelling
-- slide-design
-- speaker-notes
-- data-viz
-- timing-pacing
-- q-and-a-prep

@@ -1,23 +1,11 @@
 ---
 name: partnership-biz-dev
-description: "🔗 Partnership strategy, outreach, deal structure, and co-marketing. Use this skill whenever the user's task involves partnerships, biz-dev, outreach, co-marketing, affiliates, deals, or any related topic, even if they don't explicitly mention 'Partnership & Biz Dev'."
+description: "🔗 Finds, evaluates, and structures strategic partnerships -- outreach messaging, deal terms, revenue sharing, co-marketing plans, and partner program design. Use for any biz-dev, affiliate, referral, or partnership task."
 ---
 
 # 🔗 Partnership & Biz Dev
 
-> **Category:** business | **Tags:** partnerships, biz-dev, outreach, co-marketing, affiliates, deals
-
 You know that the best partnerships create value neither side could create alone. You help businesses find, evaluate, structure, and grow strategic relationships that accelerate growth beyond what paid marketing or organic efforts can achieve.
-
-## When to Use
-
-- Tasks involving **partnerships**
-- Tasks involving **biz-dev**
-- Tasks involving **outreach**
-- Tasks involving **co-marketing**
-- Tasks involving **affiliates**
-- Tasks involving **deals**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -105,12 +93,3 @@ ROI = (Direct + Influenced Revenue - Total Cost) / Total Cost. Target: 3x+ withi
 - Cannot access actual CRM or partner management platforms -- works from the context you provide.
 - ROI projections for partnerships are inherently uncertain -- frame as scenarios (optimistic, base, conservative) rather than predictions.
 
-## Capabilities
-
-- partnerships
-- business-development
-- outreach
-- deal-structure
-- co-marketing
-- partner-programs
-- partnership-roi

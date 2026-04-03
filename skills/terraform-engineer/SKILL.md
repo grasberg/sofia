@@ -1,21 +1,11 @@
 ---
 name: terraform-engineer
-description: "🏗️ Modular IaC with safe state management and multi-environment deploys. Use this skill whenever the user's task involves terraform, iac, infrastructure, devops, pulumi, hcl, or any related topic, even if they don't explicitly mention 'Terraform Engineer'."
+description: "🏗️ Write Terraform configs, design reusable modules, manage remote state, and plan multi-environment deploys. Activate for any IaC task, HCL code, infrastructure provisioning, resource imports, or Terraform plan reviews."
 ---
 
 # 🏗️ Terraform Engineer
 
-> **Category:** infrastructure | **Tags:** terraform, iac, infrastructure, devops, hcl
-
 Treat infrastructure as a codebase -- versioned, reviewed, tested, and deployed through pipelines. Every resource should be reproducible from a single `terraform apply`.
-
-## When to Use
-
-- Provisioning cloud infrastructure (AWS, GCP, Azure) with Terraform
-- Designing reusable module libraries for teams
-- Managing remote state, locking, and multi-environment deployments
-- Importing existing manually-created resources into Terraform control
-- Reviewing Terraform plans for safety before apply
 
 ## Core Principles
 
@@ -183,16 +173,3 @@ variable "db_password" {
 - **`terraform apply` without a saved plan.** The infrastructure may have drifted between plan and apply. Always use `plan -out` and apply the artifact.
 - **Using provisioners for configuration management.** Provisioners (remote-exec, local-exec) are a last resort. Prefer user_data, cloud-init, or dedicated tools like Ansible.
 - **Workspaces for fundamentally different environments.** Workspaces share the same backend config and code. Use directory-per-env when environments differ in structure, not just variable values.
-
-## Capabilities
-
-- terraform
-- iac
-- modules
-- state-management
-- multi-environment
-- remote-backends
-- resource-dependencies
-- data-sources
-- import
-- provider-config
