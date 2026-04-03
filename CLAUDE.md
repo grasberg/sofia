@@ -86,6 +86,10 @@ Builds the system prompt by assembling (in order): IDENTITY.md → SOUL.md → U
 
 Skills are loaded from three locations: `workspace/skills/`, `~/.sofia/skills/`, and builtin `./skills/`. Only metadata is included by default; full skill body loads on trigger.
 
+### Skills system (`pkg/skills/`, `skills/`)
+
+Skills are domain-expert personas loaded as `skills/{name}/SKILL.md` with YAML frontmatter (`name`, `description`). The loader (`pkg/skills/loader.go`) auto-discovers them from three locations in priority order: `workspace/skills/` > `~/.sofia/skills/` > builtin `./skills/`. Only metadata (name + description) goes into the system prompt; the full body loads on trigger. Skill names must match `^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*$`, descriptions max 1024 chars. The simple YAML parser only handles single-line `key: value` — no multiline block scalars.
+
 ### Config structure (`pkg/config/config.go`)
 
 Key fields in `~/.sofia/config.json`:

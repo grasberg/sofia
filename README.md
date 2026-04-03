@@ -34,20 +34,19 @@ Sofia's configuration and workspace are located under `~/.sofia/`:
 ~/.sofia/
 ├── config.json            # Main configuration (models, channels, settings)
 ├── memory.db              # Shared SQLite database for memory and session history
-├── antigravity-kit/       # Bundled Antigravity Kit (installed via sofia onboard)
 └── workspace/             # Sofia's workspace
     ├── IDENTITY.md        # Core identity: tone, role, and how Sofia presents herself
     ├── SOUL.md            # Core principles: behavior, values, and decision style
     ├── AGENT.md           # Agent-specific system prompt
     ├── USER.md            # User context and preferences
-    ├── HEARTBEAT.md       # Instructions for the background agent
-    ├── skills/            # Local skills/expert personas
+    ├── agents/            # Specialized agents (Pixel Agents, Orchestrator, etc.)
+    │   ├── backend-specialist.md
+    │   ├── frontend-specialist.md
+    │   └── ...
+    ├── skills/            # Local skills/expert personas (150+ included)
     │   ├── github/
     │   ├── hardware/
     │   ├── skill-creator/
-    │   ├── summarize/
-    │   ├── tmux/
-    │   ├── weather/
     │   └── ...
     ├── cron/              # Scheduled jobs (jobs.json)
     └── state/             # Persistent runtime state
