@@ -1,109 +1,85 @@
 ---
 name: systematic-debugging
-description: 4-phase systematic debugging methodology with root cause analysis and evidence-based verification. Use when debugging complex issues.
-allowed-tools: Read, Glob, Grep
+description: "Structured debugging frameworks for complex bugs -- scientific method, fault trees, timeline analysis, and layer-by-layer investigation. Activate for any hard-to-find bug, flaky behavior, production incident, or multi-system failure."
 ---
 
 # Systematic Debugging
 
-> Source: obra/superpowers
+A knowledge module for systematic debugging approaches. This supplements the debugger skill with deeper methodology and investigation frameworks.
 
-## Overview
-This skill provides a structured approach to debugging that prevents random guessing and ensures problems are properly understood before solving.
+## Investigation Frameworks
 
-## 4-Phase Debugging Process
+### The Scientific Method for Debugging
+1. **Observe** -- gather all symptoms, logs, and error messages
+2. **Hypothesize** -- form a testable theory about the cause
+3. **Predict** -- if your theory is correct, what else should be true?
+4. **Test** -- verify your prediction with a targeted experiment
+5. **Conclude** -- if confirmed, fix it; if not, form a new hypothesis
 
-### Phase 1: Reproduce
-Before fixing, reliably reproduce the issue.
-
-```markdown
-## Reproduction Steps
-1. [Exact step to reproduce]
-2. [Next step]
-3. [Expected vs actual result]
-
-## Reproduction Rate
-- [ ] Always (100%)
-- [ ] Often (50-90%)
-- [ ] Sometimes (10-50%)
-- [ ] Rare (<10%)
+### Fault Tree Analysis
+Work backwards from the failure:
+```
+[Symptom: API returns 500]
+  |-- [Database connection failed]
+  |     |-- [Connection pool exhausted]
+  |     |     |-- [Connections not being released] <-- ROOT CAUSE
+  |     |     |-- [Pool size too small]
+  |     |-- [Database server down]
+  |-- [Unhandled exception in handler]
+  |-- [Middleware error]
 ```
 
-### Phase 2: Isolate
-Narrow down the source.
+### Timeline Analysis
+For intermittent or hard-to-reproduce bugs:
+1. Collect timestamps of every occurrence
+2. Correlate with deployments, config changes, traffic spikes
+3. Look for patterns (time of day, day of week, after specific actions)
+4. Check for resource exhaustion patterns (memory, connections, file handles)
 
-```markdown
-## Isolation Questions
-- When did this start happening?
-- What changed recently?
-- Does it happen in all environments?
-- Can we reproduce with minimal code?
-- What's the smallest change that triggers it?
-```
+## Debugging by System Layer
 
-### Phase 3: Understand
-Find the root cause, not just symptoms.
+### Application Layer
+- Add structured logging at decision points
+- Check input validation and type coercion
+- Verify error handling paths (are errors swallowed?)
+- Look for race conditions in concurrent code
 
-```markdown
-## Root Cause Analysis
-### The 5 Whys
-1. Why: [First observation]
-2. Why: [Deeper reason]
-3. Why: [Still deeper]
-4. Why: [Getting closer]
-5. Why: [Root cause]
-```
+### Data Layer
+- Check for N+1 queries causing slowness
+- Verify data integrity (NULL values where unexpected, encoding issues)
+- Inspect transaction boundaries (partial commits)
+- Check for deadlocks in concurrent access patterns
 
-### Phase 4: Fix & Verify
-Fix and verify it's truly fixed.
+### Infrastructure Layer
+- Verify DNS resolution and network connectivity
+- Check resource limits (memory, CPU, file descriptors, connection pools)
+- Inspect container health and restart counts
+- Review load balancer health checks and routing
 
-```markdown
-## Fix Verification
-- [ ] Bug no longer reproduces
-- [ ] Related functionality still works
-- [ ] No new issues introduced
-- [ ] Test added to prevent regression
-```
+### Integration Layer
+- Check API contract changes (breaking changes in upstream services)
+- Verify timeout and retry configurations
+- Inspect TLS certificate expiry and trust chains
+- Check for clock skew between services
 
-## Debugging Checklist
+## Common Bug Patterns
 
-```markdown
-## Before Starting
-- [ ] Can reproduce consistently
-- [ ] Have minimal reproduction case
-- [ ] Understand expected behavior
+| Pattern | Symptoms | Usual Cause |
+|---------|----------|-------------|
+| Works locally, fails in CI/prod | Environment-specific behavior | Missing env vars, different versions, network restrictions |
+| Fails after running for hours | Resource leak | Unclosed connections, growing caches, event listener accumulation |
+| Fails under load | Concurrency bug | Race condition, deadlock, connection pool exhaustion |
+| Fails intermittently | Timing-dependent | Network timeouts, garbage collection pauses, external service flakiness |
+| Fails after deployment | Regression | New code, config change, dependency update |
+| Fails on specific data | Edge case | Unicode, large values, NULL, special characters, timezone issues |
 
-## During Investigation
-- [ ] Check recent changes (git log)
-- [ ] Check logs for errors
-- [ ] Add logging if needed
-- [ ] Use debugger/breakpoints
+## Logging Strategy for Debugging
 
-## After Fix
-- [ ] Root cause documented
-- [ ] Fix verified
-- [ ] Regression test added
-- [ ] Similar code checked
-```
+When adding debug logging, capture:
+- **Request ID** -- correlate all logs for one request
+- **Input values** -- what data triggered the bug
+- **Decision points** -- which branch was taken and why
+- **Timing** -- how long each step took
+- **State transitions** -- before and after values
 
-## Common Debugging Commands
-
-```bash
-# Recent changes
-git log --oneline -20
-git diff HEAD~5
-
-# Search for pattern
-grep -r "errorPattern" --include="*.ts"
-
-# Check logs
-pm2 logs app-name --err --lines 100
-```
-
-## Anti-Patterns
-
-❌ **Random changes** - "Maybe if I change this..."
-❌ **Ignoring evidence** - "That can't be the cause"
-❌ **Assuming** - "It must be X" without proof
-❌ **Not reproducing first** - Fixing blindly
-❌ **Stopping at symptoms** - Not finding root cause
+Remove debug logging after fixing the bug. Use structured logging (JSON) so logs are searchable.

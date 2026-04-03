@@ -1,109 +1,109 @@
 ---
 name: code-review-checklist
-description: Code review guidelines covering code quality, security, and best practices.
-allowed-tools: Read, Glob, Grep
+description: "📋 Systematic code review checklists covering correctness, security, design, performance, and maintainability. Activate for any PR review, self-review, quality assessment, or when establishing review standards for a team."
 ---
 
 # Code Review Checklist
 
-## Quick Review Checklist
+Structured code review methodology that catches bugs, security issues, and design problems systematically rather than by intuition.
 
-### Correctness
-- [ ] Code does what it's supposed to do
-- [ ] Edge cases handled
-- [ ] Error handling in place
-- [ ] No obvious bugs
+## Review Priority Order
 
-### Security
-- [ ] Input validated and sanitized
-- [ ] No SQL/NoSQL injection vulnerabilities
-- [ ] No XSS or CSRF vulnerabilities
-- [ ] No hardcoded secrets or sensitive credentials
-- [ ] **AI-Specific:** Protection against Prompt Injection (if applicable)
-- [ ] **AI-Specific:** Outputs are sanitized before being used in critical sinks
+Review in this order -- earlier items block later ones:
 
-### Performance
-- [ ] No N+1 queries
-- [ ] No unnecessary loops
-- [ ] Appropriate caching
-- [ ] Bundle size impact considered
+### 1. Correctness
+- Does the code do what it claims to do?
+- Are edge cases handled (empty input, null, overflow, concurrent access)?
+- Do error paths return sensible results or propagate correctly?
+- Are there off-by-one errors in loops or slices?
 
-### Code Quality
-- [ ] Clear naming
-- [ ] DRY - no duplicate code
-- [ ] SOLID principles followed
-- [ ] Appropriate abstraction level
+### 2. Security
+- Is user input validated before use?
+- Are SQL queries parameterized (no string concatenation)?
+- Are secrets hardcoded anywhere?
+- Are auth/authz checks in place for protected operations?
+- Could this introduce XSS, CSRF, or injection vulnerabilities?
 
-### Testing
-- [ ] Unit tests for new code
-- [ ] Edge cases tested
-- [ ] Tests readable and maintainable
+### 3. Design
+- Does this follow existing patterns in the codebase?
+- Is the abstraction level right (not too generic, not too specific)?
+- Are responsibilities clearly separated?
+- Would a new team member understand this code?
 
-### Documentation
-- [ ] Complex logic commented
-- [ ] Public APIs documented
-- [ ] README updated if needed
+### 4. Performance
+- Are there N+1 query patterns?
+- Are expensive operations inside loops?
+- Is there unnecessary memory allocation?
+- Could this cause timeouts under load?
 
-## AI & LLM Review Patterns (2025)
-
-### Logic & Hallucinations
-- [ ] **Chain of Thought:** Does the logic follow a verifiable path?
-- [ ] **Edge Cases:** Did the AI account for empty states, timeouts, and partial failures?
-- [ ] **External State:** Is the code making safe assumptions about file systems or networks?
-
-### Prompt Engineering Review
-```markdown
-// ❌ Vague prompt in code
-const response = await ai.generate(userInput);
-
-// ✅ Structured & Safe prompt
-const response = await ai.generate({
-  system: "You are a specialized parser...",
-  input: sanitize(userInput),
-  schema: ResponseSchema
-});
-```
-
-## Anti-Patterns to Flag
-
-```typescript
-// ❌ Magic numbers
-if (status === 3) { ... }
-
-// ✅ Named constants
-if (status === Status.ACTIVE) { ... }
-
-// ❌ Deep nesting
-if (a) { if (b) { if (c) { ... } } }
-
-// ✅ Early returns
-if (!a) return;
-if (!b) return;
-if (!c) return;
-// do work
-
-// ❌ Long functions (100+ lines)
-// ✅ Small, focused functions
-
-// ❌ any type
-const data: any = ...
-
-// ✅ Proper types
-const data: UserData = ...
-```
+### 5. Maintainability
+- Are names descriptive and consistent with the codebase?
+- Is the code testable (dependencies injectable, side effects isolated)?
+- Are there sufficient tests for the changed behavior?
+- Is the commit message clear about what and why?
 
 ## Review Comments Guide
 
+### Good Review Comments
+- Explain **why** something is a problem, not just that it is
+- Suggest a specific alternative when possible
+- Distinguish between **must fix** (blocking) and **nit** (suggestion)
+- Ask questions when you don't understand intent ("Is this intentional?")
+
+### Comment Prefixes
+| Prefix | Meaning |
+|--------|---------|
+| `blocker:` | Must fix before merge |
+| `concern:` | Potential issue, needs discussion |
+| `nit:` | Style/preference, non-blocking |
+| `question:` | Need clarification to continue review |
+| `praise:` | Something done well (important for morale) |
+
+## Quick Checklist
+
+```markdown
+### Correctness
+- [ ] Logic handles happy path correctly
+- [ ] Edge cases covered (empty, null, boundary values)
+- [ ] Error handling is appropriate (not swallowed, not over-broad)
+
+### Security
+- [ ] No hardcoded secrets or credentials
+- [ ] User input validated and sanitized
+- [ ] Auth checks present on protected paths
+- [ ] No SQL injection vectors
+
+### Design
+- [ ] Follows existing codebase patterns
+- [ ] Reasonable abstraction level
+- [ ] No unnecessary complexity added
+
+### Tests
+- [ ] New behavior has test coverage
+- [ ] Tests verify behavior, not implementation
+- [ ] Edge cases tested
+
+### Operations
+- [ ] No breaking changes without migration path
+- [ ] Logging sufficient for debugging
+- [ ] Performance impact considered
 ```
-// Blocking issues use 🔴
-🔴 BLOCKING: SQL injection vulnerability here
 
-// Important suggestions use 🟡
-🟡 SUGGESTION: Consider using useMemo for performance
+## AI/LLM-Specific Review Patterns
 
-// Minor nits use 🟢
-🟢 NIT: Prefer const over let for immutable variable
+When reviewing code that integrates AI/LLM services:
+- [ ] User input is sanitized before being inserted into prompts (prompt injection prevention)
+- [ ] LLM output is validated/sanitized before rendering or executing
+- [ ] Structured prompts with clear role boundaries are used
+- [ ] Token limits and cost controls are in place
+- [ ] Fallback behavior defined for when the LLM is unavailable
+- [ ] Sensitive data is not leaked into prompts or logs
 
-// Questions use ❓
-❓ QUESTION: What happens if user is null here?
-```
+## Anti-Patterns in Code Review
+
+- Bikeshedding on style while missing logic bugs
+- Reviewing only the diff without understanding the surrounding code
+- Approving without actually reading the changes
+- Blocking on personal preference when the code is correct
+- Reviewing 1000+ line PRs in one sitting (request the author split it)
+
