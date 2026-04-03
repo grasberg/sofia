@@ -442,22 +442,6 @@ Sofia integrates directly with the Bitcoin blockchain, allowing for both public 
 | `cpanel` | Manage cPanel web hosting (files, domains, databases, SSL) |
 | `bitcoin` | Bitcoin integration: local HD wallet management, UTXOs, send transactions, and public queries |
 
-## 📊 Agentic AI Capability Scorecard
-
-| Category | Score | Highlights |
-| :--- | :---: | :--- |
-| **🤖 Multi-Agent Orchestration** | **9/10** | Dependency-aware topological scheduling, LLM-powered semantic delegation, dynamic agent auto-spawning, A2A mailbox messaging with broadcast |
-| **🛠️ Tool Use & Execution** | **9/10** | 40+ tools (file, shell, web, browser, hardware, MCP), embeddings-based semantic filtering, parallel execution with path-overlap safety, circuit breaker |
-| **🧠 Context & Memory** | **9/10** | Knowledge graph with weighted relations, 4-layer memory (long-term, daily, graph, reflections), strategic forgetting with exponential decay, prompt cache optimization |
-| **📋 Planning & Reasoning** | **9/10** | Hierarchical plans with sub-plans, doom loop detection (4 signals, graduated recovery), evaluation loop with scored retries, auto-checkpoint/rollback |
-| **🛡️ Safety & Guardrails** | **9/10** | 35+ prompt injection patterns (6 languages), PII detection with Luhn/RFC1918 validation, inbound+outbound secret scrubbing, approval gates with audit trail, AES-256-GCM encryption |
-| **🔄 Provider Abstraction** | **9/10** | 20+ LLM providers, fallback chains with 40+ error patterns, exponential backoff cooldown, Bayesian quality ranking, retry with jitter |
-| **📡 Channel Integration** | **8/10** | Telegram, Discord, Email, Web, CLI with shared retry logic, file sending (images/documents), voice transcription, Discord markdown formatting, DM pairing |
-| **📊 Observability & Ops** | **9/10** | SQLite audit logging, distributed tracing with span scoring, `/health` + `/ready` + `/metrics` endpoints, budget persistence, real-time WebSocket dashboard |
-| **🧬 Self-Improvement** | **8/10** | 7-phase evolution loop, SafeModifier with 3 safety layers, performance-driven agent retirement, skill auto-improvement |
-| **📚 Skills & Extensibility** | **8/10** | 126 skills + 40 agent templates, 4-tier priority loading, ClawHub remote marketplace, trigram search cache, lazy loading with XML summaries |
-| **⚖️ Evaluation & Testing** | **8/10** | Agent execution harness with parallel runs, LLM-as-judge scoring, A/B comparison with bootstrap confidence intervals, 5 built-in benchmark suites, SQLite persistence |
-| **⏱️ Scheduling & Automation** | **8/10** | 3 schedule types with context cancellation, heartbeat with active hours/days, goal-driven autonomy (multi-step), context triggers, proactive suggestions |
 
 ---
 *Built to accelerate development. Your local AI colleague.*
