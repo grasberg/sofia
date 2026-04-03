@@ -17,7 +17,7 @@ import (
 	"github.com/grasberg/sofia/pkg/trace"
 )
 
-const schemaVersion = 13
+const schemaVersion = 14
 
 // MemoryDB is a shared SQLite database for session history and memory notes.
 // It is opened once at AgentLoop startup and shared across all AgentInstances.
@@ -191,6 +191,7 @@ func (m *MemoryDB) migrate() error {
 		{11, m.applyV11tx, nil},
 		{12, nil, m.applyV12},
 		{13, m.applyV13tx, nil},
+		{14, m.applyV14tx, nil},
 	}
 
 	for _, mig := range migrations {
@@ -2447,4 +2448,81 @@ func (m *MemoryDB) GetModelTraceScores(
 		counts[model] = a.count
 	}
 	return avgScores, counts, nil
+}
+
+// ---------------------------------------------------------------------------
+// Migration v14: goal_log table for persisting goal step results
+// ---------------------------------------------------------------------------
+
+func (m *MemoryDB) applyV14tx(tx *sql.Tx) error {
+	const ddl = `
+CREATE TABLE IF NOT EXISTS goal_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    goal_id    INTEGER NOT NULL,
+    agent_id   TEXT    NOT NULL DEFAULT '',
+    step       TEXT    NOT NULL DEFAULT '',
+    result     TEXT    NOT NULL DEFAULT '',
+    success    INTEGER NOT NULL DEFAULT 1,
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_goal_log_goal ON goal_log(goal_id, created_at);
+`
+	_, err := tx.Exec(ddl)
+	return err
+}
+
+// GoalLogEntry represents a single step result in a goal's execution history.
+type GoalLogEntry struct {
+	ID         int64     `json:"id"`
+	GoalID     int64     `json:"goal_id"`
+	AgentID    string    `json:"agent_id"`
+	Step       string    `json:"step"`
+	Result     string    `json:"result"`
+	Success    bool      `json:"success"`
+	DurationMs int64     `json:"duration_ms"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// InsertGoalLog adds a step result to the goal log.
+func (m *MemoryDB) InsertGoalLog(goalID int64, agentID, step, result string, success bool, durationMs int64) error {
+	_, err := m.db.Exec(`
+		INSERT INTO goal_log (goal_id, agent_id, step, result, success, duration_ms, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		goalID, agentID, step, result, boolToInt(success), durationMs, time.Now().UTC(),
+	)
+	return err
+}
+
+// GetGoalLog returns all log entries for a goal, ordered by creation time.
+func (m *MemoryDB) GetGoalLog(goalID int64) ([]GoalLogEntry, error) {
+	rows, err := m.db.Query(`
+		SELECT id, goal_id, agent_id, step, result, success, duration_ms, created_at
+		FROM goal_log
+		WHERE goal_id = ?
+		ORDER BY created_at ASC`, goalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []GoalLogEntry
+	for rows.Next() {
+		var e GoalLogEntry
+		var successInt int
+		if err := rows.Scan(&e.ID, &e.GoalID, &e.AgentID, &e.Step, &e.Result,
+			&successInt, &e.DurationMs, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		e.Success = successInt != 0
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

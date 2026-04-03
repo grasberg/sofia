@@ -465,6 +465,10 @@ func (s *Service) executeOneGoalStep(ctx context.Context, gm *GoalManager, goals
 
 	if decision.MarkComplete {
 		if _, err := gm.UpdateGoalStatus(decision.CompleteGoalID, GoalStatusCompleted); err == nil {
+			// Persist a summary result on the goal itself.
+			if decision.Plan.Step != "" {
+				_ = gm.UpdateGoalResult(decision.CompleteGoalID, decision.Plan.Step)
+			}
 			logger.InfoCF("autonomy", "Goal auto-completed", map[string]any{"goal_id": decision.CompleteGoalID})
 			s.broadcast(map[string]any{
 				"type":    "goal_completed",
@@ -513,6 +517,12 @@ func (s *Service) executeOneGoalStep(ctx context.Context, gm *GoalManager, goals
 			"error":       taskErr.Error(),
 			"duration_ms": dur,
 		})
+
+		// Persist failed step to goal log.
+		if s.memDB != nil {
+			_ = s.memDB.InsertGoalLog(plan.GoalID, s.agentID, plan.Step, taskErr.Error(), false, dur)
+		}
+
 		s.broadcast(map[string]any{
 			"type":        "goal_step_end",
 			"agent_id":    s.agentID,
@@ -534,6 +544,13 @@ func (s *Service) executeOneGoalStep(ctx context.Context, gm *GoalManager, goals
 		"duration_ms": dur,
 		"result_len":  len(result),
 	})
+
+	// Persist successful step to goal log.
+	if s.memDB != nil {
+		_ = s.memDB.InsertGoalLog(plan.GoalID, s.agentID, plan.Step, result, true, dur)
+		// Update the goal's result field with the latest step output.
+		_ = gm.UpdateGoalResult(plan.GoalID, truncate(result, 2000))
+	}
 
 	s.broadcast(map[string]any{
 		"type":        "goal_step_end",
