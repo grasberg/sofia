@@ -342,9 +342,10 @@
             "Custom": [],
         };
 
-        // In-memory model list and standard model (populated from config)
+        // In-memory model list, standard model, and fallback chain (populated from config)
         let configuredModels = [];
         let standardModel = "";
+        let fallbackModels = [];
 
         function renderConfiguredModels() {
             const list = document.getElementById("provider-model-list");
@@ -405,6 +406,7 @@
             // Sync hidden cfg-model input
             const cfgModel = document.getElementById("cfg-model");
             if (cfgModel) cfgModel.value = standardModel;
+            renderFallbackChain();
             refreshIcons();
         }
 
@@ -637,8 +639,76 @@
             if (cfgModel) cfgModel.value = standardModel;
         }
 
+        function renderFallbackChain() {
+            const list = document.getElementById("fallback-chain-list");
+            const addSelect = document.getElementById("fallback-add-select");
+            if (!list) return;
 
+            // Remove stale entries (models that no longer exist in configuredModels)
+            fallbackModels = fallbackModels.filter(function(name) {
+                return configuredModels.some(function(m) { return m.model_name === name; });
+            });
 
+            if (fallbackModels.length === 0) {
+                list.innerHTML = "<div class='text-[11px] text-zinc-500 italic p-3 text-center border border-dashed border-[var(--border-color)] rounded-xl'>No fallback models configured. If the primary model fails, requests will fail.</div>";
+            } else {
+                list.innerHTML = fallbackModels.map(function(name, i) {
+                    var upBtn = i > 0
+                        ? "<button onclick='moveFallback(" + i + ", -1)' class='p-1 rounded hover:bg-[var(--nav-hover)] text-zinc-500 hover:text-[var(--text-main)] transition'><i data-lucide='chevron-up' class='w-3.5 h-3.5'></i></button>"
+                        : "<div class='w-[26px]'></div>";
+                    var downBtn = i < fallbackModels.length - 1
+                        ? "<button onclick='moveFallback(" + i + ", 1)' class='p-1 rounded hover:bg-[var(--nav-hover)] text-zinc-500 hover:text-[var(--text-main)] transition'><i data-lucide='chevron-down' class='w-3.5 h-3.5'></i></button>"
+                        : "<div class='w-[26px]'></div>";
+                    return "<div class='flex items-center justify-between px-4 py-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)]'>" +
+                        "<div class='flex items-center gap-3'>" +
+                        "<span class='text-[10px] font-bold text-zinc-500 w-5 text-center'>" + (i + 1) + "</span>" +
+                        "<span class='text-sm text-[var(--text-main)]'>" + name + "</span>" +
+                        "</div>" +
+                        "<div class='flex items-center gap-0.5'>" +
+                        upBtn + downBtn +
+                        "<button onclick='removeFallback(" + i + ")' class='p-1 rounded hover:bg-red-500/10 text-zinc-500 hover:text-red-400 transition ml-1'><i data-lucide='trash-2' class='w-3.5 h-3.5'></i></button>" +
+                        "</div></div>";
+                }).join("");
+            }
+
+            // Populate add-select with models not already in the fallback chain
+            if (addSelect) {
+                addSelect.innerHTML = "<option value=''>-- Add fallback model --</option>";
+                configuredModels.forEach(function(m) {
+                    if (fallbackModels.indexOf(m.model_name) === -1) {
+                        var opt = document.createElement("option");
+                        opt.value = m.model_name;
+                        opt.textContent = m.model_name;
+                        addSelect.appendChild(opt);
+                    }
+                });
+            }
+            refreshIcons();
+        }
+
+        function addFallbackModel() {
+            var sel = document.getElementById("fallback-add-select");
+            if (!sel || !sel.value) return;
+            fallbackModels.push(sel.value);
+            renderFallbackChain();
+            saveConfig();
+        }
+
+        function removeFallback(index) {
+            fallbackModels.splice(index, 1);
+            renderFallbackChain();
+            saveConfig();
+        }
+
+        function moveFallback(index, direction) {
+            var target = index + direction;
+            if (target < 0 || target >= fallbackModels.length) return;
+            var tmp = fallbackModels[index];
+            fallbackModels[index] = fallbackModels[target];
+            fallbackModels[target] = tmp;
+            renderFallbackChain();
+            saveConfig();
+        }
 
         function escapeHtml(str) {
             return String(str)
@@ -1631,7 +1701,9 @@
                 if (!standardModel && configuredModels.length > 0) {
                     standardModel = configuredModels[0].model_name;
                 }
+                fallbackModels = cfg.agents.defaults.model_fallbacks || [];
                 renderConfiguredModels();
+                renderFallbackChain();
 
                 const telegramToggle = document.getElementById("cfg-telegram");
                 if (telegramToggle) telegramToggle.checked = cfg.channels.telegram.enabled;
@@ -2698,6 +2770,7 @@
                     cfg.agents.defaults.model_name = cfgModel.value;
                     cfg.agents.defaults.model = "";
                     cfg.agents.defaults.provider = ""; // Clear legacy provider field
+                    cfg.agents.defaults.model_fallbacks = fallbackModels.length > 0 ? fallbackModels : [];
                 }
 
                 const telegramEnabledEl = document.getElementById("cfg-telegram");

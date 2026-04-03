@@ -136,5 +136,26 @@
                                 <div class="text-sm text-zinc-500 italic p-4 text-center border border-dashed border-[var(--border-color)] rounded-xl">No models configured.</div>
                             </div>
                         </div>
+
+                        <!-- Fallback Chain -->
+                        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-all duration-300 mt-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <div>
+                                    <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500">Fallback Chain</h3>
+                                    <p class="text-[10px] text-zinc-500 mt-1">When the primary model fails (timeout, rate limit, outage), try these models in order</p>
+                                </div>
+                            </div>
+                            <div id="fallback-chain-list" class="space-y-2 mb-3">
+                                <!-- Filled by JS -->
+                            </div>
+                            <div class="flex gap-2">
+                                <select id="fallback-add-select" class="flex-1 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
+                                    <option value="">-- Add fallback model --</option>
+                                </select>
+                                <button onclick="addFallbackModel()" class="px-4 py-2 bg-[var(--bg-main)] border border-[var(--border-color)] hover:bg-[var(--nav-hover)] text-[var(--text-main)] rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add
+                                </button>
+                            </div>
+                        </div>
                     </div>
 				</div>
