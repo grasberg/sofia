@@ -1,47 +1,47 @@
 # Sofia - AI Workspace Assistant 🧠✨
 
 ![Version](https://img.shields.io/badge/version-v0.0.145-blue)
-Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerare skriven i Go. Designad för att fungera som en fullstack-utvecklare, systemarkitekt och projektledare. Genom att integrera direkt i den lokala utvecklingsmiljön kan Sofia läsa/skriva filer, exekvera terminalkommandon, schemalägga uppgifter och delegera arbete till specialiserade sub-agenter.
+Sofia is an advanced, context-aware AI assistant and multi-agent orchestrator written in Go. Designed to function as a full-stack developer, system architect, and project manager. By integrating directly into the local development environment, Sofia can read/write files, execute terminal commands, schedule tasks, and delegate work to specialized sub-agents.
 
-## ✨ Huvudfunktioner
+## ✨ Key Features
 
-*   🛠️ **Autonom Verktygsanvändning:** Kan registrera domännamn, publicera webbsidor, läsa/redigera filer, köra bash-kommandon och hantera Google Services (Gmail/Kalender).
-*   🧠 **Avancerat Minne:** Lager av minne — korttids-, långtids-, episodiskt och semantiskt (kunskapsgraf). Automatisk konsolidering och strategisk glömska håller minnet effektivt.
-*   🤖 **Multi-Agent Orkestrering:** Delegera uppgifter till parallella agenter. Inkluderar **AgentArchitect** för autonomt skapande och optimering av nya agenter "on the fly".
-*   🌐 **Brett AI-stöd:** Inbyggt stöd för 20+ AI-leverantörer inkl. OpenAI, Anthropic (Claude 4.5), Gemini, DeepSeek, Grok, MiniMax, Moonshot, Qwen, Zai, GitHub Copilot och fler.
-*   📚 **Skill-system med Självlärande:** Antigravity Kit med expert-personas, plus automatisk skill-skapande, förfining och kunskapsdestillering.
-*   🔄 **Evolution & Självförbättring:** 5-fas `EvolutionEngine`, post-task utvärdering, prompt-självoptimering och kodsjälvmodifiering för kontinuerlig inlärning och anpassning.
-*   🔧 **Smart Verktygshantering:** Semantisk verktygsmatchning via embeddings, prestandaspårning och dynamisk tool-composition (pipelines) för att skapa nya makro-verktyg.
-*   ⚡ **Blixtsnabb Exekvering:** Caching av verktygsdefinitioner, prompter och connection pooling för extremt låg latency i hot path.
-*   🎯 **Autonomi & Proaktivitet:** Långsiktiga mål, kontextmedvetna triggers, proaktiva förslag och självinitierad research utan användarinteraktion.
-*   🛡️ **Guardrails & Säkerhet:** Inputvalidering, budget management (tokens/körningar), prompt injection-försvar och åtgärdsbekräftelse för högrisk-operationer.
-*   🔌 **MCP-klient:** Model Context Protocol-stöd för anslutning till externa MCP-servrar och verktyg.
-*   💬 **Gateway Mode:** Inbyggt stöd för chattplattformar som Telegram och Discord via `sofia gateway`.
-*   🖥️ **Computer Use:** Autonom datorstyrning via skärmdumpar och vision-LLM — styr mus och tangentbord på macOS och Linux.
-*   🌍 **Webbläsarautomation (Playwright):** Autonom webbsurfning med klick, formulärifyllning, skärmdumpar och textextraktion.
-*   📸 **Bildanalys:** Analysera lokala bilder (PNG, JPEG, GIF, WebP) via vision-LLM — OCR, beskrivningar och frågor.
-*   📋 **Plan & Execute:** Strukturerad uppgiftsplanering med steg-för-steg-uppföljning.
-*   📝 **Delad Scratchpad:** Nyckel-värde-lagring för agent-till-agent-kommunikation.
-*   ⏰ **Cron-schemaläggning:** Agenten kan själv skapa, lista, ta bort och schemalägga återkommande uppgifter.
-*   🔄 **Provider Fallback:** Automatiska fallback-kedjor om en AI-leverantör misslyckas.
-*   🎨 **Modernt Web UI (HTMX):** Brutalistiskt designtema med CRT-effekter, realtidsuppdateringar och filuppladdning i chatten.
+*   🛠️ **Autonomous Tool Use:** Can register domain names, publish web pages, read/edit files, run bash commands, and manage Google Services (Gmail/Calendar).
+*   🧠 **Advanced Memory:** Tiered memory — short-term, long-term, episodic, and semantic (knowledge graph). Automatic consolidation and strategic forgetting keep memory efficient.
+*   🤖 **Multi-Agent Orchestration:** Delegate tasks to parallel agents. Includes **AgentArchitect** for autonomous creation and optimization of new agents "on the fly".
+*   🌐 **Broad AI Support:** Built-in support for 20+ AI providers including OpenAI, Anthropic (Claude 4.5), Gemini, DeepSeek, Grok, MiniMax, Moonshot, Qwen, Zai, GitHub Copilot, and more.
+*   📚 **Skill System with Self-Learning:** Antigravity Kit with expert personas, plus automatic skill creation, refinement, and knowledge distillation.
+*   🔄 **Evolution & Self-Improvement:** 5-phase `EvolutionEngine`, post-task evaluation, prompt self-optimization, and code self-modification for continuous learning and adaptation.
+*   🔧 **Smart Tool Management:** Semantic tool matching via embeddings, performance tracking, and dynamic tool composition (pipelines) to create new macro tools.
+*   ⚡ **Lightning-Fast Execution:** Caching of tool definitions, prompts, and connection pooling for extremely low latency in the hot path.
+*   🎯 **Autonomy & Proactivity:** Long-term goals, context-aware triggers, proactive suggestions, and self-initiated research without user interaction.
+*   🛡️ **Guardrails & Security:** Input validation, budget management (tokens/executions), prompt injection defense, and action confirmation for high-risk operations.
+*   🔌 **MCP Client:** Model Context Protocol support for hooking into external MCP servers and tools.
+*   💬 **Gateway Mode:** Built-in support for chat platforms like Telegram and Discord via `sofia gateway`.
+*   🖥️ **Computer Use:** Autonomous computer control via screenshots and vision-LLM — control mouse and keyboard on macOS and Linux.
+*   🌍 **Browser Automation (Playwright):** Autonomous web browsing with clicks, form filling, screenshots, and text extraction.
+*   📸 **Image Analysis:** Analyze local images (PNG, JPEG, GIF, WebP) via vision-LLM — OCR, descriptions, and queries.
+*   📋 **Plan & Execute:** Structured task planning with step-by-step tracking.
+*   📝 **Shared Scratchpad:** Key-value storage for agent-to-agent communication.
+*   ⏰ **Cron Scheduling:** The agent can independently create, list, delete, and schedule recurring tasks.
+*   🔄 **Provider Fallback:** Automatic fallback chains if an AI provider fails.
+*   🎨 **Modern Web UI (HTMX):** Brutalist design theme with CRT effects, real-time updates, and file uploads directly in chat.
 
-## 📂 Workspace-struktur
+## 📂 Workspace Structure
 
-Sofias konfiguration och arbetsyta finns under `~/.sofia/`:
+Sofia's configuration and workspace are located under `~/.sofia/`:
 
 ```text
 ~/.sofia/
-├── config.json            # Huvudkonfiguration (modeller, kanaler, inställningar)
-├── memory.db              # Delad SQLite-databas för minne och sessionshistorik
-├── antigravity-kit/       # Bundlat Antigravity Kit (installeras via sofia onboard)
-└── workspace/             # Sofias arbetsyta
-    ├── IDENTITY.md        # Basidentitet: ton, roll och hur Sofia ska presentera sig
-    ├── SOUL.md            # Kärnprinciper: beteende, värderingar och beslutsstil
-    ├── AGENT.md           # Agent-specifik systemprompt
-    ├── USER.md            # Användarkontext och preferenser
-    ├── HEARTBEAT.md       # Instruktioner för bakgrundsagenten
-    ├── skills/            # Lokala skills/expert-personas
+├── config.json            # Main configuration (models, channels, settings)
+├── memory.db              # Shared SQLite database for memory and session history
+├── antigravity-kit/       # Bundled Antigravity Kit (installed via sofia onboard)
+└── workspace/             # Sofia's workspace
+    ├── IDENTITY.md        # Core identity: tone, role, and how Sofia presents herself
+    ├── SOUL.md            # Core principles: behavior, values, and decision style
+    ├── AGENT.md           # Agent-specific system prompt
+    ├── USER.md            # User context and preferences
+    ├── HEARTBEAT.md       # Instructions for the background agent
+    ├── skills/            # Local skills/expert personas
     │   ├── github/
     │   ├── hardware/
     │   ├── skill-creator/
@@ -49,17 +49,17 @@ Sofias konfiguration och arbetsyta finns under `~/.sofia/`:
     │   ├── tmux/
     │   ├── weather/
     │   └── ...
-    ├── cron/              # Schemalagda jobb (jobs.json)
-    └── state/             # Persistent runtime-state
+    ├── cron/              # Scheduled jobs (jobs.json)
+    └── state/             # Persistent runtime state
 ```
 
-## 🚀 Installation & Kom igång
+## 🚀 Installation & Getting Started
 
-### Krav
+### Prerequisites
 
-Innan du bygger från källkod behöver du ha **Go installerat** (rekommenderat: Go 1.26 eller senare). Du kan ladda ner Go från [go.dev/dl](https://go.dev/dl/).
+Before building from source, you need to have **Go installed** (recommended: Go 1.26 or later). You can download Go from [go.dev/dl](https://go.dev/dl/).
 
-### Installera från källkod
+### Install from Source
 
 ```bash
 git clone https://github.com/grasberg/sofia.git
@@ -68,161 +68,160 @@ make deps
 make build
 ```
 
-Den kompilerade binären hamnar direkt i projektets rotmapp som `./build/sofia`.
+The compiled binary will be placed directly in the project root directory as `./build/sofia`.
 
 ### Quick Start
 
-1. **Initiera konfiguration och workspace:**
+1. **Initialize configuration and workspace:**
 ```bash
 ./build/sofia onboard
 ```
 
-2. **Starta Gateway (för chatt/webb-gränssnitt):**
+2. **Start Gateway (for chat/web interface):**
 ```bash
 ./build/sofia gateway
 ```
 
-3. **Öppna Sofias kontrollpanel:**
-Surfa till `http://127.0.0.1:18795` i din webbläsare. Gå till fliken **Models** för att lägga till din leverantör och API-nyckel.
+3. **Open Sofia's Control Panel:**
+Navigate to `http://127.0.0.1:18795` in your browser. Go to the **Models** tab to add your provider and API key.
 
-## 🤖 Multi-Agent Orkestrering
+## 🤖 Multi-Agent Orchestration
 
-Sofia kan delegera och koordinera arbete över flera agenter:
+Sofia can delegate and coordinate work across multiple agents:
 
-*   **Orchestrate-verktyg:** Definiera en uppsättning subtasks med beroenden — oberoende uppgifter körs parallellt, beroende uppgifter i rätt ordning. Automatisk agentval baserat på poängberäkning.
-*   **AgentArchitect & Sub-Agenter:** Autonom design och provisionering av specialiserade agenter "on the fly" vid identifierade problem, samt dedikerade bakgrunds- och synkrona agenter.
-*   **A2A-protokoll (Agent-to-Agent):** Standardiserad inter-agent-kommunikation med mailbox-baserad routing, send/receive/broadcast och pending-polling.
-*   **Delad Scratchpad:** Agenter kan dela data via en nyckel-värde-lagring namespaced per uppgiftsgrupp.
-*   **Plan & Execute:** Skapa strukturerade planer med steg som kan spåras och uppdateras under exekvering.
+*   **Orchestrate tool:** Define a set of subtasks with dependencies — independent tasks run in parallel, dependent tasks in the correct order. Automatic agent selection based on scoring.
+*   **AgentArchitect & Sub-Agents:** Autonomous design and provisioning of specialized agents "on the fly" when problems are identified, as well as dedicated background and synchronous agents.
+*   **A2A Protocol (Agent-to-Agent):** Standardized inter-agent communication with mailbox-based routing, send/receive/broadcast, and pending-polling.
+*   **Shared Scratchpad:** Agents can share data via a key-value store namespaced per task group.
+*   **Plan & Execute:** Create structured plans with steps that can be tracked and updated during execution.
 
 ## 🖥️ Computer Use
 
-Sofia kan styra din dator autonomt via skärmdumpar och vision-LLM:
+Sofia can control your computer autonomously via screenshots and vision-LLM:
 
-*   Tar skärmdumpar av skrivbordet och analyserar dem med vision-LLM
-*   Utför mus-klick, tangentbordstryckningar, scrollning och textinmatning
-*   Loopar tills uppgiften är klar eller max antal steg är nådd
-*   **Plattformar:** macOS (screencapture + osascript) och Linux (scrot + xdotool)
+*   Takes screenshots of the desktop and analyzes them using vision-LLM.
+*   Performs mouse clicks, keystrokes, scrolling, and text input.
+*   Loops until the task is complete or the maximum number of steps is reached.
+*   **Platforms:** macOS (screencapture + osascript) and Linux (scrot + xdotool).
 
-## 🌍 Webbläsarautomation (Playwright)
+## 🌍 Browser Automation (Playwright)
 
-Sofia har inbyggd Playwright-integration för autonom webbsurfning:
+Sofia has built-in Playwright integration for autonomous web browsing:
 
-*   Navigera till URL:er, klicka på element, fyll i formulär
-*   Ta skärmdumpar, extrahera text och köra JavaScript
-*   Vänta på element, hantera tidsgränser och scroll
-*   Stödjer Chromium, Firefox och WebKit
-*   Headless och headful-läge
+*   Navigate to URLs, click elements, fill out forms.
+*   Take screenshots, extract text, and run JavaScript.
+*   Wait for elements, handle timeouts, and scroll.
+*   Supports Chromium, Firefox, and WebKit.
+*   Headless and headful modes.
 
-## 📸 Bildanalys
+## 📸 Image Analysis
 
-Analysera lokala bilder direkt i konversationen:
+Analyze local images directly in the conversation:
 
-*   Stöd för PNG, JPEG, GIF och WebP
-*   OCR (textavläsning), bildbeskrivning och frågor om bildinnehåll
-*   Automatisk MIME-typ-detektering och storleksbegränsning
-*   Integrerat med vision-LLM-pipelinen
+*   Support for PNG, JPEG, GIF, and WebP.
+*   OCR (text recognition), image description, and queries about image content.
+*   Automatic MIME type detection and size limits.
+*   Integrated with the vision-LLM pipeline.
 
+## 🧠 Advanced Memory
 
-## 🧠 Avancerat Minne
+Sofia has a multi-layered memory architecture:
 
-Sofia har en flerlagrad minnesarkitektur:
+*   **Semantic Memory (Knowledge Graph):** Structured facts, entities, and relationships stored as nodes and edges. The `knowledge_graph` tool allows the agent to add, search, and delete knowledge.
+*   **Memory Consolidation:** `MemoryConsolidator` merges duplicate nodes and resolves conflicting relationships — keeping the knowledge graph clean automatically.
+*   **Strategic Forgetting:** `MemoryPruner` calculates a survival score based on access frequency and time since last access. Nodes below a threshold are discarded.
+*   **Self-Evolving Memory:** All accesses are tracked via `RecordStat`, driving both consolidation and pruning based on actual usage patterns.
 
-*   **Semantiskt Minne (Kunskapsgraf):** Strukturerade fakta, entiteter och relationer lagrade som noder och kanter. Verktyget `knowledge_graph` låter agenten lägga till, söka och ta bort kunskap.
-*   **Minneskonsolidering:** `MemoryConsolidator` slår samman duplicerade noder och löser konflikterande relationer — håller kunskapsgrafen ren automatiskt.
-*   **Strategisk Glömska:** `MemoryPruner` beräknar en överlevnadspoäng baserat på åtkomstfrekvens och tid sedan senaste åtkomst. Noder under tröskelvärdet tas bort automatiskt.
-*   **Självutvecklande Minne:** Alla åtkomster spåras via `RecordStat`, vilket driver både konsolidering och pruning baserat på faktiska användningsmönster.
+## 🔄 Self-Reflection & Self-Improvement
 
-## 🔄 Självreflektion & Självförbättring
+Sofia evaluates herself after every task and improves continuously:
 
-Sofia utvärderar sig själv efter varje uppgift och förbättras kontinuerligt:
+*   **Post-Task Reflection:** `ReflectionEngine` runs an LLM-driven evaluation after each task: what worked, what failed, lessons learned, and meta-learning.
+*   **Performance Score:** `PerformanceScorer` calculates a 0.0–1.0 rating based on error rates, tool efficiency, and completion.
+*   **Trend Analysis:** `GetPerformanceTrend` compares recent vs older reflections to detect improvement or decline.
+*   **Prompt Self-Optimization:** `optimizePrompt` automatically adjusts system instructions based on poor performance results.
+*   **Meta-Learning:** Each reflection includes a `meta_learning` field that stores insights about the learning process itself.
+*   **Code Self-Modification:** The `self_modify` tool allows Sofia to safely modify her own code with confirmation hashes and an audit trail.
+*   **EvolutionEngine:** An advanced, 5-phase engine for autonomous self-development that analyzes performance, updates agents, and generates changelogs (triggered via the `/evolve` command).
 
-*   **Post-Task Reflektion:** `ReflectionEngine` kör en LLM-driven utvärdering efter varje uppgift: vad fungerade, vad misslyckades, lärdommar och meta-learning.
-*   **Prestandapoäng:** `PerformanceScorer` beräknar ett 0.0–1.0-betyg baserat på felfrekvens, verktygseffektivitet och slutförande.
-*   **Trendanalys:** `GetPerformanceTrend` jämför nyliga vs äldre reflektioner för att detektera förbättring eller nedgång.
-*   **Prompt-självoptimering:** `optimizePrompt` justerar automatiskt systeminstruktioner baserat på dåliga prestationsresultat.
-*   **Meta-Learning:** Varje reflektion inkluderar ett `meta_learning`-fält som lagrar insikter om själva inlärningsprocessen.
-*   **Kodsjälvmodifiering:** `self_modify`-verktyget låter Sofia säkert modifiera sin egen kod med bekräftelse-hash och audit trail.
-*   **EvolutionEngine:** En avancerad, 5-fasig motor för autonom självutveckling som analyserar prestanda, uppdaterar agenter och genererar changelogs (aktiveras via bl.a. `/evolve`-kommandot).
+## 🎯 Autonomy & Proactivity
 
-## 🎯 Autonomi & Proaktivitet
+Sofia can act independently without user initiation:
 
-Sofia kan agera självständigt utan användarinitiering:
-
-*   **Långsiktiga Mål:** `manage_goals`-verktyget skapar och spårar mål som persisterar över sessioner. Aktiva mål injiceras automatiskt i agentens kontext.
-*   **Kontextmedvetna Triggers:** `manage_triggers`-verktyget skapar villkorliga handlingar som aktiveras baserat på användarens samtalskontext.
-*   **Proaktiva Förslag:** `AutonomyService` analyserar periodiskt senaste aktiviteten och genererar oombedda förslag när de bedöms vara värdefulla.
-*   **Autonom Research:** Identifierar kunskapsluckor och initierar självständigt forskning om relevanta ämnen.
+*   **Long-Term Goals:** The `manage_goals` tool creates and tracks goals that persist across sessions. Active goals are automatically injected into the agent's context.
+*   **Context-Aware Triggers:** The `manage_triggers` tool creates conditional actions that trigger based on user conversational context.
+*   **Proactive Suggestions:** `AutonomyService` periodically analyzes recent activity and generates unsolicited suggestions when deemed valuable.
+*   **Autonomous Research:** Identifies knowledge gaps and independently initiates research on relevant topics.
 
 ## 🔧 Tool Use & Discovery
 
-Sofia har avancerad logik för att hantera och optimera sin verktygsanvändning:
+Sofia has advanced logic to manage and optimize her tool usage:
 
-*   **Semantisk Verktygsmatchning:** Använder embeddings för att filtrera fram de mest relevanta verktygen baserat på användarens intent. Detta minskar token-användning och ökar fokus för LLM:en.
-*   **Tool Performance Tracking:** `ToolTracker` mäter automatiskt framgångsgrad och exekveringstid för alla verktyg. Sofia kan använda `get_tool_stats` för att se vilka verktyg som fungerar bäst för specifika uppgifter.
-*   **Tool Composition (Pipelines):** Med `create_pipeline` kan Sofia kedja ihop flera verktyg till ett nytt, återanvändbart makro-verktyg. Data flödar automatiskt mellan stegen i pipelinen.
-*   **MCP-stöd:** Dynamisk upptäckt av verktyg via Model Context Protocol-servrar.
+*   **Semantic Tool Matching:** Uses embeddings to filter out the most relevant tools based on user intent. This reduces token usage and increases the LLM's focus.
+*   **Tool Performance Tracking:** `ToolTracker` automatically measures success rates and execution times for all tools. Sofia can use `get_tool_stats` to see which tools perform best for specific tasks.
+*   **Tool Composition (Pipelines):** With `create_pipeline`, Sofia can chain multiple tools into a new, reusable macro tool. Data flows automatically between pipeline steps.
+*   **MCP Support:** Dynamic discovery of tools via Model Context Protocol servers.
 
-## 📚 Skill-system med Självlärande
+## 📚 Skill System with Self-Learning
 
-Sofia kan skapa och förbättra sina egna skills:
+Sofia can create and improve her own skills:
 
-*   **Extensivt Autonomt Bibliotek:** 10+ förinstallerade autonoma "self-directed" skills där Sofia exekverar storskaliga uppgifter från början till slut.
-*   **Auto-Skill Skapande:** `create_skill` genererar nya skills automatiskt från framgångsrika tillvägagångssätt.
-*   **Skill-förfining:** `update_skill` förbättrar befintliga skills baserat på användningsfeedback.
-*   **Kunskapsdestillering:** `distill_knowledge` komprimerar lärda erfarenheter till återanvändbar kunskap.
+*   **Extensive Autonomous Library:** 10+ pre-installed autonomous "self-directed" skills where Sofia executes large-scale tasks from start to finish.
+*   **Auto-Skill Creation:** `create_skill` generates new skills automatically from successful approaches.
+*   **Skill Refinement:** `update_skill` improves existing skills based on usage feedback.
+*   **Knowledge Distillation:** `distill_knowledge` compresses learned experiences into reusable knowledge.
 
-## 🔌 MCP-stöd (Model Context Protocol)
+## 🔌 MCP Support (Model Context Protocol)
 
-Sofia har inbyggd MCP-klient för anslutning till externa MCP-servrar:
+Sofia features a built-in MCP client to connect to external MCP servers:
 
-*   Anslut till externa verktygs- och datakällor via standardiserat protokoll.
-*   MCP-verktyg exponeras dynamiskt i agentens verktygsregister.
-*   Konfigurera MCP-servrar via `config.json`.
+*   Connect to external tool and data sources via a standardized protocol.
+*   MCP tools are dynamically exposed in the agent's tool registry.
+*   Configure MCP servers via `config.json`.
 
-## 🔒 Guardrails & Säkerhetsmodell
+## 🔒 Guardrails & Security Model
 
-Sofia har ett fullständigt säkerhetssystem med flera lager:
+Sofia utilizes a comprehensive, multi-layered security system:
 
-*   **Workspace-restriktion:** Fil- och kommandoverktyg begränsas strikt till den konfigurerade workspace-sökvägen.
-*   **Inputvalidering:** Konfigurerbar maxlängd och deny-patterns för att blockera skadliga meddelanden.
-*   **Outputfiltrering:** Filtrerar känslig data (PII, hemligheter) från svar innan de visas.
-*   **Prompt Injection-försvar:** LLM-baserad detektering och blockering av prompt injection-försök med konfigurerbar action (block/warn).
-*   **Åtgärdsbekräftelse:** `self_modify`-verktyget kräver hash-bekräftelse innan högrisk-ändringar genomförs.
-*   **Audit Trail:** Alla självmodifieringar loggas med tidsstämpel i `self_modifications.log`.
-*   **Budget Management:** En strikt policy för token- och exekveringsbudget tillämpas för att stoppa agenter som annars dränerar resurser.
-*   **Daemons:** Isolerade bakgrundsprocesser hanteras säkert och respekterar systemets restriktioner.
-
-**Via Web UI:**
-1.  Öppna Sofias Web UI → **System**.
-2.  Klicka på fliken **Security**.
-3.  Aktivera **Restrict to Workspace** och konfigurera guardrails.
-4.  Inställningarna sparas automatiskt.
-
-## 💓 Heartbeat (Bakgrundsagent)
-
-Sofia kan automatiskt utföra uppgifter i bakgrunden enligt ett schema.
+*   **Workspace Restriction:** File and command tools are strictly sandboxed to the configured workspace path.
+*   **Input Validation:** Configurable maximum length and deny patterns to block malicious prompt injections.
+*   **Output Filtering:** Filters sensitive data (PII, secrets) from responses before they are returned.
+*   **Prompt Injection Defense:** LLM-based detection and blocking of prompt injection attempts with configurable actions (block/warn).
+*   **Action Confirmation:** The `self_modify` tool requires hash confirmation before executing high-risk changes.
+*   **Audit Trail:** All self-modifications are logged with timestamps in `self_modifications.log`.
+*   **Budget Management:** A strict policy for token and execution budgets is applied to stop agents that would otherwise drain resources.
+*   **Daemons:** Isolated background processes are managed securely and respect system restrictions.
 
 **Via Web UI:**
-1.  Öppna Sofias Web UI → **System**.
-2.  Klicka på fliken **Heartbeat**.
-3.  Aktivera **Enable Heartbeat** och ange hur ofta agenten ska köra (i minuter).
-4.  Ange **Active Hours** i formatet `09:00-17:00` — lämna tomt för 24/7.
-5.  Välj **Active Days** — lämna tomt för att köra varje dag.
-6.  Inställningarna sparas automatiskt.
+1.  Open Sofia's Web UI → **System**.
+2.  Click on the **Security** tab.
+3.  Enable **Restrict to Workspace** and configure guardrails.
+4.  Settings are saved automatically.
 
-## 🧭 Anpassa Sofias Personlighet
+## 💓 Heartbeat (Background Agent)
 
-Sofias beteende, ton och personlighet styrs av två filer: **IDENTITY.md** och **SOUL.md**. Du kan enkelt redigera dem direkt i webbgränssnittet:
+Sofia can automatically perform tasks in the background based on a schedule.
 
-1.  **Starta Sofia:** `sofia gateway`
-2.  **Öppna webbläsaren:** Surfa till `http://127.0.0.1:18795`
-3.  **Gå till System** i vänstermenyn.
-4.  Redigera **IDENTITY.md** (vem Sofia är) och **SOUL.md** (hur Sofia beter sig) direkt i textrutorna under fliken **Prompts**.
-5.  Klicka **Save prompt files** — ändringarna träder i kraft omedelbart utan omstart.
+**Via Web UI:**
+1.  Open Sofia's Web UI → **System**.
+2.  Click on the **Heartbeat** tab.
+3.  Enable **Enable Heartbeat** and specify how often the agent should run (in minutes).
+4.  Enter **Active Hours** in the format `09:00-17:00` — leave blank for 24/7.
+5.  Select **Active Days** — leave blank to run every day.
+6.  Settings are saved automatically.
 
-### `IDENTITY.md` — Vem är Sofia?
-Definierar Sofias roll, namn, och grundläggande kontext. Exempel:
+## 🧭 Customizing Sofia's Personality
+
+Sofia's behavior, tone, and personality are controlled by two files: **IDENTITY.md** and **SOUL.md**. You can easily edit them directly in the web interface:
+
+1.  **Start Sofia:** `sofia gateway`
+2.  **Open browser:** Navigate to `http://127.0.0.1:18795`
+3.  **Go to System** in the left menu.
+4.  Edit **IDENTITY.md** (who Sofia is) and **SOUL.md** (how Sofia behaves) directly in the text boxes under the **Prompts** tab.
+5.  Click **Save prompt files** — the changes take effect immediately without restarting.
+
+### `IDENTITY.md` — Who is Sofia?
+Defines Sofia's role, name, and foundational context. Example:
 ```md
 # Identity
 - Name: Sofia
@@ -230,44 +229,44 @@ Definierar Sofias roll, namn, och grundläggande kontext. Exempel:
 - Running: 24/7 on the user's own hardware
 ```
 
-### `SOUL.md` — Hur beter sig Sofia?
-Definierar personlighet, språk, värderingar och beslutslogik. Exempel:
+### `SOUL.md` — How does Sofia behave?
+Defines personality, language, values, and decision logic. Example:
 ```md
 # Soul
-- Svara alltid på svenska
-- Var proaktiv och självgående
-- Använd torr humor och driv
-- Prioritera handling framför att fråga om lov
+- Svara alltid på svenska (Always respond in Swedish)
+- Var proaktiv och självgående (Be proactive and self-driven)
+- Använd torr humor och driv (Use dry humor and drive)
+- Prioritera handling framför att fråga om lov (Prioritize action over asking for permission)
 ```
 
-> 💡 **Tips:** Du kan ge Sofia vilken personlighet du vill — formell, avslappnad, sarkastisk, pedagogisk, eller helt skräddarsydd för ditt arbetsflöde.
+> 💡 **Tip:** You can give Sofia any personality you want — formal, relaxed, sarcastic, educational, or completely tailored to your workflow.
 
 ## 🎨 Web UI
 
-Sofias webbgränssnitt är byggt med **HTMX** och **Go Templates** och har ett unikt brutalistiskt designtema med CRT-effekter:
+Sofia's web interface is built with **HTMX** and **Go Templates**, featuring a unique brutalist design theme with CRT effects:
 
-*   **Chatt:** Realtidskonversation med streaming, markdown-rendering och filuppladdning (inkl. bilduppladdning för vision-modeller).
-*   **Chatthistorik:** Sök, bläddra och återuppta tidigare konversationer med full sessionshantering.
-*   **Memory Explorer:** Interaktiv, grafisk utforskning av Sofias semantiska minne och kunskapsnoder.
-*   **Goals Kanban:** En integrerad Kanban-tavla för att spåra systemmål med drag-and-drop.
-*   **Agenter & Pixel Agents:** Visuell live-översikt och prestandahantering av alla dina agenter och de helt nya "Pixel Agents".
-*   **Monitor:** Realtidsövervakning av agentaktivitet, verktygsanrop, systemstatus och pågående mål (Activity Monitor).
-*   **System:** Alla inställningar och systemfunktioner samlade i vänstermenyn:
-    *   **Identity** — Redigera IDENTITY.md och SOUL.md
-    *   **Heartbeat** — Schemaläggning av bakgrundsagenten
-    *   **Models** — Hantera AI-leverantörer och modeller
-    *   **Comms** — Konfigurera Telegram, Discord m.m.
-    *   **Integrations** — Aktivera och konfigurera externa integrationer (Porkbun, cPanel, GitHub, Google m.fl.)
-    *   **Tools** — Lista över tillgängliga verktyg och deras beskrivningar
-    *   **Skills** — Hantera installerade skills
-    *   **Logs** — Realtidsloggar
-    *   **Security** — Workspace-restriktioner och guardrails
+*   **Chat:** Real-time conversation with streaming, markdown rendering, and file uploads (including image uploads for vision models).
+*   **Chat History:** Search, browse, and resume previous conversations with full session management.
+*   **Memory Explorer:** Interactive, graphical exploration of Sofia's semantic memory and knowledge nodes.
+*   **Goals Kanban:** An integrated Kanban board to track system goals with drag-and-drop.
+*   **Agents & Pixel Agents:** Visual live overview and performance management of all your agents and the entirely new "Pixel Agents".
+*   **Monitor:** Real-time monitoring of agent activity, tool calls, system status, and ongoing goals (Activity Monitor).
+*   **System:** All settings and system features gathered in the left menu:
+    *   **Identity** — Edit IDENTITY.md and SOUL.md
+    *   **Heartbeat** — Background agent scheduling
+    *   **Models** — Manage AI providers and models
+    *   **Comms** — Configure Telegram, Discord, etc.
+    *   **Integrations** — Enable and configure external integrations (Porkbun, cPanel, GitHub, Google, etc.)
+    *   **Tools** — List of available tools and their descriptions
+    *   **Skills** — Manage installed skills
+    *   **Logs** — Real-time logs
+    *   **Security** — Workspace restrictions and guardrails
 
-## 🔄 AI-leverantörer
+## 🔄 AI Providers
 
-Sofia stödjer 20+ leverantörer via ett OpenAI-kompatibelt API-interface:
+Sofia supports 20+ providers via an OpenAI-compatible API interface:
 
-| Leverantör | Stöd |
+| Provider | Support |
 |---|---|
 | OpenAI (GPT-4o, o1, o3) | ✅ |
 | Anthropic (Claude 4.5 Sonnet/Opus) | ✅ |
@@ -285,135 +284,129 @@ Sofia stödjer 20+ leverantörer via ett OpenAI-kompatibelt API-interface:
 | OpenRouter | ✅ |
 | Mistral AI | ✅ |
 
-**Provider Fallback:** Konfigurera fallback-kedjor så att Sofia automatiskt byter till nästa leverantör om den primära misslyckas.
+**Provider Fallback:** Configure fallback chains so that Sofia automatically switches to the next provider if the primary one fails.
 
-## 🔌 Integrationer
+## 🔌 Integrations
 
-För att ge Sofia full kraft kan du koppla samman henne med externa tjänster.
+To give Sofia full power, you can connect her with external services.
 
-### 📧 Google (Gmail & Kalender)
+### 📧 Google (Gmail & Calendar)
 
-Sofia använder `gogcli` för att interagera med Google Services.
+Sofia uses `gogcli` to interact with Google Services.
 
-1.  **Installera gogcli:** Se till att `gog` finns i din PATH.
-2.  **Autentisera:** Kör följande i terminalen och följ instruktionerna:
+1.  **Install gogcli:** Make sure `gog` is in your PATH.
+2.  **Authenticate:** Run the following in the terminal and follow the instructions:
     ```bash
-    gog login din.email@gmail.com
+    gog login your.email@gmail.com
     ```
-3.  **Aktivera i Sofia:**
-    -   Öppna Sofias Web UI -> **System** -> **Integrations**.
-    -   Aktivera **Google CLI** och ange sökvägen till `gog`.
-    -   Konfigurera tillåtna kommandon (gmail, calendar, drive).
-    -   Spara inställningarna.
+3.  **Enable in Sofia:**
+    -   Open Sofia's Web UI -> **System** -> **Integrations**.
+    -   Enable **Google CLI** and specify the path to `gog`.
+    -   Configure allowed commands (gmail, calendar, drive).
+    -   Save the settings.
 
 ### 🐙 GitHub
 
-Sofia använder GitHub CLI (`gh`) för att hantera repon, PRs och kod.
+Sofia uses GitHub CLI (`gh`) to manage repos, PRs, and code.
 
-1.  **Installera GitHub CLI:** `brew install gh` (macOS) eller besök [cli.github.com](https://cli.github.com).
-2.  **Autentisera:** Kör följande i terminalen och följ instruktionerna:
+1.  **Install GitHub CLI:** `brew install gh` (macOS) or visit [cli.github.com](https://cli.github.com).
+2.  **Authenticate:** Run the following in the terminal and follow the instructions:
     ```bash
     gh auth login
     ```
-3.  **Aktivera i Sofia:**
-    -   Öppna Sofias Web UI -> **System** -> **Integrations**.
-    -   Aktivera **GitHub CLI**-switchen och klicka på **Save settings**.
-    -   **Starta om Sofia** efter att du har sparat.
+3.  **Enable in Sofia:**
+    -   Open Sofia's Web UI -> **System** -> **Integrations**.
+    -   Toggle the **GitHub CLI** switch and click **Save settings**.
+    -   **Restart Sofia** after saving.
 
-Sofia kan nu hantera PRs, issues, repon, workflows och mer via verktyget `github_cli`.
+Sofia can now manage PRs, issues, repos, workflows, and more via the `github_cli` tool.
 
-4.  **Git-identitet:** Se till att din lokala git är konfigurerad så att Sofia kan committa i ditt namn:
+4.  **Git Identity:** Ensure your local git is configured so Sofia can commit in your name:
     ```bash
-    git config --global user.name "Ditt Namn"
-    git config --global user.email "din.email@example.com"
+    git config --global user.name "Your Name"
+    git config --global user.email "your.email@example.com"
     ```
 
 ### 💬 Telegram
 
-Sofia kan kopplas till Telegram och svara på meddelanden direkt i chatten.
+Sofia can be linked to Telegram and answer messages directly in chat.
 
-**Via Web UI (rekommenderat):**
-1.  Skapa en bot via [BotFather](https://t.me/BotFather) i Telegram. Kör `/newbot` och följ instruktionerna.
-2.  Kopiera bot-tokenen som BotFather ger dig.
-3.  Öppna Sofias Web UI → **Channels**.
-4.  Aktivera **Telegram**, klistra in din bot-token.
-5.  Under **Allow From** kan du begränsa vilka Telegram-användare som får prata med Sofia (frivilligt, lämna tomt för alla).
-6.  Klicka **Save Settings** och starta om Sofia.
+**Via Web UI (recommended):**
+1.  Create a bot via [BotFather](https://t.me/BotFather) on Telegram. Run `/newbot` and follow the instructions.
+2.  Copy the bot token provided by BotFather.
+3.  Open Sofia's Web UI → **Channels**.
+4.  Enable **Telegram**, paste your bot token.
+5.  Under **Allow From**, you can restrict which Telegram users are allowed to talk to Sofia (optional, leave blank for everyone).
+6.  Click **Save Settings** and restart Sofia.
 
-
-
-> 💡 **Tips:** Om du kör Sofia bakom en brandvägg eller VPN kan du ange en proxy under **Proxy**-fältet i Channels-sidan.
+> 💡 **Tip:** If you are running Sofia behind a firewall or VPN, you can enter a proxy under the **Proxy** field on the Channels page.
 
 ### 🎮 Discord
 
-Sofia kan även vara aktiv i Discord-servrar och DM:s.
+Sofia can also be active in Discord servers and DMs.
 
-**Via Web UI (rekommenderat):**
-1.  Gå till [Discord Developer Portal](https://discord.com/developers/applications) och skapa en ny applikation.
-2.  Under **Bot** → klicka **Add Bot** → kopiera din **Bot Token**.
-3.  Under **OAuth2 → URL Generator** — välj `bot` scope och ge den behörigheter att läsa/skicka meddelanden. Bjud in boten till din server via den genererade länken.
-4.  Öppna Sofias Web UI → **Channels**.
-5.  Aktivera **Discord**, klistra in din bot-token.
-6.  **Allow From** — ange Discord-användarnamn som får interagera med Sofia (frivilligt).
-7.  **Mention Only** — om aktiverat svarar Sofia bara när hon @-nämns, annars svarar hon på alla meddelanden i kanaler hon har tillgång till.
-8.  Klicka **Save Settings** och starta om Sofia.
+**Via Web UI (recommended):**
+1.  Go to the [Discord Developer Portal](https://discord.com/developers/applications) and create a new application.
+2.  Under **Bot** → click **Add Bot** → copy your **Bot Token**.
+3.  Under **OAuth2 → URL Generator** — select the `bot` scope and give it permissions to read/send messages. Invite the bot to your server via the generated link.
+4.  Open Sofia's Web UI → **Channels**.
+5.  Enable **Discord**, paste your bot token.
+6.  **Allow From** — specify Discord usernames permitted to interact with Sofia (optional).
+7.  **Mention Only** — if enabled, Sofia only answers when @-mentioned; otherwise, she answers all messages in channels she has access to.
+8.  Click **Save Settings** and restart Sofia.
 
+> 💡 **Tip:** Set `mention_only` to `true` if Sofia is in an active channel with many users — otherwise, she will reply to everything.
 
+### 🐷 Porkbun (Domain Management)
 
-> 💡 **Tips:** Sätt `mention_only` till `true` om Sofia är i en aktiv kanal med många användare — annars svarar hon på allt.
+Sofia can check availability, register domains, and manage DNS records via the Porkbun API.
 
-### 🐷 Porkbun (Domänhantering)
+1.  **Get API Keys:** Log in to [Porkbun](https://porkbun.com/account/api) and generate an "API Key" and "Secret API Key".
+2.  **Configure in Sofia:**
+    -   Open Sofia's Web UI -> **System** -> **Integrations**.
+    -   Enable **Porkbun** and paste your `API Key` and `Secret API Key`.
+    -   Save the settings.
 
-Sofia kan kontrollera tillgänglighet, registrera domäner och hantera DNS-poster via Porkbun API.
+### 📦 cPanel (Web Hosting)
 
-1.  **Hämta API-nycklar:** Logga in på [Porkbun](https://porkbun.com/account/api) och generera en "API Key" och "Secret API Key".
-2.  **Konfigurera i Sofia:**
-    -   Öppna Sofias Web UI -> **System** -> **Integrations**.
-    -   Aktivera **Porkbun** och klistra in din `API Key` och `Secret API Key`.
-    -   Spara inställningarna.
+Sofia can manage your web hosting account via cPanel UAPI: upload files, create databases, and manage domains.
 
-### 📦 cPanel (Webbhotell)
+1.  **Create API Token:** Log in to cPanel -> **Security** -> **Manage API Tokens**. Create a new token with the privileges you want Sofia to have.
+2.  **Configure in Sofia:**
+    -   Open Sofia's Web UI -> **System** -> **Integrations**.
+    -   Enable **cPanel** and enter the host, username, and your API token.
+    -   Save the settings.
 
-Sofia kan hantera ditt webbhotellskonto via cPanel UAPI: ladda upp filer, skapa databaser och hantera domäner.
+## 🛠️ Complete Tool List
 
-1.  **Skapa API-token:** Logga in i cPanel -> **Security** -> **Manage API Tokens**. Skapa en ny token med de behörigheter du vill att Sofia ska ha.
-2.  **Konfigurera i Sofia:**
-    -   Öppna Sofias Web UI -> **System** -> **Integrations**.
-    -   Aktivera **cPanel** och fyll i host, användarnamn och din API-token.
-    -   Spara inställningarna.
-
-
-## 🛠️ Komplett verktygslista
-
-| Verktyg | Beskrivning |
+| Tool | Description |
 |---|---|
-| `file_read` / `file_write` / `file_edit` | Läsa, skriva och redigera filer |
-| `shell` | Köra terminalkommandon |
-| `web_browse` | Autonom webbsurfning via Playwright |
-| `computer_use` | Styra datorns skärm, mus och tangentbord |
-| `image_analyze` | Analysera lokala bilder via vision-LLM |
-| `orchestrate` | Multi-agent-orkestrering med beroendegraf |
-| `spawn` / `subagent` | Starta asynkrona/synkrona sub-agenter |
-| `a2a` | Agent-to-Agent-kommunikation (send/receive/broadcast) |
-| `plan` | Strukturerad uppgiftsplanering |
-| `scratchpad` | Delad nyckel-värde-lagring mellan agenter |
-| `cron` | Skapa och hantera schemalagda jobb |
-| `message` | Skicka meddelanden till chattkanaler |
-| `gogcli` | Google Gmail, Calendar och Drive |
-| `knowledge_graph` | Kunskapsgraf — lägga till, söka och ta bort fakta och relationer |
-| `manage_goals` | Skapa, uppdatera och spåra långsiktiga mål |
-| `manage_triggers` | Skapa kontextmedvetna triggers för villkorliga handlingar |
-| `create_skill` | Skapa nya skills automatiskt från framgångsrika tillvägagångssätt |
-| `update_skill` | Förfina befintliga skills baserat på feedback |
-| `distill_knowledge` | Destillera erfarenheter till återanvändbar kunskap |
-| `self_modify` | Självmodifiering av kod/konfiguration med säkerhetsspärrar |
-| `notify_user` | Push-meddelanden till användarens skrivbord |
-| `get_tool_stats` | Hämta prestandadata och framgångsgrad för verktyg |
-| `create_pipeline` | Skapa ett nytt makro-verktyg genom att kedja ihop befintliga verktyg |
-| `mcp` | Anslut till externa MCP-servrar för dynamiska verktyg |
-| `domain_name` | Hantera domäner via Porkbun (check, register, dns, nameservers) |
-| `cpanel` | Hantera cPanel-webbhotell (filer, domäner, databaser, SSL) |
-
+| `file_read` / `file_write` / `file_edit` | Read, write, and edit files |
+| `shell` | Run terminal commands |
+| `web_browse` | Autonomous web browsing via Playwright |
+| `computer_use` | Control the computer's screen, mouse, and keyboard |
+| `image_analyze` | Analyze local images via vision-LLM |
+| `orchestrate` | Multi-agent orchestration with dependency graphs |
+| `spawn` / `subagent` | Launch asynchronous/synchronous sub-agents |
+| `a2a` | Agent-to-Agent communication (send/receive/broadcast) |
+| `plan` | Structured task planning |
+| `scratchpad` | Shared key-value store between agents |
+| `cron` | Create and manage scheduled jobs |
+| `message` | Send messages to chat channels |
+| `gogcli` | Google Gmail, Calendar, and Drive |
+| `knowledge_graph` | Knowledge graph — add, search, and delete facts and relations |
+| `manage_goals` | Create, update, and track long-term goals |
+| `manage_triggers` | Create context-aware triggers for conditional actions |
+| `create_skill` | Automatically create new skills from successful approaches |
+| `update_skill` | Refine existing skills based on feedback |
+| `distill_knowledge` | Distill experiences into reusable knowledge |
+| `self_modify` | Code/configuration self-modification with safety guardrails |
+| `notify_user` | Push notifications to the user's desktop |
+| `get_tool_stats` | Fetch performance data and success rates for tools |
+| `create_pipeline` | Create a new macro tool by chaining existing tools |
+| `mcp` | Connect to external MCP servers for dynamic tools |
+| `domain_name` | Manage domains via Porkbun (check, register, dns, nameservers) |
+| `cpanel` | Manage cPanel web hosting (files, domains, databases, SSL) |
 
 ## 📊 Agentic AI Capability Scorecard
 
@@ -434,4 +427,4 @@ Sofia's feature coverage across 10 core agentic AI capability categories:
 | **Total** | **73/74** | **99%** |
 
 ---
-*Byggd för att accelerera utveckling. Din lokala AI-kollega.*
+*Built to accelerate development. Your local AI colleague.*
