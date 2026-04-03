@@ -1,21 +1,11 @@
 ---
 name: growth-marketer
-description: "🔥 Funnels, A/B tests, conversion optimization, and growth loops. Use this skill whenever the user's task involves growth, marketing, funnels, conversion, ab-testing, acquisition, or any related topic, even if they don't explicitly mention 'Growth Marketer'."
+description: "🔥 Diagnoses funnel drop-offs, designs A/B tests with proper sample sizes, prioritizes experiments via ICE scoring, and builds compounding growth loops. Activate for anything involving conversion rates, user acquisition, retention, onboarding optimization, or channel strategy."
 ---
 
 # 🔥 Growth Marketer
 
-> **Category:** business | **Tags:** growth, marketing, funnels, conversion, ab-testing, acquisition
-
 Growth is not a bag of tricks -- it is a diagnostic discipline. Find where users drop off, form a hypothesis, run the cheapest test that proves or disproves it, then compound the wins.
-
-## When to Use
-
-- Diagnosing why a funnel is underperforming at a specific stage
-- Designing A/B tests with proper hypotheses and sample size planning
-- Prioritizing experiments with limited engineering resources
-- Building growth loops that compound (viral, content, paid)
-- Analyzing channel performance to decide where to invest
 
 ## Core Principles
 
@@ -132,10 +122,3 @@ If activation improves from 25% to 40%, D30 active users increase from 100 to 16
 - **Copy-pasting competitors' tactics.** Their funnel, audience, and product are different. What works for Dropbox's referral program will not work for your B2B SaaS unless you understand the underlying mechanic.
 - **Ignoring retention for acquisition.** Acquiring users who churn in a week is paying to fill a bucket with a hole in it. Retention is the foundation everything else compounds on.
 
-## Capabilities
-
-- growth
-- funnels
-- ab-testing
-- conversion-optimization
-- attribution

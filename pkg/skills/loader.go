@@ -59,18 +59,18 @@ func (info SkillInfo) validate() error {
 
 type SkillsLoader struct {
 	workspace       string
-	workspaceSkills string // workspace skills (project-level)
+	workspaceSkills string // workspace/skills (shipped with sofia)
+	workspaceAgents string // workspace/agents (agent templates — flat .md files)
 	globalSkills    string // global skills (~/.sofia/skills)
-	antigravity     string // antigravity skills (~/.sofia/antigravity-kit/.agent/skills)
-	builtinSkills   string // builtin skills
+	builtinSkills   string // builtin skills (next to binary)
 }
 
 func NewSkillsLoader(workspace string, globalSkills string, builtinSkills string) *SkillsLoader {
 	return &SkillsLoader{
 		workspace:       workspace,
 		workspaceSkills: filepath.Join(workspace, "skills"),
+		workspaceAgents: filepath.Join(workspace, "agents"),
 		globalSkills:    globalSkills, // ~/.sofia/skills
-		antigravity:     resolveAntigravitySkillsDir(),
 		builtinSkills:   builtinSkills,
 	}
 }
@@ -79,7 +79,8 @@ func (sl *SkillsLoader) ListSkills() []SkillInfo {
 	skills := make([]SkillInfo, 0)
 	seen := make(map[string]bool)
 
-	addSkills := func(dir, source string) {
+	// addSkillDirs loads skills from directories containing name/SKILL.md.
+	addSkillDirs := func(dir, source string) {
 		if dir == "" {
 			return
 		}
@@ -117,11 +118,52 @@ func (sl *SkillsLoader) ListSkills() []SkillInfo {
 		}
 	}
 
-	// Priority: workspace > global > antigravity > builtin
-	addSkills(sl.workspaceSkills, "workspace")
-	addSkills(sl.globalSkills, "global")
-	addSkills(sl.antigravity, "antigravity")
-	addSkills(sl.builtinSkills, "builtin")
+	// addAgentFiles loads agent templates from flat .md files in a directory.
+	addAgentFiles := func(dir, source string) {
+		if dir == "" {
+			return
+		}
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			return
+		}
+		for _, f := range files {
+			if f.IsDir() || !strings.HasSuffix(f.Name(), ".md") {
+				continue
+			}
+			name := strings.TrimSuffix(f.Name(), ".md")
+			agentFile := filepath.Join(dir, f.Name())
+			info := SkillInfo{
+				Name:   name,
+				Path:   agentFile,
+				Source: source,
+			}
+			metadata := sl.getSkillMetadata(agentFile)
+			if metadata != nil {
+				if metadata.Description != "" {
+					info.Description = metadata.Description
+				}
+				if metadata.Name != "" {
+					info.Name = metadata.Name
+				}
+			}
+			if err := info.validate(); err != nil {
+				slog.Warn("invalid agent from "+source, "name", info.Name, "error", err)
+				continue
+			}
+			if seen[info.Name] {
+				continue
+			}
+			seen[info.Name] = true
+			skills = append(skills, info)
+		}
+	}
+
+	// Priority: workspace skills > workspace agents > global > builtin
+	addSkillDirs(sl.workspaceSkills, "workspace")
+	addAgentFiles(sl.workspaceAgents, "agent")
+	addSkillDirs(sl.globalSkills, "global")
+	addSkillDirs(sl.builtinSkills, "builtin")
 
 	return skills
 }
@@ -133,7 +175,7 @@ func (sl *SkillsLoader) LoadSkill(name string) (string, bool) {
 		return "", false
 	}
 
-	// 1. load from workspace skills first (project-level)
+	// 1. load from workspace skills (name/SKILL.md)
 	if sl.workspaceSkills != "" {
 		skillFile := filepath.Join(sl.workspaceSkills, name, "SKILL.md")
 		if content, err := os.ReadFile(skillFile); err == nil {
@@ -141,7 +183,15 @@ func (sl *SkillsLoader) LoadSkill(name string) (string, bool) {
 		}
 	}
 
-	// 2. then load from global skills (~/.sofia/skills)
+	// 2. load from workspace agents (name.md flat files)
+	if sl.workspaceAgents != "" {
+		agentFile := filepath.Join(sl.workspaceAgents, name+".md")
+		if content, err := os.ReadFile(agentFile); err == nil {
+			return sl.stripFrontmatter(string(content)), true
+		}
+	}
+
+	// 3. load from global skills (~/.sofia/skills)
 	if sl.globalSkills != "" {
 		skillFile := filepath.Join(sl.globalSkills, name, "SKILL.md")
 		if content, err := os.ReadFile(skillFile); err == nil {
@@ -149,15 +199,7 @@ func (sl *SkillsLoader) LoadSkill(name string) (string, bool) {
 		}
 	}
 
-	// 3. then load from antigravity skills
-	if sl.antigravity != "" {
-		skillFile := filepath.Join(sl.antigravity, name, "SKILL.md")
-		if content, err := os.ReadFile(skillFile); err == nil {
-			return sl.stripFrontmatter(string(content)), true
-		}
-	}
-
-	// 4. finally load from builtin skills
+	// 4. load from builtin skills
 	if sl.builtinSkills != "" {
 		skillFile := filepath.Join(sl.builtinSkills, name, "SKILL.md")
 		if content, err := os.ReadFile(skillFile); err == nil {
@@ -341,21 +383,3 @@ func escapeXML(s string) string {
 	return s
 }
 
-func resolveAntigravitySkillsDir() string {
-	if custom := os.Getenv("SOFIA_ANTIGRAVITY_SKILLS_DIR"); custom != "" {
-		if st, err := os.Stat(custom); err == nil && st.IsDir() {
-			return custom
-		}
-	}
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-
-	dir := filepath.Join(home, ".sofia", "antigravity-kit", ".agent", "skills")
-	if st, err := os.Stat(dir); err == nil && st.IsDir() {
-		return dir
-	}
-	return ""
-}

@@ -1,22 +1,11 @@
 ---
 name: python-expert
-description: "🐍 Production-grade Python -- async, type-safe, well-tested, properly packaged. Use this skill whenever the user's task involves python, backend, api, data, django, fastapi, or any related topic, even if they don't explicitly mention 'Python Expert'."
+description: "🐍 Write production Python -- FastAPI/Django APIs, async services, typed data pipelines, pytest suites, and proper packaging with pyproject.toml. Activate for any Python coding, debugging, architecture, or library selection."
 ---
 
 # 🐍 Python Expert
 
-> **Category:** development | **Tags:** python, backend, api, data, django, fastapi
-
 Production-grade Python that is type-annotated, async-first, and properly packaged from the start. The Pythonic way first, then the general approach. Show the right tool for the job and explain why.
-
-## When to Use
-
-- Building APIs with FastAPI or Django
-- Writing type-annotated Python (PEP 484/604)
-- Data pipelines with pandas, polars, or numpy
-- Setting up Python packaging (pyproject.toml, uv, poetry)
-- Async programming with asyncio
-- Testing with pytest
 
 ## Approach
 
@@ -149,11 +138,3 @@ myapp/
     test_users.py          -- Behavior tests per feature
 ```
 
-## Capabilities
-
-- python
-- async
-- testing
-- data-pipelines
-- packaging
-- type-safety

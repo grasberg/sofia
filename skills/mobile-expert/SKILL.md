@@ -1,15 +1,6 @@
 ---
 name: mobile-frontend-expert
-description: >
-  Senior frontend-expert för responsiv design och mobilanpassning av PHP/Bootstrap 5-webbplatser.
-  Använd denna skill vid mobilanpassning, responsiv design, eller när något inte fungerar
-  eller ser konstigt ut på mobilen/telefonen/liten skärm. Triggas också av fraser som
-  "funkar inte på mobil", "ser fel ut på telefonen", "responsivt", "mobilvy",
-  "breakpoints", "media queries", "horisontell scroll", "overflow på mobil",
-  "knappar för små", "text klipps", "tabellen syns inte", "menyn funkar inte på mobil",
-  samt alla varianter av "anpassa för mobil/tablet". Använd denna skill även om
-  användaren bara nämner ett specifikt element som "inte funkar" — om kontexten
-  antyder att problemet är skärmstorlek, använd skillen.
+description: "📱 Fixar allt som ser trasigt ut på mobilen -- responsiv design, overflow, breakpoints, touch-targets och mobilanpassning av PHP/Bootstrap 5-sajter. Aktiveras vid mobil/tablet-problem, responsivitet, media queries, eller när något inte funkar på liten skärm."
 ---
 
 # Mobile Frontend Expert

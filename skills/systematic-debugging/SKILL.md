@@ -1,20 +1,11 @@
 ---
 name: systematic-debugging
-description: "Debugging methodology and investigation techniques. Use this skill as supplementary knowledge when investigating bugs, understanding error patterns, or applying structured troubleshooting approaches."
+description: "Structured debugging frameworks for complex bugs -- scientific method, fault trees, timeline analysis, and layer-by-layer investigation. Activate for any hard-to-find bug, flaky behavior, production incident, or multi-system failure."
 ---
 
 # Systematic Debugging
 
-> **Category:** methodology | **Tags:** debugging, investigation, troubleshooting, methodology, root-cause
-
 A knowledge module for systematic debugging approaches. This supplements the debugger skill with deeper methodology and investigation frameworks.
-
-## When to Use
-
-- As **supplementary knowledge** during bug investigation
-- When standard debugging approaches aren't working
-- For **complex, multi-system bugs** that cross boundaries
-- When training others on **debugging methodology**
 
 ## Investigation Frameworks
 
@@ -92,11 +83,3 @@ When adding debug logging, capture:
 - **State transitions** -- before and after values
 
 Remove debug logging after fixing the bug. Use structured logging (JSON) so logs are searchable.
-
-## Capabilities
-
-- debugging-methodology
-- investigation-techniques
-- fault-analysis
-- timeline-correlation
-- root-cause-frameworks

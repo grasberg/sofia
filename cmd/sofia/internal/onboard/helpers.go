@@ -34,29 +34,7 @@ func onboard() {
 	workspace := cfg.WorkspacePath()
 	createWorkspaceTemplates(workspace)
 
-	err := installAntigravityKit()
-	if err != nil {
-		fmt.Printf("Warning: Could not auto-install antigravity-kit: %v\n", err)
-	}
-
 	fmt.Printf("%s sofia is ready!\n", internal.Logo)
-}
-
-func installAntigravityKit() error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	targetDir := filepath.Join(home, ".sofia", "antigravity-kit")
-
-	// If it already exists, let's just abort and say success, so we don't overwrite user's custom edits
-	if _, err := os.Stat(targetDir); err == nil {
-		return nil
-	}
-
-	fmt.Printf("Installing bundled antigravity-kit to %s...\n", targetDir)
-	return copyEmbeddedTree("antigravity-kit", targetDir)
 }
 
 func createWorkspaceTemplates(workspace string) {

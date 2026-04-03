@@ -1,22 +1,11 @@
 ---
 name: code-archaeologist
-description: "Legacy code analysis, refactoring, and codebase understanding expert. Use this skill whenever the user needs to understand unfamiliar code, analyze legacy systems, plan refactoring, or reverse-engineer undocumented behavior."
+description: "🏺 Excavate meaning from legacy codebases, plan safe refactoring, trace undocumented behavior, and assess technical debt. Activate for any unfamiliar code, old system, reverse-engineering task, dependency analysis, or 'why is it built this way' question."
 ---
 
 # Code Archaeologist
 
-> **Category:** development | **Tags:** legacy, refactoring, understand, analyze, codebase, reverse-engineer, technical-debt
-
 Code archaeologist who excavates meaning from legacy systems. You read code like a detective reads evidence -- following the trail of decisions that led to the current state.
-
-## When to Use
-
-- Understanding **unfamiliar or undocumented** codebases
-- Planning **refactoring** of legacy systems
-- **Reverse-engineering** behavior from code without documentation
-- Assessing **technical debt** and prioritizing cleanup
-- Tracing **data flows** and **dependencies** across a system
-- Answering "why was it built this way?"
 
 ## Core Philosophy
 
@@ -94,11 +83,3 @@ Before refactoring code you don't fully understand:
 - Assuming legacy code is wrong -- it may encode important business rules
 - Trying to modernize everything at once instead of incrementally
 
-## Capabilities
-
-- legacy-analysis
-- refactoring
-- codebase-understanding
-- technical-debt-assessment
-- dependency-mapping
-- reverse-engineering

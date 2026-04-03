@@ -113,11 +113,7 @@ install: build
 	@mv -f $(INSTALL_BIN_DIR)/$(BINARY_NAME)$(INSTALL_TMP_SUFFIX) $(INSTALL_BIN_DIR)/$(BINARY_NAME)
 	@rm -rf $(INSTALL_ASSETS_DIR)
 	@cp -R $(CURDIR)/assets $(INSTALL_ASSETS_DIR)
-	@mkdir -p $(INSTALL_ANTIGRAVITY_DIR)/.agent
-	@rm -rf $(INSTALL_ANTIGRAVITY_DIR)/.agent/agents $(INSTALL_ANTIGRAVITY_DIR)/.agent/skills
-	@cp -R $(VENDORED_ANTIGRAVITY_DIR)/.agent/agents $(INSTALL_ANTIGRAVITY_DIR)/.agent/agents
-	@cp -R $(VENDORED_ANTIGRAVITY_DIR)/.agent/skills $(INSTALL_ANTIGRAVITY_DIR)/.agent/skills
-	@# Seed workspace docs (only if they don't already exist — never overwrite user edits)
+	@# Seed workspace files (only if they don't already exist — never overwrite user edits)
 	@mkdir -p $(WORKSPACE_DIR)
 	@for f in IDENTITY.md SOUL.md AGENT.md USER.md; do \
 		if [ ! -f "$(WORKSPACE_DIR)/$$f" ] && [ -f "$(CURDIR)/workspace/$$f" ]; then \
@@ -125,9 +121,30 @@ install: build
 			echo "  Seeded $(WORKSPACE_DIR)/$$f"; \
 		fi; \
 	done
+	@# Seed skills from workspace/skills/ (skip existing)
+	@if [ -d "$(CURDIR)/workspace/skills" ]; then \
+		mkdir -p $(WORKSPACE_DIR)/skills; \
+		for d in $(CURDIR)/workspace/skills/*/; do \
+			name=$$(basename "$$d"); \
+			if [ ! -d "$(WORKSPACE_DIR)/skills/$$name" ]; then \
+				cp -R "$$d" "$(WORKSPACE_DIR)/skills/$$name"; \
+				echo "  Installed skill: $$name"; \
+			fi; \
+		done; \
+	fi
+	@# Seed agents from workspace/agents/ (skip existing)
+	@if [ -d "$(CURDIR)/workspace/agents" ]; then \
+		mkdir -p $(WORKSPACE_DIR)/agents; \
+		for f in $(CURDIR)/workspace/agents/*; do \
+			name=$$(basename "$$f"); \
+			if [ ! -f "$(WORKSPACE_DIR)/agents/$$name" ]; then \
+				cp "$$f" "$(WORKSPACE_DIR)/agents/$$name"; \
+				echo "  Installed agent: $$name"; \
+			fi; \
+		done; \
+	fi
 	@echo "Installed binary to $(INSTALL_BIN_DIR)/$(BINARY_NAME)"
 	@echo "Installed assets to $(INSTALL_ASSETS_DIR)"
-	@echo "Installed antigravity templates to $(INSTALL_ANTIGRAVITY_DIR)"
 	@echo "Installation complete!"
 
 ## uninstall: Remove sofia from system

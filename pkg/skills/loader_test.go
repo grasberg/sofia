@@ -149,9 +149,6 @@ func createSkillDir(t *testing.T, base, dirName, name, description string) {
 
 func TestListSkillsWorkspaceOverridesGlobal(t *testing.T) {
 	tmp := t.TempDir()
-	fakeDir := filepath.Join(tmp, "fake-antigravity")
-	require.NoError(t, os.MkdirAll(fakeDir, 0o755))
-	t.Setenv("SOFIA_ANTIGRAVITY_SKILLS_DIR", fakeDir)
 	ws := filepath.Join(tmp, "workspace")
 	global := filepath.Join(tmp, "global")
 
@@ -168,9 +165,6 @@ func TestListSkillsWorkspaceOverridesGlobal(t *testing.T) {
 
 func TestListSkillsGlobalOverridesBuiltin(t *testing.T) {
 	tmp := t.TempDir()
-	fakeDir := filepath.Join(tmp, "fake-antigravity")
-	require.NoError(t, os.MkdirAll(fakeDir, 0o755))
-	t.Setenv("SOFIA_ANTIGRAVITY_SKILLS_DIR", fakeDir)
 	ws := filepath.Join(tmp, "workspace")
 	global := filepath.Join(tmp, "global")
 	builtin := filepath.Join(tmp, "builtin")
@@ -188,9 +182,6 @@ func TestListSkillsGlobalOverridesBuiltin(t *testing.T) {
 
 func TestListSkillsMetadataNameDedup(t *testing.T) {
 	tmp := t.TempDir()
-	fakeDir := filepath.Join(tmp, "fake-antigravity")
-	require.NoError(t, os.MkdirAll(fakeDir, 0o755))
-	t.Setenv("SOFIA_ANTIGRAVITY_SKILLS_DIR", fakeDir)
 	ws := filepath.Join(tmp, "workspace")
 	global := filepath.Join(tmp, "global")
 
@@ -208,9 +199,6 @@ func TestListSkillsMetadataNameDedup(t *testing.T) {
 
 func TestListSkillsMultipleDistinctSkills(t *testing.T) {
 	tmp := t.TempDir()
-	fakeDir := filepath.Join(tmp, "fake-antigravity")
-	require.NoError(t, os.MkdirAll(fakeDir, 0o755))
-	t.Setenv("SOFIA_ANTIGRAVITY_SKILLS_DIR", fakeDir)
 	ws := filepath.Join(tmp, "workspace")
 	global := filepath.Join(tmp, "global")
 	builtin := filepath.Join(tmp, "builtin")
@@ -234,9 +222,6 @@ func TestListSkillsMultipleDistinctSkills(t *testing.T) {
 
 func TestListSkillsInvalidSkillSkipped(t *testing.T) {
 	tmp := t.TempDir()
-	fakeDir := filepath.Join(tmp, "fake-antigravity")
-	require.NoError(t, os.MkdirAll(fakeDir, 0o755))
-	t.Setenv("SOFIA_ANTIGRAVITY_SKILLS_DIR", fakeDir)
 	ws := filepath.Join(tmp, "workspace")
 	global := filepath.Join(tmp, "global")
 
@@ -254,9 +239,6 @@ func TestListSkillsInvalidSkillSkipped(t *testing.T) {
 
 func TestListSkillsEmptyAndNonexistentDirs(t *testing.T) {
 	tmp := t.TempDir()
-	fakeDir := filepath.Join(tmp, "fake-antigravity")
-	require.NoError(t, os.MkdirAll(fakeDir, 0o755))
-	t.Setenv("SOFIA_ANTIGRAVITY_SKILLS_DIR", fakeDir)
 	ws := filepath.Join(tmp, "workspace")
 	emptyDir := filepath.Join(tmp, "empty")
 	require.NoError(t, os.MkdirAll(emptyDir, 0o755))
@@ -269,9 +251,6 @@ func TestListSkillsEmptyAndNonexistentDirs(t *testing.T) {
 
 func TestListSkillsDirWithoutSkillMD(t *testing.T) {
 	tmp := t.TempDir()
-	fakeDir := filepath.Join(tmp, "fake-antigravity")
-	require.NoError(t, os.MkdirAll(fakeDir, 0o755))
-	t.Setenv("SOFIA_ANTIGRAVITY_SKILLS_DIR", fakeDir)
 	ws := filepath.Join(tmp, "workspace")
 	global := filepath.Join(tmp, "global")
 

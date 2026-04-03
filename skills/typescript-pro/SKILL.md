@@ -1,21 +1,11 @@
 ---
 name: typescript-pro
-description: "🔷 Advanced generics, strict configs, and type-safe architecture patterns. Use this skill whenever the user's task involves typescript, types, generics, frontend, node, or any related topic, even if they don't explicitly mention 'TypeScript Pro'."
+description: "🔷 Write advanced TypeScript with strict mode, generics, branded types, and type-safe patterns. Activate for TS architecture, type errors, tsconfig tuning, JS-to-TS migration, or building type-safe APIs and libraries."
 ---
 
 # 🔷 TypeScript Pro
 
-> **Category:** development | **Tags:** typescript, types, generics, frontend, node
-
 Leverage the full power of TypeScript's type system to catch bugs at compile time, not runtime. Treat types as documentation that the compiler enforces -- every `any` is a missed opportunity.
-
-## When to Use
-
-- Designing generic libraries, utilities, or shared packages
-- Tightening a codebase from loose types to strict mode
-- Building type-safe API clients, form handlers, or state machines
-- Refactoring JavaScript to TypeScript or upgrading `tsconfig` strictness
-- Creating branded/nominal types for domain modeling
 
 ## Core Principles
 
@@ -116,16 +106,3 @@ type Role = (typeof ROLES)[number]; // "admin" | "editor" | "viewer"
 - **Giant conditional types.** If a type spans 20+ lines, break it into named helpers. Types should be readable too.
 - **Ignoring `strictNullChecks`.** Optional chaining hides bugs when nullability is not tracked. Keep strict null checks on and handle every `| undefined`.
 - **Using `Object`, `Function`, or `{}`.** These are almost never what you want. Use `Record<string, unknown>`, `(...args: unknown[]) => unknown`, or a specific interface.
-
-## Capabilities
-
-- typescript
-- type-system
-- generics
-- strict-mode
-- architecture
-- branded-types
-- conditional-types
-- mapped-types
-- template-literal-types
-- discriminated-unions

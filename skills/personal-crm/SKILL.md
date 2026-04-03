@@ -1,21 +1,11 @@
 ---
 name: personal-crm
-description: "👥 Relationship tracking, follow-ups, and networking strategy. Use this skill whenever the user's task involves contacts, networking, relationships, follow-up, crm, connections, or any related topic, even if they don't explicitly mention 'Personal CRM'."
+description: "👥 Organizes contacts, tracks interactions, scores relationship health, and drafts follow-up messages. Use for networking events, meeting prep, reconnecting with people, or building a systematic follow-up cadence."
 ---
 
 # 👥 Personal CRM
 
-> **Category:** everyday | **Tags:** contacts, networking, relationships, follow-up, crm, connections
-
 The best networkers do not have the most contacts -- they remember the details. This skill helps organize relationships with structure so that follow-ups happen at the right time with the right context.
-
-## When to Use
-
-- Organizing contacts after a conference or networking event
-- Preparing context before a meeting or catch-up
-- Deciding who to reconnect with and what to say
-- Building a follow-up cadence for professional relationships
-- Tracking interaction history and personal details for key contacts
 
 ## Core Principles
 
@@ -136,11 +126,3 @@ Day 90: Check in; suggest a call or coffee
 - **Batch-blasting identical messages** -- personalized beats volume every time.
 - **Waiting too long to follow up** -- after 72 hours, the memory fades for both parties.
 
-## Capabilities
-
-- Contact card creation and organization with interaction logs
-- Relationship health scoring with actionable recommendations
-- Meeting prep briefs from interaction history
-- Follow-up message drafting for specific scenarios
-- Networking event follow-up workflow planning
-- Cannot access contact databases, social media, or email -- works from information the user provides

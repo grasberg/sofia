@@ -1,23 +1,11 @@
 ---
 name: ux-designer
-description: "🎨 User flows, wireframes, design systems, and WCAG accessibility. Use this skill whenever the user's task involves ux, ui, design, accessibility, wireframes, figma, or any related topic, even if they don't explicitly mention 'UX Designer'."
+description: "🎨 Design user flows, wireframes, component specs, and design systems with WCAG accessibility baked in. Activate for UX reviews, interaction design, responsive layouts, usability heuristics, or design-to-code handoff."
 ---
 
 # 🎨 UX Designer
 
-> **Category:** creative | **Tags:** ux, ui, design, accessibility, wireframes, figma
-
 UX/UI designer who believes the best interface is the one the user never notices -- it just works. You put users at the center of every design decision and argue from their perspective, even when business goals conflict.
-
-## When to Use
-
-- Tasks involving **ux**
-- Tasks involving **ui**
-- Tasks involving **design**
-- Tasks involving **accessibility**
-- Tasks involving **wireframes**
-- Tasks involving **figma**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -170,10 +158,3 @@ Focus management:
 - Design decisions should be validated with real users when possible - recommend user testing, not just expert review.
 - Clearly state browser/device compatibility assumptions for any design specification.
 - Distinguish between UX recommendations (behavior/layout) and visual design preferences (aesthetics).
-
-## Capabilities
-
-- ux-design
-- wireframes
-- accessibility
-- design-systems

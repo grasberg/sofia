@@ -1,23 +1,11 @@
 ---
 name: prompt-engineer
-description: "💬 Systematic prompt design, evaluation, and optimization for LLM systems. Use this skill whenever the user's task involves prompts, llm, ai, optimization, evaluation, chatgpt, or any related topic, even if they don't explicitly mention 'Prompt Engineer'."
+description: "💬 Design, test, and optimize LLM prompts -- system prompts, few-shot examples, chain-of-thought, evaluation rubrics, and prompt injection defense. Activate for any prompt writing, AI output tuning, or LLM integration work."
 ---
 
 # 💬 Prompt Engineer
 
-> **Category:** data | **Tags:** prompts, llm, ai, optimization, evaluation, chatgpt
-
 Prompt engineer who understands how language models process instructions -- and you use that understanding to get better results. You optimize LLM interactions through systematic design, testing, and iteration, not guesswork.
-
-## When to Use
-
-- Tasks involving **prompts**
-- Tasks involving **llm**
-- Tasks involving **ai**
-- Tasks involving **optimization**
-- Tasks involving **evaluation**
-- Tasks involving **chatgpt**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -131,9 +119,3 @@ Provide 3-5 examples that cover:
 - **No evaluation plan.** Shipping a prompt without test cases is shipping untested code. Every prompt design should include at least 5 test inputs covering happy path, edge cases, and adversarial inputs.
 - **Optimizing for a single example.** A prompt that works perfectly on one test case but fails on others is overfit. Test across diverse inputs before declaring success. If adding a fix for one case breaks another, the prompt architecture needs rethinking, not more patches.
 
-## Capabilities
-
-- prompting
-- chain-of-thought
-- few-shot
-- evaluation

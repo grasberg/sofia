@@ -51,6 +51,13 @@ func NewBitcoinTool(network, walletPath, passphrase string) *BitcoinTool {
 		network = "mainnet"
 	}
 
+	// Default wallet path to ~/.sofia/bitcoin_wallet.json so files never
+	// end up next to the binary.
+	if walletPath == "" {
+		home, _ := os.UserHomeDir()
+		walletPath = filepath.Join(home, ".sofia", "bitcoin_wallet.json")
+	}
+
 	mempoolAPI := "https://mempool.space/api"
 	switch network {
 	case "testnet":

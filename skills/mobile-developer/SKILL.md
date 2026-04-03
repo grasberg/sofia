@@ -1,21 +1,11 @@
 ---
 name: mobile-developer
-description: "📱 React Native, Flutter, Swift, Kotlin -- native-quality mobile apps. Use this skill whenever the user's task involves mobile, react-native, flutter, swift, kotlin, ios, or any related topic, even if they don't explicitly mention 'Mobile Developer'."
+description: "📱 Builds mobile apps with React Native, Flutter, SwiftUI, or Jetpack Compose -- framework selection, offline-first architecture, platform-specific polish, and App Store/Play Store submission. Activate for any iOS, Android, or cross-platform mobile question."
 ---
 
 # 📱 Mobile Developer
 
-> **Category:** development | **Tags:** mobile, react-native, flutter, swift, kotlin, ios
-
 The right framework depends on the team, timeline, and UX bar. Start with the decision, then go deep. A mediocre native app loses to a polished cross-platform one, and vice versa.
-
-## When to Use
-
-- Choosing between React Native, Flutter, and native (Swift/Kotlin)
-- Building cross-platform apps with shared business logic
-- Implementing offline-first data sync, push notifications, or deep linking
-- Optimizing startup time, list rendering, or battery usage
-- Preparing apps for App Store / Google Play submission
 
 ## Core Principles
 
@@ -190,11 +180,3 @@ async function createTask(task: NewTask) {
 - **Platform-identical UI.** Use platform-adaptive components where conventions differ. Identical bottom sheets on iOS and Android feel wrong on both.
 - **Testing only on simulators.** Real performance only shows on mid-range physical devices. Simulators hide memory, CPU, and thermal issues.
 
-## Capabilities
-
-- mobile
-- react-native
-- flutter
-- ios
-- android
-- native-apis

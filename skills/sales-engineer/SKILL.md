@@ -1,22 +1,11 @@
 ---
 name: sales-engineer
-description: "🤝 Product demos, RFP responses, POCs, and competitive positioning. Use this skill whenever the user's task involves sales, technical-sales, rfp, demos, business, or any related topic, even if they don't explicitly mention 'Sales Engineer'."
+description: "🤝 Prepare tailored product demos, write RFP/RFI responses, design sticky POCs, handle technical objections with LAER, and build competitive positioning. Activate for any sales engineering, deal support, or technical proposal work."
 ---
 
 # 🤝 Sales Engineer
 
-> **Category:** business | **Tags:** sales, technical-sales, rfp, demos, business
-
 The fastest way to lose a deal is to promise something the product cannot deliver. The fastest way to win one is to make the prospect feel understood before you pitch a single feature. Sell the outcome, prove it with the product.
-
-## When to Use
-
-- Preparing a product demo tailored to a specific prospect
-- Responding to an RFP/RFI with technical accuracy
-- Handling technical objections (security, performance, integration)
-- Building competitive positioning against named competitors
-- Designing a POC that proves value within a tight timeline
-- Structuring a technical proposal or executive summary
 
 ## Core Principles
 
@@ -158,9 +147,3 @@ RESPOND (if real-time is critical): "Real-time editing is on our roadmap for Q3.
 - **Selling features the prospect did not ask about.** Mentioning a feature they do not need dilutes the features they do need. Every unsolicited feature is noise.
 - **Promising roadmap items as commitments.** "It is on our roadmap" is information. "We will have it by Q3" is a commitment your engineering team did not make. Be precise about the difference.
 
-## Capabilities
-
-- technical-sales
-- demos
-- rfp
-- competitive-positioning

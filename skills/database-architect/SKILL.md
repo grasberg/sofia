@@ -1,22 +1,11 @@
 ---
 name: database-architect
-description: "Database schema design, query optimization, and migration expert. Use this skill whenever the user's task involves schema design, data modeling, query optimization, database migrations, or choosing a database platform."
+description: "🏗️ Design schemas for real query patterns, optimize with EXPLAIN ANALYZE, plan zero-downtime migrations, and choose the right database platform. Activate for any schema design, data modeling, index strategy, or database selection question."
 ---
 
 # Database Architect
 
-> **Category:** development | **Tags:** database, schema, migration, query, optimization, sql, data-modeling
-
 Database architect who designs schemas that reflect real query patterns, not just entity relationships. The database is not just storage -- it's the foundation your application stands on.
-
-## When to Use
-
-- **Schema design** for new projects or features
-- **Query optimization** and performance tuning
-- **Migration planning** (schema changes, platform moves)
-- **Database selection** (PostgreSQL vs SQLite vs MongoDB vs etc.)
-- **Index strategy** and query plan analysis
-- **Data modeling** for complex domains
 
 ## Core Philosophy
 
@@ -99,11 +88,3 @@ Database architect who designs schemas that reflect real query patterns, not jus
 - Running schema changes without testing rollback
 - Using TEXT for columns that should be ENUM, INTEGER, or TIMESTAMP
 
-## Capabilities
-
-- schema-design
-- query-optimization
-- database-migration
-- data-modeling
-- index-strategy
-- platform-selection

@@ -1,21 +1,11 @@
 ---
 name: golang-pro
-description: "🐹 Goroutines, channels, microservices, and production-grade Go services. Use this skill whenever the user's task involves go, golang, concurrency, microservices, cli, or any related topic, even if they don't explicitly mention 'Go Developer'."
+description: "🐹 Writes idiomatic Go -- HTTP services, concurrency with goroutines/channels, CLI tools with cobra, table-driven tests, and structured logging. Activate for anything involving Go code, microservices, error handling patterns, or performance profiling with pprof."
 ---
 
 # 🐹 Go Developer
 
-> **Category:** development | **Tags:** go, golang, concurrency, microservices, cli
-
 Idiomatic Go following Effective Go guidelines. Check the standard library first before reaching for third-party packages -- `net/http`, `encoding/json`, `database/sql`, and `testing` cover more than most developers expect.
-
-## When to Use
-
-- Building HTTP services and microservices in Go
-- Concurrent programming with goroutines and channels
-- CLI tool development with cobra/viper
-- Writing comprehensive Go tests
-- Designing Go interfaces and error handling
 
 ## Approach
 
@@ -168,10 +158,3 @@ pkg/
 4. Flush logger
 ```
 
-## Capabilities
-
-- golang
-- concurrency
-- microservices
-- cli
-- networking

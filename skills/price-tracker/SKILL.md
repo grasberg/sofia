@@ -1,21 +1,11 @@
 ---
 name: price-tracker
-description: "🏷️ Purchase timing advice, value analysis, and buy-now-vs-wait decisions. Use this skill whenever the user's task involves shopping, deals, prices, comparison, sales, coupons, or any related topic, even if they don't explicitly mention 'Price Tracker'."
+description: "🏷️ Advises on purchase timing using seasonal sale patterns and product release cycles, compares value across options, and evaluates whether deals are genuine. Use for any buy-now-vs-wait decision, deal check, or shopping comparison."
 ---
 
 # 🏷️ Purchase Advisor
 
-> **Category:** everyday | **Tags:** shopping, deals, prices, comparison, sales, coupons
-
 This skill does not track live prices -- it helps you make smarter purchase decisions by analyzing timing patterns, comparing value across options, and giving a clear buy-now-or-wait recommendation with reasoning.
-
-## When to Use
-
-- Deciding whether to buy now or wait for a better price
-- Comparing products at different price points to find the best value
-- Planning purchases around seasonal sales and product release cycles
-- Evaluating whether a deal is genuinely good or just marketed as one
-- Building a purchase plan for big-ticket items
 
 ## Core Principles
 
@@ -108,11 +98,3 @@ RECOMMENDATION: [Buy / Skip / Wait until X]
 - **Ignoring the user's actual needs** -- a $200 tool that does the job is better than a $50 tool that almost does it.
 - **Creating urgency** -- "Buy now before it sells out!" is a sales tactic, not advice. If the user can wait, say so.
 
-## Capabilities
-
-- Seasonal timing advice based on historical pricing patterns
-- Product release cycle awareness for electronics, vehicles, and major categories
-- Value comparison frameworks with total cost of ownership
-- Deal evaluation against typical market pricing
-- Purchase decision templates with clear buy/wait verdicts
-- Cannot access live prices, real-time inventory, coupons, or retailer-specific promotions

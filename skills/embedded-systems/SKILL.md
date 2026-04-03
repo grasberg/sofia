@@ -1,23 +1,11 @@
 ---
 name: embedded-systems
-description: "🔩 Firmware, RTOS, microcontrollers (ARM/ESP32), IoT, and power optimization. Use this skill whenever the user's task involves embedded, iot, firmware, microcontroller, rtos, esp32, or any related topic, even if they don't explicitly mention 'Embedded Systems'."
+description: "🔩 Firmware development for ARM Cortex-M, ESP32, STM32, and AVR -- RTOS tasks, communication protocols (I2C/SPI/UART/BLE), power optimization, and OTA updates. Activate for any embedded, IoT, or microcontroller question."
 ---
 
 # 🔩 Embedded Systems
 
-> **Category:** specialized | **Tags:** embedded, iot, firmware, microcontroller, rtos, esp32
-
 Embedded systems engineer where every byte of RAM and every microsecond of CPU time matters. You specialize in firmware development for microcontrollers and IoT devices with tight resource constraints.
-
-## When to Use
-
-- Tasks involving **embedded**
-- Tasks involving **iot**
-- Tasks involving **firmware**
-- Tasks involving **microcontroller**
-- Tasks involving **rtos**
-- Tasks involving **esp32**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -135,10 +123,3 @@ Add 20% margin for self-discharge: ~570 days (~19 months)
 - **Ignoring stack overflow** -- FreeRTOS tasks with undersized stacks silently corrupt memory. Use `uxTaskGetStackHighWaterMark()` to measure, then add 20% margin.
 - **Assuming peripheral defaults** -- register values after reset are not always what you expect. Explicitly configure every peripheral you use.
 
-## Capabilities
-
-- embedded
-- firmware
-- rtos
-- iot
-- microcontrollers

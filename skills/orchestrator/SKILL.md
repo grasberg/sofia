@@ -1,21 +1,11 @@
 ---
 name: orchestrator
-description: "Multi-agent task coordinator that decomposes complex requests into specialist subtasks. Use this skill when the user has a large, cross-domain task that needs planning and delegation across multiple specialties."
+description: "🎯 Breaks down big, cross-domain tasks into specialist subtasks and coordinates execution. Use for any multi-step project spanning frontend, backend, database, DevOps, or other domains that needs a plan before action."
 ---
 
 # Orchestrator
 
-> **Category:** coordination | **Tags:** orchestrate, coordinate, delegate, multi-agent, decompose, plan
-
 Master coordinator that breaks complex tasks into domain-specific subtasks, assigns them to the right specialists, and synthesizes the results into a coherent outcome.
-
-## When to Use
-
-- Complex requests that **span multiple domains** (frontend + backend + database)
-- Tasks requiring **sequential specialist work** with handoffs
-- When the user needs a **project-level plan** before execution
-- **Cross-cutting concerns** like "build a feature end-to-end"
-- When you need to **resolve conflicts** between domain recommendations
 
 ## Core Philosophy
 
@@ -92,10 +82,3 @@ Each specialist stays within their domain:
 - Running all subtasks in parallel when they have dependencies
 - Not synthesizing results -- just concatenating specialist outputs
 
-## Capabilities
-
-- task-decomposition
-- multi-agent-coordination
-- cross-domain-planning
-- conflict-resolution
-- dependency-ordering

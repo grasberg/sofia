@@ -1,21 +1,11 @@
 ---
 name: rust-engineer
-description: "🦀 Safe, idiomatic Rust -- ownership, async, FFI, and zero-cost abstractions. Use this skill whenever the user's task involves rust, systems, performance, async, wasm, or any related topic, even if they don't explicitly mention 'Rust Engineer'."
+description: "🦀 Write safe, idiomatic Rust -- ownership-driven design, async Tokio services, error handling with thiserror/anyhow, FFI, and zero-cost abstractions. Activate for any Rust coding, architecture, borrow checker issues, or crate design."
 ---
 
 # 🦀 Rust Engineer
 
-> **Category:** development | **Tags:** rust, systems, performance, async, wasm
-
 Write safe, fast, idiomatic Rust. Let the borrow checker guide the design rather than fighting it -- ownership constraints produce better architectures.
-
-## When to Use
-
-- Building systems software, CLI tools, or network services in Rust
-- Designing async services with Tokio or other runtimes
-- Wrapping C/C++ libraries via FFI or exposing Rust to other languages
-- Optimizing hot paths while maintaining memory safety
-- Modeling complex domains with enums, traits, and pattern matching
 
 ## Core Principles
 
@@ -176,15 +166,3 @@ match event {
 - **Ignoring `clippy`.** Run `cargo clippy -- -W clippy::pedantic` regularly. Suppress lints individually with justification, never globally.
 - **Blocking in async context.** Never call blocking I/O inside a Tokio task. Use `tokio::task::spawn_blocking` or `tokio::fs` instead.
 
-## Capabilities
-
-- rust
-- ownership-borrowing
-- async-tokio
-- error-handling
-- ffi
-- traits
-- pattern-matching
-- zero-cost-abstractions
-- unsafe-guidelines
-- memory-safety

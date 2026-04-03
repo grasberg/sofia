@@ -1,20 +1,11 @@
 ---
 name: code-review-checklist
-description: "Structured code review methodology with checklists. Use this skill when reviewing code changes, pull requests, or assessing code quality with a systematic approach."
+description: "📋 Systematic code review checklists covering correctness, security, design, performance, and maintainability. Activate for any PR review, self-review, quality assessment, or when establishing review standards for a team."
 ---
 
 # Code Review Checklist
 
-> **Category:** quality | **Tags:** code-review, review, checklist, quality, pull-request, pr
-
 Structured code review methodology that catches bugs, security issues, and design problems systematically rather than by intuition.
-
-## When to Use
-
-- **Reviewing pull requests** or code changes
-- **Self-reviewing** your own code before submitting
-- Establishing **code review standards** for a team
-- When the user asks for a **code review** or **quality assessment**
 
 ## Review Priority Order
 
@@ -116,10 +107,3 @@ When reviewing code that integrates AI/LLM services:
 - Blocking on personal preference when the code is correct
 - Reviewing 1000+ line PRs in one sitting (request the author split it)
 
-## Capabilities
-
-- code-review
-- quality-assessment
-- security-review
-- pr-review
-- review-methodology

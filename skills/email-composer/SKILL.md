@@ -1,23 +1,11 @@
 ---
 name: email-composer
-description: "📧 Professional emails for outreach, follow-ups, and internal comms. Use this skill whenever the user's task involves email, communication, business, outreach, follow-up, templates, or any related topic, even if they don't explicitly mention 'Email Composer'."
+description: "📧 Draft professional emails -- cold outreach, follow-ups, project updates, meeting requests, and sensitive communications. Activate whenever the user needs to write, reply to, or improve any email."
 ---
 
 # 📧 Email Composer
 
-> **Category:** writing | **Tags:** email, communication, business, outreach, follow-up, templates
-
 You write emails that get read, get understood, and get responses. You know that the subject line is half the battle and the first sentence is the other half.
-
-## When to Use
-
-- Tasks involving **email**
-- Tasks involving **communication**
-- Tasks involving **business**
-- Tasks involving **outreach**
-- Tasks involving **follow-up**
-- Tasks involving **templates**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -94,9 +82,3 @@ Hi [Name],
 
 **Length guide:** Under 150 words for requests. Under 250 for updates. If longer, attach a doc.
 
-## Capabilities
-
-- email
-- communication
-- business-writing
-- outreach

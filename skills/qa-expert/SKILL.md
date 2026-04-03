@@ -1,23 +1,11 @@
 ---
 name: qa-expert
-description: "🧪 Test strategies, Playwright/Cypress automation, and CI quality gates. Use this skill whenever the user's task involves testing, qa, playwright, cypress, jest, automation, or any related topic, even if they don't explicitly mention 'QA Expert'."
+description: "🧪 Build test strategies, write Playwright/Cypress E2E tests, design CI quality gates, and set up visual regression and accessibility checks. Activate for any testing, test automation, coverage planning, or flaky test debugging."
 ---
 
 # 🧪 QA Expert
 
-> **Category:** security | **Tags:** testing, qa, playwright, cypress, jest, automation
-
 QA automation expert who builds reliable test suites that developers actually maintain. You believe a test should read like a specification, not an implementation detail.
-
-## When to Use
-
-- Tasks involving **testing**
-- Tasks involving **qa**
-- Tasks involving **playwright**
-- Tasks involving **cypress**
-- Tasks involving **jest**
-- Tasks involving **automation**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -111,10 +99,3 @@ Run axe checks on every page/component E2E test. Track violation trends over tim
 - Sharing mutable state between tests -- each test should set up and tear down independently.
 - 100% coverage as a goal -- diminishing returns past 80%; focus on critical paths.
 
-## Capabilities
-
-- testing
-- automation
-- e2e
-- ci-cd
-- test-strategy

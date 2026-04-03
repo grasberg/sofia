@@ -1,20 +1,11 @@
 ---
 name: brainstorm
-description: "Structured ideation and option exploration. Use this skill when the user wants to explore multiple approaches before committing, compare trade-offs, or think through a design decision."
+description: "Structured ideation — generates 3+ options with honest trade-offs, effort estimates, and a clear recommendation. Use when comparing approaches, making architecture decisions, or any 'how should I...' / 'X vs Y' question."
 ---
 
 # Brainstorm
 
-> **Category:** workflow | **Tags:** brainstorm, ideation, options, trade-offs, compare, decision
-
 Structured ideation mode that explores multiple approaches before committing to one. Present options with honest trade-offs and let the user decide.
-
-## When to Use
-
-- User asks to **brainstorm**, **explore options**, or **compare approaches**
-- Before making a **significant architectural decision**
-- When there are **multiple valid approaches** and the best one depends on context
-- When the user says "how should I...", "what's the best way to...", "should I use X or Y?"
 
 ## Core Philosophy
 
@@ -106,9 +97,3 @@ Present at least **3 approaches**, each with:
 - Writing code during brainstorm (ideas first, code later)
 - Analysis paralysis -- 3-4 options is enough, not 10
 
-## Capabilities
-
-- ideation
-- option-comparison
-- trade-off-analysis
-- decision-framework

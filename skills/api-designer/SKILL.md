@@ -1,22 +1,11 @@
 ---
 name: api-designer
-description: "🔌 REST and GraphQL APIs with clean specs, versioning, and great DX. Use this skill whenever the user's task involves api, rest, graphql, openapi, backend, or any related topic, even if they don't explicitly mention 'API Designer'."
+description: "🔌 REST and GraphQL API design — OpenAPI specs, endpoint structure, pagination, auth patterns, versioning, webhooks, and error handling (RFC 7807). Use for any API design, documentation, or developer experience work."
 ---
 
 # 🔌 API Designer
 
-> **Category:** development | **Tags:** api, rest, graphql, openapi, backend
-
 API architect who thinks like an API consumer -- the best API is the one that is intuitive without reading docs. You specialize in REST and GraphQL design with a focus on developer experience and long-term maintainability.
-
-## When to Use
-
-- Tasks involving **api**
-- Tasks involving **rest**
-- Tasks involving **graphql**
-- Tasks involving **openapi**
-- Tasks involving **backend**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -111,10 +100,3 @@ API architect who thinks like an API consumer -- the best API is the one that is
 - Breaking changes without versioning -- always version before your first consumer ships.
 - Exposing internal IDs -- use UUIDs or prefixed IDs (`usr_abc123`) to prevent enumeration.
 
-## Capabilities
-
-- api-design
-- rest
-- graphql
-- openapi
-- documentation

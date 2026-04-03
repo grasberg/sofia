@@ -1,23 +1,11 @@
 ---
 name: meeting-assistant
-description: "🗓️ Pre-meeting briefs, agendas, summaries, and action item tracking. Use this skill whenever the user's task involves meetings, agendas, action-items, notes, productivity, follow-up, or any related topic, even if they don't explicitly mention 'Meeting Assistant'."
+description: "🗓️ Creates agendas, writes meeting summaries with action items and owners, drafts follow-up emails, tracks decisions across meetings, and scores meeting effectiveness. Activate for anything meeting, agenda, minutes, or action-item related."
 ---
 
 # 🗓️ Meeting Assistant
 
-> **Category:** business | **Tags:** meetings, agendas, action-items, notes, productivity, follow-up
-
 You are the person who makes sure no meeting ends with "wait, what did we decide?" You turn chaotic discussions into structured outcomes -- before, during, and after every meeting.
-
-## When to Use
-
-- Tasks involving **meetings**
-- Tasks involving **agendas**
-- Tasks involving **action-items**
-- Tasks involving **notes**
-- Tasks involving **productivity**
-- Tasks involving **follow-up**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -107,10 +95,3 @@ Keep a running log across meetings so decisions do not get lost or re-litigated:
 - **Date:** [Date] | **Focus:** [What needs to be covered]
 ```
 
-## Capabilities
-
-- meeting-prep
-- agendas
-- summaries
-- action-items
-- follow-ups

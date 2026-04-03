@@ -1,23 +1,11 @@
 ---
 name: ad-campaign-manager
-description: "📢 Paid ads strategy, audience targeting, creative briefs, and ROAS. Use this skill whenever the user's task involves advertising, google-ads, meta-ads, paid-media, ppc, roas, or any related topic, even if they don't explicitly mention 'Ad Campaign Manager'."
+description: "📢 Paid ads strategy across Google, Meta, LinkedIn, and TikTok — audience targeting, creative briefs, budget allocation, ROAS/CPA optimization, and campaign diagnostics. Use for any paid media, PPC, or advertising work."
 ---
 
 # 📢 Ad Campaign Manager
 
-> **Category:** business | **Tags:** advertising, google-ads, meta-ads, paid-media, ppc, roas
-
 You know that paid advertising is not about spending money -- it is about buying learnings. Every campaign teaches you something about your audience, your message, and your product. You build ad programs that learn fast and scale what works.
-
-## When to Use
-
-- Tasks involving **advertising**
-- Tasks involving **google-ads**
-- Tasks involving **meta-ads**
-- Tasks involving **paid-media**
-- Tasks involving **ppc**
-- Tasks involving **roas**
-- When the user needs expert guidance in this domain, even if not explicitly requested
 
 ## Approach
 
@@ -95,13 +83,3 @@ Ads are only half the equation -- landing pages close the deal. Ensure:
 - Ad platform policies change frequently -- verify current policies before launching campaigns.
 - Performance projections are estimates based on industry benchmarks -- actual results depend on creative quality, landing pages, and market conditions.
 
-## Capabilities
-
-- paid-ads
-- audience-targeting
-- creative-briefs
-- roas-optimization
-- scaling
-- local-service-ads
-- landing-page-optimization
-- campaign-diagnostics

@@ -1,21 +1,11 @@
 ---
 name: reminder-assistant
-description: "💊 Organize reminders, plan schedules, and get setup guidance for any device. Use this skill whenever the user's task involves reminders, medications, appointments, schedule, health, pills, or any related topic, even if they don't explicitly mention 'Reminder Assistant'."
+description: "💊 Plan medication schedules, organize daily/weekly reminders, and generate device-specific setup instructions for iOS, Android, Google Calendar, and Outlook. Activate for any reminder planning, pill tracking, appointment scheduling, or routine building."
 ---
 
 # 💊 Reminder Planner
 
-> **Category:** everyday | **Tags:** reminders, medications, appointments, schedule, health, pills
-
 This skill helps you organize and plan your reminders -- then tells you exactly how to set them up on your actual devices. It is a planning tool, not a notification system. It cannot send you alerts, but it can make sure you know exactly what to set up and where.
-
-## When to Use
-
-- Organizing a medication schedule with multiple prescriptions
-- Planning reminder systems for appointments, refills, or recurring tasks
-- Figuring out which app or tool to use for specific reminder needs
-- Building a daily routine schedule with timed reminders
-- Setting up reminder workflows for caregivers managing someone else's schedule
 
 ## Core Principles
 
@@ -135,11 +125,3 @@ IMPORTANT: This is an organizational tool. Do NOT adjust doses or timing without
 - **Over-scheduling** -- if the reminder plan has 20+ daily alerts, suggest consolidating. Alert fatigue causes people to ignore all reminders.
 - **Ignoring the user's tech comfort** -- a 75-year-old may prefer a pill organizer over a smartphone app. Match the tool to the person.
 
-## Capabilities
-
-- Medication schedule organization with refill tracking
-- Daily/weekly/monthly reminder plan creation
-- Platform-specific setup instructions (iOS, Android, Google Calendar, Outlook, Medisafe)
-- Appointment preparation reminder workflows
-- Caregiver schedule coordination
-- Cannot send notifications, make calls, book appointments, or provide medical advice

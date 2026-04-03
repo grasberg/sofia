@@ -1,6 +1,8 @@
 # Binaries / build artifacts
 bin/
 build/
+cmd/sofia/internal/onboard/workspace/
+cmd/sofia/internal/onboard/antigravity-kit/
 *.exe
 *.dll
 *.so
@@ -50,3 +52,4 @@ coverage.html
 ralph/
 .ralph/
 tasks/
+claude.md
