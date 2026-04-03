@@ -7,13 +7,14 @@ Sofia är en avancerad, kontextmedveten AI-assistent och multi-agent-orkestrerar
 
 *   🛠️ **Autonom Verktygsanvändning:** Kan registrera domännamn, publicera webbsidor, läsa/redigera filer, köra bash-kommandon och hantera Google Services (Gmail/Kalender).
 *   🧠 **Avancerat Minne:** Lager av minne — korttids-, långtids-, episodiskt och semantiskt (kunskapsgraf). Automatisk konsolidering och strategisk glömska håller minnet effektivt.
-*   🤖 **Multi-Agent Orkestrering:** Delegera komplexa uppgifter till parallella agenter med beroendegraf, A2A-protokoll för inter-agent-kommunikation, och automatisk agentval.
+*   🤖 **Multi-Agent Orkestrering:** Delegera uppgifter till parallella agenter. Inkluderar **AgentArchitect** för autonomt skapande och optimering av nya agenter "on the fly".
 *   🌐 **Brett AI-stöd:** Inbyggt stöd för 20+ AI-leverantörer inkl. OpenAI, Anthropic (Claude 4.5), Gemini, DeepSeek, Grok, MiniMax, Moonshot, Qwen, Zai, GitHub Copilot och fler.
-*   📚 **Skill-system med Självlärande:** Antigravity Kit med expert-personas, plus automatisk skill-skapande, förfining och kunskapsdestillering från erfarenheter.
-*   🔄 **Självreflektion & Självförbättring:** Post-task utvärdering, prestandaspårning över tid, prompt-självoptimering och kodsjälvmodifiering med säkerhetsspärrar.
-*   🔧 **Smart Verktygshantering:** Semantisk verktygsmatchning via embeddings, prestandaspårning för att välja de mest pålitliga verktygen, och dynamisk tool-composition (pipelines) för att skapa nya makro-verktyg.
+*   📚 **Skill-system med Självlärande:** Antigravity Kit med expert-personas, plus automatisk skill-skapande, förfining och kunskapsdestillering.
+*   🔄 **Evolution & Självförbättring:** 5-fas `EvolutionEngine`, post-task utvärdering, prompt-självoptimering och kodsjälvmodifiering för kontinuerlig inlärning och anpassning.
+*   🔧 **Smart Verktygshantering:** Semantisk verktygsmatchning via embeddings, prestandaspårning och dynamisk tool-composition (pipelines) för att skapa nya makro-verktyg.
+*   ⚡ **Blixtsnabb Exekvering:** Caching av verktygsdefinitioner, prompter och connection pooling för extremt låg latency i hot path.
 *   🎯 **Autonomi & Proaktivitet:** Långsiktiga mål, kontextmedvetna triggers, proaktiva förslag och självinitierad research utan användarinteraktion.
-*   🛡️ **Guardrails & Säkerhet:** Inputvalidering, outputfiltrering (PII/hemligheter), prompt injection-försvar och åtgärdsbekräftelse för högrisk-operationer.
+*   🛡️ **Guardrails & Säkerhet:** Inputvalidering, budget management (tokens/körningar), prompt injection-försvar och åtgärdsbekräftelse för högrisk-operationer.
 *   🔌 **MCP-klient:** Model Context Protocol-stöd för anslutning till externa MCP-servrar och verktyg.
 *   💬 **Gateway Mode:** Inbyggt stöd för chattplattformar som Telegram och Discord via `sofia gateway`.
 *   🖥️ **Computer Use:** Autonom datorstyrning via skärmdumpar och vision-LLM — styr mus och tangentbord på macOS och Linux.
@@ -89,7 +90,7 @@ Surfa till `http://127.0.0.1:18795` i din webbläsare. Gå till fliken **Models*
 Sofia kan delegera och koordinera arbete över flera agenter:
 
 *   **Orchestrate-verktyg:** Definiera en uppsättning subtasks med beroenden — oberoende uppgifter körs parallellt, beroende uppgifter i rätt ordning. Automatisk agentval baserat på poängberäkning.
-*   **Sub-Agenter:** Starta dedikerade bakgrundsagenter (`spawn`) eller synkrona sub-agenter (`subagent`) som ärver verktyg och kontext.
+*   **AgentArchitect & Sub-Agenter:** Autonom design och provisionering av specialiserade agenter "on the fly" vid identifierade problem, samt dedikerade bakgrunds- och synkrona agenter.
 *   **A2A-protokoll (Agent-to-Agent):** Standardiserad inter-agent-kommunikation med mailbox-baserad routing, send/receive/broadcast och pending-polling.
 *   **Delad Scratchpad:** Agenter kan dela data via en nyckel-värde-lagring namespaced per uppgiftsgrupp.
 *   **Plan & Execute:** Skapa strukturerade planer med steg som kan spåras och uppdateras under exekvering.
@@ -142,6 +143,7 @@ Sofia utvärderar sig själv efter varje uppgift och förbättras kontinuerligt:
 *   **Prompt-självoptimering:** `optimizePrompt` justerar automatiskt systeminstruktioner baserat på dåliga prestationsresultat.
 *   **Meta-Learning:** Varje reflektion inkluderar ett `meta_learning`-fält som lagrar insikter om själva inlärningsprocessen.
 *   **Kodsjälvmodifiering:** `self_modify`-verktyget låter Sofia säkert modifiera sin egen kod med bekräftelse-hash och audit trail.
+*   **EvolutionEngine:** En avancerad, 5-fasig motor för autonom självutveckling som analyserar prestanda, uppdaterar agenter och genererar changelogs (aktiveras via bl.a. `/evolve`-kommandot).
 
 ## 🎯 Autonomi & Proaktivitet
 
@@ -165,6 +167,7 @@ Sofia har avancerad logik för att hantera och optimera sin verktygsanvändning:
 
 Sofia kan skapa och förbättra sina egna skills:
 
+*   **Extensivt Autonomt Bibliotek:** 10+ förinstallerade autonoma "self-directed" skills där Sofia exekverar storskaliga uppgifter från början till slut.
 *   **Auto-Skill Skapande:** `create_skill` genererar nya skills automatiskt från framgångsrika tillvägagångssätt.
 *   **Skill-förfining:** `update_skill` förbättrar befintliga skills baserat på användningsfeedback.
 *   **Kunskapsdestillering:** `distill_knowledge` komprimerar lärda erfarenheter till återanvändbar kunskap.
@@ -187,6 +190,8 @@ Sofia har ett fullständigt säkerhetssystem med flera lager:
 *   **Prompt Injection-försvar:** LLM-baserad detektering och blockering av prompt injection-försök med konfigurerbar action (block/warn).
 *   **Åtgärdsbekräftelse:** `self_modify`-verktyget kräver hash-bekräftelse innan högrisk-ändringar genomförs.
 *   **Audit Trail:** Alla självmodifieringar loggas med tidsstämpel i `self_modifications.log`.
+*   **Budget Management:** En strikt policy för token- och exekveringsbudget tillämpas för att stoppa agenter som annars dränerar resurser.
+*   **Daemons:** Isolerade bakgrundsprocesser hanteras säkert och respekterar systemets restriktioner.
 
 **Via Web UI:**
 1.  Öppna Sofias Web UI → **System**.
@@ -243,7 +248,9 @@ Sofias webbgränssnitt är byggt med **HTMX** och **Go Templates** och har ett u
 
 *   **Chatt:** Realtidskonversation med streaming, markdown-rendering och filuppladdning (inkl. bilduppladdning för vision-modeller).
 *   **Chatthistorik:** Sök, bläddra och återuppta tidigare konversationer med full sessionshantering.
-*   **Agenter:** Hantera och konfigurera flera agenter med egna modeller, prompts och verktyg.
+*   **Memory Explorer:** Interaktiv, grafisk utforskning av Sofias semantiska minne och kunskapsnoder.
+*   **Goals Kanban:** En integrerad Kanban-tavla för att spåra systemmål med drag-and-drop.
+*   **Agenter & Pixel Agents:** Visuell live-översikt och prestandahantering av alla dina agenter och de helt nya "Pixel Agents".
 *   **Monitor:** Realtidsövervakning av agentaktivitet, verktygsanrop, systemstatus och pågående mål (Activity Monitor).
 *   **System:** Alla inställningar och systemfunktioner samlade i vänstermenyn:
     *   **Identity** — Redigera IDENTITY.md och SOUL.md
