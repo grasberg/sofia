@@ -127,10 +127,22 @@
                 <i data-lucide="activity" class="w-5 h-5"></i>
                 <span class="hidden lg:inline">Monitor</span>
             </a>
-            <a href="#" hx-get="/ui/settings" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-settings"
+
+            <!-- Settings separator -->
+            <div class="mt-3 mb-1 px-3 lg:px-4">
+                <div class="border-t border-[var(--border-color)] opacity-40"></div>
+                <span class="hidden lg:block text-[8px] font-bold uppercase tracking-[0.2em] text-zinc-600 mt-2">Settings</span>
+            </div>
+
+            <a href="#" hx-get="/ui/ai" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-ai"
+                class="nav-item">
+                <i data-lucide="sparkles" class="w-5 h-5"></i>
+                <span class="hidden lg:inline">AI</span>
+            </a>
+            <a href="#" hx-get="/ui/platform" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-platform"
                 class="nav-item">
                 <i data-lucide="settings" class="w-5 h-5"></i>
-                <span class="hidden lg:inline">System</span>
+                <span class="hidden lg:inline">Sofia</span>
             </a>
         </nav>
 
@@ -162,65 +174,7 @@
             class="h-16 border-b border-[var(--border-color)] flex items-center justify-between px-6 lg:px-8 bg-black/20 backdrop-blur-md z-10 transition-colors duration-300">
             <div class="flex items-center gap-6">
                 <h2 id="view-title" class="text-xs font-bold text-sofia uppercase tracking-[0.3em]">Direct Chat</h2>
-                <div id="settings-header-tabs" class="hidden items-center gap-1">
-                    <button hx-get="/ui/settings/prompts" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-prompts"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Identity</button>
-                    <button hx-get="/ui/settings/heartbeat" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-heartbeat"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Heartbeat</button>
-                    <button hx-get="/ui/settings/models" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-models"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all active">Models</button>
-                    <button hx-get="/ui/settings/channels" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-channels"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Comms</button>
-                    <button hx-get="/ui/settings/integrations" hx-target="#subtab-content" onclick="setActiveSettingsTab(this)"
-                        id="settings-tab-integrations"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Integrations</button>
-                    <button hx-get="/ui/settings/tools" hx-target="#subtab-content" onclick="setActiveSettingsTab(this)"
-                        id="settings-tab-tools"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Tools</button>
-                    <button hx-get="/ui/settings/skills" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-skills"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Skills</button>
-                    <button hx-get="/ui/settings/logs" hx-target="#subtab-content" onclick="setActiveSettingsTab(this)"
-                        id="settings-tab-logs"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Logs</button>
-                    <button hx-get="/ui/settings/security" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-security"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Security</button>
-                    <button hx-get="/ui/settings/evolution" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-evolution"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Evolution</button>
-                    <button hx-get="/ui/settings/autonomy" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-autonomy"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Autonomy</button>
-                    <button hx-get="/ui/settings/intelligence" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-intelligence"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Intelligence</button>
-                    <!-- <button hx-get="/ui/settings/budget" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-budget"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Budget</button> -->
-                    <button hx-get="/ui/settings/tts" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-tts"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">TTS</button>
-                    <button hx-get="/ui/settings/webhooks" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-webhooks"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Webhooks</button>
-                    <button hx-get="/ui/settings/triggers" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-triggers"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Triggers</button>
-                    <button hx-get="/ui/settings/remote" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-remote"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Remote</button>
-                    <button hx-get="/ui/settings/cron" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-cron"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Cron</button>
-                    <button hx-get="/ui/settings/personas" hx-target="#subtab-content"
-                        onclick="setActiveSettingsTab(this)" id="settings-tab-personas"
-                        class="px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-[var(--border-color)] bg-transparent hover:border-sofia transition-all">Personas</button>
-                </div>
+                <!-- Settings sub-tabs removed: navigation now lives inside each settings page sidebar -->
             </div>
             <div class="flex items-center gap-4">
 
@@ -941,21 +895,12 @@
                 'nav-pixels': 'pixels',
                 'nav-memory': 'memory',
                 'nav-calendar': 'calendar',
+                'nav-ai': 'ai',
+                'nav-platform': 'platform',
                 'nav-settings': 'settings',
             };
             currentTab = tabById[clickedEl.id] || 'chat';
 
-            // Show/hide sub-tabs header based on which main tab is active
-            const isSettings = clickedEl.id === 'nav-settings';
-            const navHeader = document.getElementById('settings-header-tabs');
-            if (isSettings) {
-                navHeader.classList.remove('hidden');
-                navHeader.classList.add('flex');
-            } else {
-                navHeader.classList.add('hidden');
-                navHeader.classList.remove('flex');
-            }
-            // Title updates (could be done via hx-swap-oob but keeping simple for now)
             const titles = {
                 'nav-chat': 'Direct Chat',
                 'nav-goals': 'Goals & Plan',
@@ -964,18 +909,37 @@
                 'nav-pixels': 'Pixel Agents',
                 'nav-memory': 'Memory Explorer',
                 'nav-calendar': 'Schedule',
+                'nav-ai': 'AI Configuration',
+                'nav-platform': 'Platform Settings',
                 'nav-settings': 'System Settings'
             };
             document.getElementById('view-title').innerText = titles[clickedEl.id] || 'Sofia';
 
-            if (currentTab === 'settings') {
+            if (currentTab === 'ai' || currentTab === 'platform' || currentTab === 'settings') {
                 fetchConfig();
             }
         }
 
-        function setActiveSettingsTab(clickedEl) {
-            document.querySelectorAll('#settings-header-tabs button').forEach(el => el.classList.remove('active'));
+        // Settings sidebar navigation (used inside AI/Platform settings pages)
+        function setSettingsNavActive(clickedEl, event) {
+            if (event) event.preventDefault();
+            // Clear active state from all settings nav items in the current page
+            const navContainer = clickedEl.closest('.settings-nav');
+            if (navContainer) {
+                navContainer.querySelectorAll('.settings-nav-item').forEach(el => el.classList.remove('active'));
+            }
             clickedEl.classList.add('active');
+            const subtab = clickedEl.dataset.subtab || '';
+            currentSettingsSubTab = 'settings-tab-' + subtab;
+            if (subtab === 'logs') {
+                setupLogStream(true);
+            } else {
+                stopLogStream();
+            }
+        }
+
+        // Legacy compat — keep setActiveSettingsTab working if old code calls it
+        function setActiveSettingsTab(clickedEl) {
             currentSettingsSubTab = clickedEl.id || currentSettingsSubTab;
             if (clickedEl.id === 'settings-tab-logs') {
                 setupLogStream(true);
@@ -1070,9 +1034,8 @@
                         "<div class='flex justify-between items-center'><span class='text-zinc-500'>Loaded Skills:</span> <span class='text-zinc-200 font-medium'>" + data.skills.total + "</span></div>";
                 }
 
-                // Update Skills List
-                skillsData = data.skills.list || [];
-                renderSkills(skillsData);
+                // Update Skills List — fetch from dedicated endpoint to include enabled status.
+                refreshSkillsList();
 
                 // Update Tools List
                 const toolsList = document.getElementById("tools-list");
@@ -1105,6 +1068,13 @@
                 return;
             }
 
+            // Update enabled count badge.
+            const countEl = document.getElementById("skills-enabled-count");
+            if (countEl) {
+                const enabledCount = list.filter(s => s.enabled !== false).length;
+                countEl.textContent = enabledCount + "/" + list.length + " enabled";
+            }
+
             const grouped = list.reduce((acc, s) => {
                 acc[s.source] = acc[s.source] || [];
                 acc[s.source].push(s);
@@ -1115,10 +1085,16 @@
             for (const source in grouped) {
                 html += "<div class='mb-6'><h3 class='text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3 ml-1'>" + source + "</h3>";
                 grouped[source].forEach(s => {
-                    html += "<div class='group p-4 bg-zinc-900/40 rounded-xl border border-zinc-800/50 hover:border-sofia/30 transition-all cursor-default'>" +
+                    const isEnabled = s.enabled !== false;
+                    const opacity = isEnabled ? "" : " opacity-50";
+                    const checked = isEnabled ? " checked" : "";
+                    html += "<div class='group p-4 bg-zinc-900/40 rounded-xl border border-zinc-800/50 hover:border-sofia/30 transition-all cursor-default" + opacity + "' data-skill='" + s.name + "'>" +
                         "<div class='flex justify-between items-start'>" +
                         "<div class='font-bold text-sm text-zinc-200 group-hover:text-sofia transition-colors'>" + s.name + "</div>" +
-                        "<span class='px-1.5 py-0.5 rounded bg-zinc-800 text-[9px] text-zinc-500 border border-zinc-700'>SKILL</span>" +
+                        "<label class='relative inline-flex items-center cursor-pointer'>" +
+                        "<input type='checkbox' class='sr-only peer skill-toggle'" + checked + " onchange=\"toggleSkill('" + s.name + "', this.checked)\">" +
+                        "<div class='w-9 h-5 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:bg-sofia/80 after:content-[\\'\\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full'></div>" +
+                        "</label>" +
                         "</div>" +
                         "<div class='text-xs text-zinc-500 mt-1 line-clamp-2 leading-relaxed'>" + (s.description || "No description available.") + "</div>" +
                         "<div class='text-[9px] font-mono text-zinc-700 mt-3 truncate opacity-50'>" + s.path + "</div>" +
@@ -1128,6 +1104,40 @@
             }
             skillsList.innerHTML = html;
             populateSkillPicker();
+        }
+
+        async function toggleSkill(skillName, enabled) {
+            try {
+                const res = await fetch("/api/skills/toggle", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
+                    body: JSON.stringify({ skill: skillName, enabled: enabled })
+                });
+                if (res.ok) {
+                    // Update local data and re-render.
+                    await refreshSkillsList();
+                } else {
+                    const err = await res.json();
+                    alert("Error toggling skill: " + (err.error || "Unknown error"));
+                    // Revert the toggle in the UI.
+                    await refreshSkillsList();
+                }
+            } catch (e) {
+                alert("Could not connect to the server.");
+                await refreshSkillsList();
+            }
+        }
+
+        async function refreshSkillsList() {
+            try {
+                const res = await fetch("/api/skills");
+                if (!res.ok) return;
+                const list = await res.json();
+                skillsData = list;
+                renderSkills(skillsData);
+            } catch (e) {
+                console.error("Failed to refresh skills", e);
+            }
         }
 
         function filterSkills() {
@@ -3073,7 +3083,7 @@
                     fetchPurposeTemplates();
                     fetchAgents();
                 }
-                if (currentTab === "settings") {
+                if (currentTab === "settings" || currentTab === "ai" || currentTab === "platform") {
                     fetchConfig();
                 } else {
                     stopLogStream();

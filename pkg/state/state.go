@@ -70,31 +70,25 @@ func NewManager(workspace string) *Manager {
 // This method uses a temp file + rename pattern for atomic writes,
 // ensuring that the state file is never corrupted even if the process crashes.
 func (sm *Manager) SetLastChannel(channel string) error {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
-	// Update state
-	sm.state.LastChannel = channel
-	sm.state.Timestamp = time.Now()
-
-	// Atomic save using temp file + rename
-	if err := sm.saveAtomic(); err != nil {
-		return fmt.Errorf("failed to save state atomically: %w", err)
-	}
-
-	return nil
+	return sm.updateState(func(state *State) {
+		state.LastChannel = channel
+	})
 }
 
 // SetLastChatID atomically updates the last chat ID and saves the state.
 func (sm *Manager) SetLastChatID(chatID string) error {
+	return sm.updateState(func(state *State) {
+		state.LastChatID = chatID
+	})
+}
+
+func (sm *Manager) updateState(update func(state *State)) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	// Update state
-	sm.state.LastChatID = chatID
+	update(sm.state)
 	sm.state.Timestamp = time.Now()
 
-	// Atomic save using temp file + rename
 	if err := sm.saveAtomic(); err != nil {
 		return fmt.Errorf("failed to save state atomically: %w", err)
 	}

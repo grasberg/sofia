@@ -48,8 +48,8 @@ type Service struct {
 	cancelFunc    context.CancelFunc
 
 	// Budget tracking (#20)
-	budgetSpent         float64
-	budgetResetDate     time.Time
+	budgetSpent             float64
+	budgetResetDate         time.Time
 	lastProactiveSuggestion time.Time
 }
 
@@ -277,16 +277,28 @@ const (
 	stepResultError // parse/LLM error
 )
 
-// executeOneGoalStep plans and executes a single goal step. Returns the outcome.
-func (s *Service) executeOneGoalStep(ctx context.Context, gm *GoalManager, goalsAny []any, stepNum int) stepOutcome {
-	// Build a goals summary for the planner
+type goalRef struct {
+	id       int64
+	name     string
+	priority string
+}
+
+type goalStepPlan struct {
+	GoalID   int64  `json:"goal_id"`
+	GoalName string `json:"goal_name"`
+	Step     string `json:"step"`
+}
+
+type goalPlannerDecision struct {
+	Plan           goalStepPlan
+	NoAction       bool
+	MarkComplete   bool
+	CompleteGoalID int64
+}
+
+func buildGoalsSummary(goalsAny []any) (string, []goalRef) {
 	var goalsSummary strings.Builder
-	type goalRef struct {
-		id       int64
-		name     string
-		priority string
-	}
-	var refs []goalRef
+	refs := make([]goalRef, 0, len(goalsAny))
 
 	for _, gAny := range goalsAny {
 		b, _ := json.Marshal(gAny)
@@ -294,28 +306,27 @@ func (s *Service) executeOneGoalStep(ctx context.Context, gm *GoalManager, goals
 		if err := json.Unmarshal(b, &g); err != nil {
 			continue
 		}
-		id := int64(g["id"].(float64))
+
+		idValue, ok := g["id"].(float64)
+		if !ok {
+			continue
+		}
+
 		name, _ := g["name"].(string)
 		desc, _ := g["description"].(string)
 		priority, _ := g["priority"].(string)
-		refs = append(refs, goalRef{id: id, name: name, priority: priority})
-		goalsSummary.WriteString(fmt.Sprintf("- [ID:%d] %s (priority: %s)\n  %s\n", id, name, priority, desc))
+
+		refs = append(refs, goalRef{id: int64(idValue), name: name, priority: priority})
+		goalsSummary.WriteString(
+			fmt.Sprintf("- [ID:%d] %s (priority: %s)\n  %s\n", int64(idValue), name, priority, desc),
+		)
 	}
 
-	if len(refs) == 0 {
-		return stepResultDone
-	}
+	return goalsSummary.String(), refs
+}
 
-	if stepNum == 0 {
-		s.broadcast(map[string]any{
-			"type":       "goal_evaluation_start",
-			"agent_id":   s.agentID,
-			"goal_count": len(refs),
-		})
-	}
-
-	// Ask the LLM which goal to work on and what the next concrete step is
-	prompt := fmt.Sprintf(`You are an autonomous AI agent. You have the following active goals:
+func buildGoalPlannerPrompt(goalsSummary string) string {
+	return fmt.Sprintf(`You are an autonomous AI agent. You have the following active goals:
 
 %s
 
@@ -332,7 +343,93 @@ Rules:
 Respond in this exact JSON format (no markdown, no code fences):
 {"goal_id": <number>, "goal_name": "<name>", "step": "<description of the concrete task to execute>"}
 
-Or respond with NO_ACTION if nothing to do.`, goalsSummary.String())
+Or respond with NO_ACTION if nothing to do.`, goalsSummary)
+}
+
+func parseGoalPlannerResponse(content string) (goalPlannerDecision, error) {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" || trimmed == "NO_ACTION" {
+		return goalPlannerDecision{NoAction: true}, nil
+	}
+
+	if strings.HasPrefix(trimmed, "GOAL_COMPLETE:") {
+		idStr := strings.TrimSpace(strings.TrimPrefix(trimmed, "GOAL_COMPLETE:"))
+		var goalID int64
+		if _, err := fmt.Sscanf(idStr, "%d", &goalID); err == nil {
+			return goalPlannerDecision{MarkComplete: true, CompleteGoalID: goalID}, nil
+		}
+		return goalPlannerDecision{NoAction: true}, nil
+	}
+
+	cleaned := strings.TrimSpace(
+		strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(trimmed, "```json"), "```"), "```"),
+	)
+
+	var plan goalStepPlan
+	if err := json.Unmarshal([]byte(cleaned), &plan); err != nil {
+		return goalPlannerDecision{}, err
+	}
+	if plan.Step == "" {
+		return goalPlannerDecision{NoAction: true}, nil
+	}
+
+	return goalPlannerDecision{Plan: plan}, nil
+}
+
+func buildGoalTaskPrompt(plan goalStepPlan) string {
+	return fmt.Sprintf(`You are working toward goal: "%s"
+
+Your next step: %s
+
+CRITICAL RULES:
+- You MUST use tool calls (read_file, write_file, exec, list_dir, etc.) to do real work.
+- Do NOT just describe what you would do. Actually do it with tools.
+- Do NOT roleplay or narrate. No stage directions. No fictional progress.
+- Every response must contain at least one tool call unless the step is purely informational.
+- When done, summarize what you actually accomplished (files created, commands run, results).`, plan.GoalName, plan.Step)
+}
+
+func (s *Service) executeGoalTask(ctx context.Context, plan goalStepPlan) (string, error) {
+	taskPrompt := buildGoalTaskPrompt(plan)
+
+	s.mu.Lock()
+	runner := s.taskRunner
+	s.mu.Unlock()
+
+	if runner != nil {
+		return runner(ctx, s.agentID, fmt.Sprintf("goal:%d", plan.GoalID), taskPrompt, "system", "autonomy")
+	}
+
+	taskMessages := []providers.Message{{Role: "user", Content: taskPrompt}}
+	taskResp, err := s.provider.Chat(ctx, taskMessages, nil, s.modelID, map[string]any{
+		"max_tokens":  2000,
+		"temperature": 0.4,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return taskResp.Content, nil
+}
+
+// executeOneGoalStep plans and executes a single goal step. Returns the outcome.
+func (s *Service) executeOneGoalStep(ctx context.Context, gm *GoalManager, goalsAny []any, stepNum int) stepOutcome {
+	goalsSummary, refs := buildGoalsSummary(goalsAny)
+
+	if len(refs) == 0 {
+		return stepResultDone
+	}
+
+	if stepNum == 0 {
+		s.broadcast(map[string]any{
+			"type":       "goal_evaluation_start",
+			"agent_id":   s.agentID,
+			"goal_count": len(refs),
+		})
+	}
+
+	// Ask the LLM which goal to work on and what the next concrete step is
+	prompt := buildGoalPlannerPrompt(goalsSummary)
 
 	messages := []providers.Message{
 		{Role: "user", Content: prompt},
@@ -357,56 +454,33 @@ Or respond with NO_ACTION if nothing to do.`, goalsSummary.String())
 		s.trackCost(resp.Usage.TotalTokens)
 	}
 
-	content := strings.TrimSpace(resp.Content)
-
-	// Check for GOAL_COMPLETE
-	if strings.HasPrefix(content, "GOAL_COMPLETE:") {
-		idStr := strings.TrimPrefix(content, "GOAL_COMPLETE:")
-		idStr = strings.TrimSpace(idStr)
-		var goalID int64
-		if _, err := fmt.Sscanf(idStr, "%d", &goalID); err == nil {
-			if _, err := gm.UpdateGoalStatus(goalID, GoalStatusCompleted); err == nil {
-				logger.InfoCF("autonomy", "Goal auto-completed", map[string]any{"goal_id": goalID})
-				s.broadcast(map[string]any{
-					"type":    "goal_completed",
-					"goal_id": goalID,
-				})
-				s.notifyUser(fmt.Sprintf("🏁 Mål slutfört: *%s*", idStr))
-			}
-		}
-		return stepResultDone
-	}
-
-	if content == "NO_ACTION" || content == "" {
-		logger.DebugCF("autonomy", "Goal planner: no action needed", nil)
-		return stepResultDone
-	}
-
-	// Parse the JSON response
-	var plan struct {
-		GoalID   int64  `json:"goal_id"`
-		GoalName string `json:"goal_name"`
-		Step     string `json:"step"`
-	}
-
-	// Strip markdown code fences if present
-	cleaned := content
-	cleaned = strings.TrimPrefix(cleaned, "```json")
-	cleaned = strings.TrimPrefix(cleaned, "```")
-	cleaned = strings.TrimSuffix(cleaned, "```")
-	cleaned = strings.TrimSpace(cleaned)
-
-	if err := json.Unmarshal([]byte(cleaned), &plan); err != nil {
+	decision, err := parseGoalPlannerResponse(resp.Content)
+	if err != nil {
 		logger.WarnCF("autonomy", "Failed to parse goal planner response", map[string]any{
 			"error":   err.Error(),
-			"content": content,
+			"content": strings.TrimSpace(resp.Content),
 		})
 		return stepResultError
 	}
 
-	if plan.Step == "" {
+	if decision.MarkComplete {
+		if _, err := gm.UpdateGoalStatus(decision.CompleteGoalID, GoalStatusCompleted); err == nil {
+			logger.InfoCF("autonomy", "Goal auto-completed", map[string]any{"goal_id": decision.CompleteGoalID})
+			s.broadcast(map[string]any{
+				"type":    "goal_completed",
+				"goal_id": decision.CompleteGoalID,
+			})
+			s.notifyUser(fmt.Sprintf("🏁 Mål slutfört: *%d*", decision.CompleteGoalID))
+		}
 		return stepResultDone
 	}
+
+	if decision.NoAction {
+		logger.DebugCF("autonomy", "Goal planner: no action needed", nil)
+		return stepResultDone
+	}
+
+	plan := decision.Plan
 
 	logger.InfoCF("autonomy", "Goal step planned", map[string]any{
 		"agent_id":  s.agentID,
@@ -426,44 +500,8 @@ Or respond with NO_ACTION if nothing to do.`, goalsSummary.String())
 
 	s.notifyUser(fmt.Sprintf("🎯 *%s* (steg %d)\nArbetar på: %s", plan.GoalName, stepNum+1, plan.Step))
 
-	// Execute the step
-	taskPrompt := fmt.Sprintf(`You are working toward goal: "%s"
-
-Your next step: %s
-
-CRITICAL RULES:
-- You MUST use tool calls (read_file, write_file, exec, list_dir, etc.) to do real work.
-- Do NOT just describe what you would do. Actually do it with tools.
-- Do NOT roleplay or narrate. No stage directions. No fictional progress.
-- Every response must contain at least one tool call unless the step is purely informational.
-- When done, summarize what you actually accomplished (files created, commands run, results).`, plan.GoalName, plan.Step)
-
-	s.mu.Lock()
-	runner := s.taskRunner
-	s.mu.Unlock()
-
 	start := time.Now()
-	var result string
-	var taskErr error
-
-	if runner != nil {
-		// Execute via the agent's full tool loop
-		result, taskErr = runner(ctx, s.agentID, fmt.Sprintf("goal:%d", plan.GoalID), taskPrompt, "system", "autonomy")
-	} else {
-		// Fallback: simple LLM call without tools
-		taskMessages := []providers.Message{
-			{Role: "user", Content: taskPrompt},
-		}
-		taskResp, err := s.provider.Chat(ctx, taskMessages, nil, s.modelID, map[string]any{
-			"max_tokens":  2000,
-			"temperature": 0.4,
-		})
-		if err != nil {
-			taskErr = err
-		} else {
-			result = taskResp.Content
-		}
-	}
+	result, taskErr := s.executeGoalTask(ctx, plan)
 
 	dur := time.Since(start).Milliseconds()
 

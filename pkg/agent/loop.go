@@ -33,6 +33,7 @@ import (
 	"github.com/grasberg/sofia/pkg/session"
 	"github.com/grasberg/sofia/pkg/state"
 	"github.com/grasberg/sofia/pkg/tools"
+	"github.com/grasberg/sofia/pkg/trace"
 )
 
 type AgentLoop struct {
@@ -82,25 +83,40 @@ type AgentLoop struct {
 
 	evolveRunning atomic.Bool // prevents duplicate /evolve run goroutines
 
+	tracer         *trace.Tracer             // structured execution tracing
+	providerRanker *providers.ProviderRanker // adaptive provider ranking
+
 	// processCancelMu protects processCancel
 	processCancelMu sync.Mutex
 	processCancel   context.CancelFunc // cancels the current in-flight LLM processing
+
+	// killed is set by Reset() to immediately abort all processing.
+	// Checked at the top of every processing entry point and at each
+	// LLM iteration boundary.
+	killed atomic.Bool
+
+	// directCancelsMu protects directCancels — tracks cancel funcs for
+	// in-flight ProcessDirect / ProcessDirectWithImages calls so Reset()
+	// can cancel them.
+	directCancelsMu sync.Mutex
+	directCancels   map[string]context.CancelFunc
 
 	playwrightCancel context.CancelFunc // cancels playwright install goroutine
 }
 
 // processOptions configures how a message is processed
 type processOptions struct {
-	SessionKey      string   // Session identifier for history/context
-	Channel         string   // Target channel for tool execution
-	ChatID          string   // Target chat ID for tool execution
-	UserMessage     string   // User message content (may include prefix)
-	UserImages      []string // Optional base64 data URLs for vision (e.g. "data:image/png;base64,...")
-	DefaultResponse string   // Response when LLM returns empty
-	EnableSummary   bool     // Whether to trigger summarization
-	SendResponse    bool     // Whether to send response via bus
-	NoHistory       bool     // If true, don't load session history (for heartbeat)
-	ModelOverride   string   // If set, use this model alias instead of the agent's default
+	SessionKey      string      // Session identifier for history/context
+	Channel         string      // Target channel for tool execution
+	ChatID          string      // Target chat ID for tool execution
+	UserMessage     string      // User message content (may include prefix)
+	UserImages      []string    // Optional base64 data URLs for vision (e.g. "data:image/png;base64,...")
+	DefaultResponse string      // Response when LLM returns empty
+	EnableSummary   bool        // Whether to trigger summarization
+	SendResponse    bool        // Whether to send response via bus
+	NoHistory       bool        // If true, don't load session history (for heartbeat)
+	ModelOverride   string      // If set, use this model alias instead of the agent's default
+	ParentSpan      *trace.Span // Parent trace span for hierarchical tracing
 }
 
 const defaultResponse = "I've completed processing but have no response to give. Increase `max_tool_iterations` in config.json."
@@ -219,6 +235,9 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		personaManager:   NewPersonaManager(personaMap),
 		branchManager:    session.NewBranchManager(),
 		approvalGate:     NewApprovalGate(cfg.Guardrails.Approval),
+		tracer:           trace.NewTracer(memDB),
+		providerRanker:   providers.NewProviderRanker(memDB),
+		directCancels:    make(map[string]context.CancelFunc),
 	}
 
 	al.a2aRouter.SetMonitorCallback(func(msg *A2AMessage) {
@@ -271,14 +290,12 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		cfg,
 		msgBus,
 		registry,
-		provider,
 		al.runSpawnedTaskAsAgent,
 		planMgr,
 		scratchpad,
 		checkpointMgr,
 		memDB,
 		a2aRouter,
-		pushService,
 		toolTracker,
 	)
 
@@ -410,6 +427,9 @@ func (al *AgentLoop) Stop() {
 		al.evolutionEngine.Stop()
 	}
 	al.stopAutonomyServices()
+	if al.tracer != nil {
+		al.tracer.Close()
+	}
 
 	// Wait for dispatched goroutines with a timeout
 	done := make(chan struct{})
@@ -429,17 +449,64 @@ func (al *AgentLoop) Stop() {
 func (al *AgentLoop) Reset() map[string]any {
 	result := map[string]any{}
 
-	// 1. Cancel in-flight processing
+	// ── KILLSWITCH: set killed flag so every processing path aborts immediately ──
+	al.killed.Store(true)
+	logger.InfoCF("agent", "Reset: KILLSWITCH activated — aborting all work", nil)
+
+	// 1. Cancel in-flight bus-driven processing
 	al.processCancelMu.Lock()
 	if al.processCancel != nil {
 		al.processCancel()
 		al.processCancel = nil
 	}
 	al.processCancelMu.Unlock()
-	result["processing_cancelled"] = true
-	logger.InfoCF("agent", "Reset: cancelled in-flight processing", nil)
 
-	// 2. Clear all sessions for all agents
+	// 2. Cancel all in-flight ProcessDirect calls (Web UI, cron, heartbeat)
+	al.directCancelsMu.Lock()
+	directCancelled := len(al.directCancels)
+	for key, cancel := range al.directCancels {
+		cancel()
+		delete(al.directCancels, key)
+	}
+	al.directCancelsMu.Unlock()
+	result["direct_calls_cancelled"] = directCancelled
+
+	// 3. Stop all autonomy services (background goal pursuit, proactive suggestions)
+	al.stopAutonomyServices()
+	result["autonomy_stopped"] = true
+
+	// 4. Stop the evolution engine
+	if al.evolutionEngine != nil {
+		al.evolutionEngine.Stop()
+	}
+	result["evolution_stopped"] = true
+
+	// 5. Wait for dispatched plan goroutines to finish (with timeout)
+	done := make(chan struct{})
+	go func() {
+		al.dispatchWg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		logger.WarnCF("agent", "Reset: timed out waiting for plan dispatchers", nil)
+	}
+
+	// 6. Drain queued inbound messages so they don't fire after reset
+	drained := 0
+	for {
+		select {
+		case <-al.bus.InboundChan():
+			drained++
+		default:
+			goto busDrained
+		}
+	}
+busDrained:
+	result["messages_drained"] = drained
+
+	// 7. Clear all sessions for all agents
 	sessionsCleared := 0
 	for _, agentID := range al.getRegistry().ListAgentIDs() {
 		if agent, ok := al.getRegistry().GetAgent(agentID); ok && agent.Sessions != nil {
@@ -451,9 +518,8 @@ func (al *AgentLoop) Reset() map[string]any {
 		}
 	}
 	result["sessions_cleared"] = sessionsCleared
-	logger.InfoCF("agent", fmt.Sprintf("Reset: cleared %d sessions", sessionsCleared), nil)
 
-	// 3. Reset all active goals
+	// 8. Reset all active goals
 	goalsReset := 0
 	if al.memDB != nil {
 		gm := autonomy.NewGoalManager(al.memDB)
@@ -472,19 +538,21 @@ func (al *AgentLoop) Reset() map[string]any {
 		}
 	}
 	result["goals_reset"] = goalsReset
-	logger.InfoCF("agent", fmt.Sprintf("Reset: reset %d goals", goalsReset), nil)
 
-	// 4. Clear active plan
+	// 9. Clear active plan
 	if al.planManager != nil {
 		al.planManager.ClearPlan()
 	}
 	result["plan_cleared"] = true
 
-	// 5. Reset status
+	// 10. Reset status
 	al.activeStatus.Store("Idle")
 	al.activeAgentID.Store("")
 
-	logger.InfoCF("agent", "Reset: complete", result)
+	// ── Lift the killswitch so the system can accept new work ──
+	al.killed.Store(false)
+
+	logger.InfoCF("agent", "Reset: KILLSWITCH complete — system ready", result)
 	return result
 }
 
@@ -549,14 +617,12 @@ func (al *AgentLoop) ReloadAgents() {
 		al.cfg,
 		al.bus,
 		newRegistry,
-		provider,
 		al.runSpawnedTaskAsAgent,
 		al.planManager,
 		al.scratchpad,
 		al.checkpointMgr,
 		al.memDB,
 		al.a2aRouter,
-		al.pushService,
 		newToolTracker,
 	)
 

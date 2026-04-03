@@ -182,6 +182,36 @@ body::before {
     animation: spin-slow 3s linear infinite;
 }
 
+/* Settings Sidebar Navigation */
+.settings-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border-left: 2px solid transparent;
+    border-radius: 0;
+    text-decoration: none;
+}
+
+.settings-nav-item:hover {
+    color: var(--text-main);
+    background: var(--nav-hover);
+    border-left-color: var(--border-color);
+}
+
+.settings-nav-item.active {
+    color: var(--sofia-red);
+    background: color-mix(in srgb, var(--sofia-red) 8%, transparent);
+    border-left-color: var(--sofia-red);
+}
+
+.settings-nav-item.active .text-zinc-600 {
+    color: color-mix(in srgb, var(--sofia-red) 60%, var(--text-muted));
+}
+
 .glow-red {
     box-shadow: 0 0 15px color-mix(in srgb, var(--sofia-red) 40%, transparent);
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/tools"
+	"github.com/grasberg/sofia/pkg/trace"
 	"github.com/grasberg/sofia/pkg/utils"
 )
 
@@ -46,6 +47,18 @@ func (al *AgentLoop) runLLMIteration(
 
 	for iteration < agent.MaxIterations {
 		iteration++
+
+		// Killswitch + context cancellation check at each iteration boundary.
+		if al.killed.Load() {
+			logger.InfoCF(agentComp, "LLM loop aborted: killswitch active", nil)
+			return "", iteration, errorCount, context.Canceled
+		}
+		select {
+		case <-ctx.Done():
+			logger.InfoCF(agentComp, "LLM loop aborted: context cancelled", nil)
+			return "", iteration, errorCount, ctx.Err()
+		default:
+		}
 
 		// Feature: Self-reflection checkpoint (#2)
 		// At every N iterations, inject a system reflection prompt
@@ -272,7 +285,12 @@ func (al *AgentLoop) runLLMIteration(
 
 		callLLM := func() (*providers.LLMResponse, error) {
 			if len(agent.Candidates) > 1 && al.fallback != nil {
-				fbResult, fbErr := al.fallback.Execute(ctx, agent.Candidates,
+				// Adaptive ranking: reorder candidates by quality scores
+				candidates := agent.Candidates
+				if al.providerRanker != nil {
+					candidates = al.providerRanker.Rank(candidates)
+				}
+				fbResult, fbErr := al.fallback.Execute(ctx, candidates,
 					func(ctx context.Context, provider, model string) (*providers.LLMResponse, error) {
 						return agent.Provider.Chat(ctx, messages, providerToolDefs, model, llmOpts)
 					},
@@ -307,9 +325,14 @@ func (al *AgentLoop) runLLMIteration(
 				break
 			}
 
+			// Abort immediately on killswitch or real context cancellation —
+			// do NOT mistake these for "context window" token errors.
+			if al.killed.Load() || ctx.Err() != nil {
+				return "", iteration, errorCount, context.Canceled
+			}
+
 			errMsg := strings.ToLower(err.Error())
 			isContextError := strings.Contains(errMsg, "token") ||
-				strings.Contains(errMsg, "context") ||
 				strings.Contains(errMsg, "invalidparameter") ||
 				strings.Contains(errMsg, "length")
 
@@ -526,6 +549,15 @@ func (al *AgentLoop) runLLMIteration(
 		}
 
 		executeSingleTool := func(idx int, tc providers.ToolCall) toolCallResult {
+			// Trace: create a tool_call span if tracing is active
+			var toolSpan *trace.Span
+			if al.tracer != nil && opts.ParentSpan != nil {
+				toolSpan = al.tracer.StartSpan(opts.ParentSpan, trace.SpanToolCall, tc.Name)
+				argsJSON, _ := json.Marshal(tc.Arguments)
+				toolSpan.Attributes["args_preview"] = utils.Truncate(string(argsJSON), 300)
+				toolSpan.Attributes["iteration"] = iteration
+			}
+
 			al.activeStatus.Store(fmt.Sprintf("Executing tool: %s", tc.Name))
 			argsJSON, _ := json.Marshal(tc.Arguments)
 			argsPreview := utils.Truncate(string(argsJSON), 200)
@@ -651,6 +683,19 @@ func (al *AgentLoop) runLLMIteration(
 				})
 			}
 
+			// Trace: end tool span
+			if al.tracer != nil && toolSpan != nil {
+				spanStatus := trace.StatusOK
+				if toolResult.Err != nil || toolResult.IsError {
+					spanStatus = trace.StatusError
+				}
+				al.tracer.EndSpan(toolSpan, spanStatus, map[string]any{
+					"duration_ms":    toolDur,
+					"result_preview": utils.Truncate(toolResult.ForLLM, 200),
+					"error":          toolErrStr,
+				})
+			}
+
 			contentForLLM := toolResult.ForLLM
 			if contentForLLM == "" && toolResult.Err != nil {
 				contentForLLM = toolResult.Err.Error()
@@ -673,6 +718,11 @@ func (al *AgentLoop) runLLMIteration(
 
 		var tcResults []toolCallResult
 
+		// Killswitch check before starting tool execution.
+		if al.killed.Load() || ctx.Err() != nil {
+			return "", iteration, errorCount, context.Canceled
+		}
+
 		if parallelTools && len(normalizedToolCalls) > 1 && safeToParallelize(normalizedToolCalls) {
 			// Parallel tool execution using errgroup (path-overlap safe)
 			results := make([]toolCallResult, len(normalizedToolCalls))
@@ -689,6 +739,10 @@ func (al *AgentLoop) runLLMIteration(
 		} else {
 			// Sequential tool execution (default)
 			for i, tc := range normalizedToolCalls {
+				// Kill check between sequential tools.
+				if al.killed.Load() || ctx.Err() != nil {
+					return "", iteration, errorCount, context.Canceled
+				}
 				tcResults = append(tcResults, executeSingleTool(i, tc))
 			}
 		}

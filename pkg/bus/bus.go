@@ -32,7 +32,11 @@ func (mb *MessageBus) PublishInbound(msg InboundMessage) {
 	select {
 	case mb.inbound <- msg:
 	default:
-		log.Printf("[bus] WARNING: inbound buffer full, waiting to deliver message from %s/%s", msg.Channel, msg.SenderID)
+		log.Printf(
+			"[bus] WARNING: inbound buffer full, waiting to deliver message from %s/%s",
+			msg.Channel,
+			msg.SenderID,
+		)
 		timer := time.NewTimer(5 * time.Second)
 		defer timer.Stop()
 		select {
@@ -109,6 +113,11 @@ func (mb *MessageBus) GetHandler(channel string) (MessageHandler, bool) {
 	defer mb.mu.RUnlock()
 	handler, ok := mb.handlers[channel]
 	return handler, ok
+}
+
+// InboundChan returns the raw inbound channel for draining during reset.
+func (mb *MessageBus) InboundChan() <-chan InboundMessage {
+	return mb.inbound
 }
 
 func (mb *MessageBus) Close() {

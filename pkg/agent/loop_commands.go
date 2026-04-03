@@ -2,10 +2,12 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/grasberg/sofia/pkg/memory"
@@ -112,6 +114,8 @@ func (al *AgentLoop) handleCommand(ctx context.Context, msg bus.InboundMessage) 
 		default:
 			return fmt.Sprintf("Unknown switch target: %s", target), true
 		}
+	case "/optimize-prompts":
+		return al.handleOptimizePromptsCommand(ctx, args), true
 	}
 
 	return "", false
@@ -150,6 +154,18 @@ func (al *AgentLoop) handleSessionCommand(
 	case "/compact":
 		al.forceCompression(agent, sessionKey)
 		return "Session compacted. History summarized.", true
+
+	case "/checkpoint":
+		return al.handleCheckpointCommand(args, agent, sessionKey), true
+
+	case "/health":
+		return al.handleHealthCommand(args, agent, sessionKey), true
+
+	case "/pause":
+		return al.handlePauseCommand(args, agent, sessionKey), true
+
+	case "/resume":
+		return al.handleResumeCommand(args, agent, sessionKey), true
 
 	case "/verbose":
 		if len(args) < 1 {
@@ -436,14 +452,7 @@ func (al *AgentLoop) handleBranchCommand(
 // handleBranchesCommand implements /branches — list all branches of the current session.
 func (al *AgentLoop) handleBranchesCommand(sessionKey string) string {
 	// Resolve to the root parent so we list siblings regardless of which branch we're on.
-	rootKey := sessionKey
-	for {
-		parent, ok := al.branchManager.GetParent(rootKey)
-		if !ok {
-			break
-		}
-		rootKey = parent
-	}
+	rootKey := al.resolveRootSessionKey(sessionKey)
 
 	branches := al.branchManager.ListBranches(rootKey)
 	if len(branches) == 0 {
@@ -462,6 +471,444 @@ func (al *AgentLoop) handleBranchesCommand(sessionKey string) string {
 		sb.WriteString(line + "\n")
 	}
 	return strings.TrimRight(sb.String(), "\n")
+}
+
+// handleCheckpointCommand implements /checkpoint list|create|rollback|cleanup.
+func (al *AgentLoop) handleCheckpointCommand(
+	args []string, agent *AgentInstance, sessionKey string,
+) string {
+	if al.checkpointMgr == nil || al.memDB == nil {
+		return "Checkpointing unavailable: memory database not initialized."
+	}
+
+	if len(args) == 0 || args[0] == "list" {
+		checkpoints, err := al.checkpointMgr.List(sessionKey)
+		if err != nil {
+			return fmt.Sprintf("Failed to list checkpoints: %v", err)
+		}
+		if len(checkpoints) == 0 {
+			return "No checkpoints for this session. Usage: /checkpoint [list|create <name>|rollback <id|latest>|cleanup]"
+		}
+
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("Checkpoints for %s:\n", sessionKey))
+		for _, cp := range checkpoints {
+			sb.WriteString(fmt.Sprintf(
+				"- %d %q msgs=%d created=%s\n",
+				cp.ID,
+				cp.Name,
+				cp.MsgCount,
+				cp.CreatedAt.Format(time.RFC3339),
+			))
+		}
+		return strings.TrimRight(sb.String(), "\n")
+	}
+
+	switch args[0] {
+	case "create":
+		name := strings.TrimSpace(strings.Join(args[1:], " "))
+		if name == "" {
+			name = "manual"
+		}
+
+		cp, err := al.checkpointMgr.Create(sessionKey, agent.ID, name, 0)
+		if err != nil {
+			return fmt.Sprintf("Failed to create checkpoint: %v", err)
+		}
+
+		return fmt.Sprintf(
+			"Checkpoint created.\n- ID: %d\n- Name: %s\n- Messages saved: %d",
+			cp.ID,
+			cp.Name,
+			cp.MsgCount,
+		)
+
+	case "rollback":
+		if len(args) < 2 || strings.EqualFold(args[1], "latest") {
+			cp, _, err := al.checkpointMgr.RollbackToLatest(sessionKey)
+			if err != nil {
+				return fmt.Sprintf("Failed to rollback: %v", err)
+			}
+			if cp == nil {
+				return "No checkpoints to rollback to."
+			}
+
+			return fmt.Sprintf(
+				"Rolled back to latest checkpoint %d (%q).\n- Restored messages: %d\n- Session summary restored.",
+				cp.ID,
+				cp.Name,
+				cp.MsgCount,
+			)
+		}
+
+		checkpointID, err := strconv.ParseInt(args[1], 10, 64)
+		if err != nil {
+			return "Checkpoint ID must be an integer or 'latest'."
+		}
+
+		cp, err := al.checkpointMgr.Rollback(sessionKey, checkpointID)
+		if err != nil {
+			return fmt.Sprintf("Failed to rollback: %v", err)
+		}
+
+		return fmt.Sprintf(
+			"Rolled back to checkpoint %d (%q).\n- Restored messages: %d\n- Session summary restored.",
+			cp.ID,
+			cp.Name,
+			cp.MsgCount,
+		)
+
+	case "cleanup":
+		if err := al.checkpointMgr.Cleanup(sessionKey); err != nil {
+			return fmt.Sprintf("Failed to remove checkpoints: %v", err)
+		}
+		return "All checkpoints removed for this session."
+
+	default:
+		return "Usage: /checkpoint [list|create <name>|rollback <id|latest>|cleanup]"
+	}
+}
+
+// handleHealthCommand implements /health for session diagnostics.
+func (al *AgentLoop) handleHealthCommand(args []string, agent *AgentInstance, sessionKey string) string {
+	if len(args) != 0 {
+		return "Usage: /health"
+	}
+
+	history := agent.Sessions.GetHistory(sessionKey)
+	summary := agent.Sessions.GetSummary(sessionKey)
+	historyTokens := al.estimateTokens(history)
+	summaryTokens := utf8.RuneCountInString(summary) * 2 / 5
+	totalTokens := historyTokens + summaryTokens
+
+	window := agent.ContextWindow
+	if window <= 0 {
+		window = agent.MaxTokens
+	}
+	if window <= 0 {
+		window = 1
+	}
+	tokenPercent := totalTokens * 100 / window
+
+	var meta *memory.SessionRow
+	if al.memDB != nil {
+		meta = al.memDB.GetSessionMeta(sessionKey)
+	}
+
+	checkpointCount := 0
+	latestCheckpoint := ""
+	if al.checkpointMgr != nil && al.memDB != nil {
+		if checkpoints, err := al.checkpointMgr.List(sessionKey); err == nil {
+			checkpointCount = len(checkpoints)
+			if checkpointCount > 0 {
+				latestCheckpoint = fmt.Sprintf(
+					"%d %q at %s",
+					checkpoints[0].ID,
+					checkpoints[0].Name,
+					checkpoints[0].CreatedAt.Format(time.RFC3339),
+				)
+			}
+		}
+	}
+
+	rootKey := al.resolveRootSessionKey(sessionKey)
+	branchCount := len(al.branchManager.ListBranches(rootKey))
+	usage := al.usageTracker.GetSession(sessionKey)
+	_, isSummarizing := al.summarizing.Load(agent.ID + ":" + sessionKey)
+
+	status := "GOOD"
+	signals := make([]string, 0, 3)
+	recommendations := make([]string, 0, 3)
+
+	if tokenPercent >= 90 {
+		status = "CRITICAL"
+		signals = append(signals,
+			fmt.Sprintf("context pressure is high at %d%% of the configured window", tokenPercent))
+	} else if tokenPercent >= 75 {
+		status = "ATTENTION"
+		signals = append(signals,
+			fmt.Sprintf("context pressure is elevated at %d%% of the configured window", tokenPercent))
+	}
+
+	if len(history) > 40 {
+		status = "CRITICAL"
+		signals = append(signals, fmt.Sprintf("message history is very long (%d messages)", len(history)))
+	} else if len(history) > 20 {
+		if status == "GOOD" {
+			status = "ATTENTION"
+		}
+		signals = append(signals,
+			fmt.Sprintf("message history crossed Sofia's auto-summary threshold (%d messages)", len(history)))
+	}
+
+	if summary == "" && len(history) > 12 {
+		if status == "GOOD" {
+			status = "ATTENTION"
+		}
+		signals = append(signals, "no saved summary is available yet")
+	}
+
+	if tokenPercent >= 75 || len(history) > 20 {
+		recommendations = append(recommendations,
+			"Run /compact before the next large step to reduce context pressure.")
+	}
+	if checkpointCount == 0 && (len(history) > 8 || tokenPercent >= 75) {
+		recommendations = append(recommendations,
+			"Create a recovery point with /checkpoint create <name> before risky work.")
+	}
+	if status == "CRITICAL" {
+		recommendations = append(recommendations,
+			"Consider /branch if you want to explore an alternative without adding more load to this session.")
+	}
+	if len(recommendations) == 0 {
+		recommendations = append(recommendations, "No immediate action needed.")
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Session health: %s\n", status))
+	sb.WriteString(fmt.Sprintf("- Session: %s\n", sessionKey))
+	sb.WriteString(fmt.Sprintf("- Messages: %d\n", len(history)))
+	sb.WriteString(fmt.Sprintf("- Estimated context: %d/%d tokens (%d%%)\n", totalTokens, window, tokenPercent))
+	if summary == "" {
+		sb.WriteString("- Summary: none\n")
+	} else {
+		sb.WriteString(fmt.Sprintf(
+			"- Summary: %d chars (%d estimated tokens)\n",
+			utf8.RuneCountInString(summary),
+			summaryTokens,
+		))
+	}
+	if meta != nil {
+		sb.WriteString(fmt.Sprintf("- Last activity: %s\n", meta.UpdatedAt.Format(time.RFC3339)))
+	}
+	if al.checkpointMgr == nil || al.memDB == nil {
+		sb.WriteString("- Checkpoints: unavailable\n")
+	} else if checkpointCount == 0 {
+		sb.WriteString("- Checkpoints: 0\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("- Checkpoints: %d (latest: %s)\n", checkpointCount, latestCheckpoint))
+	}
+	sb.WriteString(fmt.Sprintf("- Branches from root: %d\n", branchCount))
+	if usage != nil {
+		sb.WriteString(fmt.Sprintf("- Usage: %d calls, %d total tokens\n", usage.CallCount, usage.TotalTokens))
+	}
+	if isSummarizing {
+		sb.WriteString("- Background summarization: running\n")
+	} else {
+		sb.WriteString("- Background summarization: idle\n")
+	}
+
+	if len(signals) > 0 {
+		sb.WriteString("\nSignals:\n")
+		for _, signal := range signals {
+			sb.WriteString("- " + signal + "\n")
+		}
+	}
+
+	sb.WriteString("\nRecommended next step:\n")
+	for _, recommendation := range recommendations {
+		sb.WriteString("- " + recommendation + "\n")
+	}
+
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+// Handoff is the JSON-serializable record written by /pause and read by /resume.
+type Handoff struct {
+	SessionKey string    `json:"session_key"`
+	AgentID    string    `json:"agent_id"`
+	AgentName  string    `json:"agent_name,omitempty"`
+	Note       string    `json:"note,omitempty"`
+	Summary    string    `json:"summary,omitempty"`
+	Messages   int       `json:"messages"`
+	Checkpoint int64     `json:"checkpoint,omitempty"`
+	Context    []string  `json:"context,omitempty"`
+	PausedAt   time.Time `json:"paused_at"`
+}
+
+const handoffNoteKind = "handoff"
+
+// handlePauseCommand implements /pause [note] — save session state for later resumption.
+func (al *AgentLoop) handlePauseCommand(
+	args []string, agent *AgentInstance, sessionKey string,
+) string {
+	if al.memDB == nil {
+		return "Pause unavailable: memory database not initialized."
+	}
+
+	history := agent.Sessions.GetHistory(sessionKey)
+	if len(history) == 0 {
+		return "Nothing to pause — session is empty."
+	}
+
+	note := strings.TrimSpace(strings.Join(args, " "))
+
+	// Auto-checkpoint so the user has a recovery point.
+	var checkpointID int64
+	if al.checkpointMgr != nil {
+		cpName := "pause"
+		if note != "" && len(note) <= 40 {
+			cpName = "pause: " + note
+		}
+		if cp, err := al.checkpointMgr.Create(sessionKey, agent.ID, cpName, 0); err == nil {
+			checkpointID = cp.ID
+		}
+	}
+
+	// Capture the last few messages as context breadcrumbs.
+	contextLines := make([]string, 0, 4)
+	start := len(history) - 4
+	if start < 0 {
+		start = 0
+	}
+	for _, m := range history[start:] {
+		preview := m.Content
+		if len(preview) > 150 {
+			preview = preview[:150] + "…"
+		}
+		contextLines = append(contextLines, m.Role+": "+preview)
+	}
+
+	handoff := Handoff{
+		SessionKey: sessionKey,
+		AgentID:    agent.ID,
+		AgentName:  agent.Name,
+		Note:       note,
+		Summary:    agent.Sessions.GetSummary(sessionKey),
+		Messages:   len(history),
+		Checkpoint: checkpointID,
+		Context:    contextLines,
+		PausedAt:   time.Now().UTC(),
+	}
+
+	data, err := json.Marshal(handoff)
+	if err != nil {
+		return fmt.Sprintf("Failed to serialize handoff: %v", err)
+	}
+
+	if err := al.memDB.SetNote(agent.ID, handoffNoteKind, sessionKey, string(data)); err != nil {
+		return fmt.Sprintf("Failed to save handoff: %v", err)
+	}
+
+	var sb strings.Builder
+	sb.WriteString("Session paused.\n")
+	if note != "" {
+		sb.WriteString(fmt.Sprintf("- Note: %s\n", note))
+	}
+	sb.WriteString(fmt.Sprintf("- Messages: %d\n", len(history)))
+	if checkpointID > 0 {
+		sb.WriteString(fmt.Sprintf("- Checkpoint: %d\n", checkpointID))
+	}
+	sb.WriteString(fmt.Sprintf("- Session: %s\n", sessionKey))
+	sb.WriteString("\nUse /resume to pick up where you left off.")
+	return sb.String()
+}
+
+// handleResumeCommand implements /resume — restore context from a paused session.
+func (al *AgentLoop) handleResumeCommand(
+	args []string, agent *AgentInstance, sessionKey string,
+) string {
+	if al.memDB == nil {
+		return "Resume unavailable: memory database not initialized."
+	}
+
+	// If the user provides a specific session key, try that one.
+	targetKey := sessionKey
+	if len(args) > 0 {
+		targetKey = strings.TrimSpace(strings.Join(args, " "))
+	}
+
+	// Try to load a handoff for the target session.
+	raw := al.memDB.GetNote(agent.ID, handoffNoteKind, targetKey)
+	if raw != "" {
+		return al.formatAndClearHandoff(agent, targetKey, raw)
+	}
+
+	// No handoff for the current/target session — list all pending handoffs.
+	allHandoffs, err := al.memDB.ListNotesByKind(handoffNoteKind)
+	if err != nil {
+		return fmt.Sprintf("Failed to list handoffs: %v", err)
+	}
+
+	if len(allHandoffs) == 0 {
+		return "No paused sessions found. Use /pause to save your place before stopping."
+	}
+
+	var sb strings.Builder
+	sb.WriteString("No handoff for the current session. Paused sessions:\n\n")
+	for _, n := range allHandoffs {
+		var h Handoff
+		if err := json.Unmarshal([]byte(n.Content), &h); err != nil {
+			continue
+		}
+		line := fmt.Sprintf("- %s", h.SessionKey)
+		if h.AgentName != "" {
+			line += fmt.Sprintf(" [%s]", h.AgentName)
+		}
+		line += fmt.Sprintf(" (%d msgs, paused %s)", h.Messages, h.PausedAt.Format("2006-01-02 15:04"))
+		if h.Note != "" {
+			line += fmt.Sprintf(" — %s", h.Note)
+		}
+		sb.WriteString(line + "\n")
+	}
+	sb.WriteString("\nUse /resume <session-key> to restore a specific session.")
+	return sb.String()
+}
+
+// formatAndClearHandoff renders a handoff note for the user and removes it from the DB.
+func (al *AgentLoop) formatAndClearHandoff(agent *AgentInstance, sessionKey, raw string) string {
+	var h Handoff
+	if err := json.Unmarshal([]byte(raw), &h); err != nil {
+		return fmt.Sprintf("Failed to parse handoff data: %v", err)
+	}
+
+	// Clear the handoff now that it has been consumed.
+	_ = al.memDB.DeleteNote(agent.ID, handoffNoteKind, sessionKey)
+
+	var sb strings.Builder
+	sb.WriteString("Resuming session.\n")
+	sb.WriteString(fmt.Sprintf("- Session: %s\n", h.SessionKey))
+	if h.AgentName != "" {
+		sb.WriteString(fmt.Sprintf("- Agent: %s\n", h.AgentName))
+	}
+	sb.WriteString(fmt.Sprintf("- Messages: %d\n", h.Messages))
+	sb.WriteString(fmt.Sprintf("- Paused: %s\n", h.PausedAt.Format("2006-01-02 15:04 UTC")))
+	if h.Checkpoint > 0 {
+		sb.WriteString(fmt.Sprintf("- Checkpoint: %d (use /checkpoint rollback %d to go back)\n",
+			h.Checkpoint, h.Checkpoint))
+	}
+
+	if h.Summary != "" {
+		sb.WriteString(fmt.Sprintf("\nSession summary:\n%s\n", h.Summary))
+	}
+
+	if h.Note != "" {
+		sb.WriteString(fmt.Sprintf("\nHandoff note:\n%s\n", h.Note))
+	}
+
+	if len(h.Context) > 0 {
+		sb.WriteString("\nLast activity:\n")
+		for _, line := range h.Context {
+			sb.WriteString("  " + line + "\n")
+		}
+	}
+
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+func (al *AgentLoop) resolveRootSessionKey(sessionKey string) string {
+	if al.branchManager == nil {
+		return sessionKey
+	}
+
+	rootKey := sessionKey
+	for {
+		parent, ok := al.branchManager.GetParent(rootKey)
+		if !ok {
+			return rootKey
+		}
+		rootKey = parent
+	}
 }
 
 // handleSearchCommand searches across all sessions for messages matching the query.
@@ -579,4 +1026,82 @@ func (al *AgentLoop) handleEvolveCommand(args []string, _ string) (string, bool)
 	default:
 		return "Unknown. Usage: /evolve status|history|run|pause|resume|revert <id>", true
 	}
+}
+
+// handleOptimizePromptsCommand implements /optimize-prompts [agent_id].
+func (al *AgentLoop) handleOptimizePromptsCommand(ctx context.Context, args []string) string {
+	if !al.cfg.Agents.Defaults.PromptOptimization.Enabled {
+		return "Prompt optimization is disabled. Enable it in config.json: agents.defaults.prompt_optimization.enabled = true"
+	}
+
+	agentID := ""
+	if len(args) > 0 {
+		agentID = args[0]
+	}
+
+	// Default to the default agent
+	agent := al.getRegistry().GetDefaultAgent()
+	if agentID != "" {
+		if a, ok := al.getRegistry().GetAgent(agentID); ok {
+			agent = a
+		} else {
+			return fmt.Sprintf("Agent %q not found.", agentID)
+		}
+	}
+	if agent == nil {
+		return "No agent available."
+	}
+
+	optimizer := NewPromptOptimizer(
+		al.tracer, al.memDB, agent.Provider,
+		al.cfg.Agents.Defaults.PromptOptimization,
+	)
+
+	// Step 1: Evaluate
+	review, err := optimizer.Evaluate(agent.ID)
+	if err != nil {
+		return fmt.Sprintf("Evaluation failed: %v", err)
+	}
+
+	if !review.NeedsWork {
+		return fmt.Sprintf(
+			"Agent %s is performing well (avg score: %.2f). No optimization needed.",
+			agent.ID,
+			review.AvgScore,
+		)
+	}
+
+	// Step 2: Get current system prompt
+	currentPrompt := ""
+	if agent.ContextBuilder != nil {
+		currentPrompt = agent.ContextBuilder.BuildSystemPrompt()
+	}
+	if currentPrompt == "" {
+		return "Could not read current system prompt for optimization."
+	}
+
+	// Step 3: Generate variants
+	variants, err := optimizer.GenerateVariants(ctx, review, currentPrompt)
+	if err != nil {
+		return fmt.Sprintf("Variant generation failed: %v", err)
+	}
+
+	// Step 4: Create experiment
+	exp, err := optimizer.CreateExperiment(agent.ID, variants)
+	if err != nil {
+		return fmt.Sprintf("Failed to create A/B experiment: %v", err)
+	}
+
+	return fmt.Sprintf(
+		"Prompt optimization started for agent %s:\n"+
+			"• Avg score: %.2f (threshold: %.2f)\n"+
+			"• Low-scoring traces: %d\n"+
+			"• Experiment: %s\n"+
+			"• Variants: %d (including control)\n"+
+			"• Trials needed: %d per variant\n\n"+
+			"The experiment will run automatically. Check results with /evolve status.",
+		agent.ID, review.AvgScore, al.cfg.Agents.Defaults.PromptOptimization.ScoreThreshold,
+		len(review.LowTraces), exp.Name, len(variants),
+		al.cfg.Agents.Defaults.PromptOptimization.TrialsPerVariant,
+	)
 }

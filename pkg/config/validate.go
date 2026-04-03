@@ -50,31 +50,68 @@ func (c *Config) applyDefaults() {
 
 // validatePorts checks that configured ports are in the valid range 1-65535.
 func (c *Config) validatePorts() error {
-	if c.WebUI.Enabled && c.WebUI.Port != 0 {
-		if c.WebUI.Port < 1 || c.WebUI.Port > 65535 {
-			return fmt.Errorf("webui.port must be between 1 and 65535, got %d", c.WebUI.Port)
-		}
+	if err := validateEnabledPort("webui.port", c.WebUI.Enabled, c.WebUI.Port); err != nil {
+		return err
 	}
-	if c.RemoteAccess.Enabled && c.RemoteAccess.Port != 0 {
-		if c.RemoteAccess.Port < 1 || c.RemoteAccess.Port > 65535 {
-			return fmt.Errorf("remote_access.port must be between 1 and 65535, got %d", c.RemoteAccess.Port)
-		}
+	if err := validateEnabledPort("remote_access.port", c.RemoteAccess.Enabled, c.RemoteAccess.Port); err != nil {
+		return err
 	}
 	return nil
 }
 
 // validateIntervals checks that enabled features have sane minimum intervals.
 func (c *Config) validateIntervals() error {
-	if c.Heartbeat.Enabled && c.Heartbeat.Interval != 0 && c.Heartbeat.Interval < 5 {
-		return fmt.Errorf("heartbeat.interval must be at least 5 minutes, got %d", c.Heartbeat.Interval)
+	if err := validateEnabledMinimum(
+		"heartbeat.interval",
+		c.Heartbeat.Enabled,
+		c.Heartbeat.Interval,
+		5,
+		"minutes",
+	); err != nil {
+		return err
 	}
-	if c.Autonomy.Enabled && c.Autonomy.IntervalMinutes != 0 && c.Autonomy.IntervalMinutes < 1 {
-		return fmt.Errorf("autonomy.interval_minutes must be at least 1, got %d", c.Autonomy.IntervalMinutes)
+	if err := validateEnabledMinimum(
+		"autonomy.interval_minutes",
+		c.Autonomy.Enabled,
+		c.Autonomy.IntervalMinutes,
+		1,
+		"",
+	); err != nil {
+		return err
 	}
-	if c.Evolution.Enabled && c.Evolution.IntervalMinutes != 0 && c.Evolution.IntervalMinutes < 5 {
-		return fmt.Errorf("evolution.interval_minutes must be at least 5, got %d", c.Evolution.IntervalMinutes)
+	if err := validateEnabledMinimum(
+		"evolution.interval_minutes",
+		c.Evolution.Enabled,
+		c.Evolution.IntervalMinutes,
+		5,
+		"",
+	); err != nil {
+		return err
 	}
 	return nil
+}
+
+func validateEnabledPort(field string, enabled bool, port int) error {
+	if !enabled || port == 0 {
+		return nil
+	}
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("%s must be between 1 and 65535, got %d", field, port)
+	}
+	return nil
+}
+
+func validateEnabledMinimum(field string, enabled bool, value, min int, unit string) error {
+	if !enabled || value == 0 || value >= min {
+		return nil
+	}
+
+	requirement := fmt.Sprintf("%d", min)
+	if unit != "" {
+		requirement = fmt.Sprintf("%d %s", min, unit)
+	}
+
+	return fmt.Errorf("%s must be at least %s, got %d", field, requirement, value)
 }
 
 func (c *Config) validateAgents() error {
@@ -112,12 +149,12 @@ func (c *Config) validateAgents() error {
 }
 
 func (c *Config) validateChannels() error {
-	if c.Channels.Telegram.Enabled && c.Channels.Telegram.Token == "" {
-		return fmt.Errorf("telegram is enabled but token is empty")
+	if err := validateChannelToken("telegram", c.Channels.Telegram.Enabled, c.Channels.Telegram.Token); err != nil {
+		return err
 	}
 
-	if c.Channels.Discord.Enabled && c.Channels.Discord.Token == "" {
-		return fmt.Errorf("discord is enabled but token is empty")
+	if err := validateChannelToken("discord", c.Channels.Discord.Enabled, c.Channels.Discord.Token); err != nil {
+		return err
 	}
 
 	if err := validateDMPolicy("telegram", c.Channels.Telegram.DMPolicy); err != nil {
@@ -126,6 +163,14 @@ func (c *Config) validateChannels() error {
 
 	if err := validateDMPolicy("discord", c.Channels.Discord.DMPolicy); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func validateChannelToken(channel string, enabled bool, token string) error {
+	if enabled && token == "" {
+		return fmt.Errorf("%s is enabled but token is empty", channel)
 	}
 
 	return nil
@@ -159,16 +204,24 @@ func (c *Config) validateBindings() error {
 
 func (c *Config) validateGuardrails() error {
 	if c.Guardrails.OutputFiltering.Enabled {
-		action := c.Guardrails.OutputFiltering.Action
-		if action != "" && action != "redact" && action != "block" {
-			return fmt.Errorf("output_filtering.action must be 'redact' or 'block', got %q", action)
+		if err := validateAllowedValues(
+			"output_filtering.action",
+			c.Guardrails.OutputFiltering.Action,
+			"redact",
+			"block",
+		); err != nil {
+			return err
 		}
 	}
 
 	if c.Guardrails.PromptInjection.Enabled {
-		action := c.Guardrails.PromptInjection.Action
-		if action != "" && action != "block" && action != "warn" {
-			return fmt.Errorf("prompt_injection.action must be 'block' or 'warn', got %q", action)
+		if err := validateAllowedValues(
+			"prompt_injection.action",
+			c.Guardrails.PromptInjection.Action,
+			"block",
+			"warn",
+		); err != nil {
+			return err
 		}
 	}
 
@@ -182,4 +235,39 @@ func (c *Config) validateGuardrails() error {
 	}
 
 	return nil
+}
+
+func validateAllowedValues(field, value string, allowed ...string) error {
+	if value == "" {
+		return nil
+	}
+
+	for _, candidate := range allowed {
+		if value == candidate {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%s must be %s, got %q", field, joinQuotedValues(allowed), value)
+}
+
+func joinQuotedValues(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+
+	quoted := make([]string, len(values))
+	for i, value := range values {
+		quoted[i] = fmt.Sprintf("'%s'", value)
+	}
+
+	if len(quoted) == 1 {
+		return quoted[0]
+	}
+
+	if len(quoted) == 2 {
+		return quoted[0] + " or " + quoted[1]
+	}
+
+	return strings.Join(quoted[:len(quoted)-1], ", ") + ", or " + quoted[len(quoted)-1]
 }

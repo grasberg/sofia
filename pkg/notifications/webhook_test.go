@@ -169,3 +169,27 @@ func TestWebhookDispatcher_NoWebhooks(t *testing.T) {
 	wd2 := NewWebhookDispatcher([]WebhookConfig{})
 	wd2.Dispatch(EventSessionStart, "agent-1", "web", nil)
 }
+
+func TestSignWebhookPayload(t *testing.T) {
+	body := []byte(`{"event":"task_complete"}`)
+	secret := "super-secret-key"
+
+	got := signWebhookPayload(body, secret)
+
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	want := hex.EncodeToString(mac.Sum(nil))
+	assert.Equal(t, want, got)
+}
+
+func TestValidateWebhookScheme(t *testing.T) {
+	require.NoError(t, validateWebhookScheme("http"))
+	require.NoError(t, validateWebhookScheme("https"))
+	require.Error(t, validateWebhookScheme("ftp"))
+}
+
+func TestValidateWebhookURL(t *testing.T) {
+	require.Error(t, validateWebhookURL("ftp://example.com/hook", true))
+	require.Error(t, validateWebhookURL("https:///hook", true))
+	require.NoError(t, validateWebhookURL("https://example.com/hook", true))
+}

@@ -12,6 +12,11 @@ type errorPattern struct {
 	regex     *regexp.Regexp
 }
 
+type classificationRule struct {
+	reason   FailoverReason
+	patterns []errorPattern
+}
+
 func substr(s string) errorPattern { return errorPattern{substring: s} }
 func rxp(r string) errorPattern    { return errorPattern{regex: regexp.MustCompile("(?i)" + r)} }
 
@@ -92,6 +97,15 @@ var (
 		521: true, 522: true, 523: true, 524: true,
 		529: true,
 	}
+
+	messageClassificationRules = []classificationRule{
+		{reason: FailoverRateLimit, patterns: rateLimitPatterns},
+		{reason: FailoverRateLimit, patterns: overloadedPatterns},
+		{reason: FailoverBilling, patterns: billingPatterns},
+		{reason: FailoverTimeout, patterns: timeoutPatterns},
+		{reason: FailoverAuth, patterns: authPatterns},
+		{reason: FailoverFormat, patterns: formatPatterns},
+	}
 )
 
 // ClassifyError classifies an error into a FailoverError with reason.
@@ -108,50 +122,44 @@ func ClassifyError(err error, provider, model string) *FailoverError {
 
 	// Context deadline exceeded: treat as timeout, always fallback.
 	if err == context.DeadlineExceeded {
-		return &FailoverError{
-			Reason:   FailoverTimeout,
-			Provider: provider,
-			Model:    model,
-			Wrapped:  err,
-		}
+		return newFailoverError(FailoverTimeout, provider, model, err, 0)
 	}
 
 	msg := strings.ToLower(err.Error())
 
 	// Image dimension/size errors: non-retriable, non-fallback.
 	if IsImageDimensionError(msg) || IsImageSizeError(msg) {
-		return &FailoverError{
-			Reason:   FailoverFormat,
-			Provider: provider,
-			Model:    model,
-			Wrapped:  err,
-		}
+		return newFailoverError(FailoverFormat, provider, model, err, 0)
 	}
 
 	// Try HTTP status code extraction first.
 	if status := extractHTTPStatus(msg); status > 0 {
 		if reason := classifyByStatus(status); reason != "" {
-			return &FailoverError{
-				Reason:   reason,
-				Provider: provider,
-				Model:    model,
-				Status:   status,
-				Wrapped:  err,
-			}
+			return newFailoverError(reason, provider, model, err, status)
 		}
 	}
 
 	// Message pattern matching (priority order from OpenClaw).
 	if reason := classifyByMessage(msg); reason != "" {
-		return &FailoverError{
-			Reason:   reason,
-			Provider: provider,
-			Model:    model,
-			Wrapped:  err,
-		}
+		return newFailoverError(reason, provider, model, err, 0)
 	}
 
 	return nil
+}
+
+func newFailoverError(
+	reason FailoverReason,
+	provider, model string,
+	err error,
+	status int,
+) *FailoverError {
+	return &FailoverError{
+		Reason:   reason,
+		Provider: provider,
+		Model:    model,
+		Status:   status,
+		Wrapped:  err,
+	}
 }
 
 // classifyByStatus maps HTTP status codes to FailoverReason.
@@ -176,24 +184,12 @@ func classifyByStatus(status int) FailoverReason {
 // classifyByMessage matches error messages against patterns.
 // Priority order matters (from OpenClaw classifyFailoverReason).
 func classifyByMessage(msg string) FailoverReason {
-	if matchesAny(msg, rateLimitPatterns) {
-		return FailoverRateLimit
+	for _, rule := range messageClassificationRules {
+		if matchesAny(msg, rule.patterns) {
+			return rule.reason
+		}
 	}
-	if matchesAny(msg, overloadedPatterns) {
-		return FailoverRateLimit // Overloaded treated as rate_limit
-	}
-	if matchesAny(msg, billingPatterns) {
-		return FailoverBilling
-	}
-	if matchesAny(msg, timeoutPatterns) {
-		return FailoverTimeout
-	}
-	if matchesAny(msg, authPatterns) {
-		return FailoverAuth
-	}
-	if matchesAny(msg, formatPatterns) {
-		return FailoverFormat
-	}
+
 	return ""
 }
 

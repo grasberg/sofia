@@ -16,6 +16,7 @@ type Checkpoint struct {
 	Name       string    `json:"name"`
 	Iteration  int       `json:"iteration"`
 	MsgCount   int       `json:"msg_count"`
+	Summary    string    `json:"summary,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 }
 
@@ -27,6 +28,7 @@ func fromRow(row memory.CheckpointRow) Checkpoint {
 		Name:       row.Name,
 		Iteration:  row.Iteration,
 		MsgCount:   row.MsgCount,
+		Summary:    row.Summary,
 		CreatedAt:  row.CreatedAt,
 	}
 }
@@ -92,6 +94,10 @@ func (m *Manager) Rollback(sessionKey string, checkpointID int64) (*Checkpoint, 
 
 	if err := m.db.TruncateMessagesToCount(sessionKey, row.MsgCount); err != nil {
 		return nil, fmt.Errorf("checkpoint: truncate messages: %w", err)
+	}
+
+	if err := m.db.SetSummary(sessionKey, row.Summary); err != nil {
+		return nil, fmt.Errorf("checkpoint: restore summary: %w", err)
 	}
 
 	if err := m.db.DeleteCheckpointsAfter(sessionKey, checkpointID); err != nil {

@@ -24,6 +24,28 @@ func NewPerformanceScorer() *PerformanceScorer {
 	}
 }
 
+// MultiScore returns per-dimension scores for structured trace scoring.
+func (ps *PerformanceScorer) MultiScore(toolCount, errorCount int, hasResponse bool) map[string]float64 {
+	denominator := float64(toolCount)
+	if denominator < 1 {
+		denominator = 1
+	}
+	errorRate := 1.0 - float64(errorCount)/denominator
+	if errorRate < 0 {
+		errorRate = 0
+	}
+	efficiency := 1.0 / (1.0 + float64(toolCount)/ps.ExpectedMaxTools)
+	completion := 0.5
+	if hasResponse {
+		completion = 1.0
+	}
+	return map[string]float64{
+		"task_completion": completion,
+		"efficiency":      efficiency,
+		"error_rate":      errorRate,
+	}
+}
+
 // Score calculates a 0.0-1.0 performance score from task metrics.
 func (ps *PerformanceScorer) Score(toolCount, errorCount int, hasResponse bool) float64 {
 	// Error rate: fewer errors = better

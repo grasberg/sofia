@@ -1,0 +1,81 @@
+<!-- AI Settings — sidebar + content shell -->
+<div class="flex flex-grow min-h-0 -m-4 lg:-m-6">
+    <!-- Settings Sidebar -->
+    <div class="w-56 shrink-0 border-r border-[var(--border-color)] bg-black/20 overflow-y-auto">
+        <div class="px-5 pt-5 pb-3">
+            <div class="flex items-center gap-2 mb-1">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-sofia"></i>
+                <h3 class="text-[10px] font-bold uppercase tracking-[0.2em] text-sofia">AI Configuration</h3>
+            </div>
+            <p class="text-[9px] text-zinc-600 leading-relaxed">Models, behavior, and intelligence</p>
+        </div>
+        <nav class="settings-nav px-2 pb-4 space-y-0.5">
+            <a href="#" hx-get="/ui/settings/models" hx-target="#subtab-content"
+               onclick="setSettingsNavActive(this, event)" class="settings-nav-item active" data-subtab="models">
+                <i data-lucide="cpu" class="w-4 h-4 shrink-0"></i>
+                <div class="flex flex-col min-w-0">
+                    <span class="text-[11px] font-semibold">Models</span>
+                    <span class="text-[9px] text-zinc-600 truncate">Providers & model config</span>
+                </div>
+            </a>
+            <a href="#" hx-get="/ui/settings/prompts" hx-target="#subtab-content"
+               onclick="setSettingsNavActive(this, event)" class="settings-nav-item" data-subtab="prompts">
+                <i data-lucide="fingerprint" class="w-4 h-4 shrink-0"></i>
+                <div class="flex flex-col min-w-0">
+                    <span class="text-[11px] font-semibold">Identity</span>
+                    <span class="text-[9px] text-zinc-600 truncate">System prompts & persona</span>
+                </div>
+            </a>
+            <a href="#" hx-get="/ui/settings/personas" hx-target="#subtab-content"
+               onclick="setSettingsNavActive(this, event)" class="settings-nav-item" data-subtab="personas">
+                <i data-lucide="theater" class="w-4 h-4 shrink-0"></i>
+                <div class="flex flex-col min-w-0">
+                    <span class="text-[11px] font-semibold">Personas</span>
+                    <span class="text-[9px] text-zinc-600 truncate">Switchable personalities</span>
+                </div>
+            </a>
+
+            <div class="pt-3 pb-1 px-3">
+                <div class="border-t border-[var(--border-color)]"></div>
+                <span class="text-[8px] font-bold uppercase tracking-[0.2em] text-zinc-600 mt-2 block">Behavior</span>
+            </div>
+
+            <a href="#" hx-get="/ui/settings/intelligence" hx-target="#subtab-content"
+               onclick="setSettingsNavActive(this, event)" class="settings-nav-item" data-subtab="intelligence">
+                <i data-lucide="scan-eye" class="w-4 h-4 shrink-0"></i>
+                <div class="flex flex-col min-w-0">
+                    <span class="text-[11px] font-semibold">Intelligence</span>
+                    <span class="text-[9px] text-zinc-600 truncate">Eval loops & doom detection</span>
+                </div>
+            </a>
+            <a href="#" hx-get="/ui/settings/autonomy" hx-target="#subtab-content"
+               onclick="setSettingsNavActive(this, event)" class="settings-nav-item" data-subtab="autonomy">
+                <i data-lucide="compass" class="w-4 h-4 shrink-0"></i>
+                <div class="flex flex-col min-w-0">
+                    <span class="text-[11px] font-semibold">Autonomy</span>
+                    <span class="text-[9px] text-zinc-600 truncate">Goals & proactive behavior</span>
+                </div>
+            </a>
+            <a href="#" hx-get="/ui/settings/evolution" hx-target="#subtab-content"
+               onclick="setSettingsNavActive(this, event)" class="settings-nav-item" data-subtab="evolution">
+                <i data-lucide="dna" class="w-4 h-4 shrink-0"></i>
+                <div class="flex flex-col min-w-0">
+                    <span class="text-[11px] font-semibold">Evolution</span>
+                    <span class="text-[9px] text-zinc-600 truncate">Self-improvement engine</span>
+                </div>
+            </a>
+            <a href="#" hx-get="/ui/settings/skills" hx-target="#subtab-content"
+               onclick="setSettingsNavActive(this, event)" class="settings-nav-item" data-subtab="skills">
+                <i data-lucide="puzzle" class="w-4 h-4 shrink-0"></i>
+                <div class="flex flex-col min-w-0">
+                    <span class="text-[11px] font-semibold">Skills</span>
+                    <span class="text-[9px] text-zinc-600 truncate">Installed skill modules</span>
+                </div>
+            </a>
+        </nav>
+    </div>
+    <!-- Settings Content -->
+    <div id="subtab-content" class="flex-grow overflow-y-auto" hx-get="/ui/settings/models" hx-trigger="load">
+    </div>
+</div>
+<script>lucide.createIcons();</script>

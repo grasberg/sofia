@@ -14,9 +14,10 @@ import (
 	_ "modernc.org/sqlite" // pure-Go SQLite driver (CGO_ENABLED=0 compatible)
 
 	"github.com/grasberg/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/trace"
 )
 
-const schemaVersion = 11
+const schemaVersion = 13
 
 // MemoryDB is a shared SQLite database for session history and memory notes.
 // It is opened once at AgentLoop startup and shared across all AgentInstances.
@@ -188,6 +189,8 @@ func (m *MemoryDB) migrate() error {
 		{9, nil, m.applyV9},
 		{10, m.applyV10tx, nil},
 		{11, m.applyV11tx, nil},
+		{12, nil, m.applyV12},
+		{13, m.applyV13tx, nil},
 	}
 
 	for _, mig := range migrations {
@@ -642,6 +645,45 @@ func (m *MemoryDB) ListNotes() ([]NoteRow, error) {
 	return result, rows.Err()
 }
 
+// ListNotesByKind returns all memory notes of a given kind, ordered by
+// updated_at descending. This is useful for finding all handoff records.
+func (m *MemoryDB) ListNotesByKind(kind string) ([]NoteRow, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	const q = `SELECT agent_id, kind, date_key, content, updated_at
+	           FROM memory_notes WHERE kind = ? ORDER BY updated_at DESC`
+	rows, err := m.db.Query(q, kind)
+	if err != nil {
+		return nil, fmt.Errorf("memory: list notes by kind: %w", err)
+	}
+	defer rows.Close()
+
+	var result []NoteRow
+	for rows.Next() {
+		var r NoteRow
+		var updatedStr string
+		if err = rows.Scan(&r.AgentID, &r.Kind, &r.DateKey, &r.Content, &updatedStr); err != nil {
+			return nil, fmt.Errorf("memory: scan note row: %w", err)
+		}
+		r.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr)
+		result = append(result, r)
+	}
+	return result, rows.Err()
+}
+
+// DeleteNote removes a memory note identified by (agentID, kind, dateKey).
+func (m *MemoryDB) DeleteNote(agentID, kind, dateKey string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	_, err := m.db.Exec(
+		`DELETE FROM memory_notes WHERE agent_id = ? AND kind = ? AND date_key = ?`,
+		agentID, kind, dateKey,
+	)
+	return err
+}
+
 // ---------------------------------------------------------------------------
 // Schema migration v2: semantic memory tables
 // ---------------------------------------------------------------------------
@@ -794,7 +836,9 @@ func (m *MemoryDB) GetNode(agentID, label, name string) (*SemanticNode, error) {
 	row := m.db.QueryRow(
 		`SELECT id, agent_id, label, name, properties, access_count, last_accessed, quality_score, created_at, updated_at
 		 FROM semantic_nodes WHERE agent_id = ? AND label = ? AND name = ?`,
-		agentID, label, name,
+		agentID,
+		label,
+		name,
 	)
 	return scanNode(row)
 }
@@ -1128,7 +1172,9 @@ func (m *MemoryDB) QueryGraph(agentID, query string, limit int) ([]GraphResult, 
 	labelNodes, err := m.db.Query(
 		`SELECT id, agent_id, label, name, properties, access_count, last_accessed, quality_score, created_at, updated_at
 		 FROM semantic_nodes WHERE agent_id = ? AND label LIKE ? ORDER BY access_count DESC LIMIT ?`,
-		agentID, pattern, limit,
+		agentID,
+		pattern,
+		limit,
 	)
 	if err == nil {
 		defer labelNodes.Close()
@@ -1198,7 +1244,9 @@ func (m *MemoryDB) GetStaleNodes(agentID string, maxAge time.Duration, minAccess
 		   AND access_count < ?
 		   AND (last_accessed IS NULL OR last_accessed < ?)
 		 ORDER BY access_count ASC, last_accessed ASC`,
-		agentID, minAccessCount, cutoff,
+		agentID,
+		minAccessCount,
+		cutoff,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("memory: get stale nodes: %w", err)
@@ -1875,10 +1923,16 @@ func (m *MemoryDB) CreateCheckpoint(sessionKey, agentID, name string, iteration,
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	var summary string
+	_ = m.db.QueryRow(
+		`SELECT COALESCE(summary, '') FROM sessions WHERE key = ?`,
+		sessionKey,
+	).Scan(&summary)
+
 	res, err := m.db.Exec(
-		`INSERT INTO checkpoints (session_key, agent_id, name, iteration, msg_count, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		sessionKey, agentID, name, iteration, msgCount, time.Now().UTC(),
+		`INSERT INTO checkpoints (session_key, agent_id, name, iteration, msg_count, summary, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		sessionKey, agentID, name, iteration, msgCount, summary, time.Now().UTC(),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("memory: create checkpoint: %w", err)
@@ -1894,6 +1948,7 @@ type CheckpointRow struct {
 	Name       string
 	Iteration  int
 	MsgCount   int
+	Summary    string
 	CreatedAt  time.Time
 }
 
@@ -1903,12 +1958,21 @@ func (m *MemoryDB) GetCheckpoint(id int64) (*CheckpointRow, error) {
 	defer m.mu.RUnlock()
 
 	row := m.db.QueryRow(
-		`SELECT id, session_key, agent_id, name, iteration, msg_count, created_at
+		`SELECT id, session_key, agent_id, name, iteration, msg_count, summary, created_at
 		 FROM checkpoints WHERE id = ?`, id,
 	)
 	var cp CheckpointRow
 	var created string
-	err := row.Scan(&cp.ID, &cp.SessionKey, &cp.AgentID, &cp.Name, &cp.Iteration, &cp.MsgCount, &created)
+	err := row.Scan(
+		&cp.ID,
+		&cp.SessionKey,
+		&cp.AgentID,
+		&cp.Name,
+		&cp.Iteration,
+		&cp.MsgCount,
+		&cp.Summary,
+		&created,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("memory: get checkpoint: %w", err)
 	}
@@ -1922,8 +1986,8 @@ func (m *MemoryDB) ListCheckpoints(sessionKey string) ([]CheckpointRow, error) {
 	defer m.mu.RUnlock()
 
 	rows, err := m.db.Query(
-		`SELECT id, session_key, agent_id, name, iteration, msg_count, created_at
-		 FROM checkpoints WHERE session_key = ? ORDER BY created_at DESC`,
+		`SELECT id, session_key, agent_id, name, iteration, msg_count, summary, created_at
+		 FROM checkpoints WHERE session_key = ? ORDER BY created_at DESC, id DESC`,
 		sessionKey,
 	)
 	if err != nil {
@@ -1942,6 +2006,7 @@ func (m *MemoryDB) ListCheckpoints(sessionKey string) ([]CheckpointRow, error) {
 			&cp.Name,
 			&cp.Iteration,
 			&cp.MsgCount,
+			&cp.Summary,
 			&created,
 		); err != nil {
 			return nil, fmt.Errorf("memory: scan checkpoint: %w", err)
@@ -2125,4 +2190,261 @@ func (m *MemoryDB) applyV11tx(tx *sql.Tx) error {
 	const ddl = `ALTER TABLE semantic_nodes ADD COLUMN quality_score REAL NOT NULL DEFAULT 0.5`
 	_, err := tx.Exec(ddl)
 	return err
+}
+
+func (m *MemoryDB) applyV12() error {
+	if m.columnExists("checkpoints", "summary") {
+		return nil
+	}
+	_, err := m.db.Exec(`ALTER TABLE checkpoints ADD COLUMN summary TEXT NOT NULL DEFAULT ''`)
+	return err
+}
+
+// Schema migration v13: execution traces table.
+func (m *MemoryDB) applyV13tx(tx *sql.Tx) error {
+	const ddl = `
+CREATE TABLE IF NOT EXISTS execution_traces (
+    id          TEXT PRIMARY KEY,
+    trace_id    TEXT NOT NULL,
+    parent_id   TEXT NOT NULL DEFAULT '',
+    kind        TEXT NOT NULL,
+    name        TEXT NOT NULL DEFAULT '',
+    agent_id    TEXT NOT NULL DEFAULT '',
+    session_key TEXT NOT NULL DEFAULT '',
+    start_time  DATETIME NOT NULL,
+    end_time    DATETIME,
+    status      TEXT NOT NULL DEFAULT 'running',
+    attributes  TEXT NOT NULL DEFAULT '{}',
+    scores      TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_traces_trace_id ON execution_traces(trace_id);
+CREATE INDEX IF NOT EXISTS idx_traces_agent ON execution_traces(agent_id, start_time);
+CREATE INDEX IF NOT EXISTS idx_traces_kind ON execution_traces(kind, start_time);
+`
+	_, err := tx.Exec(ddl)
+	return err
+}
+
+// ---------------------------------------------------------------------------
+// Execution trace CRUD
+// ---------------------------------------------------------------------------
+
+// InsertTraceSpan persists a single trace span.
+func (m *MemoryDB) InsertTraceSpan(
+	id, traceID, parentID, kind, name, agentID, sessionKey string,
+	startTime time.Time, endTime *time.Time, status string,
+	attributes map[string]any, scores map[string]float64,
+) error {
+	attrsJSON, err := json.Marshal(attributes)
+	if err != nil {
+		attrsJSON = []byte("{}")
+	}
+	scoresJSON, err := json.Marshal(scores)
+	if err != nil {
+		scoresJSON = []byte("{}")
+	}
+
+	_, err = m.db.Exec(`
+		INSERT OR REPLACE INTO execution_traces
+			(id, trace_id, parent_id, kind, name, agent_id, session_key,
+			 start_time, end_time, status, attributes, scores)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, traceID, parentID, kind, name, agentID, sessionKey,
+		startTime, endTime, status, string(attrsJSON), string(scoresJSON),
+	)
+	return err
+}
+
+// UpdateTraceScores merges scores into the root span of a trace.
+func (m *MemoryDB) UpdateTraceScores(traceID string, scores map[string]float64) error {
+	// Read existing scores, merge, write back.
+	var existing string
+	err := m.db.QueryRow(
+		`SELECT scores FROM execution_traces WHERE id = ?`, traceID,
+	).Scan(&existing)
+	if err != nil {
+		return err
+	}
+
+	merged := make(map[string]float64)
+	_ = json.Unmarshal([]byte(existing), &merged)
+	for k, v := range scores {
+		merged[k] = v
+	}
+
+	data, _ := json.Marshal(merged)
+	_, err = m.db.Exec(
+		`UPDATE execution_traces SET scores = ? WHERE id = ?`,
+		string(data), traceID,
+	)
+	return err
+}
+
+// GetTraceSpans returns all spans for a trace, ordered by start_time.
+func (m *MemoryDB) GetTraceSpans(traceID string) ([]trace.Span, error) {
+	rows, err := m.db.Query(`
+		SELECT id, trace_id, parent_id, kind, name, agent_id, session_key,
+		       start_time, end_time, status, attributes, scores
+		FROM execution_traces
+		WHERE trace_id = ?
+		ORDER BY start_time ASC`, traceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var spans []trace.Span
+	for rows.Next() {
+		var s trace.Span
+		var endTime sql.NullTime
+		var attrsStr, scoresStr string
+		if err := rows.Scan(
+			&s.ID, &s.TraceID, &s.ParentID, &s.Kind, &s.Name,
+			&s.AgentID, &s.SessionKey, &s.StartTime, &endTime,
+			&s.Status, &attrsStr, &scoresStr,
+		); err != nil {
+			return nil, err
+		}
+		if endTime.Valid {
+			s.EndTime = &endTime.Time
+		}
+		s.Attributes = make(map[string]any)
+		_ = json.Unmarshal([]byte(attrsStr), &s.Attributes)
+		s.Scores = make(map[string]float64)
+		_ = json.Unmarshal([]byte(scoresStr), &s.Scores)
+		spans = append(spans, s)
+	}
+	return spans, rows.Err()
+}
+
+// QueryTraceSummaries returns lightweight summaries for root spans matching filters.
+func (m *MemoryDB) QueryTraceSummaries(
+	agentID string, since, until time.Time, limit int,
+) ([]trace.TraceSummary, error) {
+	query := `
+		SELECT t.trace_id, t.agent_id, t.session_key, t.name,
+		       t.start_time, t.end_time, t.status, t.scores,
+		       (SELECT COUNT(*) FROM execution_traces c WHERE c.trace_id = t.trace_id) AS span_count
+		FROM execution_traces t
+		WHERE t.kind = 'request'`
+
+	var args []any
+	if agentID != "" {
+		query += ` AND t.agent_id = ?`
+		args = append(args, agentID)
+	}
+	if !since.IsZero() {
+		query += ` AND t.start_time >= ?`
+		args = append(args, since)
+	}
+	if !until.IsZero() {
+		query += ` AND t.start_time <= ?`
+		args = append(args, until)
+	}
+	query += ` ORDER BY t.start_time DESC`
+	if limit > 0 {
+		query += fmt.Sprintf(` LIMIT %d`, limit)
+	}
+
+	rows, err := m.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var summaries []trace.TraceSummary
+	for rows.Next() {
+		var ts trace.TraceSummary
+		var endTime sql.NullTime
+		var scoresStr string
+		if err := rows.Scan(
+			&ts.TraceID, &ts.AgentID, &ts.SessionKey, &ts.Name,
+			&ts.StartTime, &endTime, &ts.Status, &scoresStr, &ts.SpanCount,
+		); err != nil {
+			return nil, err
+		}
+		if endTime.Valid {
+			ts.DurationMs = endTime.Time.Sub(ts.StartTime).Milliseconds()
+		}
+		ts.Scores = make(map[string]float64)
+		_ = json.Unmarshal([]byte(scoresStr), &ts.Scores)
+		summaries = append(summaries, ts)
+	}
+	return summaries, rows.Err()
+}
+
+// PruneTraces deletes traces older than the given retention period.
+func (m *MemoryDB) PruneTraces(retentionDays int) error {
+	cutoff := time.Now().AddDate(0, 0, -retentionDays)
+	_, err := m.db.Exec(
+		`DELETE FROM execution_traces WHERE start_time < ?`, cutoff,
+	)
+	return err
+}
+
+// GetModelTraceScores returns average scores grouped by model for adaptive provider ranking.
+func (m *MemoryDB) GetModelTraceScores(
+	since time.Time,
+	minTraces int,
+) (map[string]map[string]float64, map[string]int, error) {
+	rows, err := m.db.Query(`
+		SELECT json_extract(attributes, '$.model') AS model, scores
+		FROM execution_traces
+		WHERE kind = 'request' AND start_time >= ? AND scores != '{}'`,
+		since,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	// Accumulate scores per model.
+	type accum struct {
+		sums  map[string]float64
+		count int
+	}
+	models := make(map[string]*accum)
+	for rows.Next() {
+		var model sql.NullString
+		var scoresStr string
+		if err := rows.Scan(&model, &scoresStr); err != nil {
+			continue
+		}
+		if !model.Valid || model.String == "" {
+			continue
+		}
+		scores := make(map[string]float64)
+		_ = json.Unmarshal([]byte(scoresStr), &scores)
+		if len(scores) == 0 {
+			continue
+		}
+		a, ok := models[model.String]
+		if !ok {
+			a = &accum{sums: make(map[string]float64)}
+			models[model.String] = a
+		}
+		a.count++
+		for k, v := range scores {
+			a.sums[k] += v
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	// Average and filter by minimum trace count.
+	avgScores := make(map[string]map[string]float64)
+	counts := make(map[string]int)
+	for model, a := range models {
+		if a.count < minTraces {
+			continue
+		}
+		avg := make(map[string]float64)
+		for k, sum := range a.sums {
+			avg[k] = sum / float64(a.count)
+		}
+		avgScores[model] = avg
+		counts[model] = a.count
+	}
+	return avgScores, counts, nil
 }

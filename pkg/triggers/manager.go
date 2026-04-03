@@ -38,6 +38,31 @@ type compiledPattern struct {
 	prompt  string
 }
 
+func normalizeTriggerPath(path string) string {
+	if strings.HasPrefix(path, "/") {
+		return path
+	}
+
+	return "/" + path
+}
+
+func resolveTriggerAgentID(agentID string) string {
+	if agentID == "" {
+		return "main"
+	}
+
+	return agentID
+}
+
+func interpolateTriggerPrompt(prompt string, replacements map[string]string) string {
+	result := prompt
+	for key, value := range replacements {
+		result = strings.ReplaceAll(result, key, value)
+	}
+
+	return result
+}
+
 // NewTriggerManager creates a new TriggerManager.
 func NewTriggerManager(cfg *config.Config, msgBus *bus.MessageBus) *TriggerManager {
 	tm := &TriggerManager{
@@ -104,10 +129,7 @@ func (tm *TriggerManager) Stop() {
 // RegisterWebhooks registers webhook HTTP handlers on the given mux.
 func (tm *TriggerManager) RegisterWebhooks(mux *http.ServeMux) {
 	for _, wh := range tm.cfg.Triggers.Webhooks {
-		path := wh.Path
-		if !strings.HasPrefix(path, "/") {
-			path = "/" + path
-		}
+		path := normalizeTriggerPath(wh.Path)
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodPost {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -137,10 +159,7 @@ func (tm *TriggerManager) RegisterWebhooks(mux *http.ServeMux) {
 				content = fmt.Sprintf("Webhook triggered: %s", path)
 			}
 
-			agentID := wh.AgentID
-			if agentID == "" {
-				agentID = "main"
-			}
+			agentID := resolveTriggerAgentID(wh.AgentID)
 
 			tm.bus.PublishInbound(bus.InboundMessage{
 				Channel:    "webhook",
@@ -185,10 +204,7 @@ func (tm *TriggerManager) CheckPatternTriggers(msg bus.InboundMessage) bool {
 			prompt = strings.ReplaceAll(prompt, "{{.Match}}", matches[0])
 		}
 
-		agentID := pt.agentID
-		if agentID == "" {
-			agentID = "main"
-		}
+		agentID := resolveTriggerAgentID(pt.agentID)
 
 		tm.bus.PublishInbound(bus.InboundMessage{
 			Channel:    "trigger",
@@ -262,14 +278,13 @@ func (tm *TriggerManager) handleFileEvent(event fsnotify.Event) {
 		if prompt == "" {
 			prompt = fmt.Sprintf("File %s: %s", eventType, event.Name)
 		} else {
-			prompt = strings.ReplaceAll(prompt, "{{.File}}", event.Name)
-			prompt = strings.ReplaceAll(prompt, "{{.Event}}", eventType)
+			prompt = interpolateTriggerPrompt(prompt, map[string]string{
+				"{{.File}}":  event.Name,
+				"{{.Event}}": eventType,
+			})
 		}
 
-		agentID := fw.AgentID
-		if agentID == "" {
-			agentID = "main"
-		}
+		agentID := resolveTriggerAgentID(fw.AgentID)
 
 		tm.bus.PublishInbound(bus.InboundMessage{
 			Channel:    "trigger",

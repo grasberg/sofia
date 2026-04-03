@@ -54,6 +54,37 @@ type WebhookDispatcher struct {
 	allowPrivate bool // skip private IP check (for tests)
 }
 
+func signWebhookPayload(body []byte, secret string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write(body)
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func validateWebhookScheme(scheme string) error {
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("unsupported scheme %q: must be http or https", scheme)
+	}
+
+	return nil
+}
+
+func resolveWebhookHost(host string) ([]net.IP, error) {
+	addrs, err := net.LookupHost(host)
+	if err != nil {
+		return nil, fmt.Errorf("DNS lookup failed for %q: %w", host, err)
+	}
+
+	ips := make([]net.IP, 0, len(addrs))
+	for _, addr := range addrs {
+		ip := net.ParseIP(addr)
+		if ip != nil {
+			ips = append(ips, ip)
+		}
+	}
+
+	return ips, nil
+}
+
 // NewWebhookDispatcher creates a dispatcher for the given webhook configs.
 func NewWebhookDispatcher(webhooks []WebhookConfig) *WebhookDispatcher {
 	return &WebhookDispatcher{
@@ -134,10 +165,7 @@ func (wd *WebhookDispatcher) dispatchSingle(
 	req.Header.Set("Content-Type", "application/json")
 
 	if wh.Secret != "" {
-		mac := hmac.New(sha256.New, []byte(wh.Secret))
-		mac.Write(body)
-		sig := hex.EncodeToString(mac.Sum(nil))
-		req.Header.Set("X-Sofia-Signature", sig)
+		req.Header.Set("X-Sofia-Signature", signWebhookPayload(body, wh.Secret))
 	}
 
 	resp, err := wd.client.Do(req)
@@ -160,25 +188,21 @@ func validateWebhookURL(rawURL string, allowPrivate bool) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL: %w", err)
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("unsupported scheme %q: must be http or https", u.Scheme)
+	if err := validateWebhookScheme(u.Scheme); err != nil {
+		return err
 	}
 	host := u.Hostname()
 	if host == "" {
 		return fmt.Errorf("missing hostname")
 	}
 	if !allowPrivate {
-		addrs, err := net.LookupHost(host)
+		ips, err := resolveWebhookHost(host)
 		if err != nil {
-			return fmt.Errorf("DNS lookup failed for %q: %w", host, err)
+			return err
 		}
-		for _, addr := range addrs {
-			ip := net.ParseIP(addr)
-			if ip == nil {
-				continue
-			}
+		for _, ip := range ips {
 			if isPrivateIP(ip) {
-				return fmt.Errorf("webhook URL resolves to private IP %s", addr)
+				return fmt.Errorf("webhook URL resolves to private IP %s", ip.String())
 			}
 		}
 	}
