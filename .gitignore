@@ -1,5 +1,4 @@
-# Binaries
-# Go build artifacts
+# Binaries / build artifacts
 bin/
 build/
 *.exe
@@ -10,40 +9,44 @@ build/
 *.out
 /sofia
 /sofia-test
-cmd/**/workspace
+dist/
 
-# Sofia specific
-
-# Sofia
+# Sofia runtime
 .sofia/
 config.json
-sessions/
-build/
 
-# Coverage
+# Workspace — only track template docs and skills
+workspace/cron/
+workspace/state/
+workspace/screenshots/
+workspace/plans.json
+workspace/heartbeat.log
+workspace/.DS_Store
 
-# Secrets & Config (keep templates, ignore actual secrets)
+# Secrets
 .env
+.env.local
+.env.local.example
 config/config.json
 
-# Test
+# Node / Python (not part of Go build)
+node_modules/
+__pycache__/
+*.pyc
+
+# Coverage
 coverage.txt
 coverage.html
 
 # OS
 .DS_Store
 
-# Ralph workspace
-ralph/
-.ralph/
-tasks/
-
 # Editors
 .vscode/
 .idea/
 
-# Added by goreleaser init:
-dist/
-
-# Local Netlify folder
+# Other
 .netlify
+ralph/
+.ralph/
+tasks/

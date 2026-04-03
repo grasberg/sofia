@@ -122,6 +122,42 @@
                 <div class="text-xs text-zinc-600 font-mono">Loading...</div>
             </div>
         </div>
+
+        <!-- Goal Detail / Log Panel (hidden by default) -->
+        <div id="goal-detail-panel" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div class="w-full max-w-2xl max-h-[80vh] bg-[var(--bg-sidebar)] border border-[var(--border-color)] rounded-xl shadow-2xl flex flex-col overflow-hidden">
+                <div class="px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between shrink-0">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div id="goal-detail-icon" class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
+                            <i data-lucide="target" class="w-4 h-4"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <h3 id="goal-detail-name" class="text-sm font-bold text-[var(--text-main)] truncate"></h3>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <span id="goal-detail-status" class="text-[9px] font-bold uppercase tracking-widest"></span>
+                                <span id="goal-detail-priority" class="text-[9px] font-bold uppercase tracking-widest"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="closeGoalDetail()" class="p-1.5 text-zinc-500 hover:text-[var(--text-main)] transition-colors">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div id="goal-detail-desc" class="px-5 py-3 text-xs text-zinc-400 border-b border-[var(--border-color)] shrink-0"></div>
+                <!-- Result summary -->
+                <div id="goal-detail-result" class="hidden px-5 py-3 border-b border-[var(--border-color)] shrink-0">
+                    <div class="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-1">Latest Result</div>
+                    <div id="goal-detail-result-text" class="text-xs text-zinc-300 font-mono whitespace-pre-wrap max-h-28 overflow-y-auto"></div>
+                </div>
+                <!-- Step log -->
+                <div class="flex-grow overflow-y-auto px-5 py-3">
+                    <div class="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-3">Step History</div>
+                    <div id="goal-detail-log" class="space-y-2">
+                        <div class="text-xs text-zinc-600 font-mono">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -341,9 +377,21 @@
         goals.forEach(function(g) {
             const isInactive = g.status === 'completed' || g.status === 'failed';
             const el = document.createElement('div');
-            el.className = 'flex items-center gap-3 p-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]' + (isInactive ? ' opacity-40' : '');
+            el.className = 'flex items-start gap-3 p-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)] cursor-pointer hover:border-sofia/30 transition-colors' + (isInactive ? ' opacity-60' : '');
+            el.onclick = function() { openGoalDetail(g); };
+
+            var resultPreview = '';
+            if (g.result) {
+                var previewText = g.result.length > 150 ? g.result.substring(0, 150) + '...' : g.result;
+                resultPreview =
+                    '<div class="mt-2 p-2 rounded bg-black/30 border border-[var(--border-color)]">' +
+                    '  <div class="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">Result</div>' +
+                    '  <div class="text-[11px] text-zinc-400 font-mono whitespace-pre-wrap">' + escapeHtml(previewText) + '</div>' +
+                    '</div>';
+            }
+
             el.innerHTML =
-                '<div class="w-6 h-6 flex items-center justify-center shrink-0 ' + (statusColors[g.status]||'text-zinc-400') + '">' +
+                '<div class="w-6 h-6 flex items-center justify-center shrink-0 mt-0.5 ' + (statusColors[g.status]||'text-zinc-400') + '">' +
                 '  <i data-lucide="' + (statusIcons[g.status]||'circle') + '" class="w-4 h-4"></i>' +
                 '</div>' +
                 '<div class="flex-grow min-w-0">' +
@@ -351,13 +399,136 @@
                 '    <span class="text-sm font-semibold text-[var(--text-main)]">' + escapeHtml(g.name || '') + '</span>' +
                 '    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest ' + (priorityColors[g.priority]||'') + '">' + escapeHtml(g.priority || '') + '</span>' +
                 '    <span class="text-[10px] text-zinc-600 uppercase">' + escapeHtml(g.status || '') + '</span>' +
+                '    <span class="text-[9px] text-zinc-700 ml-auto flex items-center gap-1"><i data-lucide="scroll-text" class="w-3 h-3"></i>View log</span>' +
                 '  </div>' +
                 (g.description ? '<div class="text-[11px] text-zinc-500 mt-0.5">' + escapeHtml(g.description) + '</div>' : '') +
+                resultPreview +
                 '</div>';
             list.appendChild(el);
         });
         lucide.createIcons({ root: list });
     }
+
+    // ===== GOAL DETAIL PANEL =====
+    async function openGoalDetail(goal) {
+        const panel = document.getElementById('goal-detail-panel');
+        panel.classList.remove('hidden');
+
+        document.getElementById('goal-detail-name').textContent = goal.name || '';
+        document.getElementById('goal-detail-desc').textContent = goal.description || '';
+
+        // Status badge
+        var statusColors = {active:'text-green-400',completed:'text-green-500',failed:'text-red-400',paused:'text-amber-400'};
+        var statusEl = document.getElementById('goal-detail-status');
+        statusEl.textContent = goal.status || '';
+        statusEl.className = 'text-[9px] font-bold uppercase tracking-widest ' + (statusColors[goal.status]||'text-zinc-500');
+
+        // Priority badge
+        var prioColors = {high:'text-red-400',medium:'text-amber-400',low:'text-blue-400'};
+        var prioEl = document.getElementById('goal-detail-priority');
+        prioEl.textContent = goal.priority || '';
+        prioEl.className = 'text-[9px] font-bold uppercase tracking-widest ' + (prioColors[goal.priority]||'text-zinc-500');
+
+        // Icon color
+        var iconBg = {active:'bg-green-500/10',completed:'bg-green-500/10',failed:'bg-red-500/10',paused:'bg-amber-500/10'};
+        document.getElementById('goal-detail-icon').className = 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ' + (iconBg[goal.status]||'bg-zinc-800');
+
+        // Result summary
+        var resultSection = document.getElementById('goal-detail-result');
+        var resultText = document.getElementById('goal-detail-result-text');
+        if (goal.result) {
+            resultSection.classList.remove('hidden');
+            resultText.textContent = goal.result;
+        } else {
+            resultSection.classList.add('hidden');
+        }
+
+        // Fetch step log
+        var logContainer = document.getElementById('goal-detail-log');
+        logContainer.innerHTML = '<div class="text-xs text-zinc-600 font-mono animate-pulse">Loading step history...</div>';
+
+        try {
+            var res = await fetch('/api/goals/' + goal.id + '/log');
+            if (res.ok) {
+                var entries = await res.json();
+                renderGoalLog(entries);
+            } else {
+                logContainer.innerHTML = '<div class="text-xs text-zinc-600 font-mono">No step history available.</div>';
+            }
+        } catch(e) {
+            logContainer.innerHTML = '<div class="text-xs text-red-400 font-mono">Failed to load log.</div>';
+        }
+
+        lucide.createIcons({ root: panel });
+    }
+
+    function renderGoalLog(entries) {
+        var logContainer = document.getElementById('goal-detail-log');
+        logContainer.innerHTML = '';
+
+        if (!entries || entries.length === 0) {
+            logContainer.innerHTML = '<div class="text-xs text-zinc-600 font-mono">No steps executed yet.</div>';
+            return;
+        }
+
+        entries.forEach(function(e, idx) {
+            var entry = document.createElement('div');
+            var borderColor = e.success ? 'border-l-green-500/50' : 'border-l-red-500/50';
+            var bgColor = e.success ? 'bg-green-500/[0.03]' : 'bg-red-500/[0.03]';
+            entry.className = 'border-l-2 ' + borderColor + ' ' + bgColor + ' rounded-r-lg p-3';
+
+            var icon = e.success
+                ? '<i data-lucide="check-circle" class="w-3.5 h-3.5 text-green-400 shrink-0"></i>'
+                : '<i data-lucide="x-circle" class="w-3.5 h-3.5 text-red-400 shrink-0"></i>';
+
+            var durText = '';
+            if (e.duration_ms > 0) {
+                durText = e.duration_ms > 1000
+                    ? (e.duration_ms / 1000).toFixed(1) + 's'
+                    : e.duration_ms + 'ms';
+            }
+
+            var timeStr = '';
+            if (e.created_at) {
+                try {
+                    var d = new Date(e.created_at);
+                    timeStr = d.toLocaleString('sv-SE', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+                } catch(ex) {}
+            }
+
+            entry.innerHTML =
+                '<div class="flex items-start gap-2">' +
+                icon +
+                '<div class="flex-grow min-w-0">' +
+                '  <div class="flex items-center gap-2 flex-wrap">' +
+                '    <span class="text-[10px] font-bold text-zinc-300">Step ' + (idx + 1) + '</span>' +
+                (durText ? '<span class="text-[9px] font-mono text-zinc-600">' + durText + '</span>' : '') +
+                (timeStr ? '<span class="text-[9px] text-zinc-700 ml-auto">' + timeStr + '</span>' : '') +
+                '  </div>' +
+                '  <div class="text-[11px] text-zinc-400 mt-1">' + escapeHtml(e.step || '') + '</div>' +
+                (e.result ? '<div class="mt-2 p-2 rounded bg-black/30 border border-[var(--border-color)]"><div class="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">Output</div><div class="text-[11px] text-zinc-300 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">' + escapeHtml(e.result) + '</div></div>' : '') +
+                '</div>' +
+                '</div>';
+
+            logContainer.appendChild(entry);
+        });
+
+        lucide.createIcons({ root: logContainer });
+    }
+
+    function closeGoalDetail() {
+        document.getElementById('goal-detail-panel').classList.add('hidden');
+    }
+
+    // Close on backdrop click
+    document.getElementById('goal-detail-panel').addEventListener('click', function(e) {
+        if (e.target === this) closeGoalDetail();
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeGoalDetail();
+    });
 
     // ===== AGENT NAME CACHE =====
     var agentNameCache = {};

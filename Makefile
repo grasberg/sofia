@@ -117,6 +117,14 @@ install: build
 	@rm -rf $(INSTALL_ANTIGRAVITY_DIR)/.agent/agents $(INSTALL_ANTIGRAVITY_DIR)/.agent/skills
 	@cp -R $(VENDORED_ANTIGRAVITY_DIR)/.agent/agents $(INSTALL_ANTIGRAVITY_DIR)/.agent/agents
 	@cp -R $(VENDORED_ANTIGRAVITY_DIR)/.agent/skills $(INSTALL_ANTIGRAVITY_DIR)/.agent/skills
+	@# Seed workspace docs (only if they don't already exist — never overwrite user edits)
+	@mkdir -p $(WORKSPACE_DIR)
+	@for f in IDENTITY.md SOUL.md AGENT.md USER.md; do \
+		if [ ! -f "$(WORKSPACE_DIR)/$$f" ] && [ -f "$(CURDIR)/workspace/$$f" ]; then \
+			cp "$(CURDIR)/workspace/$$f" "$(WORKSPACE_DIR)/$$f"; \
+			echo "  Seeded $(WORKSPACE_DIR)/$$f"; \
+		fi; \
+	done
 	@echo "Installed binary to $(INSTALL_BIN_DIR)/$(BINARY_NAME)"
 	@echo "Installed assets to $(INSTALL_ASSETS_DIR)"
 	@echo "Installed antigravity templates to $(INSTALL_ANTIGRAVITY_DIR)"

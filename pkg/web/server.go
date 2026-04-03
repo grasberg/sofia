@@ -19,6 +19,7 @@ import (
 
 	"github.com/grasberg/sofia/pkg/agent"
 	"github.com/grasberg/sofia/pkg/audit"
+	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/autonomy"
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/cron"
@@ -439,6 +440,7 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/api/sessions", s.authMiddleware(s.handleSessions))
 	mux.HandleFunc("/api/sessions/", s.authMiddleware(s.handleSessionDetail))
 	mux.HandleFunc("/api/goals", s.authMiddleware(s.handleGoals))
+	mux.HandleFunc("/api/goals/", s.authMiddleware(s.handleGoalLog))
 	mux.HandleFunc("/api/reset", s.authMiddleware(s.handleReset))
 	mux.HandleFunc("GET /api/search", s.authMiddleware(s.handleSearch))
 	mux.HandleFunc("GET /api/presence", s.authMiddleware(s.handlePresence))
@@ -1324,6 +1326,46 @@ func (s *Server) handleGoals(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(goals)
+}
+
+// handleGoalLog handles GET /api/goals/{id}/log — returns step history for a goal.
+func (s *Server) handleGoalLog(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract goal ID from path: /api/goals/{id}/log
+	path := strings.TrimPrefix(r.URL.Path, "/api/goals/")
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) == 0 || parts[0] == "" {
+		s.sendJSONError(w, "Goal ID is required", http.StatusBadRequest)
+		return
+	}
+
+	goalID, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		s.sendJSONError(w, "Invalid goal ID", http.StatusBadRequest)
+		return
+	}
+
+	memDB := s.agentLoop.GetMemoryDB()
+	if memDB == nil {
+		s.sendJSONError(w, "Memory database not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	entries, err := memDB.GetGoalLog(goalID)
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if entries == nil {
+		entries = []memory.GoalLogEntry{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(entries)
 }
 
 // handlePlan returns the active plan status as JSON.

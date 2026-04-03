@@ -24,6 +24,7 @@ type Goal struct {
 	Description string    `json:"description"`
 	Status      string    `json:"status"`
 	Priority    string    `json:"priority"` // low, medium, high
+	Result      string    `json:"result,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -135,6 +136,27 @@ func (gm *GoalManager) ListAllGoals(agentID string) ([]*Goal, error) {
 	return goals, nil
 }
 
+// UpdateGoalResult updates an existing goal's result text.
+func (gm *GoalManager) UpdateGoalResult(goalID int64, result string) error {
+	node, err := gm.memDB.GetNodeByID(goalID)
+	if err != nil {
+		return err
+	}
+	if node == nil || node.Label != "Goal" {
+		return fmt.Errorf("goal %d not found", goalID)
+	}
+
+	var props map[string]string
+	if err := json.Unmarshal([]byte(node.Properties), &props); err != nil {
+		props = make(map[string]string)
+	}
+	props["result"] = result
+
+	propsJSON, _ := json.Marshal(props)
+	_, err = gm.memDB.UpsertNode(node.AgentID, "Goal", node.Name, string(propsJSON))
+	return err
+}
+
 func parseGoalNode(node *memory.SemanticNode) *Goal {
 	g := &Goal{
 		ID:        node.ID,
@@ -148,6 +170,7 @@ func parseGoalNode(node *memory.SemanticNode) *Goal {
 		g.Description = props["description"]
 		g.Status = props["status"]
 		g.Priority = props["priority"]
+		g.Result = props["result"]
 	}
 	return g
 }
