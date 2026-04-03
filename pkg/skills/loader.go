@@ -255,7 +255,7 @@ func (sl *SkillsLoader) BuildSkillsSummary() string {
 // skill names. Names that don't exist are ignored.
 func (sl *SkillsLoader) BuildSkillsSummaryFor(skillNames []string) string {
 	if len(skillNames) == 0 {
-		return sl.BuildSkillsSummary()
+		return ""
 	}
 
 	allSkills := sl.ListSkills()

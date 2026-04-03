@@ -801,11 +801,8 @@ func (s *Server) handleSkillsList(w http.ResponseWriter, r *http.Request) {
 
 	result := make([]skillResponse, 0, len(allSkills))
 	for _, sk := range allSkills {
-		enabled := true
-		if len(enabledSkills) > 0 {
-			// When a skills filter is set, only listed skills are enabled.
-			enabled = enabledSet[sk.Name]
-		}
+		// Skills are disabled by default; only explicitly listed skills are enabled.
+		enabled := enabledSet[sk.Name]
 		result = append(result, skillResponse{
 			Name:        sk.Name,
 			Path:        sk.Path,
@@ -852,22 +849,9 @@ func (s *Server) handleSkillsToggle(w http.ResponseWriter, r *http.Request) {
 
 	agentCfg := &s.cfg.Agents.List[defaultIdx]
 
-	// If skills filter is empty (all enabled) and we're disabling one,
-	// populate with all skills minus the toggled one.
-	if len(agentCfg.Skills) == 0 && !req.Enabled {
-		var allSkills []skills.SkillInfo
-		if s.agentLoop != nil {
-			info := s.agentLoop.GetStartupInfo()
-			skillsInfo, _ := info["skills"].(map[string]any)
-			allSkills, _ = skillsInfo["list"].([]skills.SkillInfo)
-		}
-		for _, sk := range allSkills {
-			if sk.Name != req.Skill {
-				agentCfg.Skills = append(agentCfg.Skills, sk.Name)
-			}
-		}
-	} else if req.Enabled {
-		// Add skill to the filter if not already present.
+	// Skills are disabled by default. The skills list contains only enabled skills.
+	if req.Enabled {
+		// Add skill to the list if not already present.
 		found := false
 		for _, name := range agentCfg.Skills {
 			if name == req.Skill {
@@ -878,17 +862,8 @@ func (s *Server) handleSkillsToggle(w http.ResponseWriter, r *http.Request) {
 		if !found {
 			agentCfg.Skills = append(agentCfg.Skills, req.Skill)
 		}
-		// If all skills are now enabled, clear the filter back to nil (means "all").
-		if s.agentLoop != nil {
-			info := s.agentLoop.GetStartupInfo()
-			skillsInfo, _ := info["skills"].(map[string]any)
-			allSkills, _ := skillsInfo["list"].([]skills.SkillInfo)
-			if len(agentCfg.Skills) >= len(allSkills) {
-				agentCfg.Skills = nil
-			}
-		}
 	} else {
-		// Remove skill from the filter.
+		// Remove skill from the list.
 		newSkills := make([]string, 0, len(agentCfg.Skills))
 		for _, name := range agentCfg.Skills {
 			if name != req.Skill {
