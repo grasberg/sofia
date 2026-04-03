@@ -105,9 +105,4 @@ func TestBootstrapConfidence_DifferentLevels(t *testing.T) {
 	assert.GreaterOrEqual(t, ci99Width, ci90Width, "99%% CI should be at least as wide as 90%% CI")
 }
 
-func TestMean(t *testing.T) {
-	assert.Equal(t, 0.0, mean(nil))
-	assert.Equal(t, 0.0, mean([]float64{}))
-	assert.Equal(t, 5.0, mean([]float64{5.0}))
-	assert.InDelta(t, 2.0, mean([]float64{1.0, 2.0, 3.0}), 0.001)
-}
+

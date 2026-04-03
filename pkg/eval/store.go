@@ -127,15 +127,10 @@ func (s *EvalStore) SaveRun(suite, agentID, model string, report EvalReport) (in
 
 	defer func() { _ = tx.Rollback() }()
 
-	var passRate float64
-	if report.TotalTests > 0 {
-		passRate = float64(report.Passed) / float64(report.TotalTests)
-	}
-
 	res, err := tx.Exec(
 		`INSERT INTO eval_runs (suite_name, agent_id, model, avg_score, pass_rate, total_tests, passed, failed, duration_ms, run_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		suite, agentID, model, report.AvgScore, passRate,
+		suite, agentID, model, report.AvgScore, passRate(report),
 		report.TotalTests, report.Passed, report.Failed,
 		report.Duration.Milliseconds(), report.RunAt.UTC().Format(time.RFC3339),
 	)
@@ -230,19 +225,25 @@ func (s *EvalStore) GetRunHistory(suite string, limit int) ([]EvalRunSummary, er
 	return summaries, rows.Err()
 }
 
-// GetTrend compares the last 3 runs for a suite and returns a trend label:
-//   - "improving"         — avg score is increasing across runs
-//   - "declining"         — avg score is decreasing across runs
-//   - "stable"            — avg score is flat (within +-0.01)
-//   - "insufficient_data" — fewer than 2 runs available
-func (s *EvalStore) GetTrend(suite string) (string, error) {
+// TrendLabel represents the direction of score changes across eval runs.
+type TrendLabel string
+
+const (
+	TrendImproving        TrendLabel = "improving"
+	TrendDeclining        TrendLabel = "declining"
+	TrendStable           TrendLabel = "stable"
+	TrendInsufficientData TrendLabel = "insufficient_data"
+)
+
+// GetTrend compares the last 3 runs for a suite and returns a trend label.
+func (s *EvalStore) GetTrend(suite string) (TrendLabel, error) {
 	history, err := s.GetRunHistory(suite, 3)
 	if err != nil {
 		return "", err
 	}
 
 	if len(history) < 2 {
-		return "insufficient_data", nil
+		return TrendInsufficientData, nil
 	}
 
 	// history is ordered newest-first; compare newest vs oldest available.
@@ -253,14 +254,14 @@ func (s *EvalStore) GetTrend(suite string) (string, error) {
 
 	diff := newest - oldest
 	if diff > threshold {
-		return "improving", nil
+		return TrendImproving, nil
 	}
 
 	if diff < -threshold {
-		return "declining", nil
+		return TrendDeclining, nil
 	}
 
-	return "stable", nil
+	return TrendStable, nil
 }
 
 // EvalRunDetail contains the run summary plus per-test results.

@@ -14,7 +14,7 @@ type ComparisonResult struct {
 	PassRateDelta   float64          `json:"pass_rate_delta"`
 	CostDelta       float64          `json:"cost_delta_usd"`
 	SpeedDelta      float64          `json:"speed_delta_ms"`
-	Winner          string           `json:"winner"`     // "baseline", "candidate", "tie"
+	Winner          ComparisonWinner `json:"winner"`
 	Confidence      float64          `json:"confidence"` // 0.0-1.0
 	CI              ConfidenceInterval `json:"confidence_interval"`
 	Summary         string           `json:"summary"`
@@ -31,6 +31,15 @@ type TestComparison struct {
 	BaselinePassed  bool    `json:"baseline_passed"`
 	CandidatePassed bool    `json:"candidate_passed"`
 }
+
+// ComparisonWinner indicates which run performed better.
+type ComparisonWinner string
+
+const (
+	WinnerTie       ComparisonWinner = "tie"
+	WinnerCandidate ComparisonWinner = "candidate"
+	WinnerBaseline  ComparisonWinner = "baseline"
+)
 
 // tieThreshold is the minimum absolute score delta to declare a winner.
 const tieThreshold = 0.05
@@ -100,11 +109,11 @@ func Compare(baseline, candidate EvalReport) ComparisonResult {
 
 	// --- Winner determination ---
 	if math.Abs(result.ScoreDelta) < tieThreshold {
-		result.Winner = "tie"
+		result.Winner = WinnerTie
 	} else if result.ScoreDelta > 0 {
-		result.Winner = "candidate"
+		result.Winner = WinnerCandidate
 	} else {
-		result.Winner = "baseline"
+		result.Winner = WinnerBaseline
 	}
 
 	// --- Bootstrap confidence interval ---
@@ -155,14 +164,14 @@ func extractScores(report EvalReport) []float64 {
 // buildSummary generates a human-readable summary of the comparison.
 func buildSummary(result ComparisonResult, basePassRate, candPassRate float64) string {
 	switch result.Winner {
-	case "tie":
+	case WinnerTie:
 		return fmt.Sprintf(
 			"Tie: avg score delta %.4f is within threshold (+-%.2f). Baseline %.2f vs Candidate %.2f. Pass rates: %.0f%% vs %.0f%%.",
 			result.ScoreDelta, tieThreshold,
 			result.BaselineReport.AvgScore, result.CandidateReport.AvgScore,
 			basePassRate*100, candPassRate*100,
 		)
-	case "candidate":
+	case WinnerCandidate:
 		s := fmt.Sprintf(
 			"Candidate wins: avg score %.2f vs %.2f (delta +%.4f). Pass rates: %.0f%% vs %.0f%%.",
 			result.CandidateReport.AvgScore, result.BaselineReport.AvgScore,

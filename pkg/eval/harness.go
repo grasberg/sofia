@@ -118,14 +118,7 @@ func (h *Harness) runSingleTest(ctx context.Context, tc TestCase) TestResult {
 	if tc.CustomScorer != "" && h.cfg.Scorers != nil {
 		if scorer, ok := h.cfg.Scorers[tc.CustomScorer]; ok {
 			score, errors := scorer(tc, output)
-
-			if score < 0.0 {
-				score = 0.0
-			}
-
-			if score > 1.0 {
-				score = 1.0
-			}
+			score = max(0.0, min(1.0, score))
 
 			return TestResult{
 				Name:       tc.Name,
@@ -150,15 +143,7 @@ func (h *Harness) runSingleTest(ctx context.Context, tc TestCase) TestResult {
 	if tc.JudgeCriteria != "" && h.cfg.JudgeFn != nil {
 		judgeScore, judgeErr := h.cfg.JudgeFn(ctx, tc.Input, output, tc.JudgeCriteria)
 		if judgeErr == nil {
-			if judgeScore < 0.0 {
-				judgeScore = 0.0
-			}
-
-			if judgeScore > 1.0 {
-				judgeScore = 1.0
-			}
-
-			// Blend structural and judge scores equally.
+			judgeScore = max(0.0, min(1.0, judgeScore))
 			result.Score = 0.5*result.Score + 0.5*judgeScore
 			result.Passed = result.Score >= 0.5
 		}

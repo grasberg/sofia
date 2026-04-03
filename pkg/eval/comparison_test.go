@@ -26,7 +26,7 @@ func TestCompare_IdenticalReports(t *testing.T) {
 
 	cmp := Compare(baseline, candidate)
 
-	assert.Equal(t, "tie", cmp.Winner)
+	assert.Equal(t, WinnerTie, cmp.Winner)
 	assert.InDelta(t, 0.0, cmp.ScoreDelta, 0.001)
 	assert.InDelta(t, 0.0, cmp.PassRateDelta, 0.001)
 	assert.Contains(t, cmp.Summary, "Tie")
@@ -56,7 +56,7 @@ func TestCompare_ClearWinner(t *testing.T) {
 
 	cmp := Compare(baseline, candidate)
 
-	assert.Equal(t, "candidate", cmp.Winner)
+	assert.Equal(t, WinnerCandidate, cmp.Winner)
 	assert.Greater(t, cmp.ScoreDelta, 0.05)
 	assert.Greater(t, cmp.PassRateDelta, 0.0)
 	assert.Contains(t, cmp.Summary, "Candidate wins")
@@ -81,7 +81,7 @@ func TestCompare_BaselineWins(t *testing.T) {
 
 	cmp := Compare(baseline, candidate)
 
-	assert.Equal(t, "baseline", cmp.Winner)
+	assert.Equal(t, WinnerBaseline, cmp.Winner)
 	assert.Less(t, cmp.ScoreDelta, -0.05)
 	assert.Contains(t, cmp.Summary, "Baseline wins")
 }
@@ -154,7 +154,7 @@ func TestCompare_TieWithinThreshold(t *testing.T) {
 
 	cmp := Compare(baseline, candidate)
 
-	assert.Equal(t, "tie", cmp.Winner)
+	assert.Equal(t, WinnerTie, cmp.Winner)
 	assert.InDelta(t, 0.02, cmp.ScoreDelta, 0.001)
 }
 
@@ -204,7 +204,7 @@ func TestCompare_EmptyReports(t *testing.T) {
 
 	cmp := Compare(baseline, candidate)
 
-	assert.Equal(t, "tie", cmp.Winner)
+	assert.Equal(t, WinnerTie, cmp.Winner)
 	assert.InDelta(t, 0.0, cmp.ScoreDelta, 0.001)
 	assert.Empty(t, cmp.PerTest)
 }

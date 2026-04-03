@@ -9,7 +9,6 @@ import (
 // prompt injection attempts. Compiled once at package init, not per-message.
 var promptInjectionPatterns = func() []*regexp.Regexp {
 	patterns := []string{
-		// --- Original patterns ---
 		`(?i)ignore (all )?previous instructions`,
 		`(?i)ignore (all )?above`,
 		`(?i)disregard (all )?previous`,
