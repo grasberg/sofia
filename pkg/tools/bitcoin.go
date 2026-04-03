@@ -592,8 +592,9 @@ func (t *BitcoinTool) createWallet() *ToolResult {
 		return ErrorResult(fmt.Sprintf("save wallet: %v", err))
 	}
 
-	// Write mnemonic to a secure file instead of returning it in tool output.
-	recoveryPath := filepath.Join(filepath.Dir(t.walletPath), "wallet_recovery.txt")
+	// Write mnemonic to ~/.sofia/wallet_recovery.txt (never next to the binary).
+	home, _ := os.UserHomeDir()
+	recoveryPath := filepath.Join(home, ".sofia", "wallet_recovery.txt")
 	recoveryContent := fmt.Sprintf(
 		"BITCOIN WALLET RECOVERY PHRASE\n"+
 			"==============================\n"+
