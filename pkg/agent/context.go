@@ -210,11 +210,10 @@ func (cb *ContextBuilder) BuildSystemPrompt() string {
 	}
 
 	// Skills - show summary, AI can read full content with read_file tool
+	// Skills are disabled by default; only explicitly enabled skills are loaded.
 	var skillsSummary string
 	if len(cb.skillsFilter) > 0 {
 		skillsSummary = cb.skillsLoader.BuildSkillsSummaryFor(cb.skillsFilter)
-	} else {
-		skillsSummary = cb.skillsLoader.BuildSkillsSummary()
 	}
 	if skillsSummary != "" {
 		parts = append(parts, fmt.Sprintf(`# Skills
