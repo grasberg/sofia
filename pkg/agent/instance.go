@@ -98,7 +98,7 @@ func NewAgentInstance(
 
 	contextBuilder := NewContextBuilder(workspace, cfg.UserName, memDB, agentID)
 	contextBuilder.cacheTTL = 10 * time.Second // Skip file-system checks within TTL for performance
-	contextBuilder.SetUseOpenCode(defaults.UseOpenCode)
+	contextBuilder.SetCodeEditor(defaults.CodeEditor)
 
 	if agentCfg != nil {
 		contextBuilder.SetPurposeTemplate(agentCfg.Template)

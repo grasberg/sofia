@@ -789,6 +789,15 @@ func (al *AgentLoop) runLLMIteration(
 				if outContent != "" {
 					outContent = al.applyOutputFilter(agentComp, tcr.tc.Name, outContent)
 				}
+				// Guardrail: Scrub secrets from tool output before sending to user
+				if outContent != "" {
+					if scrubbed, secretTypes := guardrails.ScrubSecrets(outContent); len(secretTypes) > 0 {
+						logger.WarnCF(agentComp, "Guardrail scrubbed secrets from tool ForUser output", map[string]any{
+							"tool": tcr.tc.Name, "secret_types": secretTypes,
+						})
+						outContent = scrubbed
+					}
+				}
 
 				if outContent != "" {
 					al.bus.PublishOutbound(bus.OutboundMessage{
@@ -888,9 +897,19 @@ func (al *AgentLoop) runLLMIteration(
 			}
 		}
 
-		// If any tool requires confirmation, stop the loop and let the user respond
+		// If any tool requires confirmation, wait with a timeout before giving up
 		if confirmationNeeded {
 			finalContent = "Waiting for user confirmation before proceeding."
+			logger.InfoCF(agentComp, "Waiting for user confirmation (5m timeout)", nil)
+			timer := time.NewTimer(5 * time.Minute)
+			select {
+			case <-timer.C:
+				finalContent = "Confirmation timed out after 5 minutes. Please retry if you still want to proceed."
+				logger.WarnCF(agentComp, "Tool confirmation timed out after 5 minutes", nil)
+			case <-ctx.Done():
+				timer.Stop()
+				// Context cancelled (new message or shutdown)
+			}
 			break
 		}
 	}
@@ -920,10 +939,11 @@ func (al *AgentLoop) runLLMIteration(
 		}
 	}
 
-	// Verbose mode: prepend reasoning content
+	// Verbose mode: prepend reasoning content (scrub secrets first)
 	if finalContent != "" && lastReasoningContent != "" {
 		if v, ok := al.verboseMode.Load(opts.SessionKey); ok && v.(bool) {
-			finalContent = fmt.Sprintf("[Reasoning]\n%s\n\n[Response]\n%s", lastReasoningContent, finalContent)
+			scrubbed, _ := guardrails.ScrubSecrets(lastReasoningContent)
+			finalContent = fmt.Sprintf("[Reasoning]\n%s\n\n[Response]\n%s", scrubbed, finalContent)
 		}
 	}
 

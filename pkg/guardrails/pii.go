@@ -59,9 +59,10 @@ var piiPatterns = []piiPatternEntry{
 		Mask:    "[REDACTED:SSN]",
 	},
 	{
-		Type:    PIIIPAddress,
-		Pattern: regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`),
-		Mask:    "[REDACTED:IP]",
+		Type:     PIIIPAddress,
+		Pattern:  regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`),
+		Mask:     "[REDACTED:IP]",
+		Validate: isValidIPv4,
 	},
 }
 
@@ -93,6 +94,76 @@ func isValidLuhn(number string) bool {
 		alt = !alt
 	}
 	return sum%10 == 0
+}
+
+// isValidIPv4 checks whether a matched dotted-quad string is a plausible IPv4
+// address: all octets 0-255, no leading zeros. Rejects version-number patterns
+// (all octets < 20) unless the address is in a known private/reserved range.
+func isValidIPv4(match string) bool {
+	parts := strings.Split(match, ".")
+	if len(parts) != 4 {
+		return false
+	}
+	var octets [4]int
+	for i, p := range parts {
+		// Reject leading zeros (e.g., "01.02.03.04" is likely not an IP).
+		if len(p) > 1 && p[0] == '0' {
+			return false
+		}
+		n := 0
+		for _, c := range p {
+			if c < '0' || c > '9' {
+				return false
+			}
+			n = n*10 + int(c-'0')
+		}
+		if n > 255 {
+			return false
+		}
+		octets[i] = n
+	}
+
+	// Always accept known private/reserved ranges — these are real IPs even
+	// when all octets happen to be small (e.g. 10.0.0.1, 10.1.2.3).
+	if isPrivateOrReservedIP(octets) {
+		return true
+	}
+
+	// Reject version-like patterns where all octets are < 20.
+	allSmall := true
+	for _, n := range octets {
+		if n > 19 {
+			allSmall = false
+			break
+		}
+	}
+	return !allSmall
+}
+
+// isPrivateOrReservedIP returns true for RFC1918 private, loopback, and
+// link-local addresses that should always be treated as real IPs.
+func isPrivateOrReservedIP(o [4]int) bool {
+	// 10.0.0.0/8
+	if o[0] == 10 {
+		return true
+	}
+	// 172.16.0.0/12
+	if o[0] == 172 && o[1] >= 16 && o[1] <= 31 {
+		return true
+	}
+	// 192.168.0.0/16
+	if o[0] == 192 && o[1] == 168 {
+		return true
+	}
+	// 127.0.0.0/8 (loopback)
+	if o[0] == 127 {
+		return true
+	}
+	// 169.254.0.0/16 (link-local)
+	if o[0] == 169 && o[1] == 254 {
+		return true
+	}
+	return false
 }
 
 // DetectPII scans text for all known PII types and returns the matches found.

@@ -39,11 +39,11 @@ Sofia's configuration and workspace are located under `~/.sofia/`:
     ├── SOUL.md            # Core principles: behavior, values, and decision style
     ├── AGENT.md           # Agent-specific system prompt
     ├── USER.md            # User context and preferences
-    ├── agents/            # Specialized agents (Pixel Agents, Orchestrator, etc.)
+    ├── agents/            # Specialized agents (20 base agents included, Pixel Agents, etc.)
     │   ├── backend-specialist.md
     │   ├── frontend-specialist.md
     │   └── ...
-    ├── skills/            # Local skills/expert personas (150+ included)
+    ├── skills/            # Local skills/expert personas (159 skills included)
     │   ├── github/
     │   ├── hardware/
     │   ├── skill-creator/
@@ -89,7 +89,7 @@ Navigate to `http://127.0.0.1:18795` in your browser. Go to the **Models** tab t
 Sofia can delegate and coordinate work across multiple agents:
 
 *   **Orchestrate tool:** Define a set of subtasks with dependencies — independent tasks run in parallel, dependent tasks in the correct order. Automatic agent selection based on scoring.
-*   **AgentArchitect & Sub-Agents:** Autonomous design and provisioning of specialized agents "on the fly" when problems are identified, as well as dedicated background and synchronous agents.
+*   **AgentArchitect & Sub-Agents:** Autonomous design and provisioning of specialized agents "on the fly" when problems are identified, as well as dedicated background and synchronous agents (comes with 20 base agents).
 *   **A2A Protocol (Agent-to-Agent):** Standardized inter-agent communication with mailbox-based routing, send/receive/broadcast, and pending-polling.
 *   **Shared Scratchpad:** Agents can share data via a key-value store namespaced per task group.
 *   **Plan & Execute:** Create structured plans with steps that can be tracked and updated during execution.
@@ -165,7 +165,7 @@ Sofia has advanced logic to manage and optimize her tool usage:
 
 Sofia can create and improve her own skills:
 
-*   **Extensive Autonomous Library:** 10+ pre-installed autonomous "self-directed" skills where Sofia executes large-scale tasks from start to finish.
+*   **Extensive Autonomous Library:** 159 pre-installed autonomous "self-directed" skills where Sofia executes large-scale tasks from start to finish.
 *   **Auto-Skill Creation:** `create_skill` generates new skills automatically from successful approaches.
 *   **Skill Refinement:** `update_skill` improves existing skills based on usage feedback.
 *   **Knowledge Distillation:** `distill_knowledge` compresses learned experiences into reusable knowledge.
@@ -250,36 +250,39 @@ Sofia's web interface is built with **HTMX** and **Go Templates**, featuring a u
 *   **Goals Kanban:** An integrated Kanban board to track system goals with drag-and-drop.
 *   **Agents & Pixel Agents:** Visual live overview and performance management of all your agents and the entirely new "Pixel Agents".
 *   **Monitor:** Real-time monitoring of agent activity, tool calls, system status, and ongoing goals (Activity Monitor).
-*   **System:** All settings and system features gathered in the left menu:
-    *   **Identity** — Edit IDENTITY.md and SOUL.md
-    *   **Heartbeat** — Background agent scheduling
-    *   **Models** — Manage AI providers and models
-    *   **Comms** — Configure Telegram, Discord, etc.
-    *   **Integrations** — Enable and configure external integrations (Porkbun, cPanel, GitHub, Google, etc.)
-    *   **Tools** — List of available tools and their descriptions
-    *   **Skills** — Manage installed skills
-    *   **Logs** — Real-time logs
-    *   **Security** — Workspace restrictions and guardrails
+*   **System (Settings Hub):** A comprehensive settings section to manage every aspect of Sofia's behavior, guardrails, and integrations:
+
+    | Configuration | Description |
+    | :--- | :--- |
+    | **🎭 Identity & Personas** | Fine-tune Sofia's baseline characteristics and seamlessly manage all **20 distinct agent personas**. |
+    | **🧬 Evolution & Autonomy** | Control the `EvolutionEngine`. Set long-term goals and instantly dial proactive autonomy levels up or down. |
+    | **💰 Budget limits** | Enforce strict real-time execution limits and token thresholds to guarantee zero runaway costs. |
+    | **⚡ Triggers & Webhooks** | Design sophisticated, context-aware external webhook endpoints and conditional event listeners. |
+    | **⏱️ Cron & Heartbeat** | Access a visual timeline of scheduled recurring background jobs alongside the core heartbeat interval. |
+    | **🧠 Models & Intelligence** | Connect 20+ AI providers, set default models, and configure smart routing for different agent logic. |
+    | **🔊 Channels & TTS** | Configure chat links to Telegram, Discord, and activate advanced human-like Text-to-Speech (TTS) options. |
+    | **🔌 Integrations** | Extend Sofia's reach outward: GitHub, Google, Porkbun, cPanel, local HD Bitcoin Wallets, and more. |
+    | **🛠️ Tools & Skills** | Oversee and configure her expansive arsenal: the **159 autonomous skills** and dozens of system tools. |
+    | **🔐 Remote & Security** | Institute iron-clad workspace restrictions, input/output guardrails, and strict remote API access controls. |
+    | **📋 Logs** | Observe raw, real-time application and network logs to monitor all background logic. |
 
 ## 🔄 AI Providers
 
-Sofia supports 20+ providers via an OpenAI-compatible API interface:
+Sofia supports all providers via an OpenAI-compatible API interface:
 
 | Provider | Support |
 |---|---|
-| OpenAI (GPT-4o, o1, o3) | ✅ |
-| Anthropic (Claude 4.5 Sonnet/Opus) | ✅ |
-| Google Gemini (2.5 Pro/Flash) | ✅ |
-| DeepSeek (V3, R1) | ✅ |
-| Grok (xAI) | ✅ |
+| OpenAI | ✅ |
+| Anthropic | ✅ |
+| Google Gemini  | ✅ |
+| DeepSeek | ✅ |
+| Grok  | ✅ |
 | MiniMax | ✅ |
-| Moonshot (Kimi) | ✅ |
-| Qwen (Alibaba) | ✅ |
+| Moonshot | ✅ |
+| Qwen | ✅ |
 | Zai | ✅ |
 | GitHub Copilot | ✅ |
 | Groq | ✅ |
-| Together AI | ✅ |
-| Fireworks AI | ✅ |
 | OpenRouter | ✅ |
 | Mistral AI | ✅ |
 
@@ -376,6 +379,17 @@ Sofia can manage your web hosting account via cPanel UAPI: upload files, create 
     -   Enable **cPanel** and enter the host, username, and your API token.
     -   Save the settings.
 
+### ₿ Bitcoin Wallet
+
+Sofia integrates directly with the Bitcoin blockchain, allowing for both public queries and full HD wallet management without relying on a local daemon.
+
+1.  **Public Queries:** Query balances, transactions, and UTXOs seamlessly using the Mempool.space API.
+2.  **Wallet Operations:** Create, import, and manage a local BIP84 HD wallet to safely generate addresses and send transactions locally. The wallet is encrypted via a passphrase.
+3.  **Configure in Sofia:**
+    -   Open Sofia's Web UI -> **System** -> **Integrations**.
+    -   Enable **Bitcoin** and configure the passphrase and network (Mainnet, Testnet, Signet).
+    -   Save the settings.
+
 ## 🛠️ Complete Tool List
 
 | Tool | Description |
@@ -406,6 +420,7 @@ Sofia can manage your web hosting account via cPanel UAPI: upload files, create 
 | `mcp` | Connect to external MCP servers for dynamic tools |
 | `domain_name` | Manage domains via Porkbun (check, register, dns, nameservers) |
 | `cpanel` | Manage cPanel web hosting (files, domains, databases, SSL) |
+| `bitcoin` | Bitcoin integration: local HD wallet management, UTXOs, send transactions, and public queries |
 
 ## 📊 Agentic AI Capability Scorecard
 

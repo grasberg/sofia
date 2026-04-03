@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/grasberg/sofia/pkg/logger"
 )
 
 // BudgetPeriod defines the time window for budget tracking.
@@ -37,6 +39,7 @@ type BudgetManager struct {
 	mu         sync.Mutex
 	limits     map[string]BudgetLimit                    // agentID -> limit
 	spending   map[string]*spendEntry                    // agentID -> current period spend
+	store      Store                                     // optional persistence backend
 	onWarning  func(agentID string, status BudgetStatus) // callback at 80%
 	onHardStop func(agentID string, status BudgetStatus) // callback at 100% — agent should be paused
 	nowFunc    func() time.Time                          // injectable clock for testing
@@ -54,14 +57,37 @@ const (
 
 // NewBudgetManager creates a BudgetManager with the supplied per-agent limits.
 // Pass a nil map if no limits are needed (all agents will be allowed).
-func NewBudgetManager(limits map[string]BudgetLimit) *BudgetManager {
+// An optional Store can be provided to persist spend state across restarts.
+func NewBudgetManager(limits map[string]BudgetLimit, opts ...func(*BudgetManager)) *BudgetManager {
 	if limits == nil {
 		limits = make(map[string]BudgetLimit)
 	}
-	return &BudgetManager{
+	bm := &BudgetManager{
 		limits:   limits,
 		spending: make(map[string]*spendEntry),
 		nowFunc:  time.Now,
+	}
+	for _, opt := range opts {
+		opt(bm)
+	}
+	// Restore persisted spend state if a store is configured.
+	if bm.store != nil {
+		if entries, err := bm.store.Load(); err != nil {
+			logger.WarnCF("budget", "Failed to load persisted budget state",
+				map[string]any{"error": err.Error()})
+		} else {
+			for k, v := range entries {
+				bm.spending[k] = v
+			}
+		}
+	}
+	return bm
+}
+
+// WithStore returns an option that attaches a persistence Store to the BudgetManager.
+func WithStore(s Store) func(*BudgetManager) {
+	return func(bm *BudgetManager) {
+		bm.store = s
 	}
 }
 
@@ -100,6 +126,9 @@ func (bm *BudgetManager) RecordSpend(agentID string, costUSD float64) {
 	}
 
 	entry.Amount += costUSD
+
+	// Persist updated state if a store is configured.
+	bm.persist()
 
 	// Collect callback data for threshold crossings.
 	var hardCb func(string, BudgetStatus)
@@ -187,6 +216,35 @@ func (bm *BudgetManager) ResetPeriod(agentID string) {
 	if entry, ok := bm.spending[agentID]; ok {
 		entry.Amount = 0
 		entry.PeriodStart = bm.periodStart(limit.Period)
+	}
+	bm.persist()
+}
+
+// GetTotalSpend returns the sum of all agents' current-period spend amounts.
+func (bm *BudgetManager) GetTotalSpend() float64 {
+	bm.mu.Lock()
+	defer bm.mu.Unlock()
+
+	var total float64
+	for agentID, entry := range bm.spending {
+		limit, hasLimit := bm.limits[agentID]
+		if hasLimit && bm.periodExpired(entry.PeriodStart, limit.Period) {
+			continue // stale period, will be reset on next access
+		}
+		total += entry.Amount
+	}
+	return total
+}
+
+// persist saves current spend state to the store (if configured).
+// Must be called with bm.mu held.
+func (bm *BudgetManager) persist() {
+	if bm.store == nil {
+		return
+	}
+	if err := bm.store.Save(bm.spending); err != nil {
+		logger.WarnCF("budget", "Failed to persist budget state",
+			map[string]any{"error": err.Error()})
 	}
 }
 

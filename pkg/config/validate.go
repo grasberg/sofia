@@ -132,6 +132,14 @@ func (c *Config) validateAgents() error {
 		}
 	}
 
+	if err := validateAllowedValues(
+		"defaults.code_editor",
+		defaults.CodeEditor,
+		"opencode", "claudecode", "codex",
+	); err != nil {
+		return err
+	}
+
 	// Check for duplicate agent IDs
 	seen := make(map[string]bool)
 	for i, agent := range c.Agents.List {

@@ -4,8 +4,10 @@ import (
 	"context"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/grasberg/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/logger"
 )
 
 type Channel interface {
@@ -100,4 +102,38 @@ func (c *BaseChannel) HandleMessage(senderID, chatID, content string, media []st
 
 func (c *BaseChannel) setRunning(running bool) {
 	c.running.Store(running)
+}
+
+// defaultBackoff is the shared retry backoff schedule for all channels.
+var defaultBackoff = []time.Duration{3 * time.Second, 10 * time.Second, 30 * time.Second, 60 * time.Second}
+
+// ConnectWithRetry retries the given connect function with exponential backoff.
+// On success it marks the channel as running and blocks until ctx is canceled.
+func (c *BaseChannel) ConnectWithRetry(ctx context.Context, connect func(ctx context.Context) error) {
+	attempt := 0
+	for {
+		if err := connect(ctx); err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			delay := defaultBackoff[min(attempt, len(defaultBackoff)-1)]
+			logger.WarnCF(c.name, "Connection failed, reconnecting", map[string]any{
+				"error":    err.Error(),
+				"retry_in": delay.String(),
+				"attempt":  attempt + 1,
+			})
+			attempt++
+			timer := time.NewTimer(delay)
+			select {
+			case <-timer.C:
+				continue
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			}
+		}
+		c.setRunning(true)
+		<-ctx.Done()
+		return
+	}
 }

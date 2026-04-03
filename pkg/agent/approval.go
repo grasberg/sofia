@@ -138,6 +138,16 @@ func (ag *ApprovalGate) RequestApproval(ctx context.Context, req ApprovalRequest
 		logger.WarnCF("approval",
 			fmt.Sprintf("Approval timed out for tool %q, default action: %s", req.ToolName, action),
 			map[string]any{"request_id": req.ID, "tool": req.ToolName, "timeout": timeout})
+		logger.Audit("Approval Decision: TIMEOUT", map[string]any{
+			"request_id":     req.ID,
+			"tool":           req.ToolName,
+			"agent_id":       req.AgentID,
+			"channel":        req.Channel,
+			"chat_id":        req.ChatID,
+			"session":        req.SessionKey,
+			"default_action": action,
+			"timeout_sec":    timeout,
+		})
 		return defaultAllow, nil
 
 	case <-ctx.Done():
@@ -155,6 +165,15 @@ func (ag *ApprovalGate) Approve(requestID string) error {
 		return fmt.Errorf("approval request %q not found or already resolved", requestID)
 	}
 
+	logger.Audit("Approval Decision: APPROVED", map[string]any{
+		"request_id": requestID,
+		"tool":       entry.Request.ToolName,
+		"agent_id":   entry.Request.AgentID,
+		"channel":    entry.Request.Channel,
+		"chat_id":    entry.Request.ChatID,
+		"session":    entry.Request.SessionKey,
+	})
+
 	select {
 	case entry.ResultCh <- true:
 	default:
@@ -171,6 +190,15 @@ func (ag *ApprovalGate) Deny(requestID string) error {
 	if !ok {
 		return fmt.Errorf("approval request %q not found or already resolved", requestID)
 	}
+
+	logger.Audit("Approval Decision: DENIED", map[string]any{
+		"request_id": requestID,
+		"tool":       entry.Request.ToolName,
+		"agent_id":   entry.Request.AgentID,
+		"channel":    entry.Request.Channel,
+		"chat_id":    entry.Request.ChatID,
+		"session":    entry.Request.SessionKey,
+	})
 
 	select {
 	case entry.ResultCh <- false:

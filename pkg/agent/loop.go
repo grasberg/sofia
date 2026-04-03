@@ -19,6 +19,7 @@ import (
 
 	"github.com/grasberg/sofia/pkg/audit"
 	"github.com/grasberg/sofia/pkg/autonomy"
+	"github.com/grasberg/sofia/pkg/budget"
 	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/grasberg/sofia/pkg/channels"
 	"github.com/grasberg/sofia/pkg/checkpoint"
@@ -67,6 +68,7 @@ type AgentLoop struct {
 	pushService      *notifications.PushService
 	dashboardHub     *dashboard.Hub
 	toolTracker      *tools.ToolTracker
+	budgetManager    *budget.BudgetManager
 	auditLogger      *audit.AuditLogger
 	evolutionEngine  *evolution.EvolutionEngine
 	usageTracker     *UsageTracker
@@ -196,6 +198,21 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 			map[string]any{"path": auditDBPath, "error": auditErr.Error()})
 	}
 
+	// Set up budget manager with SQLite persistence.
+	var budgetMgr *budget.BudgetManager
+	{
+		var opts []func(*budget.BudgetManager)
+		if memDB != nil {
+			if bStore, bErr := budget.NewSQLiteStore(memDB.DB()); bErr != nil {
+				logger.WarnCF("agent", "Failed to create budget store",
+					map[string]any{"error": bErr.Error()})
+			} else {
+				opts = append(opts, budget.WithStore(bStore))
+			}
+		}
+		budgetMgr = budget.NewBudgetManager(nil, opts...)
+	}
+
 	// Build persona definitions from config.
 	personaMap := make(map[string]*Persona, len(cfg.Agents.Defaults.Personas))
 	for name, pc := range cfg.Agents.Defaults.Personas {
@@ -229,6 +246,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		pushService:      pushService,
 		dashboardHub:     dashboard.NewHub(),
 		toolTracker:      toolTracker,
+		budgetManager:    budgetMgr,
 		auditLogger:      auditLog,
 		usageTracker:     NewUsageTracker(),
 		elevatedMgr:      NewElevatedManager(),

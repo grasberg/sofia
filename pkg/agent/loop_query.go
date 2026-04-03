@@ -2,11 +2,13 @@ package agent
 
 import (
 	"github.com/grasberg/sofia/pkg/autonomy"
+	"github.com/grasberg/sofia/pkg/budget"
 	"github.com/grasberg/sofia/pkg/dashboard"
 	mcpPkg "github.com/grasberg/sofia/pkg/mcp"
 	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/routing"
 	"github.com/grasberg/sofia/pkg/session"
+	"github.com/grasberg/sofia/pkg/tools"
 )
 
 // GetDefaultSessionManager returns the session manager for the default agent.
@@ -218,4 +220,14 @@ func (al *AgentLoop) GetSessionHistory(sessionKey string) []mcpPkg.MessageInfo {
 // for cross-session search queries.
 func (al *AgentLoop) GetMemoryDB() *memory.MemoryDB {
 	return al.memDB
+}
+
+// GetToolTracker returns the tool performance tracker (may be nil).
+func (al *AgentLoop) GetToolTracker() *tools.ToolTracker {
+	return al.toolTracker
+}
+
+// GetBudgetManager returns the budget manager (may be nil).
+func (al *AgentLoop) GetBudgetManager() *budget.BudgetManager {
+	return al.budgetManager
 }

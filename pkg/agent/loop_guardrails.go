@@ -9,6 +9,7 @@ import (
 // prompt injection attempts. Compiled once at package init, not per-message.
 var promptInjectionPatterns = func() []*regexp.Regexp {
 	patterns := []string{
+		// --- Original patterns ---
 		`(?i)ignore (all )?previous instructions`,
 		`(?i)ignore (all )?above`,
 		`(?i)disregard (all )?previous`,
@@ -16,6 +17,50 @@ var promptInjectionPatterns = func() []*regexp.Regexp {
 		`(?i)system prompt`,
 		`(?i)you are an assistant that`,
 		`(?i)new instructions:`,
+
+		// --- Multilingual injection attempts ---
+		`忽略之前的指令`,                              // Chinese: "ignore previous instructions"
+		`忽略以上(所有)?内容`,                            // Chinese: "ignore all above content"
+		`(?i)ignoriere die vorherigen Anweisungen`, // German: "ignore previous instructions"
+		`(?i)ignorez les instructions précédentes`, // French: "ignore previous instructions"
+		`(?i)ignora le istruzioni precedenti`,      // Italian: "ignore previous instructions"
+		`(?i)предыдущие инструкции`,                // Russian: "previous instructions"
+
+		// --- Role-play / persona hijacking ---
+		`(?i)pretend (that )?you are`,
+		`(?i)you are now `,
+		`(?i)act as if you have no restrictions`,
+		`(?i)roleplay as`,
+		`(?i)you must obey`,
+		`(?i)you have been reprogrammed`,
+
+		// --- Encoding tricks ---
+		`(?i)base64 decode the following`,
+		`(?i)rot13 (decode|the following|this)`,
+		`(?i)decode this (hex|base64|binary)`,
+
+		// --- Instruction override ---
+		`(?i)^override:`,
+		`(?i)from now on,? (you will|ignore|always)`,
+		`(?i)new system prompt`,
+		`(?i)updated instructions:`,
+		`(?i)disregard (your|all) (safety|guidelines|rules)`,
+
+		// --- Delimiter / boundary injection ---
+		`(?i)---\s*END\s+SYSTEM\s*---`,
+		`(?i)</system>`,
+		`(?i)<\|im_end\|>`,
+		`\[INST\]`,
+		`\[/INST\]`,
+		`(?i)<\|system\|>`,
+		`(?i)<<\s*SYS\s*>>`,
+
+		// --- Output manipulation / exfiltration ---
+		`(?i)print your (system|initial) prompt`,
+		`(?i)repeat the (above|system|initial) (text|instructions|prompt)`,
+		`(?i)show me your (instructions|rules|prompt|system message)`,
+		`(?i)what are your (secret|hidden|system) instructions`,
+		`(?i)output everything (above|before) this`,
 	}
 	compiled := make([]*regexp.Regexp, 0, len(patterns))
 	for _, p := range patterns {

@@ -347,6 +347,22 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 		}
 	}
 
+	// Guardrail: Inbound Secret Scrubbing — scrub secrets from user input before they reach the LLM.
+	// We don't block (the user may legitimately discuss secrets), but the raw values are replaced.
+	if scrubbed, secretTypes := guardrails.ScrubSecrets(msg.Content); len(secretTypes) > 0 {
+		logger.WarnCF("agent:main", "Guardrail scrubbed secrets from inbound message", map[string]any{
+			"secret_types": secretTypes,
+			"sender":       msg.SenderID,
+			"channel":      msg.Channel,
+		})
+		logger.Audit("Inbound Secret Scrubbed", map[string]any{
+			"secret_types": secretTypes,
+			"sender":       msg.SenderID,
+			"channel":      msg.Channel,
+		})
+		msg.Content = scrubbed
+	}
+
 	// Guardrail: PII Detection
 	if al.cfg.Guardrails.PIIDetection.Enabled {
 		piiAction := al.cfg.Guardrails.PIIDetection.Action
@@ -993,6 +1009,14 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 				}
 			}
 		}
+	}
+
+	// Secret scrubbing on final response
+	if scrubbed, secretTypes := guardrails.ScrubSecrets(finalContent); len(secretTypes) > 0 {
+		logger.WarnCF(agentComp, "Guardrail scrubbed secrets from final response", map[string]any{
+			"secret_types": secretTypes,
+		})
+		finalContent = scrubbed
 	}
 
 	// 8. Optional: send response via bus
