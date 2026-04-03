@@ -112,6 +112,18 @@ func (t *ToolTracker) GetStat(name string) (ToolStats, bool) {
 	return *stat, true
 }
 
+// TotalCalls returns the sum of UsageCount across all tracked tools.
+func (t *ToolTracker) TotalCalls() int64 {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	var total int64
+	for _, stat := range t.stats {
+		total += int64(stat.UsageCount)
+	}
+	return total
+}
+
 func (t *ToolTracker) saveNoLock() {
 	if t.path == "" {
 		return

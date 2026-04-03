@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -64,9 +66,17 @@ func (c *DiscordChannel) getContext() context.Context {
 
 func (c *DiscordChannel) Start(ctx context.Context) error {
 	logger.InfoC("discord", "Starting Discord bot")
-
 	c.ctx = ctx
 
+	// Register the message handler once before any connection attempts
+	// to avoid duplicate registrations on reconnect.
+	c.session.AddHandler(c.handleMessage)
+
+	go c.ConnectWithRetry(ctx, c.connect)
+	return nil
+}
+
+func (c *DiscordChannel) connect(ctx context.Context) error {
 	// Get bot user ID before opening session to avoid race condition
 	botUser, err := c.session.User("@me")
 	if err != nil {
@@ -74,13 +84,9 @@ func (c *DiscordChannel) Start(ctx context.Context) error {
 	}
 	c.botUserID = botUser.ID
 
-	c.session.AddHandler(c.handleMessage)
-
 	if err := c.session.Open(); err != nil {
 		return fmt.Errorf("failed to open discord session: %w", err)
 	}
-
-	c.setRunning(true)
 
 	logger.InfoCF("discord", "Discord bot connected", map[string]any{
 		"username": botUser.Username,
@@ -121,12 +127,24 @@ func (c *DiscordChannel) Send(ctx context.Context, msg bus.OutboundMessage) erro
 		return fmt.Errorf("channel ID is empty")
 	}
 
+	// Send file attachments if present
+	if len(msg.Files) > 0 {
+		if err := c.sendFiles(ctx, channelID, msg.Files); err != nil {
+			logger.ErrorCF("discord", "Failed to send files", map[string]any{
+				"error": err.Error(),
+				"count": len(msg.Files),
+			})
+			// Continue to send text content even if file sending fails
+		}
+	}
+
 	runes := []rune(msg.Content)
 	if len(runes) == 0 {
 		return nil
 	}
 
-	chunks := utils.SplitMessage(msg.Content, 2000) // Split messages into chunks, Discord length limit: 2000 chars
+	formatted := formatDiscordMarkdown(msg.Content)
+	chunks := utils.SplitMessage(formatted, 2000) // Split messages into chunks, Discord length limit: 2000 chars
 
 	for _, chunk := range chunks {
 		if err := c.sendChunk(ctx, channelID, chunk); err != nil {
@@ -156,6 +174,60 @@ func (c *DiscordChannel) sendChunk(ctx context.Context, channelID, content strin
 		return nil
 	case <-sendCtx.Done():
 		return fmt.Errorf("send message timeout: %w", sendCtx.Err())
+	}
+}
+
+// sendFiles sends file attachments to a Discord channel using ChannelMessageSendComplex.
+func (c *DiscordChannel) sendFiles(ctx context.Context, channelID string, filePaths []string) error {
+	sendCtx, cancel := context.WithTimeout(ctx, sendTimeout)
+	defer cancel()
+
+	var files []*discordgo.File
+	var openedFiles []*os.File
+
+	defer func() {
+		for _, f := range openedFiles {
+			f.Close()
+		}
+	}()
+
+	for _, filePath := range filePaths {
+		f, err := os.Open(filePath)
+		if err != nil {
+			logger.WarnCF("discord", "Failed to open file for sending", map[string]any{
+				"path":  filePath,
+				"error": err.Error(),
+			})
+			continue
+		}
+		openedFiles = append(openedFiles, f)
+
+		files = append(files, &discordgo.File{
+			Name:   filepath.Base(filePath),
+			Reader: f,
+		})
+	}
+
+	if len(files) == 0 {
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := c.session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
+			Files: files,
+		})
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			return fmt.Errorf("failed to send discord files: %w", err)
+		}
+		return nil
+	case <-sendCtx.Done():
+		return fmt.Errorf("send files timeout: %w", sendCtx.Err())
 	}
 }
 
@@ -370,4 +442,70 @@ func (c *DiscordChannel) stripBotMention(text string) string {
 	text = strings.ReplaceAll(text, fmt.Sprintf("<@%s>", c.botUserID), "")
 	text = strings.ReplaceAll(text, fmt.Sprintf("<@!%s>", c.botUserID), "")
 	return strings.TrimSpace(text)
+}
+
+// reDiscordCodeBlock matches fenced code blocks preserving the entire block verbatim,
+// including the language hint (e.g. ```go ... ```). This differs from reCodeBlock used
+// for Telegram which strips the language specifier.
+var reDiscordCodeBlock = regexp.MustCompile("(?s)```[\\w]*\\n?[\\s\\S]*?```")
+
+// reDiscordHeading matches markdown headings with multi-line mode so it works on
+// lines within a larger text block, not just the full-string boundary.
+var reDiscordHeading = regexp.MustCompile(`(?m)^#{1,6}\s+(.+)$`)
+
+// formatDiscordMarkdown converts standard markdown to Discord-compatible markdown.
+// Discord natively supports: **bold**, *italic*, ~~strikethrough~~, `code`,
+// ```code blocks```, > blockquotes, and ||spoiler||.
+// The main conversions needed are for headings (not natively rendered) and links.
+func formatDiscordMarkdown(text string) string {
+	if text == "" {
+		return ""
+	}
+
+	// Extract code blocks verbatim (preserving language hints for syntax highlighting)
+	// to protect them from heading/link transformations.
+	var codeBlocksFull []string
+	cbIdx := 0
+	text = reDiscordCodeBlock.ReplaceAllStringFunc(text, func(m string) string {
+		codeBlocksFull = append(codeBlocksFull, m)
+		placeholder := fmt.Sprintf("\x00DCB%d\x00", cbIdx)
+		cbIdx++
+		return placeholder
+	})
+
+	// Extract inline codes to protect them as well.
+	inlineCodes := extractInlineCodes(text)
+	text = inlineCodes.text
+
+	// Convert markdown headings to bold text (Discord doesn't render # headings).
+	// Uses reDiscordHeading with (?m) multi-line mode for proper line matching.
+	text = reDiscordHeading.ReplaceAllString(text, "**$1**")
+
+	// Convert markdown links [text](url) to Discord-friendly format.
+	// Discord supports masked links in embeds but in regular messages [text](url) renders
+	// poorly, so convert to: **text** (<url>)
+	text = reLink.ReplaceAllStringFunc(text, func(s string) string {
+		match := reLink.FindStringSubmatch(s)
+		if len(match) < 3 {
+			return s
+		}
+		linkText := match[1]
+		linkURL := match[2]
+		if linkText == linkURL {
+			return linkURL
+		}
+		return fmt.Sprintf("**%s** (<%s>)", linkText, linkURL)
+	})
+
+	// Restore inline codes
+	for i, code := range inlineCodes.codes {
+		text = strings.ReplaceAll(text, fmt.Sprintf("\x00IC%d\x00", i), fmt.Sprintf("`%s`", code))
+	}
+
+	// Restore code blocks verbatim
+	for i, block := range codeBlocksFull {
+		text = strings.ReplaceAll(text, fmt.Sprintf("\x00DCB%d\x00", i), block)
+	}
+
+	return text
 }

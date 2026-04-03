@@ -47,23 +47,34 @@ func ResolveAntigravityKitDir() string {
 }
 
 func ListPurposeTemplates() ([]PurposeTemplate, error) {
-	templatesDir := filepath.Join(ResolveAntigravityKitDir(), ".agent", "agents")
-	entries, err := os.ReadDir(templatesDir)
-	if err != nil {
-		return nil, err
-	}
+	seen := make(map[string]bool)
+	var out []PurposeTemplate
 
-	out := make([]PurposeTemplate, 0, len(entries))
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".md" {
-			continue
-		}
-		name := strings.TrimSuffix(e.Name(), ".md")
-		t, err := LoadPurposeTemplate(name)
+	// Scan all template directories in priority order.
+	for _, dir := range resolveTemplateDirs() {
+		entries, err := os.ReadDir(dir)
 		if err != nil {
 			continue
 		}
-		out = append(out, *t)
+		for _, e := range entries {
+			if e.IsDir() || filepath.Ext(e.Name()) != ".md" {
+				continue
+			}
+			name := strings.TrimSuffix(e.Name(), ".md")
+			if seen[name] {
+				continue
+			}
+			t, err := loadTemplateFromFile(name, filepath.Join(dir, e.Name()))
+			if err != nil {
+				continue
+			}
+			seen[name] = true
+			out = append(out, *t)
+		}
+	}
+
+	if len(out) == 0 {
+		return nil, fmt.Errorf("no agent templates found")
 	}
 
 	sort.Slice(out, func(i, j int) bool {
@@ -77,16 +88,45 @@ func LoadPurposeTemplate(name string) (*PurposeTemplate, error) {
 		return nil, fmt.Errorf("invalid template name: %q", name)
 	}
 
-	filePath := filepath.Join(ResolveAntigravityKitDir(), ".agent", "agents", name+".md")
+	for _, dir := range resolveTemplateDirs() {
+		fp := filepath.Join(dir, name+".md")
+		if t, err := loadTemplateFromFile(name, fp); err == nil {
+			return t, nil
+		}
+	}
+	return nil, fmt.Errorf("template %q not found", name)
+}
+
+func loadTemplateFromFile(name, filePath string) (*PurposeTemplate, error) {
 	b, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-
 	parsed := parseTemplateMarkdown(string(b))
 	parsed.Name = name
 	parsed.Path = filePath
 	return &parsed, nil
+}
+
+// resolveTemplateDirs returns directories to search for agent templates, in priority order.
+func resolveTemplateDirs() []string {
+	var dirs []string
+
+	if home, err := os.UserHomeDir(); err == nil {
+		dirs = append(dirs, filepath.Join(home, ".sofia", "workspace", "agents"))
+	}
+	if wd, err := os.Getwd(); err == nil {
+		dirs = append(dirs, filepath.Join(wd, "workspace", "agents"))
+	}
+	dirs = append(dirs, filepath.Join(ResolveAntigravityKitDir(), ".agent", "agents"))
+
+	var valid []string
+	for _, d := range dirs {
+		if st, err := os.Stat(d); err == nil && st.IsDir() {
+			valid = append(valid, d)
+		}
+	}
+	return valid
 }
 
 func parseTemplateMarkdown(content string) PurposeTemplate {

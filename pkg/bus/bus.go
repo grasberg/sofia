@@ -4,15 +4,17 @@ import (
 	"context"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type MessageBus struct {
-	inbound  chan InboundMessage
-	outbound chan OutboundMessage
-	handlers map[string]MessageHandler
-	closed   bool
-	mu       sync.RWMutex
+	inbound        chan InboundMessage
+	outbound       chan OutboundMessage
+	handlers       map[string]MessageHandler
+	closed         bool
+	mu             sync.RWMutex
+	inboundCount   atomic.Int64 // total inbound messages published
 }
 
 func NewMessageBus() *MessageBus {
@@ -29,6 +31,7 @@ func (mb *MessageBus) PublishInbound(msg InboundMessage) {
 	if mb.closed {
 		return
 	}
+	mb.inboundCount.Add(1)
 	select {
 	case mb.inbound <- msg:
 	default:
@@ -118,6 +121,11 @@ func (mb *MessageBus) GetHandler(channel string) (MessageHandler, bool) {
 // InboundChan returns the raw inbound channel for draining during reset.
 func (mb *MessageBus) InboundChan() <-chan InboundMessage {
 	return mb.inbound
+}
+
+// InboundCount returns the total number of inbound messages published.
+func (mb *MessageBus) InboundCount() int64 {
+	return mb.inboundCount.Load()
 }
 
 func (mb *MessageBus) Close() {

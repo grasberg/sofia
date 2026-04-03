@@ -61,6 +61,15 @@ func NewServer(host string, port int) *Server {
 	return s
 }
 
+// RegisterMetrics attaches a /metrics endpoint served by the given MetricsProvider.
+func (s *Server) RegisterMetrics(mp *MetricsProvider) {
+	// The mux is only accessible via the server handler.
+	// Since we own the mux, we can type-assert it back.
+	if mux, ok := s.server.Handler.(*http.ServeMux); ok {
+		mux.HandleFunc("/metrics", mp.Handler())
+	}
+}
+
 func (s *Server) Start() error {
 	s.mu.Lock()
 	s.ready = true

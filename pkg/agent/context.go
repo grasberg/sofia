@@ -23,7 +23,7 @@ type ContextBuilder struct {
 	skillsLoader *skills.SkillsLoader
 	memory       *MemoryStore
 	skillsFilter []string
-	useOpenCode  bool
+	codeEditor   string
 
 	purposeTemplate     string
 	purposeInstructions string
@@ -55,8 +55,8 @@ func (cb *ContextBuilder) SetPurposeTemplate(template string) {
 	cb.purposeTemplate = strings.TrimSpace(template)
 }
 
-func (cb *ContextBuilder) SetUseOpenCode(enabled bool) {
-	cb.useOpenCode = enabled
+func (cb *ContextBuilder) SetCodeEditor(editor string) {
+	cb.codeEditor = editor
 }
 
 func (cb *ContextBuilder) SetPurposeInstructions(instructions string) {
@@ -119,9 +119,16 @@ func (cb *ContextBuilder) getIdentity() string {
 		name = "the user"
 	}
 
-	openCodeRule := "8. **OpenCode** - The user has disabled OpenCode for code edits. Edit files directly with your own tools (read_file, write_file, edit_file)."
-	if cb.useOpenCode {
-		openCodeRule = "8. **OpenCode** - When modifying code, use the OpenCode CLI if available (check with `opencode --version`). If OpenCode is not installed, fall back to direct file editing."
+	var openCodeRule string
+	switch cb.codeEditor {
+	case "opencode":
+		openCodeRule = "8. **Code Editor** - When modifying code, use the OpenCode CLI if available (check with `opencode --version`). If not installed, fall back to direct file editing."
+	case "claudecode":
+		openCodeRule = "8. **Code Editor** - When modifying code, use the Claude Code CLI if available (check with `claude --version`). If not installed, fall back to direct file editing."
+	case "codex":
+		openCodeRule = "8. **Code Editor** - When modifying code, use the Codex CLI if available (check with `codex --version`). If not installed, fall back to direct file editing."
+	default:
+		openCodeRule = "8. **Code Editor** - Edit files directly with your own tools (read_file, write_file, edit_file)."
 	}
 
 	return fmt.Sprintf(`# sofia

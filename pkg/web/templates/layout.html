@@ -117,12 +117,7 @@
                 <i data-lucide="calendar" class="w-5 h-5"></i>
                 <span class="hidden lg:inline">Calendar</span>
             </a>
-            <a href="#" hx-get="/ui/pixels" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-pixels"
-                class="nav-item">
-                <i data-lucide="gamepad-2" class="w-5 h-5"></i>
-                <span class="hidden lg:inline">Pixels</span>
-            </a>
-            <a href="#" hx-get="/ui/monitor" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-monitor"
+<a href="#" hx-get="/ui/monitor" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-monitor"
                 class="nav-item">
                 <i data-lucide="activity" class="w-5 h-5"></i>
                 <span class="hidden lg:inline">Monitor</span>
@@ -892,7 +887,6 @@
                 'nav-goals': 'goals',
                 'nav-agents': 'agents',
                 'nav-history': 'history',
-                'nav-pixels': 'pixels',
                 'nav-memory': 'memory',
                 'nav-calendar': 'calendar',
                 'nav-ai': 'ai',
@@ -906,7 +900,6 @@
                 'nav-goals': 'Goals & Plan',
                 'nav-agents': 'Agent Management',
                 'nav-history': 'Chat History',
-                'nav-pixels': 'Pixel Agents',
                 'nav-memory': 'Memory Explorer',
                 'nav-calendar': 'Schedule',
                 'nav-ai': 'AI Configuration',
@@ -1662,8 +1655,8 @@
                 const restrictWorkspace = document.getElementById("cfg-restrict-workspace");
                 if (restrictWorkspace) restrictWorkspace.checked = !!cfg.agents.defaults.restrict_to_workspace;
 
-                const useOpenCode = document.getElementById("cfg-use-opencode");
-                if (useOpenCode) useOpenCode.checked = !!cfg.agents.defaults.use_opencode;
+                const codeEditor = document.getElementById("cfg-code-editor");
+                if (codeEditor) codeEditor.value = cfg.agents.defaults.code_editor || "";
 
                 // Heartbeat mapping
                 const heartbeatEnabled = document.getElementById("cfg-heartbeat-enabled");
@@ -2727,9 +2720,9 @@
                     cfg.agents.defaults.restrict_to_workspace = restrictWorkspaceEl.checked;
                 }
 
-                const useOpenCodeEl = document.getElementById("cfg-use-opencode");
-                if (useOpenCodeEl) {
-                    cfg.agents.defaults.use_opencode = useOpenCodeEl.checked;
+                const codeEditorEl = document.getElementById("cfg-code-editor");
+                if (codeEditorEl) {
+                    cfg.agents.defaults.code_editor = codeEditorEl.value;
                 }
 
                 // Save Heartbeat settings if block exists

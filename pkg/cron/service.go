@@ -1,6 +1,7 @@
 package cron
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +14,11 @@ import (
 	"github.com/adhocore/gronx"
 
 	"github.com/grasberg/sofia/pkg/fileutil"
+)
+
+const (
+	defaultJobTimeout = 5 * time.Minute
+	maxJobTimeout     = time.Hour
 )
 
 type CronSchedule struct {
@@ -49,6 +55,7 @@ type CronJob struct {
 	CreatedAtMS    int64        `json:"createdAtMs"`
 	UpdatedAtMS    int64        `json:"updatedAtMs"`
 	DeleteAfterRun bool         `json:"deleteAfterRun"`
+	TimeoutSec     int          `json:"timeoutSec,omitempty"`
 }
 
 type CronStore struct {
@@ -56,7 +63,7 @@ type CronStore struct {
 	Jobs    []CronJob `json:"jobs"`
 }
 
-type JobHandler func(job *CronJob) (string, error)
+type JobHandler func(ctx context.Context, job *CronJob) (string, error)
 
 type CronService struct {
 	storePath string
@@ -195,7 +202,28 @@ func (cs *CronService) executeJobByID(jobID string) {
 
 	var err error
 	if cs.onJob != nil {
-		_, err = cs.onJob(callbackJob)
+		timeout := defaultJobTimeout
+		if callbackJob.TimeoutSec > 0 {
+			timeout = time.Duration(callbackJob.TimeoutSec) * time.Second
+		}
+		if timeout > maxJobTimeout {
+			timeout = maxJobTimeout
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		done := make(chan error, 1)
+		go func() {
+			_, jobErr := cs.onJob(ctx, callbackJob)
+			done <- jobErr
+		}()
+
+		select {
+		case err = <-done:
+			cancel()
+		case <-ctx.Done():
+			cancel()
+			err = fmt.Errorf("job timed out after %v", timeout)
+		}
 	}
 
 	// Now acquire lock to update state

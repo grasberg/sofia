@@ -19,19 +19,40 @@ import (
 
 const schemaVersion = 14
 
+// Encryptor defines the interface for encrypting/decrypting stored values.
+// Implementations must be safe for concurrent use.
+type Encryptor interface {
+	Encrypt(plaintext string) string
+	Decrypt(ciphertext string) string
+	Active() bool
+}
+
 // MemoryDB is a shared SQLite database for session history and memory notes.
 // It is opened once at AgentLoop startup and shared across all AgentInstances.
 type MemoryDB struct {
 	mu        sync.RWMutex
 	db        *sql.DB
 	path      string
+	enc       Encryptor
 	statCount atomic.Int64 // counter for periodic stats pruning
+}
+
+// Option configures optional MemoryDB settings.
+type Option func(*MemoryDB)
+
+// WithEncryptor injects a custom Encryptor. If not set, the default
+// environment-based encryptor (SOFIA_DB_KEY) is used.
+func WithEncryptor(enc Encryptor) Option {
+	return func(m *MemoryDB) {
+		m.enc = enc
+	}
 }
 
 // Open opens (or creates) the SQLite database at the given path.
 // It runs schema migrations, enables WAL mode, and sets foreign_keys ON.
 // Pass ":memory:" for an in-process database (useful in tests).
-func Open(path string) (*MemoryDB, error) {
+// Optional Option values can be passed to configure encryption, etc.
+func Open(path string, opts ...Option) (*MemoryDB, error) {
 	if path != ":memory:" {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return nil, fmt.Errorf("memory: create dir: %w", err)
@@ -58,6 +79,10 @@ func Open(path string) (*MemoryDB, error) {
 	m := &MemoryDB{
 		db:   db,
 		path: path,
+		enc:  defaultEncryptor{},
+	}
+	for _, opt := range opts {
+		opt(m)
 	}
 	if err = m.migrate(); err != nil {
 		_ = db.Close()
@@ -87,9 +112,21 @@ func (m *MemoryDB) QueryRow(query string, args ...any) *sql.Row {
 	return m.db.QueryRow(query, args...)
 }
 
+// Ping verifies the database connection is alive by executing a trivial query.
+func (m *MemoryDB) Ping() error {
+	var n int
+	return m.db.QueryRow(`SELECT 1`).Scan(&n)
+}
+
 // Close closes the database connection.
 func (m *MemoryDB) Close() error {
 	return m.db.Close()
+}
+
+// DB returns the underlying *sql.DB for use by subsystems that need direct
+// database access (e.g. budget persistence). The caller must not close it.
+func (m *MemoryDB) DB() *sql.DB {
+	return m.db
 }
 
 // ---------------------------------------------------------------------------
@@ -338,8 +375,8 @@ func (m *MemoryDB) AppendMessage(key string, msg providers.Message) error {
 		    datetime('now')
 		 )`,
 		key, key,
-		msg.Role, msg.Content, string(toolCallsJSON), msg.ToolCallID, msg.ToolName,
-		string(imagesJSON), msg.ReasoningContent,
+		msg.Role, m.enc.Encrypt(msg.Content), string(toolCallsJSON), msg.ToolCallID, msg.ToolName,
+		string(imagesJSON), m.enc.Encrypt(msg.ReasoningContent),
 	)
 	if err != nil {
 		return fmt.Errorf("memory: append message: %w", err)
@@ -378,6 +415,8 @@ func (m *MemoryDB) GetMessages(key string) ([]providers.Message, error) {
 		); err != nil {
 			return nil, fmt.Errorf("memory: scan message: %w", err)
 		}
+		msg.Content = m.enc.Decrypt(msg.Content)
+		msg.ReasoningContent = m.enc.Decrypt(msg.ReasoningContent)
 		if err = json.Unmarshal([]byte(toolCallsJSON), &msg.ToolCalls); err != nil {
 			msg.ToolCalls = nil
 		}
@@ -415,8 +454,8 @@ func (m *MemoryDB) SetMessages(key string, msgs []providers.Message) error {
 			    (session_key, position, role, content, tool_calls, tool_call_id, tool_name, images, reasoning_content, created_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
 			key, i,
-			msg.Role, msg.Content, string(toolCallsJSON), msg.ToolCallID, msg.ToolName,
-			string(imagesJSON), msg.ReasoningContent,
+			msg.Role, m.enc.Encrypt(msg.Content), string(toolCallsJSON), msg.ToolCallID, msg.ToolName,
+			string(imagesJSON), m.enc.Encrypt(msg.ReasoningContent),
 		)
 		if err != nil {
 			return fmt.Errorf("memory: insert message at %d: %w", i, err)
@@ -546,6 +585,8 @@ type SearchMessageRow struct {
 
 // SearchMessages returns user and assistant messages whose content contains the query substring
 // (case-insensitive). Results are ordered by recency. Pass limit <= 0 for no limit.
+// When encryption is active, all qualifying rows are fetched and filtered in Go
+// because SQL LIKE cannot match against encrypted content.
 func (m *MemoryDB) SearchMessages(query string, limit int) ([]SearchMessageRow, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -553,6 +594,12 @@ func (m *MemoryDB) SearchMessages(query string, limit int) ([]SearchMessageRow, 
 	if limit <= 0 {
 		limit = 100
 	}
+
+	// When encryption is active, fetch all candidate rows and filter in Go.
+	if m.enc.Active() {
+		return m.searchMessagesEncrypted(query, limit)
+	}
+
 	q := `SELECT m.session_key, m.role, m.content, m.created_at
 	      FROM messages m
 	      WHERE m.role IN ('user', 'assistant')
@@ -574,6 +621,40 @@ func (m *MemoryDB) SearchMessages(query string, limit int) ([]SearchMessageRow, 
 			return nil, fmt.Errorf("memory: scan search row: %w", err)
 		}
 		result = append(result, r)
+	}
+	return result, rows.Err()
+}
+
+// searchMessagesEncrypted fetches all user/assistant messages, decrypts them,
+// and filters by query in Go. This is needed because SQL LIKE cannot operate
+// on encrypted content.
+func (m *MemoryDB) searchMessagesEncrypted(query string, limit int) ([]SearchMessageRow, error) {
+	q := `SELECT m.session_key, m.role, m.content, m.created_at
+	      FROM messages m
+	      WHERE m.role IN ('user', 'assistant')
+	        AND m.content != ''
+	      ORDER BY m.created_at DESC`
+
+	rows, err := m.db.Query(q)
+	if err != nil {
+		return nil, fmt.Errorf("memory: search messages (encrypted): %w", err)
+	}
+	defer rows.Close()
+
+	lowerQuery := strings.ToLower(query)
+	var result []SearchMessageRow
+	for rows.Next() {
+		var r SearchMessageRow
+		if err = rows.Scan(&r.SessionKey, &r.Role, &r.Content, &r.CreatedAt); err != nil {
+			return nil, fmt.Errorf("memory: scan search row: %w", err)
+		}
+		r.Content = m.enc.Decrypt(r.Content)
+		if strings.Contains(strings.ToLower(r.Content), lowerQuery) {
+			result = append(result, r)
+			if len(result) >= limit {
+				break
+			}
+		}
 	}
 	return result, rows.Err()
 }

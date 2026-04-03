@@ -57,7 +57,6 @@ func testBrowserServer(t *testing.T, authToken string) (string, func()) {
 		"/ui/monitor":               monitorHTML,
 		"/ui/calendar":              calendarHTML,
 		"/ui/memory":                memoryHTML,
-		"/ui/pixels":                pixelsHTML,
 		"/ui/goals":                 goalsHTML,
 		"/ui/history":               historyHTML,
 		"/ui/settings/models":       settingsModelsHTML,

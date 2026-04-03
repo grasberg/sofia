@@ -249,3 +249,119 @@ func TestGenerateReport_Empty(t *testing.T) {
 	assert.Equal(t, 0.0, report.TotalScore)
 	assert.Equal(t, 0.0, report.AvgScore)
 }
+
+// --- FilterByTags tests ---
+
+func TestFilterByTags_MatchesAny(t *testing.T) {
+	cases := []TestCase{
+		{Name: "a", Input: "x", Tags: []string{"safety", "basic"}},
+		{Name: "b", Input: "y", Tags: []string{"accuracy"}},
+		{Name: "c", Input: "z", Tags: []string{"performance"}},
+	}
+
+	filtered := FilterByTags(cases, []string{"safety", "performance"})
+
+	require.Len(t, filtered, 2)
+	assert.Equal(t, "a", filtered[0].Name)
+	assert.Equal(t, "c", filtered[1].Name)
+}
+
+func TestFilterByTags_CaseInsensitive(t *testing.T) {
+	cases := []TestCase{
+		{Name: "a", Input: "x", Tags: []string{"Safety"}},
+	}
+
+	filtered := FilterByTags(cases, []string{"safety"})
+	assert.Len(t, filtered, 1)
+
+	filtered = FilterByTags(cases, []string{"SAFETY"})
+	assert.Len(t, filtered, 1)
+}
+
+func TestFilterByTags_EmptyTags(t *testing.T) {
+	cases := []TestCase{
+		{Name: "a", Input: "x", Tags: []string{"safety"}},
+		{Name: "b", Input: "y"},
+	}
+
+	// Empty tags should return all cases.
+	filtered := FilterByTags(cases, nil)
+	assert.Len(t, filtered, 2)
+
+	filtered = FilterByTags(cases, []string{})
+	assert.Len(t, filtered, 2)
+}
+
+func TestFilterByTags_NoMatch(t *testing.T) {
+	cases := []TestCase{
+		{Name: "a", Input: "x", Tags: []string{"safety"}},
+	}
+
+	filtered := FilterByTags(cases, []string{"nonexistent"})
+	assert.Empty(t, filtered)
+}
+
+func TestFilterByTags_CasesWithoutTags(t *testing.T) {
+	cases := []TestCase{
+		{Name: "a", Input: "x"},
+		{Name: "b", Input: "y", Tags: []string{"match"}},
+	}
+
+	filtered := FilterByTags(cases, []string{"match"})
+	require.Len(t, filtered, 1)
+	assert.Equal(t, "b", filtered[0].Name)
+}
+
+// --- FilterByName tests ---
+
+func TestFilterByName_ExactRegex(t *testing.T) {
+	cases := []TestCase{
+		{Name: "test-greeting", Input: "x"},
+		{Name: "test-math", Input: "y"},
+		{Name: "safety-check", Input: "z"},
+	}
+
+	filtered := FilterByName(cases, "^test-")
+	require.Len(t, filtered, 2)
+	assert.Equal(t, "test-greeting", filtered[0].Name)
+	assert.Equal(t, "test-math", filtered[1].Name)
+}
+
+func TestFilterByName_EmptyPattern(t *testing.T) {
+	cases := []TestCase{
+		{Name: "a", Input: "x"},
+		{Name: "b", Input: "y"},
+	}
+
+	filtered := FilterByName(cases, "")
+	assert.Len(t, filtered, 2)
+}
+
+func TestFilterByName_InvalidRegex(t *testing.T) {
+	cases := []TestCase{
+		{Name: "a", Input: "x"},
+	}
+
+	filtered := FilterByName(cases, "[invalid")
+	assert.Empty(t, filtered)
+}
+
+func TestFilterByName_NoMatch(t *testing.T) {
+	cases := []TestCase{
+		{Name: "greeting", Input: "x"},
+	}
+
+	filtered := FilterByName(cases, "^math-")
+	assert.Empty(t, filtered)
+}
+
+func TestFilterByName_PartialMatch(t *testing.T) {
+	cases := []TestCase{
+		{Name: "test-hello-world", Input: "x"},
+		{Name: "hello-test", Input: "y"},
+		{Name: "something-else", Input: "z"},
+	}
+
+	filtered := FilterByName(cases, "hello")
+	require.Len(t, filtered, 2)
+}

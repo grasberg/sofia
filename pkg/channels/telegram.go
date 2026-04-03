@@ -104,6 +104,11 @@ func (c *TelegramChannel) SetTranscriber(transcriber *voice.GroqTranscriber) {
 func (c *TelegramChannel) Start(ctx context.Context) error {
 	logger.InfoC("telegram", "Starting Telegram bot (polling mode)...")
 
+	go c.ConnectWithRetry(ctx, c.connect)
+	return nil
+}
+
+func (c *TelegramChannel) connect(ctx context.Context) error {
 	updates, err := c.bot.UpdatesViaLongPolling(ctx, &telego.GetUpdatesParams{
 		Timeout: 30,
 	})
@@ -136,7 +141,6 @@ func (c *TelegramChannel) Start(ctx context.Context) error {
 		return c.handleMessage(ctx, &message)
 	}, th.AnyMessage())
 
-	c.setRunning(true)
 	logger.InfoCF("telegram", "Telegram bot connected", map[string]any{
 		"username": c.bot.Username(),
 	})
@@ -203,6 +207,11 @@ func (c *TelegramChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 		c.stopThinking.Delete(msg.ChatID)
 	}
 
+	// Send file attachments if present
+	if len(msg.Files) > 0 {
+		c.sendFiles(ctx, chatID, msg.Files)
+	}
+
 	htmlContent := markdownToTelegramHTML(msg.Content)
 
 	// Try to edit placeholder
@@ -230,6 +239,44 @@ func (c *TelegramChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 	}
 
 	return nil
+}
+
+// sendFiles sends file attachments to a Telegram chat. Images (png, jpg, gif, webp) are
+// sent via SendPhoto for inline display; all other file types use SendDocument.
+func (c *TelegramChannel) sendFiles(ctx context.Context, chatID int64, filePaths []string) {
+	for _, filePath := range filePaths {
+		f, err := os.Open(filePath)
+		if err != nil {
+			logger.WarnCF("telegram", "Failed to open file for sending", map[string]any{
+				"path":  filePath,
+				"error": err.Error(),
+			})
+			continue
+		}
+
+		baseName := filepath.Base(filePath)
+		inputFile := tu.File(tu.NameReader(f, baseName))
+
+		if utils.IsImageFile(baseName) {
+			params := tu.Photo(tu.ID(chatID), inputFile)
+			if _, sendErr := c.bot.SendPhoto(ctx, params); sendErr != nil {
+				logger.ErrorCF("telegram", "Failed to send photo", map[string]any{
+					"path":  filePath,
+					"error": sendErr.Error(),
+				})
+			}
+		} else {
+			params := tu.Document(tu.ID(chatID), inputFile)
+			if _, sendErr := c.bot.SendDocument(ctx, params); sendErr != nil {
+				logger.ErrorCF("telegram", "Failed to send document", map[string]any{
+					"path":  filePath,
+					"error": sendErr.Error(),
+				})
+			}
+		}
+
+		f.Close()
+	}
 }
 
 func (c *TelegramChannel) handleMessage(ctx context.Context, message *telego.Message) error {

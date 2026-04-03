@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 
 	"github.com/caarlos0/env/v11"
@@ -315,7 +316,7 @@ type SessionConfig struct {
 type AgentDefaults struct {
 	Workspace           string                   `json:"workspace"                       env:"SOFIA_AGENTS_DEFAULTS_WORKSPACE"`
 	RestrictToWorkspace bool                     `json:"restrict_to_workspace"           env:"SOFIA_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE"`
-	UseOpenCode         bool                     `json:"use_opencode"                    env:"SOFIA_AGENTS_DEFAULTS_USE_OPENCODE"`
+	CodeEditor          string                   `json:"code_editor,omitempty"           env:"SOFIA_AGENTS_DEFAULTS_CODE_EDITOR"`
 	Provider            string                   `json:"provider"                        env:"SOFIA_AGENTS_DEFAULTS_PROVIDER"`
 	ModelName           string                   `json:"model_name,omitempty"            env:"SOFIA_AGENTS_DEFAULTS_MODEL_NAME"`
 	Model               string                   `json:"model,omitempty"                 env:"SOFIA_AGENTS_DEFAULTS_MODEL"` // Deprecated: use model_name instead
@@ -803,6 +804,19 @@ func SaveConfig(path string, cfg *Config) error {
 
 func (c *Config) WorkspacePath() string {
 	return expandHome(c.Agents.Defaults.Workspace)
+}
+
+// MemoryDBPath returns the resolved path to the SQLite memory database.
+// Falls back to ~/.sofia/memory.db when not explicitly configured.
+func (c *Config) MemoryDBPath() string {
+	if c.MemoryDB != "" {
+		return expandHome(c.MemoryDB)
+	}
+	home, _ := os.UserHomeDir()
+	if home == "" {
+		home = "."
+	}
+	return filepath.Join(home, ".sofia", "memory.db")
 }
 
 func (c *Config) GetAPIKey() string {

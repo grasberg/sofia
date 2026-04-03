@@ -182,12 +182,35 @@ func gatewayCmd(debug bool) error {
 	}
 
 	healthServer := health.NewServer(cfg.Gateway.Host, cfg.Gateway.Port)
+
+	// Register concrete health checks.
+	memDB := agentLoop.GetMemoryDB()
+	if memDB != nil {
+		healthServer.RegisterCheck("database", health.DatabaseCheck(memDB))
+	}
+	dataDir := filepath.Dir(cfg.MemoryDBPath())
+	healthServer.RegisterCheck("disk_space", health.DiskSpaceCheck(dataDir, 0))
+
+	// Register /metrics endpoint.
+	metrics := health.NewMetricsProvider()
+	metrics.RegisterMessagesProcessed(func() int64 { return msgBus.InboundCount() })
+	if tracker := agentLoop.GetToolTracker(); tracker != nil {
+		metrics.RegisterTotalToolCalls(func() int64 { return tracker.TotalCalls() })
+	}
+	if sm := agentLoop.GetDefaultSessionManager(); sm != nil {
+		metrics.RegisterActiveSessions(func() int { return len(sm.ListSessions()) })
+	}
+	if bm := agentLoop.GetBudgetManager(); bm != nil {
+		metrics.RegisterBudgetSpend(func() float64 { return bm.GetTotalSpend() })
+	}
+	healthServer.RegisterMetrics(metrics)
+
 	go func() {
 		if err := healthServer.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.ErrorCF("health", "Health server error", map[string]any{"error": err.Error()})
 		}
 	}()
-	fmt.Printf("✓ Health endpoints available at http://%s:%d/health and /ready\n", cfg.Gateway.Host, cfg.Gateway.Port)
+	fmt.Printf("✓ Health endpoints available at http://%s:%d/health, /ready, and /metrics\n", cfg.Gateway.Host, cfg.Gateway.Port)
 
 	if cfg.WebUI.Enabled {
 		webServer := web.NewServer(cfg, agentLoop, internal.GetVersion())
@@ -240,8 +263,8 @@ func setupCronTool(
 	agentLoop.RegisterTool(cronTool)
 
 	// Set the onJob handler
-	cronService.SetOnJob(func(job *cron.CronJob) (string, error) {
-		result := cronTool.ExecuteJob(context.Background(), job)
+	cronService.SetOnJob(func(ctx context.Context, job *cron.CronJob) (string, error) {
+		result := cronTool.ExecuteJob(ctx, job)
 		return result, nil
 	})
 
