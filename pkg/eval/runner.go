@@ -70,6 +70,8 @@ type TestCase struct {
 	Tags           []string `json:"tags,omitempty"`
 	Timeout        int      `json:"timeout_sec,omitempty"`
 	Weight         float64  `json:"weight,omitempty"`
+	JudgeCriteria  string   `json:"judge_criteria,omitempty"`
+	CustomScorer   string   `json:"custom_scorer,omitempty"`
 }
 
 // TestResult holds the outcome of a single test.
@@ -87,14 +89,16 @@ type TestResult struct {
 
 // EvalReport is the summary of an evaluation run.
 type EvalReport struct {
-	TotalTests int           `json:"total_tests"`
-	Passed     int           `json:"passed"`
-	Failed     int           `json:"failed"`
-	TotalScore float64       `json:"total_score"`
-	AvgScore   float64       `json:"avg_score"`
-	Duration   time.Duration `json:"duration"`
-	Results    []TestResult  `json:"results"`
-	RunAt      time.Time     `json:"run_at"`
+	TotalTests   int           `json:"total_tests"`
+	Passed       int           `json:"passed"`
+	Failed       int           `json:"failed"`
+	TotalScore   float64       `json:"total_score"`
+	AvgScore     float64       `json:"avg_score"`
+	Duration     time.Duration `json:"duration"`
+	Results      []TestResult  `json:"results"`
+	RunAt        time.Time     `json:"run_at"`
+	TotalTokens  int           `json:"total_tokens,omitempty"`
+	TotalCostUSD float64       `json:"total_cost_usd,omitempty"`
 }
 
 // EvalRunner executes test cases against an agent.
@@ -194,6 +198,9 @@ func (er *EvalRunner) GenerateReportWithCases(
 
 	for i, r := range results {
 		report.TotalScore += r.Score
+		report.TotalTokens += r.TokensUsed
+		report.TotalCostUSD += r.CostUSD
+
 		if r.Passed {
 			report.Passed++
 		} else {

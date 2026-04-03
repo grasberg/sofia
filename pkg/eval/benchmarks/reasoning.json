@@ -1,0 +1,71 @@
+{
+  "name": "reasoning",
+  "description": "Tests multi-step reasoning: math word problems, logic puzzles, code debugging, and trade-off analysis.",
+  "cases": [
+    {
+      "name": "math-word-problem",
+      "input": "A store sells apples for $1.50 each. If you buy 5 or more, you get a 20% discount. How much do 7 apples cost?",
+      "expect_contains": ["8.40"],
+      "tags": ["reasoning", "math"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "multi-step-arithmetic",
+      "input": "A train travels at 60 km/h for 2.5 hours, then at 80 km/h for 1.5 hours. What is the total distance traveled?",
+      "expect_contains": ["270"],
+      "tags": ["reasoning", "math"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "logic-puzzle",
+      "input": "Alice, Bob, and Carol each have a different pet: a cat, a dog, and a fish. Alice does not have the cat. Bob does not have the dog or the fish. What pet does each person have?",
+      "expect_pattern": "(?i)bob.*cat",
+      "not_contains": ["Bob has the dog", "Bob has the fish"],
+      "tags": ["reasoning", "logic"],
+      "timeout_sec": 60,
+      "weight": 1.5
+    },
+    {
+      "name": "code-debugging",
+      "input": "This Go function should return the sum of even numbers in a slice, but it returns the wrong result. Find the bug:\n\nfunc sumEven(nums []int) int {\n    sum := 0\n    for _, n := range nums {\n        if n%2 != 0 {\n            sum += n\n        }\n    }\n    return sum\n}",
+      "expect_pattern": "(?i)(n%2\\s*==\\s*0|n%2\\s*!=\\s*0|condition.*(wrong|reversed|inverted|opposite|flipped))",
+      "tags": ["reasoning", "debugging"],
+      "timeout_sec": 30,
+      "weight": 1.5
+    },
+    {
+      "name": "sequence-pattern",
+      "input": "What is the next number in this sequence: 2, 6, 12, 20, 30, ?",
+      "expect_contains": ["42"],
+      "tags": ["reasoning", "math"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "tradeoff-analysis",
+      "input": "Explain the trade-offs between using SQLite and PostgreSQL for a personal project that might grow to serve thousands of users.",
+      "expect_pattern": "(?i)(scale|concur|deploy|complex|simple|embed)",
+      "tags": ["reasoning", "analysis"],
+      "timeout_sec": 60,
+      "weight": 1.0
+    },
+    {
+      "name": "causal-reasoning",
+      "input": "A web server starts returning 502 errors after a deployment. The logs show the upstream service is not responding. The deployment only changed the frontend. What are the most likely causes?",
+      "expect_pattern": "(?i)(port|config|health.?check|resource|timeout|upstream|proxy|restart)",
+      "tags": ["reasoning", "debugging"],
+      "timeout_sec": 60,
+      "weight": 1.5
+    },
+    {
+      "name": "constraint-satisfaction",
+      "input": "Schedule three 1-hour meetings (A, B, C) in a day with these constraints: A must be before B, C cannot be adjacent to A, and all meetings must be between 9am and 12pm. Give a valid schedule.",
+      "expect_pattern": "(?i)(9|10|11|12).*(A|B|C)",
+      "tags": ["reasoning", "logic"],
+      "timeout_sec": 60,
+      "weight": 1.5
+    }
+  ]
+}

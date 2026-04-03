@@ -22,6 +22,7 @@ import (
 	"github.com/grasberg/sofia/pkg/autonomy"
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/cron"
+	"github.com/grasberg/sofia/pkg/eval"
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/routing"
@@ -116,6 +117,9 @@ var goalsHTML []byte
 //go:embed templates/history.html
 var historyHTML []byte
 
+//go:embed templates/eval.html
+var evalHTML []byte
+
 type Server struct {
 	cfg            *config.Config
 	agentLoop      *agent.AgentLoop
@@ -127,6 +131,7 @@ type Server struct {
 	skillInstaller *skills.SkillInstaller
 	auditLogger    *audit.AuditLogger
 	cronService    *cron.CronService
+	evalStore      *eval.EvalStore
 	stopCtxCancel  context.CancelFunc
 }
 
@@ -359,6 +364,7 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/ui/memory", servePartial(memoryHTML))
 mux.HandleFunc("/ui/goals", servePartial(goalsHTML))
 	mux.HandleFunc("/ui/history", servePartial(historyHTML))
+	mux.HandleFunc("/ui/eval", servePartial(evalHTML))
 
 	// API routes: rate limiting runs FIRST (outermost), then auth.
 	// This ensures unauthenticated brute-force attempts are rate-limited.
@@ -398,6 +404,9 @@ mux.HandleFunc("/ui/goals", servePartial(goalsHTML))
 	mux.HandleFunc("GET /api/backup", api(s.handleBackupExport))
 	mux.HandleFunc("GET /api/evolution/status", api(s.handleEvolutionStatus))
 	mux.HandleFunc("GET /api/evolution/changelog", api(s.handleEvolutionChangelog))
+	mux.HandleFunc("GET /api/eval/runs", api(s.handleEvalRuns))
+	mux.HandleFunc("GET /api/eval/runs/", api(s.handleEvalRunDetail))
+	mux.HandleFunc("GET /api/eval/trend", api(s.handleEvalTrend))
 	mux.HandleFunc(
 		"/ws/dashboard",
 		s.rateLimitMiddleware(s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
@@ -1801,5 +1810,171 @@ func (s *Server) handleMemoryReflections(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(map[string]any{
 		"reflections": reflections,
 		"stats":       stats,
+	})
+}
+
+// SetEvalStore assigns the eval store used by the /api/eval/* endpoints.
+func (s *Server) SetEvalStore(store *eval.EvalStore) {
+	s.evalStore = store
+}
+
+// handleEvalRuns returns recent eval runs as JSON.
+// Query params: suite (filter by suite name), limit (default 20).
+func (s *Server) handleEvalRuns(w http.ResponseWriter, r *http.Request) {
+	if s.evalStore == nil {
+		s.sendJSONError(w, "Eval store not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	suite := r.URL.Query().Get("suite")
+	limit := 20
+
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	if suite != "" {
+		runs, err := s.evalStore.GetRunHistory(suite, limit)
+		if err != nil {
+			s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if runs == nil {
+			runs = []eval.EvalRunSummary{}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(runs)
+
+		return
+	}
+
+	// No suite filter: return recent runs across all suites.
+	runs, err := s.evalStore.GetRecentRuns(limit)
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if runs == nil {
+		runs = []eval.EvalRunSummary{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(runs)
+}
+
+// handleEvalRunDetail returns a single eval run with per-test results.
+// Path: GET /api/eval/runs/<id>
+func (s *Server) handleEvalRunDetail(w http.ResponseWriter, r *http.Request) {
+	if s.evalStore == nil {
+		s.sendJSONError(w, "Eval store not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/eval/runs/")
+	if idStr == "" {
+		s.sendJSONError(w, "Run ID is required", http.StatusBadRequest)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		s.sendJSONError(w, "Invalid run ID", http.StatusBadRequest)
+		return
+	}
+
+	run, err := s.evalStore.GetRunByID(id)
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if run == nil {
+		s.sendJSONError(w, "Run not found", http.StatusNotFound)
+		return
+	}
+
+	results, err := s.evalStore.GetRunResults(id)
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if results == nil {
+		results = []eval.EvalResultRow{}
+	}
+
+	detail := eval.EvalRunDetail{
+		EvalRunSummary: *run,
+		Results:        results,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(detail)
+}
+
+// handleEvalTrend returns trend data for a suite: the last N run scores and a
+// trend label (improving/declining/stable/insufficient_data).
+// Query params: suite (required), limit (default 10).
+func (s *Server) handleEvalTrend(w http.ResponseWriter, r *http.Request) {
+	if s.evalStore == nil {
+		s.sendJSONError(w, "Eval store not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	suite := r.URL.Query().Get("suite")
+	if suite == "" {
+		s.sendJSONError(w, "suite parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	limit := 10
+
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	runs, err := s.evalStore.GetRunHistory(suite, limit)
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	trend, err := s.evalStore.GetTrend(suite)
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Build score array (oldest to newest for charting).
+	type trendPoint struct {
+		RunID    int64   `json:"run_id"`
+		AvgScore float64 `json:"avg_score"`
+		PassRate float64 `json:"pass_rate"`
+		RunAt    string  `json:"run_at"`
+	}
+
+	points := make([]trendPoint, 0, len(runs))
+	for i := len(runs) - 1; i >= 0; i-- {
+		run := runs[i]
+		points = append(points, trendPoint{
+			RunID:    run.ID,
+			AvgScore: run.AvgScore,
+			PassRate: run.PassRate,
+			RunAt:    run.RunAt.Format("2006-01-02T15:04:05Z"),
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"suite":  suite,
+		"trend":  trend,
+		"points": points,
 	})
 }

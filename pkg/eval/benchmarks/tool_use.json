@@ -1,0 +1,86 @@
+{
+  "name": "tool_use",
+  "description": "Tests tool selection accuracy: verifies the agent chooses the correct tool for common tasks.",
+  "cases": [
+    {
+      "name": "list-directory",
+      "input": "List files in the current directory",
+      "expect_contains": ["list_dir"],
+      "tags": ["tool_use"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "read-file",
+      "input": "Read the contents of config.json",
+      "expect_contains": ["read_file"],
+      "tags": ["tool_use"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "search-codebase",
+      "input": "Search for TODO comments in the codebase",
+      "expect_pattern": "(?i)(grep|search|find)",
+      "tags": ["tool_use"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "create-file",
+      "input": "Create a new file called test.txt with the content 'hello world'",
+      "expect_contains": ["write_file"],
+      "tags": ["tool_use"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "run-tests",
+      "input": "Run the test suite",
+      "expect_pattern": "(?i)(shell|exec|bash)",
+      "tags": ["tool_use"],
+      "timeout_sec": 60,
+      "weight": 1.0
+    },
+    {
+      "name": "web-search",
+      "input": "What's the weather in Stockholm today?",
+      "expect_pattern": "(?i)(web_search|web_fetch)",
+      "tags": ["tool_use"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "edit-file",
+      "input": "Replace the word 'foo' with 'bar' in main.go",
+      "expect_contains": ["edit_file"],
+      "tags": ["tool_use"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "append-to-file",
+      "input": "Append a new line to the end of notes.txt",
+      "expect_pattern": "(?i)(append_file|write_file|edit_file)",
+      "tags": ["tool_use"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "analyze-image",
+      "input": "Describe what's in the screenshot at ./screenshot.png",
+      "expect_contains": ["image_analyze"],
+      "tags": ["tool_use"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "web-browse",
+      "input": "Open https://example.com and extract the main heading",
+      "expect_pattern": "(?i)(web_browse|web_fetch)",
+      "tags": ["tool_use"],
+      "timeout_sec": 60,
+      "weight": 1.0
+    }
+  ]
+}

@@ -17,6 +17,7 @@ func NewEvalCommand() *cobra.Command {
 		listOnly bool
 		suite    string
 		suiteDir string
+		builtin  string
 		tags     string
 		agentID  string
 		model    string
@@ -35,7 +36,9 @@ model (optional), and a cases array. Each case needs at least name and input.
 Examples:
   sofia eval --suite tests/basic.json
   sofia eval --suite-dir tests/ --tags safety,accuracy
-  sofia eval --suite tests/basic.json --db ~/.sofia/eval.db`,
+  sofia eval --suite tests/basic.json --db ~/.sofia/eval.db
+  sofia eval --builtin all
+  sofia eval --builtin tool_use --tags safety`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			// Resolve suite source: positional arg, --suite flag, or --suite-dir.
@@ -43,13 +46,13 @@ Examples:
 				suite = args[0]
 			}
 
-			suites, err := loadSuites(suite, suiteDir)
+			suites, err := loadSuites(suite, suiteDir, builtin)
 			if err != nil {
 				return err
 			}
 
 			if len(suites) == 0 {
-				return fmt.Errorf("no test suites found (use --suite or --suite-dir)")
+				return fmt.Errorf("no test suites found (use --suite, --suite-dir, or --builtin)")
 			}
 
 			// Collect all cases (with suite context for reporting).
@@ -186,6 +189,7 @@ Examples:
 	cmd.Flags().BoolVar(&listOnly, "list", false, "List test cases without running them")
 	cmd.Flags().StringVar(&suite, "suite", "", "Path to a single test suite JSON file")
 	cmd.Flags().StringVar(&suiteDir, "suite-dir", "", "Directory containing test suite JSON files")
+	cmd.Flags().StringVar(&builtin, "builtin", "", "Load builtin benchmark suite by name (e.g., tool_use, reasoning) or \"all\"")
 	cmd.Flags().StringVar(&tags, "tags", "", "Comma-separated tag filter (matches cases with any listed tag)")
 	cmd.Flags().StringVar(&filter, "filter", "", "Regex filter on test case names")
 	cmd.Flags().StringVar(&agentID, "agent", "", "Override agent ID for all suites")
@@ -196,7 +200,7 @@ Examples:
 }
 
 // loadSuites resolves suite sources from flags and returns all loaded suites.
-func loadSuites(suitePath, suiteDir string) ([]*eval.TestSuite, error) {
+func loadSuites(suitePath, suiteDir, builtin string) ([]*eval.TestSuite, error) {
 	var suites []*eval.TestSuite
 
 	if suitePath != "" {
@@ -215,6 +219,32 @@ func loadSuites(suitePath, suiteDir string) ([]*eval.TestSuite, error) {
 		}
 
 		suites = append(suites, dirSuites...)
+	}
+
+	if builtin != "" {
+		if builtin == "all" {
+			builtinSuites, err := eval.LoadBuiltinSuites()
+			if err != nil {
+				return nil, fmt.Errorf("load builtin benchmarks: %w", err)
+			}
+
+			suites = append(suites, builtinSuites...)
+		} else {
+			// Load specific builtin suites (comma-separated).
+			for _, name := range strings.Split(builtin, ",") {
+				name = strings.TrimSpace(name)
+				if name == "" {
+					continue
+				}
+
+				s, err := eval.LoadBuiltinSuite(name)
+				if err != nil {
+					return nil, fmt.Errorf("load builtin benchmark %q: %w", name, err)
+				}
+
+				suites = append(suites, s)
+			}
+		}
 	}
 
 	return suites, nil

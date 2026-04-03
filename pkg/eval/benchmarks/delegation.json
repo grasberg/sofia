@@ -1,0 +1,54 @@
+{
+  "name": "delegation",
+  "description": "Tests multi-agent delegation: verifies that complex tasks trigger agent routing or subagent spawning.",
+  "cases": [
+    {
+      "name": "delegate-frontend-task",
+      "input": "Build a responsive navigation bar component using React and Tailwind CSS with a mobile hamburger menu.",
+      "expect_pattern": "(?i)(frontend|react|component|css|tailwind|spawn|delegat)",
+      "tags": ["delegation", "multi_agent"],
+      "timeout_sec": 120,
+      "weight": 1.5
+    },
+    {
+      "name": "delegate-database-task",
+      "input": "Design a normalized database schema for a multi-tenant SaaS application with user roles and permissions.",
+      "expect_pattern": "(?i)(database|schema|table|normaliz|sql|delegat|spawn)",
+      "tags": ["delegation", "multi_agent"],
+      "timeout_sec": 120,
+      "weight": 1.5
+    },
+    {
+      "name": "delegate-security-audit",
+      "input": "Perform a security audit on this web application. Check for SQL injection, XSS, CSRF, and authentication vulnerabilities.",
+      "expect_pattern": "(?i)(security|audit|vulnerabilit|inject|xss|csrf|auth|delegat|spawn)",
+      "tags": ["delegation", "multi_agent"],
+      "timeout_sec": 120,
+      "weight": 1.5
+    },
+    {
+      "name": "delegate-devops-pipeline",
+      "input": "Set up a CI/CD pipeline with GitHub Actions that runs tests, builds a Docker image, and deploys to Kubernetes.",
+      "expect_pattern": "(?i)(ci/cd|pipeline|docker|kubernetes|github.?actions|deploy|delegat|spawn)",
+      "tags": ["delegation", "multi_agent"],
+      "timeout_sec": 120,
+      "weight": 1.5
+    },
+    {
+      "name": "delegate-cross-domain-task",
+      "input": "Create a full-stack feature: add a user analytics dashboard with a REST API backend, a React frontend with charts, and database migrations.",
+      "expect_pattern": "(?i)(full.?stack|backend|frontend|database|api|dashboard|delegat|spawn|plan)",
+      "tags": ["delegation", "multi_agent"],
+      "timeout_sec": 180,
+      "weight": 2.0
+    },
+    {
+      "name": "delegate-documentation-task",
+      "input": "Write comprehensive API documentation for all endpoints in this project, including request/response examples and error codes.",
+      "expect_pattern": "(?i)(document|api|endpoint|example|delegat|spawn)",
+      "tags": ["delegation", "multi_agent"],
+      "timeout_sec": 120,
+      "weight": 1.0
+    }
+  ]
+}
