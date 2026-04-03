@@ -215,3 +215,94 @@ func TestEvalStore_EmptyReport(t *testing.T) {
 	require.Len(t, history, 1)
 	assert.Equal(t, 0, history[0].TotalTests)
 }
+
+func TestEvalStore_GetRunByID(t *testing.T) {
+	store := newTestStore(t)
+	report := makeReport(2, 1, 0.75)
+
+	runID, err := store.SaveRun("by-id-suite", "agent-1", "gpt-4o", report)
+	require.NoError(t, err)
+
+	run, err := store.GetRunByID(runID)
+	require.NoError(t, err)
+	require.NotNil(t, run)
+	assert.Equal(t, runID, run.ID)
+	assert.Equal(t, "by-id-suite", run.SuiteName)
+	assert.Equal(t, "agent-1", run.AgentID)
+	assert.Equal(t, 3, run.TotalTests)
+}
+
+func TestEvalStore_GetRunByID_NotFound(t *testing.T) {
+	store := newTestStore(t)
+
+	run, err := store.GetRunByID(99999)
+	require.NoError(t, err)
+	assert.Nil(t, run)
+}
+
+func TestEvalStore_GetRunResults(t *testing.T) {
+	store := newTestStore(t)
+	report := makeReport(2, 1, 0.75)
+
+	runID, err := store.SaveRun("results-suite", "agent-1", "", report)
+	require.NoError(t, err)
+
+	results, err := store.GetRunResults(runID)
+	require.NoError(t, err)
+	require.Len(t, results, 3)
+
+	// Check that passed and failed results are correct.
+	passCount := 0
+	for _, r := range results {
+		assert.Equal(t, runID, r.RunID)
+		assert.NotEmpty(t, r.TestName)
+		if r.Passed {
+			passCount++
+		}
+	}
+	assert.Equal(t, 2, passCount)
+}
+
+func TestEvalStore_GetRunResults_Empty(t *testing.T) {
+	store := newTestStore(t)
+
+	results, err := store.GetRunResults(99999)
+	require.NoError(t, err)
+	assert.Empty(t, results)
+}
+
+func TestEvalStore_GetAllSuiteNames(t *testing.T) {
+	store := newTestStore(t)
+
+	_, err := store.SaveRun("alpha", "", "", makeReport(1, 0, 1.0))
+	require.NoError(t, err)
+	_, err = store.SaveRun("beta", "", "", makeReport(1, 0, 1.0))
+	require.NoError(t, err)
+	_, err = store.SaveRun("alpha", "", "", makeReport(2, 0, 1.0))
+	require.NoError(t, err)
+
+	names, err := store.GetAllSuiteNames()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"alpha", "beta"}, names)
+}
+
+func TestEvalStore_GetRecentRuns(t *testing.T) {
+	store := newTestStore(t)
+
+	_, err := store.SaveRun("s1", "", "", makeReport(1, 0, 1.0))
+	require.NoError(t, err)
+	_, err = store.SaveRun("s2", "", "", makeReport(2, 0, 0.9))
+	require.NoError(t, err)
+	_, err = store.SaveRun("s1", "", "", makeReport(3, 0, 0.8))
+	require.NoError(t, err)
+
+	// Fetch all runs (no limit) to verify all 3 are returned.
+	all, err := store.GetRecentRuns(0)
+	require.NoError(t, err)
+	assert.Len(t, all, 3)
+
+	// Limit to 2.
+	runs, err := store.GetRecentRuns(2)
+	require.NoError(t, err)
+	assert.Len(t, runs, 2)
+}

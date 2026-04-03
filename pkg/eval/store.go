@@ -262,3 +262,172 @@ func (s *EvalStore) GetTrend(suite string) (string, error) {
 
 	return "stable", nil
 }
+
+// EvalRunDetail contains the run summary plus per-test results.
+type EvalRunDetail struct {
+	EvalRunSummary
+	Results []EvalResultRow `json:"results"`
+}
+
+// EvalResultRow is a single test result as persisted in the database.
+type EvalResultRow struct {
+	ID         int64    `json:"id"`
+	RunID      int64    `json:"run_id"`
+	TestName   string   `json:"test_name"`
+	Passed     bool     `json:"passed"`
+	Score      float64  `json:"score"`
+	Input      string   `json:"input"`
+	Output     string   `json:"output"`
+	Errors     []string `json:"errors"`
+	DurationMs int64    `json:"duration_ms"`
+}
+
+// GetRunByID returns a single run summary by ID, or nil if not found.
+func (s *EvalStore) GetRunByID(id int64) (*EvalRunSummary, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var rs EvalRunSummary
+	var runAtStr string
+
+	err := s.db.QueryRow(
+		`SELECT id, suite_name, agent_id, model, avg_score, pass_rate,
+		        total_tests, passed, failed, duration_ms, run_at
+		 FROM eval_runs WHERE id = ?`, id,
+	).Scan(
+		&rs.ID, &rs.SuiteName, &rs.AgentID, &rs.Model,
+		&rs.AvgScore, &rs.PassRate,
+		&rs.TotalTests, &rs.Passed, &rs.Failed,
+		&rs.DurationMs, &runAtStr,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("eval store: get run by id: %w", err)
+	}
+
+	if t, err := time.Parse(time.RFC3339, runAtStr); err == nil {
+		rs.RunAt = t
+	}
+
+	return &rs, nil
+}
+
+// GetRunResults returns all per-test results for a given run ID.
+func (s *EvalStore) GetRunResults(runID int64) ([]EvalResultRow, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	rows, err := s.db.Query(
+		`SELECT id, run_id, test_name, passed, score, input, output, errors, duration_ms
+		 FROM eval_results WHERE run_id = ? ORDER BY id`, runID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("eval store: query results: %w", err)
+	}
+
+	defer func() { _ = rows.Close() }()
+
+	var results []EvalResultRow
+
+	for rows.Next() {
+		var r EvalResultRow
+		var passedInt int
+		var errorsJSON string
+
+		if err := rows.Scan(
+			&r.ID, &r.RunID, &r.TestName, &passedInt,
+			&r.Score, &r.Input, &r.Output, &errorsJSON, &r.DurationMs,
+		); err != nil {
+			return nil, fmt.Errorf("eval store: scan result: %w", err)
+		}
+
+		r.Passed = passedInt != 0
+
+		if errorsJSON != "" && errorsJSON != "[]" {
+			_ = json.Unmarshal([]byte(errorsJSON), &r.Errors)
+		}
+
+		if r.Errors == nil {
+			r.Errors = []string{}
+		}
+
+		results = append(results, r)
+	}
+
+	return results, rows.Err()
+}
+
+// GetAllSuiteNames returns distinct suite names that have at least one run.
+func (s *EvalStore) GetAllSuiteNames() ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	rows, err := s.db.Query(`SELECT DISTINCT suite_name FROM eval_runs ORDER BY suite_name`)
+	if err != nil {
+		return nil, fmt.Errorf("eval store: query suite names: %w", err)
+	}
+
+	defer func() { _ = rows.Close() }()
+
+	var names []string
+
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("eval store: scan suite name: %w", err)
+		}
+
+		names = append(names, name)
+	}
+
+	return names, rows.Err()
+}
+
+// GetRecentRuns returns the most recent runs across all suites, ordered by
+// most recent first. Pass limit <= 0 to get all runs.
+func (s *EvalStore) GetRecentRuns(limit int) ([]EvalRunSummary, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	query := `SELECT id, suite_name, agent_id, model, avg_score, pass_rate,
+	                 total_tests, passed, failed, duration_ms, run_at
+	          FROM eval_runs
+	          ORDER BY run_at DESC`
+
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("eval store: query recent runs: %w", err)
+	}
+
+	defer func() { _ = rows.Close() }()
+
+	var summaries []EvalRunSummary
+
+	for rows.Next() {
+		var rs EvalRunSummary
+		var runAtStr string
+
+		if err := rows.Scan(
+			&rs.ID, &rs.SuiteName, &rs.AgentID, &rs.Model,
+			&rs.AvgScore, &rs.PassRate,
+			&rs.TotalTests, &rs.Passed, &rs.Failed,
+			&rs.DurationMs, &runAtStr,
+		); err != nil {
+			return nil, fmt.Errorf("eval store: scan run: %w", err)
+		}
+
+		if t, err := time.Parse(time.RFC3339, runAtStr); err == nil {
+			rs.RunAt = t
+		}
+
+		summaries = append(summaries, rs)
+	}
+
+	return summaries, rows.Err()
+}

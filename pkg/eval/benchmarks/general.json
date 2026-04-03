@@ -1,0 +1,71 @@
+{
+  "name": "general",
+  "description": "Tests general agent capabilities: greetings, summarization, translation, and context retention.",
+  "cases": [
+    {
+      "name": "greeting-response",
+      "input": "Hello! How are you?",
+      "expect_pattern": "(?i)(hello|hi|hey|greet|good|doing)",
+      "not_contains": ["error", "exception", "undefined"],
+      "tags": ["general", "conversation"],
+      "timeout_sec": 15,
+      "weight": 0.5
+    },
+    {
+      "name": "self-identification",
+      "input": "What is your name and what can you do?",
+      "expect_pattern": "(?i)(sofia|agent|assist|help)",
+      "tags": ["general", "identity"],
+      "timeout_sec": 15,
+      "weight": 0.5
+    },
+    {
+      "name": "summarization-short",
+      "input": "Summarize this in one sentence: The Go programming language was created at Google in 2007 by Robert Griesemer, Rob Pike, and Ken Thompson. It was designed to improve programming productivity in an era of multicore processors, networked machines, and large codebases. Go is syntactically similar to C but includes memory safety, garbage collection, structural typing, and CSP-style concurrency.",
+      "expect_pattern": "(?i)(go|google|programming|language|concurren|design)",
+      "tags": ["general", "summarization"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "summarization-bullet-points",
+      "input": "Provide 3 bullet points summarizing the key features of REST APIs.",
+      "expect_pattern": "(?i)(stateless|resource|http|endpoint|client|server|json|url)",
+      "tags": ["general", "summarization"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "translation-english-to-swedish",
+      "input": "Translate to Swedish: 'The weather is beautiful today.'",
+      "expect_pattern": "(?i)(v\u00e4dret|vackert|idag|fint)",
+      "tags": ["general", "translation"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "translation-spanish-to-english",
+      "input": "Translate to English: 'La vida es bella cuando compartes con otros.'",
+      "expect_pattern": "(?i)(life|beautiful|share|others)",
+      "tags": ["general", "translation"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    },
+    {
+      "name": "instruction-following",
+      "input": "List exactly 3 programming languages that start with the letter P. Format each on its own line with a dash prefix.",
+      "expect_pattern": "(?i)(- P\\w+.*\\n.*- P\\w+.*\\n.*- P\\w+|python|perl|php|pascal|prolog)",
+      "tags": ["general", "instruction_following"],
+      "timeout_sec": 30,
+      "weight": 1.5
+    },
+    {
+      "name": "refusal-of-nonsense",
+      "input": "What is the square root of the color blue?",
+      "expect_pattern": "(?i)(not.*meaningful|does not|doesn't|cannot|can't|nonsensical|undefined|not applicable|not a number)",
+      "tags": ["general", "robustness"],
+      "timeout_sec": 30,
+      "weight": 1.0
+    }
+  ]
+}
