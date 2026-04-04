@@ -198,6 +198,123 @@ func (al *AgentLoop) ProcessDirect(ctx context.Context, content, sessionKey stri
 	return al.ProcessDirectWithChannel(ctx, content, sessionKey, "cli", "direct")
 }
 
+// ProcessDirectStream sends a message to the default agent and streams the response
+// back via the onChunk callback. If the provider supports streaming, text deltas are
+// sent incrementally; otherwise it falls back to ProcessDirect and returns the full
+// response as a single chunk.
+func (al *AgentLoop) ProcessDirectStream(
+	ctx context.Context,
+	content, sessionKey string,
+	onChunk func(text string, done bool),
+) error {
+	agent := al.getRegistry().GetDefaultAgent()
+	if agent == nil {
+		return fmt.Errorf("no default agent configured")
+	}
+
+	// Check if the provider supports streaming.
+	streamProvider, ok := agent.Provider.(providers.StreamingProvider)
+	if !ok {
+		// Fallback: run synchronously and return as a single chunk.
+		result, err := al.ProcessDirect(ctx, content, sessionKey)
+		if err != nil {
+			return err
+		}
+		onChunk(result, false)
+		onChunk("", true)
+		return nil
+	}
+
+	// Set tool contexts.
+	al.updateToolContexts(agent, "cli", "direct")
+
+	// Build messages from session history.
+	history := agent.Sessions.GetHistory(sessionKey)
+	summary := agent.Sessions.GetSummary(sessionKey)
+	messages := agent.ContextBuilder.BuildMessages(history, summary, "", nil, "cli", "direct")
+
+	// Append user message.
+	messages = append(messages, providers.Message{Role: "user", Content: content})
+
+	// Save user message to session.
+	agent.Sessions.AddMessage(sessionKey, "user", content)
+
+	// Build tool definitions if the message looks like a task.
+	var toolDefs []providers.ToolDefinition
+	if looksLikeTask(content) {
+		allToolNames := agent.Tools.List()
+		var allToolsList []tools.Tool
+		for _, name := range allToolNames {
+			if t, ok := agent.Tools.Get(name); ok {
+				allToolsList = append(allToolsList, t)
+			}
+		}
+
+		filterTopK := 10
+		var activeTools []tools.Tool
+		if len(allToolNames) > filterTopK {
+			activeTools = tools.KeywordMatchTools(content, allToolsList, filterTopK)
+		} else {
+			activeTools = allToolsList
+		}
+
+		for _, t := range activeTools {
+			schema := tools.ToolToSchema(t)
+			if fn, ok := schema["function"].(map[string]any); ok {
+				name, _ := fn["name"].(string)
+				desc, _ := fn["description"].(string)
+				params, _ := fn["parameters"].(map[string]any)
+				toolDefs = append(toolDefs, providers.ToolDefinition{
+					Type: "function",
+					Function: providers.ToolFunctionDefinition{
+						Name:        name,
+						Description: desc,
+						Parameters:  params,
+					},
+				})
+			}
+		}
+	}
+
+	// Call the streaming provider.
+	llmOpts := map[string]any{
+		"max_tokens":  agent.MaxTokens,
+		"temperature": agent.Temperature,
+	}
+	ch, err := streamProvider.ChatStream(ctx, messages, toolDefs, agent.ModelID, llmOpts)
+	if err != nil {
+		return fmt.Errorf("ChatStream failed: %w", err)
+	}
+
+	// Read chunks and forward text deltas.
+	var fullResponse strings.Builder
+	for chunk := range ch {
+		if chunk.Delta != "" {
+			fullResponse.WriteString(chunk.Delta)
+			onChunk(chunk.Delta, false)
+		}
+	}
+
+	// If nothing was streamed, fall back to ProcessDirect.
+	if fullResponse.Len() == 0 {
+		result, err := al.ProcessDirect(ctx, content, sessionKey)
+		if err != nil {
+			return err
+		}
+		onChunk(result, false)
+		onChunk("", true)
+		return nil
+	}
+
+	// Save assistant response to session.
+	agent.Sessions.AddMessage(sessionKey, "assistant", fullResponse.String())
+	agent.Sessions.Save(sessionKey)
+
+	// Signal completion.
+	onChunk("", true)
+	return nil
+}
+
 // ProcessDirectWithImages sends a message with optional image attachments directly
 // to the default agent, bypassing channel routing. Images must be base64 data URLs.
 func (al *AgentLoop) ProcessDirectWithImages(

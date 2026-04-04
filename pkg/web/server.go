@@ -375,6 +375,7 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/api/status", api(s.handleStatus))
 	mux.HandleFunc("/api/config", api(s.handleConfig))
 	mux.HandleFunc("/api/chat", api(s.handleChat))
+	mux.HandleFunc("/api/chat/stream", api(s.handleChatStream))
 	mux.HandleFunc("/api/logs", api(s.handleLogs))
 	mux.HandleFunc("/api/skills/add", api(s.handleSkillAdd))
 	mux.HandleFunc("GET /api/skills", api(s.handleSkillsList))
@@ -418,8 +419,9 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 
 	s.mux = mux
 	s.server = &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", cfg.WebUI.Host, cfg.WebUI.Port),
-		Handler: mux,
+		Addr:              fmt.Sprintf("%s:%d", cfg.WebUI.Host, cfg.WebUI.Port),
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	return s
@@ -634,6 +636,76 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"response": response, "session_key": sessionKey})
+}
+
+// mustJSON marshals v to a JSON string, returning "{}" on error.
+func mustJSON(v any) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
+}
+
+func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	limitBody(r)
+	var req struct {
+		Message    string `json:"message"`
+		SessionKey string `json:"session_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	sessionKey := req.SessionKey
+	if sessionKey == "" {
+		sessionKey = "web:ui:" + time.Now().UTC().Format(time.RFC3339)
+	}
+
+	// Set SSE headers.
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		s.sendJSONError(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Send initial session event.
+	fmt.Fprintf(w, "data: %s\n\n", mustJSON(map[string]string{
+		"type":        "session",
+		"session_key": sessionKey,
+	}))
+	flusher.Flush()
+
+	ctx := r.Context()
+	err := s.agentLoop.ProcessDirectStream(ctx, req.Message, sessionKey, func(text string, done bool) {
+		if done {
+			fmt.Fprintf(w, "data: %s\n\n", mustJSON(map[string]string{"type": "done"}))
+			flusher.Flush()
+			return
+		}
+		fmt.Fprintf(w, "data: %s\n\n", mustJSON(map[string]string{
+			"type":    "delta",
+			"content": text,
+		}))
+		flusher.Flush()
+	})
+	if err != nil {
+		fmt.Fprintf(w, "data: %s\n\n", mustJSON(map[string]string{
+			"type":  "error",
+			"error": err.Error(),
+		}))
+		flusher.Flush()
+	}
 }
 
 func (s *Server) sendJSONError(w http.ResponseWriter, message string, code int) {
