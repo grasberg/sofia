@@ -79,3 +79,10 @@ type EmbeddingResult struct {
 	Embedding []float32 `json:"embedding"`
 	Index     int       `json:"index"`
 }
+
+// StreamChunk represents a chunk of a streaming LLM response.
+type StreamChunk struct {
+	Delta     string     `json:"delta"`                // Text content delta
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"` // Incremental tool calls
+	Done      bool       `json:"done"`                 // True when streaming is complete
+}

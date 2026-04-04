@@ -20,6 +20,7 @@ type (
 	ContentBlock           = protocoltypes.ContentBlock
 	CacheControl           = protocoltypes.CacheControl
 	EmbeddingResult        = protocoltypes.EmbeddingResult
+	StreamChunk            = protocoltypes.StreamChunk
 )
 
 type LLMProvider interface {
@@ -73,13 +74,6 @@ func (e *FailoverError) Unwrap() error {
 // Non-retriable: Format errors (bad request structure, image dimension/size).
 func (e *FailoverError) IsRetriable() bool {
 	return e.Reason != FailoverFormat
-}
-
-// StreamChunk represents a chunk of a streaming LLM response.
-type StreamChunk struct {
-	Delta     string     `json:"delta"`                // Text content delta
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"` // Incremental tool calls
-	Done      bool       `json:"done"`                 // True when streaming is complete
 }
 
 // StreamingProvider is an optional interface that providers can implement

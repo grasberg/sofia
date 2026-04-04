@@ -1,6 +1,7 @@
 package openai_compat
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -26,6 +27,7 @@ type (
 	ExtraContent           = protocoltypes.ExtraContent
 	GoogleExtra            = protocoltypes.GoogleExtra
 	EmbeddingResult        = protocoltypes.EmbeddingResult
+	StreamChunk            = protocoltypes.StreamChunk
 )
 
 type Provider struct {
@@ -217,6 +219,174 @@ func (p *Provider) Chat(
 	}
 
 	return parseResponse(body)
+}
+
+func (p *Provider) ChatStream(
+	ctx context.Context,
+	messages []Message,
+	tools []ToolDefinition,
+	model string,
+	options map[string]any,
+) (<-chan StreamChunk, error) {
+	if p.apiBase == "" {
+		return nil, fmt.Errorf("API base not configured")
+	}
+
+	model = normalizeModel(model, p.apiBase)
+
+	requestBody := map[string]any{
+		"model":    model,
+		"messages": stripSystemParts(messages),
+		"stream":   true,
+	}
+
+	if len(tools) > 0 {
+		requestBody["tools"] = tools
+		requestBody["tool_choice"] = "auto"
+	}
+
+	if maxTokens, ok := asInt(options["max_tokens"]); ok {
+		if strings.Contains(strings.ToLower(p.apiBase), "api.deepseek.com") && maxTokens > 8192 {
+			maxTokens = 8192
+		}
+
+		fieldName := p.maxTokensField
+		if fieldName == "" {
+			lowerModel := strings.ToLower(model)
+			if strings.Contains(lowerModel, "glm") || strings.Contains(lowerModel, "o1") ||
+				strings.Contains(lowerModel, "gpt-5") {
+				fieldName = "max_completion_tokens"
+			} else {
+				fieldName = "max_tokens"
+			}
+		}
+		requestBody[fieldName] = maxTokens
+	}
+
+	if temperature, ok := asFloat(options["temperature"]); ok {
+		lowerModel := strings.ToLower(model)
+		if strings.Contains(lowerModel, "kimi") && strings.Contains(lowerModel, "k2") {
+			requestBody["temperature"] = 1.0
+		} else {
+			requestBody["temperature"] = temperature
+		}
+	}
+
+	if isOllamaEndpoint(p.apiBase) {
+		numCtx := 8192
+		if maxTokens, ok := asInt(options["max_tokens"]); ok && maxTokens > 0 {
+			numCtx = maxTokens
+		}
+		requestBody["options"] = map[string]any{"num_ctx": numCtx}
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", p.apiBase+"/chat/completions", bytes.NewReader(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	if p.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+		resp.Body.Close()
+		return nil, fmt.Errorf("API request failed:\n  Status: %d\n  Body:   %s", resp.StatusCode, string(body))
+	}
+
+	ch := make(chan StreamChunk, 32)
+
+	go func() {
+		defer close(ch)
+		defer resp.Body.Close()
+
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			line := scanner.Text()
+
+			// Skip empty lines and SSE comments
+			if line == "" || strings.HasPrefix(line, ":") {
+				continue
+			}
+
+			// SSE data lines
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			data := strings.TrimPrefix(line, "data: ")
+
+			// End of stream marker
+			if data == "[DONE]" {
+				select {
+				case ch <- StreamChunk{Done: true}:
+				case <-ctx.Done():
+				}
+				return
+			}
+
+			var chunk struct {
+				Choices []struct {
+					Delta struct {
+						Content string `json:"content"`
+					} `json:"delta"`
+					FinishReason *string `json:"finish_reason"`
+				} `json:"choices"`
+			}
+
+			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+				continue
+			}
+
+			if len(chunk.Choices) == 0 {
+				continue
+			}
+
+			choice := chunk.Choices[0]
+
+			if choice.Delta.Content != "" {
+				select {
+				case ch <- StreamChunk{Delta: choice.Delta.Content}:
+				case <-ctx.Done():
+					return
+				}
+			}
+
+			if choice.FinishReason != nil && *choice.FinishReason == "stop" {
+				select {
+				case ch <- StreamChunk{Done: true}:
+				case <-ctx.Done():
+				}
+				return
+			}
+		}
+
+		// If scanner ends without explicit [DONE] or stop, send Done to close cleanly.
+		select {
+		case ch <- StreamChunk{Done: true}:
+		case <-ctx.Done():
+		}
+	}()
+
+	return ch, nil
 }
 
 func parseResponse(body []byte) (*LLMResponse, error) {
