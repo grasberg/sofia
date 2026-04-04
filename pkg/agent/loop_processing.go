@@ -632,92 +632,100 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 		return response, nil
 	}
 
-	// --- Auto-spawn agents for capabilities/skills not covered by any existing agent ---
-	missingCaps := al.findMissingCapabilities(msg.Content)
-	for _, cap := range missingCaps {
-		newAgent, err := al.spawnAgentForCapability(cap)
-		if err != nil {
-			logger.WarnCF(agentComp, "Failed to auto-create agent for capability",
-				map[string]any{"capability": cap.ID, "error": err.Error()})
-		} else {
-			logger.InfoCF(agentComp,
-				fmt.Sprintf("Auto-created %s agent %q", cap.Name, newAgent.Name),
-				map[string]any{"agent_id": newAgent.ID, "name": newAgent.Name, "capability": cap.ID})
-		}
-	}
-	// Also check workspace skills not covered
-	missingSkills := al.findMissingSkills(msg.Content)
-	if len(missingSkills) > 0 {
-		newAgent, err := al.spawnAgentForSkills(missingSkills)
-		if err != nil {
-			logger.WarnCF(agentComp, "Failed to auto-create agent for missing skills",
-				map[string]any{"skills": missingSkills, "error": err.Error()})
-		} else {
-			logger.InfoCF(agentComp,
-				fmt.Sprintf("Auto-created agent %q for skills %v", newAgent.Name, missingSkills),
-				map[string]any{"agent_id": newAgent.ID, "name": newAgent.Name, "skills": missingSkills})
-		}
-	}
+	// Skip delegation for local models — small models handle direct responses
+	// better than coordinating subagents, and each delegation adds a full
+	// LLM round-trip with the same prompt overhead.
+	defaultAgent := al.getRegistry().GetDefaultAgent()
+	skipDelegation := defaultAgent != nil && defaultAgent.IsLocalModel
 
-	// --- Multi-delegation: run ALL qualifying agents in parallel ---
-	candidates := al.delegateToAll(msg.Content)
-	delegationReason := "keyword_match"
-	if len(candidates) == 0 {
-		// Semantic fallback: ask LLM which agents should handle this
-		candidates = al.semanticDelegateToAll(ctx, msg.Content)
-		delegationReason = "semantic_match"
-	}
-
-	if len(candidates) > 0 {
-		agentNames := make([]string, len(candidates))
-		for i, c := range candidates {
-			n := c.Agent.Name
-			if n == "" {
-				n = c.Agent.ID
+	if !skipDelegation {
+		// --- Auto-spawn agents for capabilities/skills not covered by any existing agent ---
+		missingCaps := al.findMissingCapabilities(msg.Content)
+		for _, cap := range missingCaps {
+			newAgent, err := al.spawnAgentForCapability(cap)
+			if err != nil {
+				logger.WarnCF(agentComp, "Failed to auto-create agent for capability",
+					map[string]any{"capability": cap.ID, "error": err.Error()})
+			} else {
+				logger.InfoCF(agentComp,
+					fmt.Sprintf("Auto-created %s agent %q", cap.Name, newAgent.Name),
+					map[string]any{"agent_id": newAgent.ID, "name": newAgent.Name, "capability": cap.ID})
 			}
-			agentNames[i] = fmt.Sprintf("%s(%.2f)", n, c.Score)
 		}
-		logger.InfoCF(agentComp,
-			fmt.Sprintf("SOFIA: delegating to %d agent(s): %s", len(candidates), strings.Join(agentNames, ", ")),
-			map[string]any{
-				"from_agent": agent.ID,
-				"count":      len(candidates),
-				"agents":     agentNames,
-				"reason":     delegationReason,
-				"preview":    utils.Truncate(msg.Content, 120),
-			},
-		)
+		// Also check workspace skills not covered
+		missingSkills := al.findMissingSkills(msg.Content)
+		if len(missingSkills) > 0 {
+			newAgent, err := al.spawnAgentForSkills(missingSkills)
+			if err != nil {
+				logger.WarnCF(agentComp, "Failed to auto-create agent for missing skills",
+					map[string]any{"skills": missingSkills, "error": err.Error()})
+			} else {
+				logger.InfoCF(agentComp,
+					fmt.Sprintf("Auto-created agent %q for skills %v", newAgent.Name, missingSkills),
+					map[string]any{"agent_id": newAgent.ID, "name": newAgent.Name, "skills": missingSkills})
+			}
+		}
 
-		al.activeStatus.Store(fmt.Sprintf("Delegating to %d agent(s)...", len(candidates)))
-		al.broadcastPresence(agent.ID, "processing")
+		// --- Multi-delegation: run ALL qualifying agents in parallel ---
+		candidates := al.delegateToAll(msg.Content)
+		delegationReason := "keyword_match"
+		if len(candidates) == 0 {
+			// Semantic fallback: ask LLM which agents should handle this
+			candidates = al.semanticDelegateToAll(ctx, msg.Content)
+			delegationReason = "semantic_match"
+		}
 
-		delegateStart := time.Now()
-		combinedResult, err := al.runMultiDelegation(ctx, candidates, msg.Content, msg.Channel, msg.ChatID)
-		delegateDur := time.Since(delegateStart).Milliseconds()
-
-		if err != nil {
-			logger.WarnCF(agentComp,
-				fmt.Sprintf("SOFIA: multi-delegation failed after %dms — falling back to Sofia", delegateDur),
-				map[string]any{"duration_ms": delegateDur, "error": err.Error()})
-		} else {
+		if len(candidates) > 0 {
+			agentNames := make([]string, len(candidates))
+			for i, c := range candidates {
+				n := c.Agent.Name
+				if n == "" {
+					n = c.Agent.ID
+				}
+				agentNames[i] = fmt.Sprintf("%s(%.2f)", n, c.Score)
+			}
 			logger.InfoCF(agentComp,
-				fmt.Sprintf("SOFIA: %d agent(s) done in %dms, synthesizing results", len(candidates), delegateDur),
+				fmt.Sprintf("SOFIA: delegating to %d agent(s): %s", len(candidates), strings.Join(agentNames, ", ")),
 				map[string]any{
-					"count":       len(candidates),
-					"duration_ms": delegateDur,
-					"result_len":  len(combinedResult),
+					"from_agent": agent.ID,
+					"count":      len(candidates),
+					"agents":     agentNames,
+					"reason":     delegationReason,
+					"preview":    utils.Truncate(msg.Content, 120),
+				},
+			)
+
+			al.activeStatus.Store(fmt.Sprintf("Delegating to %d agent(s)...", len(candidates)))
+			al.broadcastPresence(agent.ID, "processing")
+
+			delegateStart := time.Now()
+			combinedResult, err := al.runMultiDelegation(ctx, candidates, msg.Content, msg.Channel, msg.ChatID)
+			delegateDur := time.Since(delegateStart).Milliseconds()
+
+			if err != nil {
+				logger.WarnCF(agentComp,
+					fmt.Sprintf("SOFIA: multi-delegation failed after %dms — falling back to Sofia", delegateDur),
+					map[string]any{"duration_ms": delegateDur, "error": err.Error()})
+			} else {
+				logger.InfoCF(agentComp,
+					fmt.Sprintf("SOFIA: %d agent(s) done in %dms, synthesizing results", len(candidates), delegateDur),
+					map[string]any{
+						"count":       len(candidates),
+						"duration_ms": delegateDur,
+						"result_len":  len(combinedResult),
+					})
+				synthesisMsg := fmt.Sprintf("[Combined results from %d subagents]\n\n%s", len(candidates), combinedResult)
+				return al.runAgentLoop(ctx, agent, processOptions{
+					SessionKey:      sessionKey,
+					Channel:         msg.Channel,
+					ChatID:          msg.ChatID,
+					UserMessage:     synthesisMsg,
+					DefaultResponse: defaultResponse,
+					EnableSummary:   true,
+					SendResponse:    false,
+					ParentSpan:      rootSpan,
 				})
-			synthesisMsg := fmt.Sprintf("[Combined results from %d subagents]\n\n%s", len(candidates), combinedResult)
-			return al.runAgentLoop(ctx, agent, processOptions{
-				SessionKey:      sessionKey,
-				Channel:         msg.Channel,
-				ChatID:          msg.ChatID,
-				UserMessage:     synthesisMsg,
-				DefaultResponse: defaultResponse,
-				EnableSummary:   true,
-				SendResponse:    false,
-				ParentSpan:      rootSpan,
-			})
+			}
 		}
 	}
 
@@ -918,27 +926,45 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 	// 1b. Thinking indicator removed — users prefer only real updates.
 
 	// 2. Build messages (skip history for heartbeat)
-	var history []providers.Message
-	var summary string
-	if !opts.NoHistory {
-		history = agent.Sessions.GetHistory(opts.SessionKey)
-		summary = agent.Sessions.GetSummary(opts.SessionKey)
-	}
-	messages := agent.ContextBuilder.BuildMessages(
-		history,
-		summary,
-		opts.UserMessage,
-		nil,
-		opts.Channel,
-		opts.ChatID,
-	)
+	var messages []providers.Message
 
-	// Inject images into the last user message for vision-capable providers
-	if len(opts.UserImages) > 0 {
-		for i := len(messages) - 1; i >= 0; i-- {
-			if messages[i].Role == "user" {
-				messages[i].Images = opts.UserImages
-				break
+	// Use compact system prompt for local models to reduce latency
+	if agent.IsLocalModel {
+		compactPrompt := agent.ContextBuilder.BuildCompactSystemPrompt()
+		messages = []providers.Message{{Role: "system", Content: compactPrompt}}
+		// Keep only last 6 history entries (3 exchanges) for local models
+		hist := agent.Sessions.GetHistory(opts.SessionKey)
+		maxHist := 6
+		if len(hist) > maxHist {
+			hist = hist[len(hist)-maxHist:]
+		}
+		for _, h := range hist {
+			messages = append(messages, providers.Message{Role: h.Role, Content: h.Content})
+		}
+		messages = append(messages, providers.Message{Role: "user", Content: opts.UserMessage})
+	} else {
+		var history []providers.Message
+		var summary string
+		if !opts.NoHistory {
+			history = agent.Sessions.GetHistory(opts.SessionKey)
+			summary = agent.Sessions.GetSummary(opts.SessionKey)
+		}
+		messages = agent.ContextBuilder.BuildMessages(
+			history,
+			summary,
+			opts.UserMessage,
+			nil,
+			opts.Channel,
+			opts.ChatID,
+		)
+
+		// Inject images into the last user message for vision-capable providers
+		if len(opts.UserImages) > 0 {
+			for i := len(messages) - 1; i >= 0; i-- {
+				if messages[i].Role == "user" {
+					messages[i].Images = opts.UserImages
+					break
+				}
 			}
 		}
 	}
