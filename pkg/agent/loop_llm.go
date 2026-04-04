@@ -105,54 +105,68 @@ func (al *AgentLoop) runLLMIteration(
 				"max":       agent.MaxIterations,
 			})
 
-		// Build tool definitions — cached across iterations since user intent is constant
+		// Build tool definitions.
+		// Strategy: on the first iteration, only include tools if the message
+		// looks like an actionable task. Small/local models compulsively call
+		// tools even for conversational messages, so withholding them on the
+		// first call lets the model respond naturally. Tools are provided on
+		// subsequent iterations (after the model has seen the conversation).
 		var providerToolDefs []providers.ToolDefinition
 		if cachedToolDefs != nil {
 			providerToolDefs = cachedToolDefs
 		} else {
-			var activeTools []tools.Tool
-			allToolNames := agent.Tools.List()
-			semanticTopK := 10
-			if al.semanticMatcher != nil && len(allToolNames) > semanticTopK {
-				var intent string
-				for i := len(messages) - 1; i >= 0; i-- {
-					if messages[i].Role == "user" {
-						intent = messages[i].Content
-						break
-					}
-				}
-				var toolsList []tools.Tool
-				for _, name := range allToolNames {
-					if t, ok := agent.Tools.Get(name); ok {
-						toolsList = append(toolsList, t)
-					}
-				}
-				activeTools = al.semanticMatcher.MatchTools(ctx, intent, toolsList, semanticTopK)
+			isTask := looksLikeTask(opts.UserMessage)
+			if !isTask && iteration == 1 {
+				// Conversational message — no tools on first call
+				providerToolDefs = nil
 			} else {
+				var activeTools []tools.Tool
+				allToolNames := agent.Tools.List()
+				filterTopK := 10
+
+				var allToolsList []tools.Tool
 				for _, name := range allToolNames {
 					if t, ok := agent.Tools.Get(name); ok {
-						activeTools = append(activeTools, t)
+						allToolsList = append(allToolsList, t)
 					}
 				}
-			}
 
-			for _, t := range activeTools {
-				schema := tools.ToolToSchema(t)
-				if fn, ok := schema["function"].(map[string]any); ok {
-					name, _ := fn["name"].(string)
-					desc, _ := fn["description"].(string)
-					params, _ := fn["parameters"].(map[string]any)
-					providerToolDefs = append(providerToolDefs, providers.ToolDefinition{
-						Type: "function",
-						Function: providers.ToolFunctionDefinition{
-							Name:        name,
-							Description: desc,
-							Parameters:  params,
-						},
-					})
+				if len(allToolNames) > filterTopK {
+					var intent string
+					for i := len(messages) - 1; i >= 0; i-- {
+						if messages[i].Role == "user" {
+							intent = messages[i].Content
+							break
+						}
+					}
+
+					if al.semanticMatcher != nil {
+						activeTools = al.semanticMatcher.MatchTools(ctx, intent, allToolsList, filterTopK)
+					} else {
+						activeTools = tools.KeywordMatchTools(intent, allToolsList, filterTopK)
+					}
+				} else {
+					activeTools = allToolsList
 				}
+
+				for _, t := range activeTools {
+					schema := tools.ToolToSchema(t)
+					if fn, ok := schema["function"].(map[string]any); ok {
+						name, _ := fn["name"].(string)
+						desc, _ := fn["description"].(string)
+						params, _ := fn["parameters"].(map[string]any)
+						providerToolDefs = append(providerToolDefs, providers.ToolDefinition{
+							Type: "function",
+							Function: providers.ToolFunctionDefinition{
+								Name:        name,
+								Description: desc,
+								Parameters:  params,
+							},
+						})
+					}
+				}
+				cachedToolDefs = providerToolDefs
 			}
-			cachedToolDefs = providerToolDefs
 		}
 
 		// Log LLM request details
@@ -913,23 +927,22 @@ func (al *AgentLoop) runLLMIteration(
 		}
 	}
 
-	// If we exhausted iterations without a final text response, make one last
-	// LLM call with no tools so the model is forced to summarize its work.
-	if finalContent == "" && iteration >= agent.MaxIterations {
-		logger.InfoCF(agentComp, "Max iterations reached — making final wrap-up LLM call without tools",
+	// If the loop ended without a text response, make one last LLM call
+	// without tools so the model is forced to respond with plain text.
+	// This handles both max-iterations exhaustion and small models that
+	// fail at tool-use and return empty content.
+	if finalContent == "" {
+		logger.InfoCF(agentComp, "No text response after LLM loop — forcing wrap-up call without tools",
 			map[string]any{"agent_id": agent.ID, "iterations": iteration})
 
 		messages = append(messages, providers.Message{
 			Role: "user",
-			Content: "[SYSTEM] You have reached the maximum number of tool iterations. " +
-				"Summarize what you accomplished and provide your final response to the user. " +
-				"Do NOT call any tools.",
+			Content: "[SYSTEM] Respond to the user directly with plain text. Do NOT call any tools.",
 		})
 
 		wrapResp, wrapErr := agent.Provider.Chat(ctx, messages, nil, agent.ModelID, map[string]any{
-			"max_tokens":       agent.MaxTokens,
-			"temperature":      0.7,
-			"prompt_cache_key": agent.ID,
+			"max_tokens":  agent.MaxTokens,
+			"temperature": 0.7,
 		})
 		if wrapErr == nil && wrapResp != nil && wrapResp.Content != "" {
 			finalContent = wrapResp.Content

@@ -54,7 +54,7 @@ func newTestEngine(t *testing.T, opts ...func(*testEngineOpts)) *EvolutionEngine
 	}
 	provider := &mockProvider{response: llmResp}
 
-	architect := NewAgentArchitect(provider, reg, a2a, store, db, workspace)
+	architect := NewAgentArchitect(provider, "test-model", reg, a2a, store, db, workspace)
 	modifier := NewSafeModifier(t.TempDir(), nil, nil)
 
 	cfg := &config.EvolutionConfig{
@@ -67,7 +67,7 @@ func newTestEngine(t *testing.T, opts ...func(*testEngineOpts)) *EvolutionEngine
 	t.Cleanup(func() { msgBus.Close() })
 
 	return NewEvolutionEngine(
-		provider, db, reg, a2a, toolStats, rep,
+		provider, "test-model", db, reg, a2a, toolStats, rep,
 		store, changelog, tracker, architect, modifier,
 		cfg, msgBus,
 	)
@@ -212,14 +212,14 @@ func TestEvolutionEngine_Observe(t *testing.T) {
 	workspace := t.TempDir()
 
 	provider := &mockProvider{response: `{}`}
-	architect := NewAgentArchitect(provider, reg, a2a, store, db, workspace)
+	architect := NewAgentArchitect(provider, "test-model", reg, a2a, store, db, workspace)
 	modifier := NewSafeModifier(t.TempDir(), nil, nil)
 	cfg := &config.EvolutionConfig{Enabled: true}
 	msgBus := bus.NewMessageBus()
 	t.Cleanup(func() { msgBus.Close() })
 
 	engine := NewEvolutionEngine(
-		provider, db, reg, a2a, toolStats, rep,
+		provider, "test-model", db, reg, a2a, toolStats, rep,
 		store, changelog, tracker, architect, modifier,
 		cfg, msgBus,
 	)

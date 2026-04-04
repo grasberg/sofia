@@ -22,6 +22,7 @@ var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 // AgentArchitect designs and creates new agents using LLM-generated blueprints.
 type AgentArchitect struct {
 	provider  providers.LLMProvider
+	model     string
 	registrar AgentRegistrar
 	a2a       A2ARegistrar
 	store     *AgentStore
@@ -32,6 +33,7 @@ type AgentArchitect struct {
 // NewAgentArchitect creates a new AgentArchitect.
 func NewAgentArchitect(
 	provider providers.LLMProvider,
+	model string,
 	registrar AgentRegistrar,
 	a2a A2ARegistrar,
 	store *AgentStore,
@@ -40,6 +42,7 @@ func NewAgentArchitect(
 ) *AgentArchitect {
 	return &AgentArchitect{
 		provider:  provider,
+		model:     model,
 		registrar: registrar,
 		a2a:       a2a,
 		store:     store,
@@ -79,7 +82,7 @@ func (a *AgentArchitect) DesignAgent(ctx context.Context, gapDescription string)
 		),
 	}
 
-	resp, err := a.provider.Chat(ctx, []pt.Message{systemMsg, userMsg}, nil, "", nil)
+	resp, err := a.provider.Chat(ctx, []pt.Message{systemMsg, userMsg}, nil, a.model, nil)
 	if err != nil {
 		return nil, fmt.Errorf("evolution/architect: LLM call failed: %w", err)
 	}

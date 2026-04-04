@@ -147,6 +147,82 @@ func (sm *SemanticMatcher) MatchTools(
 	return matched
 }
 
+// coreTools are always included regardless of keyword match score.
+// NOTE: "message" is intentionally excluded — small models misuse it for
+// conversational replies instead of returning text directly.
+var coreTools = map[string]bool{
+	"exec":  true,
+	"shell": true,
+}
+
+// KeywordMatchTools returns the topK tools whose name or description best
+// matches the user intent, using simple keyword overlap. No API calls needed.
+// Core tools (message, exec) are always included.
+func KeywordMatchTools(intent string, allTools []Tool, topK int) []Tool {
+	if len(allTools) <= topK || intent == "" {
+		return allTools
+	}
+
+	intentWords := tokenize(intent)
+	if len(intentWords) == 0 {
+		return allTools
+	}
+
+	type scored struct {
+		tool  Tool
+		score int
+		core  bool
+	}
+
+	var results []scored
+	for _, t := range allTools {
+		if coreTools[t.Name()] {
+			results = append(results, scored{tool: t, core: true})
+			continue
+		}
+		text := strings.ToLower(t.Name() + " " + t.Description())
+		toolWords := tokenize(text)
+		score := 0
+		for _, iw := range intentWords {
+			for _, tw := range toolWords {
+				if tw == iw || strings.Contains(tw, iw) || strings.Contains(iw, tw) {
+					score++
+				}
+			}
+		}
+		results = append(results, scored{tool: t, score: score})
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].core != results[j].core {
+			return results[i].core
+		}
+		return results[i].score > results[j].score
+	})
+
+	matched := make([]Tool, 0, topK)
+	for i := 0; i < len(results) && len(matched) < topK; i++ {
+		matched = append(matched, results[i].tool)
+	}
+	return matched
+}
+
+func tokenize(s string) []string {
+	words := strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r >= 0x80)
+	})
+	// Deduplicate and skip very short words
+	seen := make(map[string]bool, len(words))
+	var out []string
+	for _, w := range words {
+		if len(w) >= 3 && !seen[w] {
+			seen[w] = true
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
 // cosineSimilarity calculates the cosine similarity between two vectors.
 func cosineSimilarity(a, b []float32) float32 {
 	if len(a) != len(b) || len(a) == 0 {

@@ -55,3 +55,11 @@ func (p *HTTPProvider) Chat(
 func (p *HTTPProvider) GetDefaultModel() string {
 	return ""
 }
+
+func (p *HTTPProvider) Embeddings(
+	ctx context.Context,
+	texts []string,
+	model string,
+) ([]EmbeddingResult, error) {
+	return p.delegate.Embeddings(ctx, texts, model)
+}

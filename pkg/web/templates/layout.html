@@ -338,6 +338,23 @@
                 { label: "MiniMax-M2.5", model_id: "minimax/MiniMax-M2.5", api_base: "https://api.minimax.io/v1" },
                 { label: "MiniMax-M2.5-highspeed", model_id: "minimax/MiniMax-M2.5-highspeed", api_base: "https://api.minimax.io/v1" },
             ],
+            "Ollama": [
+                { label: "Gemma 4 E4B", model_id: "ollama/gemma4:e4b", api_base: "http://localhost:11434/v1" },
+                { label: "Gemma 4 E4B IT Q8", model_id: "ollama/gemma4:e4b-it-q8_0", api_base: "http://localhost:11434/v1" },
+                { label: "Llama 3.3 70B", model_id: "ollama/llama3.3:70b", api_base: "http://localhost:11434/v1" },
+                { label: "Llama 3.3 8B", model_id: "ollama/llama3.3:8b", api_base: "http://localhost:11434/v1" },
+                { label: "Qwen 3 32B", model_id: "ollama/qwen3:32b", api_base: "http://localhost:11434/v1" },
+                { label: "Qwen 3 14B", model_id: "ollama/qwen3:14b", api_base: "http://localhost:11434/v1" },
+                { label: "Qwen 3 8B", model_id: "ollama/qwen3:8b", api_base: "http://localhost:11434/v1" },
+                { label: "Qwen 2.5 Coder 32B", model_id: "ollama/qwen2.5-coder:32b", api_base: "http://localhost:11434/v1" },
+                { label: "DeepSeek R1 32B", model_id: "ollama/deepseek-r1:32b", api_base: "http://localhost:11434/v1" },
+                { label: "DeepSeek R1 14B", model_id: "ollama/deepseek-r1:14b", api_base: "http://localhost:11434/v1" },
+                { label: "Gemma 3 27B", model_id: "ollama/gemma3:27b", api_base: "http://localhost:11434/v1" },
+                { label: "Gemma 3 12B", model_id: "ollama/gemma3:12b", api_base: "http://localhost:11434/v1" },
+                { label: "Mistral Small 24B", model_id: "ollama/mistral-small:24b", api_base: "http://localhost:11434/v1" },
+                { label: "Phi-4 14B", model_id: "ollama/phi4:14b", api_base: "http://localhost:11434/v1" },
+                { label: "Command R 35B", model_id: "ollama/command-r:35b", api_base: "http://localhost:11434/v1" },
+            ],
             "OpenRouter": [],
             "Custom": [],
         };
@@ -455,7 +472,7 @@
                 title.textContent = "Edit Model";
                 // Detect provider from model string prefix
                 const prefix = m.model ? m.model.split("/")[0] : "";
-                const providerMap = { gemini: "Google Gemini", openai: "OpenAI", anthropic: "Anthropic", deepseek: "DeepSeek", groq: "Groq" };
+                const providerMap = { gemini: "Google Gemini", openai: "OpenAI", anthropic: "Anthropic", deepseek: "DeepSeek", groq: "Groq", ollama: "Ollama", mistral: "Mistral", qwen: "Qwen", moonshot: "Moonshot", grok: "xAI (Grok)", zai: "Z.ai", minimax: "MiniMax" };
                 const detectedProvider = providerMap[prefix] || "Custom";
                 document.getElementById("form-provider").value = detectedProvider;
                 onProviderChange();
@@ -520,6 +537,16 @@
                 if (provider === "OpenRouter") {
                     document.getElementById("form-model-base").value = "https://openrouter.ai/api/v1";
                 }
+            } else if (provider === "Ollama") {
+                // Show both dropdown (common models) and custom input (for user-pulled models)
+                const models = PROVIDER_MODELS[provider] || [];
+                sel.classList.remove("hidden");
+                sel.innerHTML = "<option value=''>-- Select Model --</option>" +
+                    models.map(function (m) { return "<option value=\"" + m.model_id + "\" data-base=\"" + m.api_base + "\">" + m.label + "</option>"; }).join("") +
+                    "<option value='__custom__'>Other (enter manually)</option>";
+                customWrapper.classList.add("hidden");
+                document.getElementById("form-model-base").value = "http://localhost:11434/v1";
+                document.getElementById("form-model-key").value = "ollama";
             } else {
                 sel.classList.remove("hidden");
                 customWrapper.classList.add("hidden");
@@ -533,6 +560,7 @@
 
         function onModelChange() {
             const provider = document.getElementById("form-provider").value;
+            const customWrapper = document.getElementById("form-model-custom-wrapper");
             let modelId = "";
             let apiBase = "";
             if (provider === "Custom" || provider === "OpenRouter") {
@@ -542,6 +570,15 @@
                 modelId = sel.value;
                 const opt = sel.options[sel.selectedIndex];
                 apiBase = opt ? (opt.getAttribute("data-base") || "") : "";
+                // Ollama "Other" option: show custom input
+                if (modelId === "__custom__") {
+                    customWrapper.classList.remove("hidden");
+                    document.getElementById("form-model-custom").value = "ollama/";
+                    document.getElementById("form-model-custom").placeholder = "e.g. ollama/llama3.3:latest";
+                    return;
+                } else {
+                    customWrapper.classList.add("hidden");
+                }
             }
 
             const stepConfig = document.getElementById("form-step-config");
@@ -573,6 +610,10 @@
                 modelId = document.getElementById("form-model-custom").value.trim();
             } else {
                 modelId = document.getElementById("form-model-select").value;
+                // If "Other" was selected (e.g. Ollama custom), use the custom input
+                if (modelId === "__custom__") {
+                    modelId = document.getElementById("form-model-custom").value.trim();
+                }
             }
             const alias = document.getElementById("form-model-alias").value.trim();
             if (!alias || !modelId) {
@@ -1618,6 +1659,13 @@
                 const cmdsStr = document.getElementById("cfg-google-commands").value.trim();
                 cfg.tools.google.allowed_commands = cmdsStr ? cmdsStr.split(",").map(s => s.trim()).filter(Boolean) : ["gmail", "drive", "calendar"];
 
+                const ddgEnabled = document.getElementById("cfg-ddg-enabled");
+                if (ddgEnabled) {
+                    if (!cfg.tools.web) cfg.tools.web = {};
+                    if (!cfg.tools.web.duckduckgo) cfg.tools.web.duckduckgo = {};
+                    cfg.tools.web.duckduckgo.enabled = ddgEnabled.checked;
+                }
+
                 const braveEnabled = document.getElementById("cfg-brave-enabled");
                 const braveKey = document.getElementById("cfg-brave-api-key");
                 if (braveEnabled) cfg.tools.brave_search.enabled = braveEnabled.checked;
@@ -1773,6 +1821,12 @@
                     if (googleBinary) googleBinary.value = cfg.tools.google.binary_path || "gog";
                     if (googleTimeout) googleTimeout.value = cfg.tools.google.timeout_seconds || 90;
                     if (googleCommands) googleCommands.value = (cfg.tools.google.allowed_commands || []).join(", ");
+                }
+
+                // Populate DuckDuckGo settings
+                if (cfg.tools && cfg.tools.web && cfg.tools.web.duckduckgo) {
+                    const ddgEnabled = document.getElementById("cfg-ddg-enabled");
+                    if (ddgEnabled) ddgEnabled.checked = !!cfg.tools.web.duckduckgo.enabled;
                 }
 
                 // Populate Brave Search settings
