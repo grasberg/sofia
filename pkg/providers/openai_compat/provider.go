@@ -76,6 +76,12 @@ func NewProvider(apiKey, apiBase, proxy string, opts ...Option) *Provider {
 		Transport: transport,
 	}
 
+	// Local models (Ollama) need a longer timeout — the model may need to
+	// load into memory and process large prompts on consumer hardware.
+	if isOllamaEndpoint(apiBase) && client.Timeout == defaultRequestTimeout {
+		client.Timeout = 10 * time.Minute
+	}
+
 	p := &Provider{
 		apiKey:     apiKey,
 		apiBase:    strings.TrimRight(apiBase, "/"),
@@ -162,16 +168,22 @@ func (p *Provider) Chat(
 		}
 	}
 
-	// Prompt caching: pass a stable cache key so OpenAI can bucket requests
-	// with the same key and reuse prefix KV cache across calls.
-	// The key is typically the agent ID — stable per agent, shared across requests.
-	// See: https://platform.openai.com/docs/guides/prompt-caching
-	// Prompt caching is only supported by OpenAI-native endpoints.
-	// Gemini and other providers reject unknown fields, so skip for non-OpenAI APIs.
+	// Prompt caching: only supported by OpenAI-native endpoints.
 	if cacheKey, ok := options["prompt_cache_key"].(string); ok && cacheKey != "" {
-		if !strings.Contains(p.apiBase, "generativelanguage.googleapis.com") {
+		if !strings.Contains(p.apiBase, "generativelanguage.googleapis.com") &&
+			!isOllamaEndpoint(p.apiBase) {
 			requestBody["prompt_cache_key"] = cacheKey
 		}
+	}
+
+	// Ollama: set num_ctx so the local model allocates enough context for the
+	// system prompt + tools + conversation history. Default is only 2048 tokens.
+	if isOllamaEndpoint(p.apiBase) {
+		numCtx := 8192
+		if maxTokens, ok := asInt(options["max_tokens"]); ok && maxTokens > 0 {
+			numCtx = maxTokens
+		}
+		requestBody["options"] = map[string]any{"num_ctx": numCtx}
 	}
 
 	jsonData, err := json.Marshal(requestBody)
@@ -442,6 +454,10 @@ func normalizeModel(model, apiBase string) string {
 	default:
 		return model
 	}
+}
+
+func isOllamaEndpoint(apiBase string) bool {
+	return strings.Contains(apiBase, "localhost:11434") || strings.Contains(apiBase, "127.0.0.1:11434")
 }
 
 func asInt(v any) (int, bool) {

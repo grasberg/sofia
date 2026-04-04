@@ -72,7 +72,7 @@ func TestAgentArchitect_DesignAgent(t *testing.T) {
 		}`,
 	}
 
-	architect := NewAgentArchitect(llm, &mockRegistrar{}, &mockA2A{}, store, db, t.TempDir())
+	architect := NewAgentArchitect(llm, "test-model", &mockRegistrar{}, &mockA2A{}, store, db, t.TempDir())
 
 	cfg, err := architect.DesignAgent(context.Background(), "code review and quality assurance")
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestAgentArchitect_DesignAgent_MalformedJSON(t *testing.T) {
 		response: `this is not json at all`,
 	}
 
-	architect := NewAgentArchitect(llm, &mockRegistrar{}, &mockA2A{}, store, db, t.TempDir())
+	architect := NewAgentArchitect(llm, "test-model", &mockRegistrar{}, &mockA2A{}, store, db, t.TempDir())
 
 	cfg, err := architect.DesignAgent(context.Background(), "something")
 	assert.Error(t, err)
@@ -109,7 +109,7 @@ func TestAgentArchitect_DesignAgent_EmptyID(t *testing.T) {
 		response: `{"id": "", "name": "No ID Agent", "purpose_prompt": "test", "model": "gpt-4o"}`,
 	}
 
-	architect := NewAgentArchitect(llm, &mockRegistrar{}, &mockA2A{}, store, db, t.TempDir())
+	architect := NewAgentArchitect(llm, "test-model", &mockRegistrar{}, &mockA2A{}, store, db, t.TempDir())
 
 	cfg, err := architect.DesignAgent(context.Background(), "something")
 	assert.Error(t, err)
@@ -125,7 +125,7 @@ func TestAgentArchitect_DesignAgent_InvalidSlug(t *testing.T) {
 		response: `{"id": "Bad Slug!", "name": "Agent", "purpose_prompt": "test", "model": "gpt-4o"}`,
 	}
 
-	architect := NewAgentArchitect(llm, &mockRegistrar{}, &mockA2A{}, store, db, t.TempDir())
+	architect := NewAgentArchitect(llm, "test-model", &mockRegistrar{}, &mockA2A{}, store, db, t.TempDir())
 
 	cfg, err := architect.DesignAgent(context.Background(), "something")
 	assert.Error(t, err)
@@ -149,7 +149,7 @@ func TestAgentArchitect_DesignAgent_MarkdownFences(t *testing.T) {
 		}` + "\n```",
 	}
 
-	architect := NewAgentArchitect(llm, &mockRegistrar{}, &mockA2A{}, store, db, t.TempDir())
+	architect := NewAgentArchitect(llm, "test-model", &mockRegistrar{}, &mockA2A{}, store, db, t.TempDir())
 
 	cfg, err := architect.DesignAgent(context.Background(), "data analysis")
 	require.NoError(t, err)
@@ -164,7 +164,7 @@ func TestAgentArchitect_CreateAgent(t *testing.T) {
 	a2a := &mockA2A{}
 	workspace := t.TempDir()
 
-	architect := NewAgentArchitect(&mockProvider{}, reg, a2a, store, db, workspace)
+	architect := NewAgentArchitect(&mockProvider{}, "test-model", reg, a2a, store, db, workspace)
 
 	cfg := EvolutionAgentConfig{}
 	cfg.ID = "test-agent"

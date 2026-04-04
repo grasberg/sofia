@@ -211,7 +211,7 @@
     async function goalRefresh() {
         try {
             const [goalsRes, planRes] = await Promise.all([
-                fetch('/api/goals?agent_id=sofia'),
+                fetch('/api/goals'),
                 fetch('/api/plan')
             ]);
             const goals = goalsRes.ok ? await goalsRes.json() : [];
@@ -370,38 +370,62 @@
             return;
         }
 
-        const priorityColors = {high:'text-red-400 bg-red-500/10',medium:'text-amber-400 bg-amber-500/10',low:'text-blue-400 bg-blue-500/10'};
-        const statusIcons = {active:'play-circle',completed:'check-circle',failed:'x-circle',paused:'pause-circle'};
-        const statusColors = {active:'text-green-400',completed:'text-zinc-500',failed:'text-red-400',paused:'text-amber-400'};
+        // Sort: active first, then paused, then completed/failed (newest first within each group)
+        var statusOrder = {active:0, paused:1, completed:2, failed:3};
+        goals.sort(function(a,b) {
+            var sa = statusOrder[a.status] !== undefined ? statusOrder[a.status] : 9;
+            var sb = statusOrder[b.status] !== undefined ? statusOrder[b.status] : 9;
+            if (sa !== sb) return sa - sb;
+            // Within same status, newest first
+            return (b.id || 0) - (a.id || 0);
+        });
+
+        var priorityColors = {high:'text-red-400 bg-red-500/10',medium:'text-amber-400 bg-amber-500/10',low:'text-blue-400 bg-blue-500/10'};
+        var statusIcons = {active:'play-circle',completed:'check-circle',failed:'x-circle',paused:'pause-circle'};
+        var statusColors = {active:'text-green-400',completed:'text-green-500',failed:'text-red-400',paused:'text-amber-400'};
+        var statusBorder = {active:'border-green-500/20',completed:'border-green-500/15',failed:'border-red-500/15',paused:'border-amber-500/15'};
 
         goals.forEach(function(g) {
-            const isInactive = g.status === 'completed' || g.status === 'failed';
-            const el = document.createElement('div');
-            el.className = 'flex items-start gap-3 p-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)] cursor-pointer hover:border-sofia/30 transition-colors' + (isInactive ? ' opacity-60' : '');
+            var el = document.createElement('div');
+            var border = statusBorder[g.status] || 'border-[var(--border-color)]';
+            el.className = 'flex items-start gap-3 p-4 rounded-xl border ' + border + ' bg-[var(--bg-main)] cursor-pointer hover:border-sofia/30 transition-colors';
             el.onclick = function() { openGoalDetail(g); };
 
             var resultPreview = '';
             if (g.result) {
-                var previewText = g.result.length > 150 ? g.result.substring(0, 150) + '...' : g.result;
+                var previewText = g.result.length > 200 ? g.result.substring(0, 200) + '...' : g.result;
+                var resultBg = g.status === 'completed' ? 'bg-green-500/[0.04] border-green-500/15' : 'bg-black/30 border-[var(--border-color)]';
                 resultPreview =
-                    '<div class="mt-2 p-2 rounded bg-black/30 border border-[var(--border-color)]">' +
-                    '  <div class="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">Result</div>' +
-                    '  <div class="text-[11px] text-zinc-400 font-mono whitespace-pre-wrap">' + escapeHtml(previewText) + '</div>' +
+                    '<div class="mt-2 p-2.5 rounded-lg ' + resultBg + ' border">' +
+                    '  <div class="text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-1">' +
+                    (g.status === 'completed' ? 'Completed Result' : 'Latest Result') + '</div>' +
+                    '  <div class="text-[11px] text-zinc-300 font-mono whitespace-pre-wrap">' + escapeHtml(previewText) + '</div>' +
                     '</div>';
             }
 
+            var statusBadge = '';
+            if (g.status === 'completed') {
+                statusBadge = '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-green-500/15 text-green-400">completed</span>';
+            } else if (g.status === 'failed') {
+                statusBadge = '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-red-500/15 text-red-400">failed</span>';
+            } else if (g.status === 'active') {
+                statusBadge = '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-green-500/15 text-green-400 animate-pulse">active</span>';
+            } else {
+                statusBadge = '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-amber-500/15 text-amber-400">' + escapeHtml(g.status || '') + '</span>';
+            }
+
             el.innerHTML =
-                '<div class="w-6 h-6 flex items-center justify-center shrink-0 mt-0.5 ' + (statusColors[g.status]||'text-zinc-400') + '">' +
-                '  <i data-lucide="' + (statusIcons[g.status]||'circle') + '" class="w-4 h-4"></i>' +
+                '<div class="w-7 h-7 flex items-center justify-center shrink-0 mt-0.5 ' + (statusColors[g.status]||'text-zinc-400') + '">' +
+                '  <i data-lucide="' + (statusIcons[g.status]||'circle') + '" class="w-5 h-5"></i>' +
                 '</div>' +
                 '<div class="flex-grow min-w-0">' +
-                '  <div class="flex items-center gap-2">' +
+                '  <div class="flex items-center gap-2 flex-wrap">' +
                 '    <span class="text-sm font-semibold text-[var(--text-main)]">' + escapeHtml(g.name || '') + '</span>' +
                 '    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest ' + (priorityColors[g.priority]||'') + '">' + escapeHtml(g.priority || '') + '</span>' +
-                '    <span class="text-[10px] text-zinc-600 uppercase">' + escapeHtml(g.status || '') + '</span>' +
-                '    <span class="text-[9px] text-zinc-700 ml-auto flex items-center gap-1"><i data-lucide="scroll-text" class="w-3 h-3"></i>View log</span>' +
+                statusBadge +
+                '    <span class="text-[9px] text-zinc-600 ml-auto flex items-center gap-1 hover:text-sofia"><i data-lucide="scroll-text" class="w-3 h-3"></i> View details</span>' +
                 '  </div>' +
-                (g.description ? '<div class="text-[11px] text-zinc-500 mt-0.5">' + escapeHtml(g.description) + '</div>' : '') +
+                (g.description ? '<div class="text-[11px] text-zinc-500 mt-1">' + escapeHtml(g.description) + '</div>' : '') +
                 resultPreview +
                 '</div>';
             list.appendChild(el);
@@ -552,6 +576,11 @@
         }
     };
 
-    // Initial load
+    // Initial load + auto-refresh every 15 seconds while the tab is visible
     goalRefresh();
+    var _goalRefreshTimer = setInterval(function() {
+        if (document.getElementById('tab-goals') && !document.getElementById('tab-goals').closest('.hidden')) {
+            goalRefresh();
+        }
+    }, 15000);
 </script>

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -150,13 +151,17 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	cooldown := providers.NewCooldownTracker()
 	fallbackChain := providers.NewFallbackChain(cooldown)
 
-	// Set up semantic tool matcher if provider supports embeddings
+	// Set up semantic tool matcher if the provider supports embeddings and
+	// has access to a real embedding model. Local providers like Ollama
+	// typically don't host embedding models, so the keyword matcher is used instead.
 	var semanticMatcher *tools.SemanticMatcher
 	if embProvider, ok := provider.(providers.EmbeddingProvider); ok {
-		semanticMatcher = tools.NewSemanticMatcher(
-			embProvider,
-			"text-embedding-3-small",
-		) // Defaulting for OpenAI-compat
+		modelName := cfg.Agents.Defaults.GetModelName()
+		mc, _ := cfg.GetModelConfig(modelName)
+		isLocal := mc != nil && (strings.Contains(mc.APIBase, "localhost") || strings.Contains(mc.APIBase, "127.0.0.1"))
+		if !isLocal {
+			semanticMatcher = tools.NewSemanticMatcher(embProvider, "text-embedding-3-small")
+		}
 	}
 
 	// Create state manager using default agent's workspace for channel recording
@@ -350,8 +355,14 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 			historyDir, cfg.Evolution.ImmutableFiles, provider,
 		)
 
+		// Resolve the model for the evolution engine from the main agent or defaults.
+		evoModel := cfg.Agents.Defaults.GetModelName()
+		if mainAgent, ok := registry.GetAgent("main"); ok && mainAgent.Model != "" {
+			evoModel = mainAgent.Model
+		}
+
 		architect := evolution.NewAgentArchitect(
-			provider, registry, a2aRouter, agentStore, memDB,
+			provider, evoModel, registry, a2aRouter, agentStore, memDB,
 			cfg.Agents.Defaults.Workspace,
 		)
 
@@ -361,7 +372,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		}
 
 		al.evolutionEngine = evolution.NewEvolutionEngine(
-			provider, memDB, registry, a2aRouter, toolStats,
+			provider, evoModel, memDB, registry, a2aRouter, toolStats,
 			repMgr, agentStore, changelogWriter, perfTracker, architect,
 			safeModifier, &cfg.Evolution, msgBus,
 		)

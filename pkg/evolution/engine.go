@@ -35,6 +35,7 @@ type Proposal struct {
 // that continuously evolves the agent system.
 type EvolutionEngine struct {
 	provider   providers.LLMProvider
+	model      string
 	memDB      *memory.MemoryDB
 	registrar  AgentRegistrar
 	a2a        A2ARegistrar
@@ -62,6 +63,7 @@ type EvolutionEngine struct {
 // NewEvolutionEngine creates a new EvolutionEngine wired to all required dependencies.
 func NewEvolutionEngine(
 	provider providers.LLMProvider,
+	model string,
 	memDB *memory.MemoryDB,
 	registrar AgentRegistrar,
 	a2a A2ARegistrar,
@@ -77,6 +79,7 @@ func NewEvolutionEngine(
 ) *EvolutionEngine {
 	return &EvolutionEngine{
 		provider:   provider,
+		model:      model,
 		memDB:      memDB,
 		registrar:  registrar,
 		a2a:        a2a,
@@ -206,6 +209,11 @@ func (e *EvolutionEngine) runCycle(ctx context.Context) {
 
 	logger.InfoCF("evolution", "Starting evolution cycle", nil)
 
+	if e.provider == nil {
+		logger.WarnCF("evolution", "No LLM provider available, skipping cycle", nil)
+		return
+	}
+
 	// Phase 1: Observe
 	report := e.observe(ctx)
 
@@ -330,7 +338,7 @@ func (e *EvolutionEngine) diagnose(ctx context.Context, report ObservationReport
 		},
 	}
 
-	resp, err := e.provider.Chat(ctx, messages, nil, "", nil)
+	resp, err := e.provider.Chat(ctx, messages, nil, e.model, nil)
 	if err != nil {
 		return Diagnosis{}, fmt.Errorf("diagnosis LLM call: %w", err)
 	}
@@ -386,7 +394,7 @@ func (e *EvolutionEngine) plan(ctx context.Context, diagnosis Diagnosis) ([]Evol
 		},
 	}
 
-	resp, err := e.provider.Chat(ctx, messages, nil, "", nil)
+	resp, err := e.provider.Chat(ctx, messages, nil, e.model, nil)
 	if err != nil {
 		return nil, fmt.Errorf("planning LLM call: %w", err)
 	}

@@ -325,7 +325,7 @@ func buildGoalsSummary(goalsAny []any) (string, []goalRef) {
 	return goalsSummary.String(), refs
 }
 
-func buildGoalPlannerPrompt(goalsSummary string) string {
+func (s *Service) buildGoalPlannerPrompt(goalsSummary string) string {
 	return fmt.Sprintf(`You are an autonomous AI agent. You have the following active goals:
 
 %s
@@ -335,15 +335,16 @@ Decide which goal to work on next (prioritize high-priority goals). Then determi
 Rules:
 - Pick ONE goal and ONE step. Do not try to do everything at once.
 - The step must be specific and achievable with available tools (read_file, write_file, exec, edit_file, list_dir, append_file).
-- If a goal needs research, the step could be "Research X and write findings to workspace/research_X.md".
-- If a goal needs code, the step could be "Create file X with content Y".
+- All file operations MUST use absolute paths under the workspace: %s
+- If a goal needs research, the step could be "Research X and write findings to %s/research_X.md".
+- If a goal needs code, the step could be "Create file at %s/filename with content Y".
 - If a goal is already effectively complete, say GOAL_COMPLETE:<goal_id>.
 - If none of the goals have a useful next step right now, reply ONLY with "NO_ACTION".
 
 Respond in this exact JSON format (no markdown, no code fences):
 {"goal_id": <number>, "goal_name": "<name>", "step": "<description of the concrete task to execute>"}
 
-Or respond with NO_ACTION if nothing to do.`, goalsSummary)
+Or respond with NO_ACTION if nothing to do.`, goalsSummary, s.workspace, s.workspace, s.workspace)
 }
 
 func parseGoalPlannerResponse(content string) (goalPlannerDecision, error) {
@@ -376,21 +377,22 @@ func parseGoalPlannerResponse(content string) (goalPlannerDecision, error) {
 	return goalPlannerDecision{Plan: plan}, nil
 }
 
-func buildGoalTaskPrompt(plan goalStepPlan) string {
+func (s *Service) buildGoalTaskPrompt(plan goalStepPlan) string {
 	return fmt.Sprintf(`You are working toward goal: "%s"
 
 Your next step: %s
 
 CRITICAL RULES:
 - You MUST use tool calls (read_file, write_file, exec, list_dir, etc.) to do real work.
+- All file operations MUST use absolute paths under the workspace: %s
 - Do NOT just describe what you would do. Actually do it with tools.
 - Do NOT roleplay or narrate. No stage directions. No fictional progress.
 - Every response must contain at least one tool call unless the step is purely informational.
-- When done, summarize what you actually accomplished (files created, commands run, results).`, plan.GoalName, plan.Step)
+- When done, summarize what you actually accomplished (files created, commands run, results).`, plan.GoalName, plan.Step, s.workspace)
 }
 
 func (s *Service) executeGoalTask(ctx context.Context, plan goalStepPlan) (string, error) {
-	taskPrompt := buildGoalTaskPrompt(plan)
+	taskPrompt := s.buildGoalTaskPrompt(plan)
 
 	s.mu.Lock()
 	runner := s.taskRunner
@@ -429,7 +431,7 @@ func (s *Service) executeOneGoalStep(ctx context.Context, gm *GoalManager, goals
 	}
 
 	// Ask the LLM which goal to work on and what the next concrete step is
-	prompt := buildGoalPlannerPrompt(goalsSummary)
+	prompt := s.buildGoalPlannerPrompt(goalsSummary)
 
 	messages := []providers.Message{
 		{Role: "user", Content: prompt},
