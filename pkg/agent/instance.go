@@ -36,6 +36,7 @@ type AgentInstance struct {
 	Tools          *tools.ToolRegistry
 	Subagents      *config.SubagentsConfig
 	SkillsFilter   []string
+	IsLocalModel   bool
 	PurposePrompt  string
 	Candidates     []providers.FallbackCandidate
 }
@@ -166,6 +167,11 @@ func NewAgentInstance(
 		}
 	}
 
+	isLocal := false
+	if mc, err := cfg.GetModelConfig(model); err == nil && mc != nil {
+		isLocal = strings.Contains(mc.APIBase, "localhost") || strings.Contains(mc.APIBase, "127.0.0.1")
+	}
+
 	return &AgentInstance{
 		ID:   agentID,
 		Name: agentName,
@@ -189,6 +195,7 @@ func NewAgentInstance(
 		Tools:          toolsRegistry,
 		Subagents:      subagents,
 		SkillsFilter:   skillsFilter,
+		IsLocalModel:   isLocal,
 		PurposePrompt:  contextBuilder.purposeInstructions,
 		Candidates:     candidates,
 	}

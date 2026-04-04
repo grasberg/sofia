@@ -245,6 +245,25 @@ When delegating to subagents, tell them which skills to use: "Read workspace/ski
 	return strings.Join(parts, "\n\n---\n\n")
 }
 
+// BuildCompactSystemPrompt returns a minimal system prompt for local/small models.
+// Strips skills metadata, memory context, and verbose rules to reduce token count.
+func (cb *ContextBuilder) BuildCompactSystemPrompt() string {
+	workspacePath, _ := filepath.Abs(cb.workspace)
+	name := cb.userName
+	if name == "" {
+		name = "the user"
+	}
+
+	// Load SOUL.md for personality (it's small and defines the agent's character)
+	soulContent := ""
+	soulPath := filepath.Join(cb.workspace, "SOUL.md")
+	if data, err := os.ReadFile(soulPath); err == nil {
+		soulContent = "\n\n" + strings.TrimSpace(string(data))
+	}
+
+	return fmt.Sprintf("You are Sofia, a helpful AI assistant for %s.\nWorkspace: %s\n\nRules:\n- Respond directly and concisely.\n- Use tools when the user asks you to perform actions (file operations, web search, etc.).\n- For conversational messages, just respond with text — no tool calls needed.\n- Be helpful, honest, and brief.%s", name, workspacePath, soulContent)
+}
+
 // BuildSystemPromptWithCache returns the cached system prompt if available
 // and source files haven't changed, otherwise builds and caches it.
 // Source file changes are detected via mtime checks (cheap stat calls).
