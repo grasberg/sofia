@@ -55,6 +55,7 @@ type PlanStep struct {
 	Result      string     `json:"result,omitempty"`
 	SubPlanID   string     `json:"sub_plan_id,omitempty"` // Links to a child plan
 	AssignedTo  string     `json:"assigned_to,omitempty"` // Agent ID working on this step
+	DependsOn   []int      `json:"depends_on,omitempty"`  // Indices of steps this depends on
 }
 
 // CostBenefit holds a trade-off assessment for a plan.
@@ -129,6 +130,12 @@ func (p *Plan) FormatStatus() string {
 	}
 
 	return sb.String()
+}
+
+// PlanStepDef is the LLM-generated definition of a plan step before it becomes a PlanStep.
+type PlanStepDef struct {
+	Description string `json:"description"`
+	DependsOn   []int  `json:"depends_on"`
 }
 
 // FormatStatusHierarchical returns the plan status with sub-plans expanded inline.
