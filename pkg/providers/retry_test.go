@@ -110,7 +110,7 @@ func TestRetryWithBackoff_MaxRetriesExceeded(t *testing.T) {
 }
 
 func TestRetryWithBackoff_ContextCancelled(t *testing.T) {
-	t.Run("cancelled before first attempt", func(t *testing.T) {
+	t.Run("canceled before first attempt", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately.
 
@@ -121,11 +121,11 @@ func TestRetryWithBackoff_ContextCancelled(t *testing.T) {
 		})
 
 		require.Error(t, err)
-		assert.Equal(t, 0, calls, "should not call fn when context is already cancelled")
+		assert.Equal(t, 0, calls, "should not call fn when context is already canceled")
 		assert.ErrorIs(t, err, context.Canceled)
 	})
 
-	t.Run("cancelled during backoff wait", func(t *testing.T) {
+	t.Run("canceled during backoff wait", func(t *testing.T) {
 		cfg := RetryConfig{
 			MaxRetries:     3,
 			InitialBackoff: 5 * time.Second, // long backoff so cancel fires during wait
@@ -148,7 +148,7 @@ func TestRetryWithBackoff_ContextCancelled(t *testing.T) {
 		})
 
 		require.Error(t, err)
-		assert.Equal(t, 1, calls, "should stop retrying after context is cancelled during backoff")
+		assert.Equal(t, 1, calls, "should stop retrying after context is canceled during backoff")
 		assert.ErrorIs(t, err, context.Canceled)
 	})
 }

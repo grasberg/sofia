@@ -18,14 +18,24 @@ type SemanticMatcher struct {
 	model    string
 	cache    map[string][]float32
 	mu       sync.RWMutex
+	tracker  *ToolTracker // optional usage stats for ranking
+	
+	// Intent embedding cache to avoid redundant API calls
+	intentCache map[string][]float32 // key: intent hash → embedding
 }
 
 func NewSemanticMatcher(provider providers.EmbeddingProvider, model string) *SemanticMatcher {
 	return &SemanticMatcher{
-		provider: provider,
-		model:    model,
-		cache:    make(map[string][]float32),
+		provider:    provider,
+		model:       model,
+		cache:       make(map[string][]float32),
+		intentCache: make(map[string][]float32),
 	}
+}
+
+// SetTracker attaches a ToolTracker for usage-based ranking.
+func (sm *SemanticMatcher) SetTracker(tracker *ToolTracker) {
+	sm.tracker = tracker
 }
 
 // matchScore represents the similarity score for a tool.
@@ -47,11 +57,19 @@ func (sm *SemanticMatcher) MatchTools(
 	}
 
 	start := time.Now()
+	
+	// Check intent cache to avoid redundant API calls
+	intentHash := hashIntent(intent)
+	sm.mu.RLock()
+	intentEmbedding, intentCached := sm.intentCache[intentHash]
+	sm.mu.RUnlock()
 
-	// Build a list of texts to embed. Index 0 is the intent.
+	// Build a list of texts to embed. Index 0 is the intent (if not cached).
 	// Indices 1..N are the tools that are NOT in the cache.
 	var textsToEmbed []string
-	textsToEmbed = append(textsToEmbed, intent)
+	if !intentCached {
+		textsToEmbed = append(textsToEmbed, intent)
+	}
 
 	toolToEmbedIndex := make(map[string]int) // Maps tool name -> index in textsToEmbed
 	for _, t := range tools {
@@ -70,30 +88,49 @@ func (sm *SemanticMatcher) MatchTools(
 		}
 	}
 
-	// Call provider for embeddings
-	results, err := sm.provider.Embeddings(ctx, textsToEmbed, sm.model)
-	if err != nil {
-		logger.WarnCF("semantic_matcher", "Failed to rank tools, falling back to all tools", map[string]any{
-			"error": err.Error(),
-			"count": len(tools),
-		})
-		return tools
+	// Call provider for embeddings (only if needed)
+	var results []providers.EmbeddingResult
+	var err error
+	if len(textsToEmbed) > 0 {
+		results, err = sm.provider.Embeddings(ctx, textsToEmbed, sm.model)
+		if err != nil {
+			logger.WarnCF("semantic_matcher", "Failed to rank tools, falling back to all tools", map[string]any{
+				"error": err.Error(),
+				"count": len(tools),
+			})
+			return tools
+		}
+
+		if len(results) != len(textsToEmbed) {
+			logger.WarnCF("semantic_matcher", "Embeddings length mismatch, falling back to all tools", map[string]any{
+				"expected": len(textsToEmbed),
+				"got":      len(results),
+			})
+			return tools
+		}
 	}
 
-	if len(results) != len(textsToEmbed) {
-		logger.WarnCF("semantic_matcher", "Embeddings length mismatch, falling back to all tools", map[string]any{
-			"expected": len(textsToEmbed),
-			"got":      len(results),
-		})
-		return tools
+	// Cache intent embedding if it was embedded
+	if !intentCached && len(results) > 0 {
+		for _, r := range results {
+			if r.Index == 0 {
+				sm.mu.Lock()
+				sm.intentCache[intentHash] = r.Embedding
+				sm.mu.Unlock()
+				break
+			}
+		}
 	}
 
-	// Extract intent embedding (always index 0)
-	var intentEmbedding []float32
-	for _, r := range results {
-		if r.Index == 0 {
-			intentEmbedding = r.Embedding
-			break
+	// Extract intent embedding (from cache or results)
+	if intentCached {
+		intentEmbedding = intentEmbedding
+	} else {
+		for _, r := range results {
+			if r.Index == 0 {
+				intentEmbedding = r.Embedding
+				break
+			}
 		}
 	}
 
@@ -123,6 +160,21 @@ func (sm *SemanticMatcher) MatchTools(
 		}
 
 		score := cosineSimilarity(intentEmbedding, toolEmbed)
+		
+		// Apply usage-based ranking boost
+		if sm.tracker != nil {
+			if stats, ok := sm.tracker.GetStat(t.Name()); ok {
+				// Boost for high success rate (0-0.3 boost)
+				successBoost := float32(stats.SuccessRate) * 0.3
+				
+				// Boost for low latency (0-0.2 boost)
+				avgLatencyMs := stats.AverageTime.Milliseconds()
+				latencyBoost := float32(max(0, 1000-int(avgLatencyMs))) / 1000.0 * 0.2
+				
+				score += score * (successBoost + latencyBoost)
+			}
+		}
+		
 		scores = append(scores, matchScore{tool: t, score: score})
 	}
 
@@ -151,8 +203,26 @@ func (sm *SemanticMatcher) MatchTools(
 // NOTE: "message" is intentionally excluded — small models misuse it for
 // conversational replies instead of returning text directly.
 var coreTools = map[string]bool{
-	"exec":  true,
-	"shell": true,
+	ToolExec:  true,
+	ToolShell: true,
+}
+
+// max returns the maximum of two integers.
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// hashIntent creates a simple hash of the intent string for caching.
+func hashIntent(intent string) string {
+	// Simple hash: sum of runes modulo a prime number
+	var hash int
+	for _, r := range intent {
+		hash = (hash*31 + int(r)) % 1000000007
+	}
+	return fmt.Sprintf("intent_%d", hash)
 }
 
 // KeywordMatchTools returns the topK tools whose name or description best

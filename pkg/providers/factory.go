@@ -9,6 +9,8 @@ import (
 )
 
 var getCredential = auth.GetCredential
+var setCredential = auth.SetCredential
+var refreshQwenToken = auth.RefreshQwenToken
 
 type providerType int
 
@@ -19,6 +21,7 @@ const (
 	providerTypeCodexCLIToken
 	providerTypeClaudeCLI
 	providerTypeCodexCLI
+	providerTypeQwenCLI
 	providerTypeGitHubCopilot
 )
 
@@ -46,6 +49,23 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 	// First, prefer explicit provider configuration.
 	if providerName != "" {
 		switch providerName {
+		case "ollama_cloud", "ollama-cloud":
+			if cfg.Providers.Ollama.APIKey != "" {
+				sel.apiKey = cfg.Providers.Ollama.APIKey
+				sel.apiBase = cfg.Providers.Ollama.APIBase
+				sel.proxy = cfg.Providers.Ollama.Proxy
+				if sel.apiBase == "" {
+					sel.apiBase = "https://ollama.com/v1"
+				}
+			}
+		case "ollama":
+			// Local Ollama: no API key required, defaults to localhost
+			sel.apiKey = cfg.Providers.Ollama.APIKey
+			sel.apiBase = cfg.Providers.Ollama.APIBase
+			sel.proxy = cfg.Providers.Ollama.Proxy
+			if sel.apiBase == "" {
+				sel.apiBase = "http://localhost:11434/v1"
+			}
 		case "groq":
 			if cfg.Providers.Groq.APIKey != "" {
 				sel.apiKey = cfg.Providers.Groq.APIKey
@@ -205,6 +225,14 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 			sel.providerType = providerTypeCodexCLI
 			sel.workspace = workspace
 			return sel, nil
+		case "qwen-cli", "qwen-code":
+			workspace := cfg.WorkspacePath()
+			if workspace == "" {
+				workspace = "."
+			}
+			sel.providerType = providerTypeQwenCLI
+			sel.workspace = workspace
+			return sel, nil
 		case "deepseek":
 			if cfg.Providers.DeepSeek.APIKey != "" {
 				sel.apiKey = cfg.Providers.DeepSeek.APIKey
@@ -334,12 +362,20 @@ func resolveProviderSelection(cfg *config.Config) (providerSelection, error) {
 			if sel.apiBase == "" {
 				sel.apiBase = DefaultNvidiaAPIBase
 			}
-		case (strings.Contains(lowerModel, "ollama") || strings.HasPrefix(model, "ollama/")) && cfg.Providers.Ollama.APIKey != "":
+		case strings.Contains(lowerModel, "ollama") || strings.HasPrefix(model, "ollama/"):
+			// Local Ollama: API key optional, defaults to localhost
 			sel.apiKey = cfg.Providers.Ollama.APIKey
 			sel.apiBase = cfg.Providers.Ollama.APIBase
 			sel.proxy = cfg.Providers.Ollama.Proxy
 			if sel.apiBase == "" {
 				sel.apiBase = "http://localhost:11434/v1"
+			}
+		case (strings.Contains(lowerModel, "ollama_cloud") || strings.HasPrefix(model, "ollama_cloud/") || strings.HasSuffix(lowerModel, "-cloud")) && cfg.Providers.Ollama.APIKey != "":
+			sel.apiKey = cfg.Providers.Ollama.APIKey
+			sel.apiBase = cfg.Providers.Ollama.APIBase
+			sel.proxy = cfg.Providers.Ollama.Proxy
+			if sel.apiBase == "" {
+				sel.apiBase = "https://ollama.com/v1"
 			}
 		case (strings.Contains(lowerModel, "mistral") || strings.HasPrefix(model, "mistral/")) && cfg.Providers.Mistral.APIKey != "":
 			sel.apiKey = cfg.Providers.Mistral.APIKey

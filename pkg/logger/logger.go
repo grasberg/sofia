@@ -102,6 +102,14 @@ func GetLevel() LogLevel {
 	return currentLevel
 }
 
+// IsDebug returns true if the current log level allows DEBUG messages.
+// Use this to guard expensive argument evaluation before DebugCF calls.
+func IsDebug() bool {
+	mu.RLock()
+	defer mu.RUnlock()
+	return currentLevel <= DEBUG
+}
+
 func EnableFileLogging(filePath string) error {
 	mu.Lock()
 	defer mu.Unlock()

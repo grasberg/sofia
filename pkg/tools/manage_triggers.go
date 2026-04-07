@@ -130,15 +130,11 @@ func (t *ManageTriggersTool) Execute(ctx context.Context, args map[string]any) *
 			name, _ := trig["name"].(string)
 			condition, _ := trig["condition"].(string)
 			action, _ := trig["action"].(string)
-			out.WriteString(
-				fmt.Sprintf(
-					"- ID: %.0f | Name: %s\n  Condition: %s\n  Action: %s\n",
-					id,
-					name,
-					condition,
-					action,
-				),
-			)
+			fmt.Fprintf(&out, "- ID: %.0f | Name: %s\n  Condition: %s\n  Action: %s\n",
+				id,
+				name,
+				condition,
+				action)
 		}
 		return NewToolResult(out.String())
 

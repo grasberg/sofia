@@ -102,13 +102,13 @@ func (t *CreateAgentTool) Execute(ctx context.Context, args map[string]any) *Too
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Created agent %q (%s)\n", id, name))
-	sb.WriteString(fmt.Sprintf("  Purpose: %s\n", purpose))
+	fmt.Fprintf(&sb, "Created agent %q (%s)\n", id, name)
+	fmt.Fprintf(&sb, "  Purpose: %s\n", purpose)
 	if len(skills) > 0 {
-		sb.WriteString(fmt.Sprintf("  Skills: %s\n", strings.Join(skills, ", ")))
+		fmt.Fprintf(&sb, "  Skills: %s\n", strings.Join(skills, ", "))
 	}
 	if model != "" {
-		sb.WriteString(fmt.Sprintf("  Model: %s\n", model))
+		fmt.Fprintf(&sb, "  Model: %s\n", model)
 	}
 	sb.WriteString("Agent is now available for delegation, orchestration, and spawning.")
 

@@ -80,7 +80,7 @@
 </div>
 
 <script>
-    lucide.createIcons();
+    refreshIcons();
 
     // State
     let calWeekOffset = 0; // 0 = this week
@@ -526,7 +526,7 @@
 
             list.appendChild(el);
         });
-        lucide.createIcons({ root: list });
+        refreshIcons();
     }
 
     // Fetch data

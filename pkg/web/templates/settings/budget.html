@@ -68,7 +68,7 @@
             '  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>' +
             '</button>';
         list.appendChild(row);
-        lucide.createIcons({ root: row });
+        refreshIcons();
     }
 
     function checkBudgetEmpty() {
@@ -77,5 +77,5 @@
         if (empty) empty.style.display = rows.length === 0 ? '' : 'none';
     }
 
-    lucide.createIcons();
+    refreshIcons();
 </script>

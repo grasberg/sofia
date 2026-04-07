@@ -89,8 +89,8 @@ func TestFormatDiscordMarkdown(t *testing.T) {
 			expected: "> This is a quote",
 		},
 		{
-			name:  "mixed content",
-			input: "## Results\n\nHere is the **output**:\n\n```python\nprint('hello')\n```\n\nSee [docs](https://docs.example.com) for more.",
+			name:     "mixed content",
+			input:    "## Results\n\nHere is the **output**:\n\n```python\nprint('hello')\n```\n\nSee [docs](https://docs.example.com) for more.",
 			expected: "**Results**\n\nHere is the **output**:\n\n```python\nprint('hello')\n```\n\nSee **docs** (<https://docs.example.com>) for more.",
 		},
 	}

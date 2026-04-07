@@ -1,13 +1,13 @@
 <!-- Platform Settings — sidebar + content shell -->
 <div class="flex flex-grow min-h-0 -m-4 lg:-m-6">
     <!-- Settings Sidebar -->
-    <div class="w-56 shrink-0 border-r border-[var(--border-color)] bg-black/20 overflow-y-auto">
+    <div class="w-56 shrink-0 border-r border-outline-variant/10 bg-surface-container-lowest/30 overflow-y-auto">
         <div class="px-5 pt-5 pb-3">
             <div class="flex items-center gap-2 mb-1">
-                <i data-lucide="settings" class="w-3.5 h-3.5 text-sofia"></i>
-                <h3 class="text-[10px] font-bold uppercase tracking-[0.2em] text-sofia">Platform</h3>
+                <i data-lucide="settings" class="w-3.5 h-3.5 text-tertiary"></i>
+                <h3 class="text-[10px] font-bold uppercase tracking-widest text-tertiary font-headline">Platform</h3>
             </div>
-            <p class="text-[9px] text-zinc-600 leading-relaxed">Channels, tools, and infrastructure</p>
+            <p class="text-[9px] text-on-surface-variant/40 leading-relaxed">Channels, tools, and infrastructure</p>
         </div>
         <nav class="settings-nav px-2 pb-4 space-y-0.5">
             <a href="#" hx-get="/ui/settings/channels" hx-target="#subtab-content"
@@ -15,7 +15,7 @@
                 <i data-lucide="radio" class="w-4 h-4 shrink-0"></i>
                 <div class="flex flex-col min-w-0">
                     <span class="text-[11px] font-semibold">Channels</span>
-                    <span class="text-[9px] text-zinc-600 truncate">Telegram, Discord, Email</span>
+                    <span class="text-[9px] text-on-surface-variant/40 truncate">Telegram, Discord, Email</span>
                 </div>
             </a>
             <a href="#" hx-get="/ui/settings/tools" hx-target="#subtab-content"
@@ -23,7 +23,7 @@
                 <i data-lucide="wrench" class="w-4 h-4 shrink-0"></i>
                 <div class="flex flex-col min-w-0">
                     <span class="text-[11px] font-semibold">Tools</span>
-                    <span class="text-[9px] text-zinc-600 truncate">Enable & configure tools</span>
+                    <span class="text-[9px] text-on-surface-variant/40 truncate">Enable & configure tools</span>
                 </div>
             </a>
             <a href="#" hx-get="/ui/settings/integrations" hx-target="#subtab-content"
@@ -31,7 +31,7 @@
                 <i data-lucide="plug" class="w-4 h-4 shrink-0"></i>
                 <div class="flex flex-col min-w-0">
                     <span class="text-[11px] font-semibold">Integrations</span>
-                    <span class="text-[9px] text-zinc-600 truncate">Third-party services</span>
+                    <span class="text-[9px] text-on-surface-variant/40 truncate">Third-party services</span>
                 </div>
             </a>
             <a href="#" hx-get="/ui/settings/security" hx-target="#subtab-content"
@@ -39,13 +39,13 @@
                 <i data-lucide="shield" class="w-4 h-4 shrink-0"></i>
                 <div class="flex flex-col min-w-0">
                     <span class="text-[11px] font-semibold">Security</span>
-                    <span class="text-[9px] text-zinc-600 truncate">Guardrails & approval gates</span>
+                    <span class="text-[9px] text-on-surface-variant/40 truncate">Guardrails & approval gates</span>
                 </div>
             </a>
 
             <div class="pt-3 pb-1 px-3">
-                <div class="border-t border-[var(--border-color)]"></div>
-                <span class="text-[8px] font-bold uppercase tracking-[0.2em] text-zinc-600 mt-2 block">Automation</span>
+                <div class="border-t border-outline-variant/10"></div>
+                <span class="text-[8px] font-bold uppercase tracking-widest text-on-surface-variant/30 mt-2 block">Automation</span>
             </div>
 
             <a href="#" hx-get="/ui/settings/heartbeat" hx-target="#subtab-content"
@@ -53,7 +53,7 @@
                 <i data-lucide="heart-pulse" class="w-4 h-4 shrink-0"></i>
                 <div class="flex flex-col min-w-0">
                     <span class="text-[11px] font-semibold">Heartbeat</span>
-                    <span class="text-[9px] text-zinc-600 truncate">Background scheduling</span>
+                    <span class="text-[9px] text-on-surface-variant/40 truncate">Background scheduling</span>
                 </div>
             </a>
             <a href="#" hx-get="/ui/settings/webhooks" hx-target="#subtab-content"
@@ -61,7 +61,7 @@
                 <i data-lucide="webhook" class="w-4 h-4 shrink-0"></i>
                 <div class="flex flex-col min-w-0">
                     <span class="text-[11px] font-semibold">Webhooks</span>
-                    <span class="text-[9px] text-zinc-600 truncate">Outbound notifications</span>
+                    <span class="text-[9px] text-on-surface-variant/40 truncate">Outbound notifications</span>
                 </div>
             </a>
             <a href="#" hx-get="/ui/settings/triggers" hx-target="#subtab-content"
@@ -69,7 +69,7 @@
                 <i data-lucide="zap" class="w-4 h-4 shrink-0"></i>
                 <div class="flex flex-col min-w-0">
                     <span class="text-[11px] font-semibold">Triggers</span>
-                    <span class="text-[9px] text-zinc-600 truncate">File watch & patterns</span>
+                    <span class="text-[9px] text-on-surface-variant/40 truncate">File watch & patterns</span>
                 </div>
             </a>
             <a href="#" hx-get="/ui/settings/cron" hx-target="#subtab-content"
@@ -77,13 +77,13 @@
                 <i data-lucide="timer" class="w-4 h-4 shrink-0"></i>
                 <div class="flex flex-col min-w-0">
                     <span class="text-[11px] font-semibold">Cron Jobs</span>
-                    <span class="text-[9px] text-zinc-600 truncate">Scheduled tasks</span>
+                    <span class="text-[9px] text-on-surface-variant/40 truncate">Scheduled tasks</span>
                 </div>
             </a>
 
             <div class="pt-3 pb-1 px-3">
-                <div class="border-t border-[var(--border-color)]"></div>
-                <span class="text-[8px] font-bold uppercase tracking-[0.2em] text-zinc-600 mt-2 block">System</span>
+                <div class="border-t border-outline-variant/10"></div>
+                <span class="text-[8px] font-bold uppercase tracking-widest text-on-surface-variant/30 mt-2 block">System</span>
             </div>
 
             <a href="#" hx-get="/ui/settings/tts" hx-target="#subtab-content"
@@ -91,7 +91,7 @@
                 <i data-lucide="volume-2" class="w-4 h-4 shrink-0"></i>
                 <div class="flex flex-col min-w-0">
                     <span class="text-[11px] font-semibold">Text-to-Speech</span>
-                    <span class="text-[9px] text-zinc-600 truncate">Voice output config</span>
+                    <span class="text-[9px] text-on-surface-variant/40 truncate">Voice output config</span>
                 </div>
             </a>
             <a href="#" hx-get="/ui/settings/remote" hx-target="#subtab-content"
@@ -99,7 +99,7 @@
                 <i data-lucide="globe" class="w-4 h-4 shrink-0"></i>
                 <div class="flex flex-col min-w-0">
                     <span class="text-[11px] font-semibold">Remote Access</span>
-                    <span class="text-[9px] text-zinc-600 truncate">Tailscale & tunnels</span>
+                    <span class="text-[9px] text-on-surface-variant/40 truncate">Tailscale & tunnels</span>
                 </div>
             </a>
             <a href="#" hx-get="/ui/settings/logs" hx-target="#subtab-content"
@@ -107,7 +107,7 @@
                 <i data-lucide="scroll-text" class="w-4 h-4 shrink-0"></i>
                 <div class="flex flex-col min-w-0">
                     <span class="text-[11px] font-semibold">Logs</span>
-                    <span class="text-[9px] text-zinc-600 truncate">Live log stream</span>
+                    <span class="text-[9px] text-on-surface-variant/40 truncate">Live log stream</span>
                 </div>
             </a>
         </nav>
@@ -116,4 +116,4 @@
     <div id="subtab-content" class="flex-grow overflow-y-auto" hx-get="/ui/settings/channels" hx-trigger="load">
     </div>
 </div>
-<script>lucide.createIcons();</script>
+<script>refreshIcons();</script>

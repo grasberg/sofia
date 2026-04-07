@@ -136,15 +136,11 @@ func (t *ManageGoalsTool) Execute(ctx context.Context, args map[string]any) *Too
 			name, _ := g["name"].(string)
 			priority, _ := g["priority"].(string)
 			description, _ := g["description"].(string)
-			out.WriteString(
-				fmt.Sprintf(
-					"- ID: %.0f | Name: %s | Priority: %s\n  %s\n",
-					id,
-					name,
-					priority,
-					description,
-				),
-			)
+			fmt.Fprintf(&out, "- ID: %.0f | Name: %s | Priority: %s\n  %s\n",
+				id,
+				name,
+				priority,
+				description)
 		}
 		return NewToolResult(out.String())
 

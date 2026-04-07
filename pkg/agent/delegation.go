@@ -373,7 +373,10 @@ func (al *AgentLoop) spawnAgentForCapability(cap AgentCapability) (*AgentInstanc
 		return nil, fmt.Errorf("failed to register agent %q: %w", id, err)
 	}
 
+	// Protect config mutation with mutex
+	al.configMu.Lock()
 	al.cfg.Agents.List = append(al.cfg.Agents.List, *agentCfg)
+	al.configMu.Unlock()
 
 	logger.InfoCF("delegation",
 		fmt.Sprintf("Auto-created %s agent %q (%s) with skills %v",
@@ -427,7 +430,10 @@ func (al *AgentLoop) spawnAgentForSkills(skills []string) (*AgentInstance, error
 		return nil, fmt.Errorf("failed to register agent %q: %w", id, err)
 	}
 
+	// Protect config mutation with mutex
+	al.configMu.Lock()
 	al.cfg.Agents.List = append(al.cfg.Agents.List, *agentCfg)
+	al.configMu.Unlock()
 
 	logger.InfoCF("delegation",
 		fmt.Sprintf("Auto-created agent %q with skills %v", name, skills),

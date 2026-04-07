@@ -8,8 +8,10 @@ package providers
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/providers/openai_compat"
 )
 
 // createClaudeAuthProvider creates a Claude provider using OAuth credentials from auth store.
@@ -36,6 +38,56 @@ func createCodexAuthProvider() (LLMProvider, error) {
 	return NewCodexProviderWithTokenSource(cred.AccessToken, cred.AccountID, createCodexTokenSource()), nil
 }
 
+// createQwenAuthProvider creates a Qwen provider using OAuth credentials from auth store.
+// The token is used as a Bearer token against portal.qwen.ai/v1 (the OAuth endpoint).
+func createQwenAuthProvider(requestTimeout int, opts ...openai_compat.Option) (LLMProvider, error) {
+	cred, err := getCredential("qwen")
+	if err != nil {
+		return nil, fmt.Errorf("loading qwen auth credentials: %w", err)
+	}
+	if cred == nil {
+		return nil, fmt.Errorf("no credentials for qwen. Configure Qwen OAuth in Settings or import ~/.qwen/oauth_creds.json")
+	}
+
+	apiBase := "https://portal.qwen.ai/v1"
+
+	allOpts := append(opts, openai_compat.WithTokenSource(createQwenTokenSource()))
+	return NewHTTPProviderWithMaxTokensFieldAndRequestTimeout(
+		cred.AccessToken,
+		apiBase,
+		"",
+		"",
+		requestTimeout,
+		allOpts...,
+	), nil
+}
+
+// createQwenTokenSource returns a function that loads and refreshes Qwen OAuth tokens.
+func createQwenTokenSource() func() (string, error) {
+	return func() (string, error) {
+		cred, err := getCredential("qwen")
+		if err != nil {
+			return "", fmt.Errorf("loading qwen auth credentials: %w", err)
+		}
+		if cred == nil {
+			return "", fmt.Errorf("no credentials for qwen")
+		}
+
+		if cred.AuthMethod == "oauth" && cred.NeedsRefresh() && cred.RefreshToken != "" {
+			refreshed, rErr := refreshQwenToken(cred)
+			if rErr != nil {
+				return "", fmt.Errorf("refreshing qwen token: %w", rErr)
+			}
+			if err := setCredential("qwen", refreshed); err != nil {
+				return "", fmt.Errorf("saving refreshed qwen token: %w", err)
+			}
+			return refreshed.AccessToken, nil
+		}
+
+		return cred.AccessToken, nil
+	}
+}
+
 // ExtractProtocol extracts the protocol prefix and model identifier from a model string.
 // If no prefix is specified, it defaults to "openai".
 // Examples:
@@ -55,6 +107,13 @@ func ExtractProtocol(model string) (protocol, modelID string) {
 // It uses the protocol prefix in the Model field to determine which provider to create.
 // Supported protocols: openai, anthropic, gemini, deepseek, groq, openrouter, mistral, ollama, nvidia, cerebras, qwen, moonshot, volcengine, grok, zai, minimax
 // Returns the provider, the model ID (without protocol prefix), and any error.
+func delayOpts(cfg *config.ModelConfig) []openai_compat.Option {
+	if cfg.RequestDelay > 0 {
+		return []openai_compat.Option{openai_compat.WithRequestDelay(time.Duration(cfg.RequestDelay) * time.Second)}
+	}
+	return nil
+}
+
 func CreateProviderFromConfig(cfg *config.ModelConfig) (LLMProvider, string, error) {
 	if cfg == nil {
 		return nil, "", fmt.Errorf("config is nil")
@@ -90,11 +149,38 @@ func CreateProviderFromConfig(cfg *config.ModelConfig) (LLMProvider, string, err
 			cfg.Proxy,
 			cfg.MaxTokensField,
 			cfg.RequestTimeout,
+			delayOpts(cfg)...,
+		), modelID, nil
+
+	case "qwen":
+		// Qwen supports OAuth (qwen-oauth) or standard API key.
+		if cfg.AuthMethod == AuthMethodQwenOAuth || cfg.AuthMethod == AuthMethodOAuth {
+			provider, err := createQwenAuthProvider(cfg.RequestTimeout, delayOpts(cfg)...)
+			if err != nil {
+				return nil, "", err
+			}
+			return provider, modelID, nil
+		}
+		// Fall through to standard API key path.
+		if cfg.APIKey == "" && cfg.APIBase == "" {
+			return nil, "", fmt.Errorf("api_key or api_base is required for qwen protocol (model: %s)", cfg.Model)
+		}
+		apiBase := cfg.APIBase
+		if apiBase == "" {
+			apiBase = getDefaultAPIBase(protocol)
+		}
+		return NewHTTPProviderWithMaxTokensFieldAndRequestTimeout(
+			cfg.APIKey,
+			apiBase,
+			cfg.Proxy,
+			cfg.MaxTokensField,
+			cfg.RequestTimeout,
+			delayOpts(cfg)...,
 		), modelID, nil
 
 	case "openrouter", "groq", "gemini", "nvidia",
 		"ollama", "moonshot", "deepseek", "cerebras",
-		"volcengine", "qwen", "mistral", "grok", "zai", "minimax", "vllm", "shengsuanyun":
+		"volcengine", "mistral", "grok", "zai", "minimax", "vllm", "shengsuanyun":
 		// All other OpenAI-compatible HTTP providers
 		if cfg.APIKey == "" && cfg.APIBase == "" {
 			return nil, "", fmt.Errorf("api_key or api_base is required for HTTP-based protocol %q", protocol)
@@ -109,6 +195,7 @@ func CreateProviderFromConfig(cfg *config.ModelConfig) (LLMProvider, string, err
 			cfg.Proxy,
 			cfg.MaxTokensField,
 			cfg.RequestTimeout,
+			delayOpts(cfg)...,
 		), modelID, nil
 
 	case "anthropic":
@@ -134,6 +221,7 @@ func CreateProviderFromConfig(cfg *config.ModelConfig) (LLMProvider, string, err
 			cfg.Proxy,
 			cfg.MaxTokensField,
 			cfg.RequestTimeout,
+			delayOpts(cfg)...,
 		), modelID, nil
 
 	case "claude-cli", "claude-code", "claudecode":
@@ -149,6 +237,13 @@ func CreateProviderFromConfig(cfg *config.ModelConfig) (LLMProvider, string, err
 			workspace = "."
 		}
 		return NewCodexCliProvider(workspace), modelID, nil
+
+	case "qwen-cli", "qwen-code":
+		workspace := cfg.Workspace
+		if workspace == "" {
+			workspace = "."
+		}
+		return NewQwenCliProvider(workspace), modelID, nil
 
 	case "antigravity":
 		return NewAntigravityProvider(), modelID, nil

@@ -227,4 +227,3 @@ func (er *EvalRunner) GenerateReportWithCases(
 
 	return report
 }
-

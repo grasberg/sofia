@@ -1,11 +1,8 @@
 package tools
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 )
@@ -152,53 +149,17 @@ func (t *GitHubCLITool) Execute(ctx context.Context, args map[string]any) *ToolR
 		}
 	}
 
-	runCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	// Execute the CLI command using shared helper
+	result := ExecuteCLICommand(CLICommandInput{
+		Ctx:         ctx,
+		BinaryPath:  t.binaryPath,
+		Args:        finalArgs,
+		Timeout:     timeout,
+		ToolName:    "gh",
+		InstallHint: "Install GitHub CLI: brew install gh",
+	})
 
-	cmd := exec.CommandContext(runCtx, t.binaryPath, finalArgs...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err = cmd.Run()
-
-	output := strings.TrimSpace(stdout.String())
-	if stderr.Len() > 0 {
-		errOut := strings.TrimSpace(stderr.String())
-		if errOut != "" {
-			if output != "" {
-				output += "\n\n"
-			}
-			output += "STDERR:\n" + errOut
-		}
-	}
-	if output == "" {
-		output = "(no output)"
-	}
-
-	const maxLen = 12000
-	if len(output) > maxLen {
-		output = output[:maxLen] + fmt.Sprintf("\n... (truncated, %d more chars)", len(output)-maxLen)
-	}
-
-	if err != nil {
-		if isBinaryNotFound(err) {
-			return ErrorResult(
-				fmt.Sprintf("gh binary not found at %q. Install GitHub CLI: brew install gh", t.binaryPath),
-			)
-		}
-		if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
-			msg := fmt.Sprintf("gh command timed out after %v", timeout)
-			if output != "(no output)" {
-				msg += "\n\n" + output
-			}
-			return &ToolResult{ForLLM: msg, ForUser: msg, IsError: true}
-		}
-		output += fmt.Sprintf("\n\nExit error: %v", err)
-		return &ToolResult{ForLLM: output, ForUser: output, IsError: true}
-	}
-
-	return &ToolResult{ForLLM: output, ForUser: output, IsError: false}
+	return result
 }
 
 func hasFlag(args []string, long, short string) bool {

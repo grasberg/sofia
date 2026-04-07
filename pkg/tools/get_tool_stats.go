@@ -54,11 +54,11 @@ func (t *GetToolStatsTool) Execute(ctx context.Context, args map[string]any) *To
 
 	for _, name := range keys {
 		stat := stats[name]
-		sb.WriteString(fmt.Sprintf("\nTool: %s\n", stat.Name))
-		sb.WriteString(fmt.Sprintf("  Uses:    %d\n", stat.UsageCount))
-		sb.WriteString(fmt.Sprintf("  Success: %d (%.1f%%)\n", stat.SuccessCount, stat.SuccessRate*100))
-		sb.WriteString(fmt.Sprintf("  Errors:  %d\n", stat.ErrorCount))
-		sb.WriteString(fmt.Sprintf("  AvgTime: %s\n", stat.AverageTime.Truncate(time.Millisecond)))
+		fmt.Fprintf(&sb, "\nTool: %s\n", stat.Name)
+		fmt.Fprintf(&sb, "  Uses:    %d\n", stat.UsageCount)
+		fmt.Fprintf(&sb, "  Success: %d (%.1f%%)\n", stat.SuccessCount, stat.SuccessRate*100)
+		fmt.Fprintf(&sb, "  Errors:  %d\n", stat.ErrorCount)
+		fmt.Fprintf(&sb, "  AvgTime: %s\n", stat.AverageTime.Truncate(time.Millisecond))
 	}
 
 	return SilentResult(sb.String())

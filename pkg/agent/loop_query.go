@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"fmt"
+
 	"github.com/grasberg/sofia/pkg/autonomy"
 	"github.com/grasberg/sofia/pkg/budget"
 	"github.com/grasberg/sofia/pkg/dashboard"
@@ -156,6 +158,55 @@ func (al *AgentLoop) GetActivePlan() map[string]any {
 		"status": string(plan.Status),
 		"steps":  steps,
 	}
+}
+
+// GetAllPlans returns all plans (active + completed + failed) for the UI.
+func (al *AgentLoop) GetAllPlans() []map[string]any {
+	if al.planManager == nil {
+		return nil
+	}
+	plans := al.planManager.ListAllPlans()
+	result := make([]map[string]any, 0, len(plans))
+	for _, plan := range plans {
+		steps := make([]map[string]any, len(plan.Steps))
+		for i, s := range plan.Steps {
+			steps[i] = map[string]any{
+				"index":       s.Index,
+				"description": s.Description,
+				"status":      string(s.Status),
+				"result":      s.Result,
+				"assigned_to": s.AssignedTo,
+				"sub_plan_id": s.SubPlanID,
+			}
+		}
+		result = append(result, map[string]any{
+			"id":      plan.ID,
+			"goal":    plan.Goal,
+			"goal_id": plan.GoalID,
+			"status":  string(plan.Status),
+			"steps":   steps,
+		})
+	}
+	return result
+}
+
+// UpdateGoalStatus updates a goal's status from the web UI.
+func (al *AgentLoop) UpdateGoalStatus(goalID int64, status string) error {
+	if al.memDB == nil {
+		return fmt.Errorf("memory database not available")
+	}
+	gm := autonomy.NewGoalManager(al.memDB)
+	_, err := gm.UpdateGoalStatus(goalID, status)
+	return err
+}
+
+// DeleteGoal removes a goal and its log from the web UI.
+func (al *AgentLoop) DeleteGoal(goalID int64) error {
+	if al.memDB == nil {
+		return fmt.Errorf("memory database not available")
+	}
+	gm := autonomy.NewGoalManager(al.memDB)
+	return gm.DeleteGoal(goalID)
 }
 
 // ListAgentIDs returns all registered agent IDs.

@@ -215,9 +215,8 @@ Do not apologize or explain, just provide the instruction rule.`, res.TaskSummar
 
 	f, err := os.OpenFile(optPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err == nil {
-		f.WriteString(
-			fmt.Sprintf("\n- %s (Learned from failure on: %s)\n", instruction, time.Now().Format("2006-01-02 15:04")),
-		)
+		fmt.Fprintf(f,
+			"\n- %s (Learned from failure on: %s)\n", instruction, time.Now().Format("2006-01-02 15:04"))
 		f.Close()
 	}
 	logger.InfoCF("reflection", "Self-optimized system prompt", map[string]any{"instruction": instruction})
@@ -263,9 +262,9 @@ func (re *ReflectionEngine) FormatLessonsContext(limit int) string {
 		if r.Lessons == "" {
 			continue
 		}
-		sb.WriteString(fmt.Sprintf("- (score=%.1f) %s", r.Score, r.Lessons))
+		fmt.Fprintf(&sb, "- (score=%.1f) %s", r.Score, r.Lessons)
 		if r.WhatFailed != "" {
-			sb.WriteString(fmt.Sprintf(" [Failed: %s]", utils.Truncate(r.WhatFailed, 80)))
+			fmt.Fprintf(&sb, " [Failed: %s]", utils.Truncate(r.WhatFailed, 80))
 		}
 		sb.WriteString("\n")
 	}
@@ -308,11 +307,11 @@ func buildConversationSummary(history []providers.Message, finalResponse string)
 	var sb strings.Builder
 	for _, msg := range selected {
 		content := utils.Truncate(msg.Content, 300)
-		sb.WriteString(fmt.Sprintf("[%s] %s\n", msg.Role, content))
+		fmt.Fprintf(&sb, "[%s] %s\n", msg.Role, content)
 	}
 
 	if finalResponse != "" {
-		sb.WriteString(fmt.Sprintf("\n[final_response] %s\n", utils.Truncate(finalResponse, 300)))
+		fmt.Fprintf(&sb, "\n[final_response] %s\n", utils.Truncate(finalResponse, 300))
 	}
 
 	return sb.String()

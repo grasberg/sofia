@@ -81,8 +81,8 @@ func (t *CreateSkillTool) Execute(ctx context.Context, args map[string]any) *Too
 	// build frontmatter
 	var sb strings.Builder
 	sb.WriteString("---\n")
-	sb.WriteString(fmt.Sprintf("name: %s\n", strings.ReplaceAll(name, "\n", " ")))
-	sb.WriteString(fmt.Sprintf("description: %s\n", strings.ReplaceAll(desc, "\n", " ")))
+	fmt.Fprintf(&sb, "name: %s\n", strings.ReplaceAll(name, "\n", " "))
+	fmt.Fprintf(&sb, "description: %s\n", strings.ReplaceAll(desc, "\n", " "))
 	sb.WriteString("version: 1.0\n")
 	sb.WriteString("---\n\n")
 	sb.WriteString(content)

@@ -639,6 +639,10 @@ func createAntigravityTokenSource() func() (string, string, error) {
 	}
 }
 
+// defaultShortClient is a shared HTTP client for utility functions that don't
+// need the full provider timeout. Reusing the client enables connection pooling.
+var defaultShortClient = &http.Client{Timeout: 15 * time.Second}
+
 // FetchAntigravityProjectID retrieves the Google Cloud project ID from the loadCodeAssist endpoint.
 func FetchAntigravityProjectID(accessToken string) (string, error) {
 	reqBody, _ := json.Marshal(map[string]any{
@@ -658,7 +662,7 @@ func FetchAntigravityProjectID(accessToken string) (string, error) {
 	req.Header.Set("User-Agent", antigravityUserAgent)
 	req.Header.Set("X-Goog-Api-Client", antigravityXGoogClient)
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := defaultShortClient
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
@@ -699,7 +703,7 @@ func FetchAntigravityModels(accessToken, projectID string) ([]AntigravityModelIn
 	req.Header.Set("User-Agent", antigravityUserAgent)
 	req.Header.Set("X-Goog-Api-Client", antigravityXGoogClient)
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := defaultShortClient
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

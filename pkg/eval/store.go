@@ -130,9 +130,16 @@ func (s *EvalStore) SaveRun(suite, agentID, model string, report EvalReport) (in
 	res, err := tx.Exec(
 		`INSERT INTO eval_runs (suite_name, agent_id, model, avg_score, pass_rate, total_tests, passed, failed, duration_ms, run_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		suite, agentID, model, report.AvgScore, passRate(report),
-		report.TotalTests, report.Passed, report.Failed,
-		report.Duration.Milliseconds(), report.RunAt.UTC().Format(time.RFC3339),
+		suite,
+		agentID,
+		model,
+		report.AvgScore,
+		passRate(report),
+		report.TotalTests,
+		report.Passed,
+		report.Failed,
+		report.Duration.Milliseconds(),
+		report.RunAt.UTC().Format(time.RFC3339),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("eval store: insert run: %w", err)

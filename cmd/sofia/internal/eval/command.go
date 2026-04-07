@@ -189,7 +189,8 @@ Examples:
 	cmd.Flags().BoolVar(&listOnly, "list", false, "List test cases without running them")
 	cmd.Flags().StringVar(&suite, "suite", "", "Path to a single test suite JSON file")
 	cmd.Flags().StringVar(&suiteDir, "suite-dir", "", "Directory containing test suite JSON files")
-	cmd.Flags().StringVar(&builtin, "builtin", "", "Load builtin benchmark suite by name (e.g., tool_use, reasoning) or \"all\"")
+	cmd.Flags().
+		StringVar(&builtin, "builtin", "", "Load builtin benchmark suite by name (e.g., tool_use, reasoning) or \"all\"")
 	cmd.Flags().StringVar(&tags, "tags", "", "Comma-separated tag filter (matches cases with any listed tag)")
 	cmd.Flags().StringVar(&filter, "filter", "", "Regex filter on test case names")
 	cmd.Flags().StringVar(&agentID, "agent", "", "Override agent ID for all suites")

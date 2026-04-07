@@ -146,7 +146,7 @@ func (t *A2ATool) executeBroadcast(args map[string]any) *ToolResult {
 }
 
 func (t *A2ATool) executeReceive(args map[string]any) *ToolResult {
-	var timeout time.Duration = 5 * time.Second
+	timeout := 5 * time.Second
 	if ts, ok := args["timeout_seconds"].(float64); ok && ts > 0 {
 		timeout = time.Duration(ts * float64(time.Second))
 	}
@@ -170,14 +170,14 @@ func (t *A2ATool) executePoll() *ToolResult {
 
 func formatA2AMessage(msg *A2AMessageForTool) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("A2A Message [%s]\n", msg.ID))
-	sb.WriteString(fmt.Sprintf("  From: %s\n", msg.From))
-	sb.WriteString(fmt.Sprintf("  Type: %s\n", msg.Type))
-	sb.WriteString(fmt.Sprintf("  Subject: %s\n", msg.Subject))
+	fmt.Fprintf(&sb, "A2A Message [%s]\n", msg.ID)
+	fmt.Fprintf(&sb, "  From: %s\n", msg.From)
+	fmt.Fprintf(&sb, "  Type: %s\n", msg.Type)
+	fmt.Fprintf(&sb, "  Subject: %s\n", msg.Subject)
 	if msg.ReplyTo != "" {
-		sb.WriteString(fmt.Sprintf("  ReplyTo: %s\n", msg.ReplyTo))
+		fmt.Fprintf(&sb, "  ReplyTo: %s\n", msg.ReplyTo)
 	}
-	sb.WriteString(fmt.Sprintf("  Payload: %s\n", msg.Payload))
+	fmt.Fprintf(&sb, "  Payload: %s\n", msg.Payload)
 	return sb.String()
 }
 

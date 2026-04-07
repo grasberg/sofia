@@ -2,6 +2,13 @@ package tools
 
 import "context"
 
+// Core tool name constants for consistent references across the codebase.
+const (
+	ToolExec    = "exec"
+	ToolShell   = "shell"
+	ToolMessage = "message"
+)
+
 type Message struct {
 	Role       string     `json:"role"`
 	Content    string     `json:"content"`

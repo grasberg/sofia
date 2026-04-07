@@ -59,7 +59,7 @@
 </div>
 
 <script>
-    lucide.createIcons();
+    refreshIcons();
 
     async function evalRefresh() {
         try {
@@ -147,7 +147,7 @@
             container.appendChild(row);
         });
 
-        lucide.createIcons({ root: container });
+        refreshIcons();
     }
 
     async function openEvalDetail(runId) {
@@ -196,7 +196,7 @@
 
         if (!detail.results || detail.results.length === 0) {
             container.innerHTML = '<div class="text-xs text-zinc-600 font-mono">No test results.</div>';
-            lucide.createIcons({ root: document.getElementById('eval-detail-panel') });
+            refreshIcons();
             return;
         }
 
@@ -239,7 +239,7 @@
             container.appendChild(entry);
         });
 
-        lucide.createIcons({ root: document.getElementById('eval-detail-panel') });
+        refreshIcons();
     }
 
     function closeEvalDetail() {

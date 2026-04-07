@@ -32,6 +32,7 @@
                                             <option value="Z.ai">Z.ai</option>
                                             <option value="MiniMax">MiniMax</option>
                                             <option value="Ollama">Ollama (Local)</option>
+                                            <option value="Ollama Cloud">Ollama Cloud ☁️</option>
                                             <option value="Custom">Custom / Other</option>
                                         </select>
                                     </div>
@@ -90,12 +91,22 @@
                                                     <input type="number" id="form-model-timeout" placeholder="Client default" min="0" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
                                                 </div>
                                                 <div>
+                                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Request Delay (seconds)</label>
+                                                    <input type="number" id="form-model-delay" placeholder="0 = no delay" min="0" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
+                                                </div>
+                                                <div>
                                                     <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Proxy URL</label>
                                                     <input type="text" id="form-model-proxy" placeholder="http://..." class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
                                                 </div>
                                                 <div>
                                                     <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Auth Method</label>
-                                                    <input type="text" id="form-model-auth" placeholder="Bearer" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
+                                                    <select id="form-model-auth" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]">
+                                                        <option value="">Default (API Key)</option>
+                                                        <option value="oauth">OAuth</option>
+                                                        <option value="qwen-oauth">Qwen OAuth (Free Tier)</option>
+                                                        <option value="token">Token</option>
+                                                        <option value="codex-cli">Codex CLI</option>
+                                                    </select>
                                                 </div>
                                                 <div>
                                                     <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Max Tokens Field</label>

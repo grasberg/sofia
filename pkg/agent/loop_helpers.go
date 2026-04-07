@@ -166,9 +166,8 @@ func (al *AgentLoop) maybeLearnFromFeedback(agent *AgentInstance, userMsg string
 		f, err := os.OpenFile(userMDPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 		if err == nil {
 			defer f.Close()
-			if _, writeErr := f.WriteString(
-				fmt.Sprintf("\n- Auto-learned preference from feedback: %s\n", preference),
-			); writeErr != nil {
+			if _, writeErr := fmt.Fprintf(f,
+				"\n- Auto-learned preference from feedback: %s\n", preference); writeErr != nil {
 				logger.WarnCF("agent", "Failed to append to USER.md", map[string]any{"error": writeErr.Error()})
 			}
 		}
@@ -238,11 +237,20 @@ func looksLikeTask(msg string) bool {
 			return false
 		}
 	}
-	// Task indicators (Swedish + English)
+	// Task indicators (Swedish + English) + integration keywords
 	taskWords := []string{
+		// Action verbs (Swedish)
 		"skapa", "skicka", "skriv", "bygg", "fixa", "gör", "kör", "lägg till", "ta bort", "uppdatera", "installera",
+		"sök efter", "hämta", "ladda ner",
+		// Action verbs (English)
 		"create", "build", "write", "fix", "run", "add", "remove", "update", "install", "deploy", "make", "set up",
-		"generate", "implement", "configure", "send", "fetch", "download",
+		"generate", "implement", "configure", "send", "fetch", "download", "search for", "look up",
+		"upload", "delete",
+		// Integration triggers — mentions of these always need tools
+		"cpanel", "hosting", "domain", "dns", "ssl", "porkbun",
+		"github", "pull request",
+		"bitcoin", "btc", "wallet",
+		"cron", "schedule",
 	}
 	for _, tw := range taskWords {
 		if strings.Contains(msg, tw) {
@@ -374,6 +382,17 @@ func (al *AgentLoop) dispatchPendingSteps(ctx context.Context) {
 		al.dispatchWg.Add(1)
 		go func(pID string, sIdx int, desc, aID, aName string) {
 			defer al.dispatchWg.Done()
+
+			// Acquire subagent semaphore to limit concurrency.
+			if al.subagentSem != nil {
+				select {
+				case al.subagentSem <- struct{}{}:
+					defer func() { <-al.subagentSem }()
+				case <-ctx.Done():
+					return
+				}
+			}
+
 			start := time.Now()
 			result, err := al.runSpawnedTaskAsAgent(ctx, aID, "", desc, "cli", "plan")
 			dur := time.Since(start).Milliseconds()

@@ -31,7 +31,8 @@ func DefaultConfig() *Config {
 				Model:               "",
 				MaxTokens:           32768,
 				Temperature:         nil, // nil means use provider default
-				MaxToolIterations:   50,
+				MaxToolIterations:      50,
+				MaxConcurrentSubagents: 2,
 			},
 			List: []AgentConfig{
 				{

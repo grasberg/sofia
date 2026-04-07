@@ -33,69 +33,44 @@
             </div>
         </div>
 
-        <!-- Active Goal Display -->
-        <div id="goal-active-section" class="hidden px-6 py-4 border-b border-[var(--border-color)] bg-sofia/[0.02]">
-            <div class="max-w-3xl mx-auto flex items-start gap-4">
-                <div class="w-10 h-10 rounded-xl bg-sofia/10 border border-sofia/20 flex items-center justify-center shrink-0">
-                    <i data-lucide="target" class="w-5 h-5 text-sofia"></i>
-                </div>
-                <div class="flex-grow min-w-0">
-                    <div class="flex items-center gap-2">
-                        <h3 id="goal-active-name" class="text-sm font-bold text-[var(--text-main)]"></h3>
-                        <span id="goal-active-priority" class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest"></span>
-                        <span id="goal-active-status" class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-green-500/10 text-green-400"></span>
-                    </div>
-                    <p id="goal-active-desc" class="text-xs text-zinc-500 mt-1"></p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Kanban Board -->
+        <!-- Goal Kanban Board -->
         <div class="px-6 py-4 flex-grow">
-            <div id="kanban-empty" class="hidden text-center py-16 text-zinc-600">
+            <div id="goal-kanban-empty" class="hidden text-center py-16 text-zinc-600">
                 <i data-lucide="clipboard-list" class="w-12 h-12 mx-auto mb-3 text-zinc-700"></i>
-                <div class="text-sm font-medium">No active plan</div>
+                <div class="text-sm font-medium">No goals yet</div>
                 <div class="text-xs mt-1">Set a goal above and Sofia will create a plan with tasks for her subagents.</div>
             </div>
 
-            <div id="kanban-board" class="hidden">
-                <!-- Plan header -->
-                <div class="flex items-center gap-3 mb-4">
-                    <i data-lucide="list-checks" class="w-4 h-4 text-blue-400"></i>
-                    <span id="kanban-plan-goal" class="text-xs font-bold uppercase tracking-widest text-zinc-500"></span>
-                    <span id="kanban-plan-progress" class="text-xs font-mono text-zinc-600 ml-auto"></span>
-                </div>
-
-                <!-- Columns -->
+            <div id="goal-kanban-board" class="hidden">
                 <div class="grid grid-cols-4 gap-4" style="min-height:300px">
-                    <!-- Pending -->
+                    <!-- Active -->
                     <div class="flex flex-col">
                         <div class="flex items-center gap-2 mb-3 px-2">
-                            <span class="w-2.5 h-2.5 rounded-full bg-zinc-500"></span>
-                            <span class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Backlog</span>
-                            <span id="kanban-count-pending" class="text-[10px] font-mono text-zinc-600 ml-auto">0</span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-green-400">Active</span>
+                            <span id="goal-count-active" class="text-[10px] font-mono text-zinc-600 ml-auto">0</span>
                         </div>
-                        <div id="kanban-col-pending" class="flex-grow space-y-2 p-2 rounded-xl bg-zinc-950/30 border border-[var(--border-color)] min-h-[200px]">
+                        <div id="goal-col-active" class="flex-grow space-y-3 p-2 rounded-xl bg-green-500/[0.02] border border-green-500/15 min-h-[200px] max-h-[600px] overflow-y-auto">
                         </div>
                     </div>
-                    <!-- In Progress -->
+                    <!-- Paused -->
                     <div class="flex flex-col">
                         <div class="flex items-center gap-2 mb-3 px-2">
-                            <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-                            <span class="text-[10px] font-bold uppercase tracking-widest text-amber-400">In Progress</span>
-                            <span id="kanban-count-in_progress" class="text-[10px] font-mono text-zinc-600 ml-auto">0</span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-amber-400">Paused</span>
+                            <span id="goal-count-paused" class="text-[10px] font-mono text-zinc-600 ml-auto">0</span>
                         </div>
-                        <div id="kanban-col-in_progress" class="flex-grow space-y-2 p-2 rounded-xl bg-amber-500/[0.03] border border-amber-500/20 min-h-[200px]">
+                        <div id="goal-col-paused" class="flex-grow space-y-3 p-2 rounded-xl bg-amber-500/[0.02] border border-amber-500/15 min-h-[200px] max-h-[600px] overflow-y-auto">
                         </div>
                     </div>
                     <!-- Completed -->
                     <div class="flex flex-col">
                         <div class="flex items-center gap-2 mb-3 px-2">
-                            <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
-                            <span class="text-[10px] font-bold uppercase tracking-widest text-green-400">Done</span>
-                            <span id="kanban-count-completed" class="text-[10px] font-mono text-zinc-600 ml-auto">0</span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-blue-400">Completed</span>
+                            <span id="goal-count-completed" class="text-[10px] font-mono text-zinc-600 ml-auto">0</span>
                         </div>
-                        <div id="kanban-col-completed" class="flex-grow space-y-2 p-2 rounded-xl bg-green-500/[0.03] border border-green-500/20 min-h-[200px]">
+                        <div id="goal-col-completed" class="flex-grow space-y-3 p-2 rounded-xl bg-blue-500/[0.02] border border-blue-500/15 min-h-[200px] max-h-[600px] overflow-y-auto">
                         </div>
                     </div>
                     <!-- Failed -->
@@ -103,58 +78,85 @@
                         <div class="flex items-center gap-2 mb-3 px-2">
                             <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
                             <span class="text-[10px] font-bold uppercase tracking-widest text-red-400">Failed</span>
-                            <span id="kanban-count-failed" class="text-[10px] font-mono text-zinc-600 ml-auto">0</span>
+                            <span id="goal-count-failed" class="text-[10px] font-mono text-zinc-600 ml-auto">0</span>
                         </div>
-                        <div id="kanban-col-failed" class="flex-grow space-y-2 p-2 rounded-xl bg-red-500/[0.03] border border-red-500/20 min-h-[200px]">
+                        <div id="goal-col-failed" class="flex-grow space-y-3 p-2 rounded-xl bg-red-500/[0.02] border border-red-500/15 min-h-[200px] max-h-[600px] overflow-y-auto">
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- All Goals List -->
-        <div class="px-6 py-4 border-t border-[var(--border-color)]">
-            <div class="flex items-center gap-2 mb-3">
-                <i data-lucide="archive" class="w-4 h-4 text-zinc-500"></i>
-                <span class="text-[10px] font-bold uppercase tracking-widest text-zinc-600">All Goals</span>
-            </div>
-            <div id="goals-all-list" class="space-y-2">
-                <div class="text-xs text-zinc-600 font-mono">Loading...</div>
-            </div>
-        </div>
-
-        <!-- Goal Detail / Log Panel (hidden by default) -->
-        <div id="goal-detail-panel" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div class="w-full max-w-2xl max-h-[80vh] bg-[var(--bg-sidebar)] border border-[var(--border-color)] rounded-xl shadow-2xl flex flex-col overflow-hidden">
-                <div class="px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between shrink-0">
-                    <div class="flex items-center gap-3 min-w-0">
-                        <div id="goal-detail-icon" class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
-                            <i data-lucide="target" class="w-4 h-4"></i>
-                        </div>
-                        <div class="min-w-0">
-                            <h3 id="goal-detail-name" class="text-sm font-bold text-[var(--text-main)] truncate"></h3>
-                            <div class="flex items-center gap-2 mt-0.5">
-                                <span id="goal-detail-status" class="text-[9px] font-bold uppercase tracking-widest"></span>
-                                <span id="goal-detail-priority" class="text-[9px] font-bold uppercase tracking-widest"></span>
-                            </div>
+    <!-- Goal Detail Modal -->
+    <div id="goal-detail-panel" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="w-full max-w-3xl max-h-[85vh] bg-[var(--bg-sidebar)] border border-[var(--border-color)] rounded-xl shadow-2xl flex flex-col overflow-hidden">
+            <!-- Modal Header -->
+            <div class="px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div id="goal-detail-icon" class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
+                        <i data-lucide="target" class="w-4 h-4"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h3 id="goal-detail-name" class="text-sm font-bold text-[var(--text-main)] truncate"></h3>
+                        <div class="flex items-center gap-2 mt-0.5">
+                            <span id="goal-detail-status" class="text-[9px] font-bold uppercase tracking-widest"></span>
+                            <span id="goal-detail-priority" class="text-[9px] font-bold uppercase tracking-widest"></span>
                         </div>
                     </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div id="goal-detail-actions" class="flex items-center gap-1"></div>
                     <button onclick="closeGoalDetail()" class="p-1.5 text-zinc-500 hover:text-[var(--text-main)] transition-colors">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
-                <div id="goal-detail-desc" class="px-5 py-3 text-xs text-zinc-400 border-b border-[var(--border-color)] shrink-0"></div>
-                <!-- Result summary -->
-                <div id="goal-detail-result" class="hidden px-5 py-3 border-b border-[var(--border-color)] shrink-0">
-                    <div class="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-1">Latest Result</div>
-                    <div id="goal-detail-result-text" class="text-xs text-zinc-300 font-mono whitespace-pre-wrap max-h-28 overflow-y-auto"></div>
+            </div>
+            <!-- Description -->
+            <div id="goal-detail-desc" class="px-5 py-3 text-xs text-zinc-400 border-b border-[var(--border-color)] shrink-0"></div>
+            <!-- Result summary -->
+            <div id="goal-detail-result" class="hidden px-5 py-3 border-b border-[var(--border-color)] shrink-0">
+                <div class="flex items-center justify-between mb-1">
+                    <div class="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Latest Result</div>
+                    <button onclick="toggleResultExpand()" id="goal-result-expand-btn" class="text-[9px] text-sofia hover:underline cursor-pointer">Expand</button>
                 </div>
-                <!-- Step log -->
-                <div class="flex-grow overflow-y-auto px-5 py-3">
-                    <div class="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-3">Step History</div>
-                    <div id="goal-detail-log" class="space-y-2">
-                        <div class="text-xs text-zinc-600 font-mono">Loading...</div>
+                <div id="goal-detail-result-text" class="text-xs text-zinc-300 font-mono whitespace-pre-wrap max-h-28 overflow-y-auto transition-all"></div>
+                <div id="goal-detail-files" class="hidden mt-2 pt-2 border-t border-[var(--border-color)]">
+                    <div class="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-1">Files Referenced</div>
+                    <div id="goal-detail-files-list" class="flex flex-wrap gap-1.5"></div>
+                </div>
+            </div>
+            <!-- Plan Tasks Mini-Kanban -->
+            <div id="goal-detail-plan" class="hidden px-5 py-3 border-b border-[var(--border-color)] shrink-0">
+                <div class="flex items-center gap-2 mb-3">
+                    <i data-lucide="list-checks" class="w-3.5 h-3.5 text-blue-400"></i>
+                    <span id="goal-detail-plan-title" class="text-[9px] font-bold uppercase tracking-widest text-zinc-500"></span>
+                    <span id="goal-detail-plan-progress" class="text-[9px] font-mono text-zinc-600 ml-auto"></span>
+                </div>
+                <div class="grid grid-cols-4 gap-2" style="min-height:120px">
+                    <div class="flex flex-col">
+                        <div class="text-[8px] font-bold uppercase tracking-widest text-zinc-600 mb-1 px-1">Backlog</div>
+                        <div id="task-col-pending" class="flex-grow space-y-1.5 p-1.5 rounded-lg bg-zinc-950/30 border border-[var(--border-color)] min-h-[80px] max-h-[250px] overflow-y-auto"></div>
                     </div>
+                    <div class="flex flex-col">
+                        <div class="text-[8px] font-bold uppercase tracking-widest text-amber-400 mb-1 px-1">In Progress</div>
+                        <div id="task-col-in_progress" class="flex-grow space-y-1.5 p-1.5 rounded-lg bg-amber-500/[0.03] border border-amber-500/20 min-h-[80px] max-h-[250px] overflow-y-auto"></div>
+                    </div>
+                    <div class="flex flex-col">
+                        <div class="text-[8px] font-bold uppercase tracking-widest text-green-400 mb-1 px-1">Done</div>
+                        <div id="task-col-completed" class="flex-grow space-y-1.5 p-1.5 rounded-lg bg-green-500/[0.03] border border-green-500/20 min-h-[80px] max-h-[250px] overflow-y-auto"></div>
+                    </div>
+                    <div class="flex flex-col">
+                        <div class="text-[8px] font-bold uppercase tracking-widest text-red-400 mb-1 px-1">Failed</div>
+                        <div id="task-col-failed" class="flex-grow space-y-1.5 p-1.5 rounded-lg bg-red-500/[0.03] border border-red-500/20 min-h-[80px] max-h-[250px] overflow-y-auto"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Step log -->
+            <div class="flex-grow overflow-y-auto px-5 py-3">
+                <div class="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-3">Step History</div>
+                <div id="goal-detail-log" class="space-y-2">
+                    <div class="text-xs text-zinc-600 font-mono">Loading...</div>
                 </div>
             </div>
         </div>
@@ -162,7 +164,11 @@
 </div>
 
 <script>
-    lucide.createIcons();
+    refreshIcons();
+
+    // ===== STATE =====
+    var _allGoals = [];
+    var _allPlans = [];
 
     // ===== SET GOAL =====
     async function goalSubmit() {
@@ -175,18 +181,17 @@
         status.textContent = 'Sending goal to Sofia...';
         input.disabled = true;
 
-        // Send to Sofia as a chat message with a structured prompt
-        const prompt = 'NEW MAIN GOAL FROM USER:\n\n"' + goalText + '"\n\n' +
+        var prompt = 'NEW MAIN GOAL FROM USER:\n\n"' + goalText + '"\n\n' +
             'Instructions:\n' +
             '1. Create this as a HIGH priority goal using manage_goals (action: "add")\n' +
-            '2. Create a detailed plan using the plan tool with concrete steps\n' +
+            '2. Create a detailed plan using the plan tool with concrete steps. IMPORTANT: pass the goal_id from the manage_goals result into the plan create call.\n' +
             '3. Each step should be a self-contained task that a subagent can complete independently\n' +
             '4. Include specific instructions in each step description so a subagent knows exactly what to do\n' +
             '5. Start executing the plan immediately — delegate steps to subagents using the spawn tool\n' +
             '6. Run independent steps in parallel for maximum speed';
 
         try {
-            const res = await fetch('/api/chat', {
+            var res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: prompt, session_key: 'goal:' + Date.now() })
@@ -210,51 +215,58 @@
     // ===== FETCH DATA =====
     async function goalRefresh() {
         try {
-            const [goalsRes, planRes] = await Promise.all([
+            var [goalsRes, plansRes] = await Promise.all([
                 fetch('/api/goals'),
-                fetch('/api/plan')
+                fetch('/api/plans')
             ]);
-            const goals = goalsRes.ok ? await goalsRes.json() : [];
-            const plan = planRes.ok ? await planRes.json() : null;
-            renderActiveGoal(goals);
-            renderKanban(plan);
-            renderAllGoals(goals);
+            _allGoals = goalsRes.ok ? await goalsRes.json() : [];
+            _allPlans = plansRes.ok ? await plansRes.json() : [];
+            renderGoalKanban(_allGoals, _allPlans);
         } catch(e) {
             console.error('Goal refresh failed:', e);
         }
     }
 
-    // ===== RENDER ACTIVE GOAL =====
-    function renderActiveGoal(goals) {
-        const section = document.getElementById('goal-active-section');
-        if (!goals || goals.length === 0) { section.classList.add('hidden'); return; }
+    // ===== LINK GOALS TO PLANS =====
+    function linkGoalsAndPlans(goals, plans) {
+        var goalMap = {};
+        goals.forEach(function(g) { goalMap[g.id] = Object.assign({}, g, {plan: null}); });
 
-        const priorityOrder = {high:0, medium:1, low:2};
-        const active = goals.filter(function(g){return g.status==='active';});
-        active.sort(function(a,b){return (priorityOrder[a.priority]||9)-(priorityOrder[b.priority]||9);});
+        // First pass: link by goal_id
+        plans.forEach(function(p) {
+            if (p.goal_id && goalMap[p.goal_id]) {
+                // Keep the most recent / active plan
+                var existing = goalMap[p.goal_id].plan;
+                if (!existing || p.status === 'in_progress' || p.status === 'pending') {
+                    goalMap[p.goal_id].plan = p;
+                }
+            }
+        });
 
-        if (active.length === 0) { section.classList.add('hidden'); return; }
-        const goal = active[0];
-        section.classList.remove('hidden');
+        // Second pass: text matching fallback for unlinked plans
+        plans.forEach(function(p) {
+            if (p.goal_id) return;
+            var keys = Object.keys(goalMap);
+            for (var i = 0; i < keys.length; i++) {
+                var g = goalMap[keys[i]];
+                if (!g.plan && g.name && p.goal &&
+                    (p.goal.toLowerCase().indexOf(g.name.toLowerCase()) >= 0 ||
+                     g.name.toLowerCase().indexOf(p.goal.toLowerCase()) >= 0)) {
+                    g.plan = p;
+                    break;
+                }
+            }
+        });
 
-        document.getElementById('goal-active-name').textContent = goal.name || '';
-        document.getElementById('goal-active-desc').textContent = goal.description || '';
-
-        const prioEl = document.getElementById('goal-active-priority');
-        const prioColors = {high:'bg-red-500/15 text-red-400',medium:'bg-amber-500/15 text-amber-400',low:'bg-blue-500/15 text-blue-400'};
-        prioEl.className = 'px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest ' + (prioColors[goal.priority]||'');
-        prioEl.textContent = goal.priority || '';
-
-        const statusEl = document.getElementById('goal-active-status');
-        statusEl.textContent = goal.status;
+        return Object.keys(goalMap).map(function(k) { return goalMap[k]; });
     }
 
-    // ===== RENDER KANBAN =====
-    function renderKanban(plan) {
-        const board = document.getElementById('kanban-board');
-        const empty = document.getElementById('kanban-empty');
+    // ===== RENDER GOAL KANBAN =====
+    function renderGoalKanban(goals, plans) {
+        var board = document.getElementById('goal-kanban-board');
+        var empty = document.getElementById('goal-kanban-empty');
 
-        if (!plan || !plan.steps || plan.steps.length === 0) {
+        if (!goals || goals.length === 0) {
             board.classList.add('hidden');
             empty.classList.remove('hidden');
             return;
@@ -262,187 +274,193 @@
         board.classList.remove('hidden');
         empty.classList.add('hidden');
 
-        document.getElementById('kanban-plan-goal').textContent = plan.goal || '';
-        const steps = plan.steps;
-        const completed = steps.filter(function(s){return s.status==='completed';}).length;
-        document.getElementById('kanban-plan-progress').textContent = completed + ' / ' + steps.length + ' done';
+        var linked = linkGoalsAndPlans(goals, plans);
 
-        // Group steps by status
-        const cols = { pending: [], in_progress: [], completed: [], failed: [] };
-        steps.forEach(function(s) {
-            const status = s.status || 'pending';
+        // Group by status
+        var cols = { active: [], paused: [], completed: [], failed: [] };
+        linked.forEach(function(g) {
+            var status = g.status || 'active';
             if (!cols[status]) cols[status] = [];
-            cols[status].push(s);
+            cols[status].push(g);
+        });
+
+        // Sort: high priority first within each column
+        var priorityOrder = {high: 0, medium: 1, low: 2};
+        ['active', 'paused', 'completed', 'failed'].forEach(function(status) {
+            cols[status].sort(function(a, b) {
+                var pa = priorityOrder[a.priority] !== undefined ? priorityOrder[a.priority] : 9;
+                var pb = priorityOrder[b.priority] !== undefined ? priorityOrder[b.priority] : 9;
+                if (pa !== pb) return pa - pb;
+                return (b.id || 0) - (a.id || 0);
+            });
         });
 
         // Render each column
-        ['pending','in_progress','completed','failed'].forEach(function(status) {
-            const col = document.getElementById('kanban-col-' + status);
-            const count = document.getElementById('kanban-count-' + status);
+        ['active', 'paused', 'completed', 'failed'].forEach(function(status) {
+            var col = document.getElementById('goal-col-' + status);
+            var count = document.getElementById('goal-count-' + status);
             col.innerHTML = '';
             count.textContent = cols[status].length;
 
-            cols[status].forEach(function(step) {
-                const card = document.createElement('div');
-                card.className = 'kanban-card p-3 rounded-lg border transition-all';
-
-                if (status === 'in_progress') {
-                    card.className += ' border-amber-500/30 bg-amber-500/[0.05]';
-                } else if (status === 'completed') {
-                    card.className += ' border-green-500/20 bg-green-500/[0.03]';
-                } else if (status === 'failed') {
-                    card.className += ' border-red-500/20 bg-red-500/[0.03]';
-                } else {
-                    card.className += ' border-[var(--border-color)] bg-[var(--bg-main)]';
-                }
-
-                // Step number badge
-                var stepNum = '<span class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ';
-                if (status === 'in_progress') stepNum += 'bg-amber-500/20 text-amber-400';
-                else if (status === 'completed') stepNum += 'bg-green-500/20 text-green-400';
-                else if (status === 'failed') stepNum += 'bg-red-500/20 text-red-400';
-                else stepNum += 'bg-zinc-800 text-zinc-400';
-                stepNum += '">#' + (step.index + 1) + '</span>';
-
-                // Status icon
-                var statusIcon;
-                if (status === 'completed') statusIcon = '<i data-lucide="check-circle" class="w-3.5 h-3.5 text-green-400"></i>';
-                else if (status === 'in_progress') statusIcon = '<i data-lucide="loader" class="w-3.5 h-3.5 text-amber-400 animate-spin"></i>';
-                else if (status === 'failed') statusIcon = '<i data-lucide="x-circle" class="w-3.5 h-3.5 text-red-400"></i>';
-                else statusIcon = '<i data-lucide="circle" class="w-3.5 h-3.5 text-zinc-600"></i>';
-
-                // Assigned agent badge with name and working indicator
-                var assignedHtml = '';
-                if (step.assigned_to) {
-                    var aName = resolveAgentName(step.assigned_to);
-                    var agentColor, agentIcon, agentLabel;
-                    if (status === 'completed') {
-                        agentColor = 'bg-green-500/10 text-green-400 border-green-500/20';
-                        agentIcon = 'check-circle';
-                        agentLabel = aName + ' — done';
-                    } else if (status === 'failed') {
-                        agentColor = 'bg-red-500/10 text-red-400 border-red-500/20';
-                        agentIcon = 'x-circle';
-                        agentLabel = aName + ' — failed';
-                    } else {
-                        agentColor = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-                        agentIcon = 'loader';
-                        agentLabel = aName + ' — working...';
-                    }
-                    assignedHtml = '<div class="flex items-center gap-1.5 mt-2 p-1.5 rounded-lg border ' + agentColor + '">' +
-                        '<i data-lucide="' + agentIcon + '" class="w-3 h-3 ' + (status==='in_progress'?'animate-spin':'') + '"></i>' +
-                        '<span class="text-[9px] font-semibold">' + escapeHtml(agentLabel) + '</span>' +
-                        '</div>';
-                } else if (status === 'pending') {
-                    assignedHtml = '<div class="flex items-center gap-1 mt-2 text-[9px] text-zinc-600">' +
-                        '<i data-lucide="clock" class="w-2.5 h-2.5"></i> Waiting for agent...' +
-                        '</div>';
-                }
-
-                card.innerHTML =
-                    '<div class="flex items-start gap-2">' +
-                    statusIcon +
-                    '<div class="flex-grow min-w-0">' +
-                    '  <div class="flex items-center gap-2 mb-1">' +
-                    stepNum +
-                    '  </div>' +
-                    '  <p class="text-xs text-[var(--text-main)] leading-relaxed ' + (status==='completed'?'line-through opacity-60':'') + '">' +
-                    escapeHtml(step.description || '') + '</p>' +
-                    assignedHtml +
-                    (step.result ? '<div class="mt-2 p-2 rounded bg-black/20 border border-[var(--border-color)]"><div class="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">Result</div><div class="text-[11px] text-zinc-400 font-mono whitespace-pre-wrap max-h-20 overflow-y-auto scrollbar-custom">' + escapeHtml(step.result) + '</div></div>' : '') +
-                    '</div>' +
-                    '</div>';
-
-                col.appendChild(card);
+            cols[status].forEach(function(g) {
+                col.appendChild(createGoalCard(g, status));
             });
 
-            lucide.createIcons({ root: col });
+            refreshIcons();
         });
     }
 
-    // ===== RENDER ALL GOALS =====
-    function renderAllGoals(goals) {
-        const list = document.getElementById('goals-all-list');
-        list.innerHTML = '';
+    // ===== CREATE GOAL CARD =====
+    function createGoalCard(goal, status) {
+        var card = document.createElement('div');
+        card.className = 'goal-card p-3.5 rounded-xl border transition-all cursor-pointer hover:shadow-lg';
 
-        if (!goals || goals.length === 0) {
-            list.innerHTML = '<div class="text-xs text-zinc-600 font-mono">No goals yet.</div>';
-            return;
+        if (status === 'active') {
+            card.className += ' border-green-500/25 bg-green-500/[0.04] hover:border-green-500/40';
+        } else if (status === 'paused') {
+            card.className += ' border-amber-500/25 bg-amber-500/[0.04] hover:border-amber-500/40';
+        } else if (status === 'completed') {
+            card.className += ' border-blue-500/20 bg-blue-500/[0.03] hover:border-blue-500/35';
+        } else if (status === 'failed') {
+            card.className += ' border-red-500/20 bg-red-500/[0.03] hover:border-red-500/35';
+        } else {
+            card.className += ' border-[var(--border-color)] bg-[var(--bg-main)] hover:border-zinc-600';
         }
 
-        // Sort: active first, then paused, then completed/failed (newest first within each group)
-        var statusOrder = {active:0, paused:1, completed:2, failed:3};
-        goals.sort(function(a,b) {
-            var sa = statusOrder[a.status] !== undefined ? statusOrder[a.status] : 9;
-            var sb = statusOrder[b.status] !== undefined ? statusOrder[b.status] : 9;
-            if (sa !== sb) return sa - sb;
-            // Within same status, newest first
-            return (b.id || 0) - (a.id || 0);
-        });
+        // Priority badge
+        var prioColors = {high:'bg-red-500/15 text-red-400',medium:'bg-amber-500/15 text-amber-400',low:'bg-blue-500/15 text-blue-400'};
+        var prioBadge = '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest ' +
+            (prioColors[goal.priority] || '') + '">' + escapeHtml(goal.priority || '') + '</span>';
 
-        var priorityColors = {high:'text-red-400 bg-red-500/10',medium:'text-amber-400 bg-amber-500/10',low:'text-blue-400 bg-blue-500/10'};
-        var statusIcons = {active:'play-circle',completed:'check-circle',failed:'x-circle',paused:'pause-circle'};
-        var statusColors = {active:'text-green-400',completed:'text-green-500',failed:'text-red-400',paused:'text-amber-400'};
-        var statusBorder = {active:'border-green-500/20',completed:'border-green-500/15',failed:'border-red-500/15',paused:'border-amber-500/15'};
+        // Progress bar from linked plan
+        var progressHtml = '';
+        if (goal.plan && goal.plan.steps && goal.plan.steps.length > 0) {
+            var steps = goal.plan.steps;
+            var completed = steps.filter(function(s) { return s.status === 'completed'; }).length;
+            var inProgress = steps.filter(function(s) { return s.status === 'in_progress'; }).length;
+            var total = steps.length;
+            var pct = Math.round((completed / total) * 100);
 
-        goals.forEach(function(g) {
-            var el = document.createElement('div');
-            var border = statusBorder[g.status] || 'border-[var(--border-color)]';
-            el.className = 'flex items-start gap-3 p-4 rounded-xl border ' + border + ' bg-[var(--bg-main)] cursor-pointer hover:border-sofia/30 transition-colors';
-            el.onclick = function() { openGoalDetail(g); };
-
-            var resultPreview = '';
-            if (g.result) {
-                var previewText = g.result.length > 200 ? g.result.substring(0, 200) + '...' : g.result;
-                var resultBg = g.status === 'completed' ? 'bg-green-500/[0.04] border-green-500/15' : 'bg-black/30 border-[var(--border-color)]';
-                resultPreview =
-                    '<div class="mt-2 p-2.5 rounded-lg ' + resultBg + ' border">' +
-                    '  <div class="text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-1">' +
-                    (g.status === 'completed' ? 'Completed Result' : 'Latest Result') + '</div>' +
-                    '  <div class="text-[11px] text-zinc-300 font-mono whitespace-pre-wrap">' + escapeHtml(previewText) + '</div>' +
-                    '</div>';
-            }
-
-            var statusBadge = '';
-            if (g.status === 'completed') {
-                statusBadge = '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-green-500/15 text-green-400">completed</span>';
-            } else if (g.status === 'failed') {
-                statusBadge = '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-red-500/15 text-red-400">failed</span>';
-            } else if (g.status === 'active') {
-                statusBadge = '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-green-500/15 text-green-400 animate-pulse">active</span>';
-            } else {
-                statusBadge = '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-amber-500/15 text-amber-400">' + escapeHtml(g.status || '') + '</span>';
-            }
-
-            el.innerHTML =
-                '<div class="w-7 h-7 flex items-center justify-center shrink-0 mt-0.5 ' + (statusColors[g.status]||'text-zinc-400') + '">' +
-                '  <i data-lucide="' + (statusIcons[g.status]||'circle') + '" class="w-5 h-5"></i>' +
+            progressHtml = '<div class="mt-2.5">' +
+                '<div class="flex items-center justify-between mb-1">' +
+                '<span class="text-[9px] text-zinc-500">' + completed + '/' + total + ' tasks done</span>' +
+                (inProgress > 0 ? '<span class="text-[9px] text-amber-400 animate-pulse">' + inProgress + ' running</span>' : '') +
                 '</div>' +
-                '<div class="flex-grow min-w-0">' +
-                '  <div class="flex items-center gap-2 flex-wrap">' +
-                '    <span class="text-sm font-semibold text-[var(--text-main)]">' + escapeHtml(g.name || '') + '</span>' +
-                '    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest ' + (priorityColors[g.priority]||'') + '">' + escapeHtml(g.priority || '') + '</span>' +
-                statusBadge +
-                '    <span class="text-[9px] text-zinc-600 ml-auto flex items-center gap-1 hover:text-sofia"><i data-lucide="scroll-text" class="w-3 h-3"></i> View details</span>' +
-                '  </div>' +
-                (g.description ? '<div class="text-[11px] text-zinc-500 mt-1">' + escapeHtml(g.description) + '</div>' : '') +
-                resultPreview +
-                '</div>';
-            list.appendChild(el);
-        });
-        lucide.createIcons({ root: list });
+                '<div class="w-full h-1.5 rounded-full bg-zinc-800 overflow-hidden">' +
+                '<div class="h-full rounded-full transition-all ' +
+                (status === 'completed' ? 'bg-blue-500' : status === 'failed' ? 'bg-red-500' : 'bg-green-500') +
+                '" style="width:' + pct + '%"></div>' +
+                '</div></div>';
+        }
+
+        // Agent badges from plan step assignments
+        var agentHtml = '';
+        if (goal.plan && goal.plan.steps) {
+            var agents = {};
+            goal.plan.steps.forEach(function(s) {
+                if (s.assigned_to) agents[s.assigned_to] = true;
+            });
+            var agentList = Object.keys(agents);
+            if (agentList.length > 0) {
+                agentHtml = '<div class="flex items-center gap-1 mt-2 flex-wrap">';
+                agentList.forEach(function(a) {
+                    var name = resolveAgentName(a);
+                    agentHtml += '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-semibold bg-zinc-800 text-zinc-400 border border-[var(--border-color)]">' +
+                        '<i data-lucide="bot" class="w-2.5 h-2.5"></i>' + escapeHtml(name) + '</span>';
+                });
+                agentHtml += '</div>';
+            }
+        }
+
+        // Action buttons (stop propagation so card click doesn't fire)
+        var actionsHtml = '<div class="flex items-center gap-1 mt-2 pt-2 border-t border-[var(--border-color)]">';
+        if (status === 'active') {
+            actionsHtml += '<button onclick="event.stopPropagation();pauseGoal(' + goal.id + ')" class="px-2 py-1 rounded-md text-[9px] font-semibold text-amber-400 hover:bg-amber-500/10 transition-colors flex items-center gap-1" title="Pause">' +
+                '<i data-lucide="pause" class="w-3 h-3"></i>Pause</button>';
+            actionsHtml += '<button onclick="event.stopPropagation();cancelGoal(' + goal.id + ')" class="px-2 py-1 rounded-md text-[9px] font-semibold text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-1" title="Cancel">' +
+                '<i data-lucide="square" class="w-3 h-3"></i>Stop</button>';
+        } else if (status === 'paused') {
+            actionsHtml += '<button onclick="event.stopPropagation();resumeGoal(' + goal.id + ')" class="px-2 py-1 rounded-md text-[9px] font-semibold text-green-400 hover:bg-green-500/10 transition-colors flex items-center gap-1" title="Resume">' +
+                '<i data-lucide="play" class="w-3 h-3"></i>Resume</button>';
+            actionsHtml += '<button onclick="event.stopPropagation();cancelGoal(' + goal.id + ')" class="px-2 py-1 rounded-md text-[9px] font-semibold text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-1" title="Cancel">' +
+                '<i data-lucide="square" class="w-3 h-3"></i>Stop</button>';
+        }
+        actionsHtml += '<button onclick="event.stopPropagation();deleteGoal(' + goal.id + ')" class="px-2 py-1 rounded-md text-[9px] font-semibold text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-1 ml-auto" title="Delete">' +
+            '<i data-lucide="trash-2" class="w-3 h-3"></i></button>';
+        actionsHtml += '</div>';
+
+        // Result preview for completed/failed
+        var resultPreview = '';
+        if (goal.result && (status === 'completed' || status === 'failed')) {
+            var previewText = goal.result.length > 200 ? goal.result.substring(0, 200) + '...' : goal.result;
+            resultPreview = '<div class="mt-2 p-2 rounded-lg bg-black/20 border border-[var(--border-color)]">' +
+                '<div class="text-[11px] text-zinc-400 font-mono whitespace-pre-wrap max-h-16 overflow-hidden">' +
+                escapeHtml(previewText) + '</div></div>';
+        }
+
+        card.innerHTML =
+            '<div class="flex items-start justify-between gap-2 mb-1">' +
+            prioBadge +
+            '</div>' +
+            '<h4 class="text-xs font-bold text-[var(--text-main)] leading-snug">' + escapeHtml(goal.name || '') + '</h4>' +
+            (goal.description ? '<p class="text-[11px] text-zinc-500 mt-1 leading-relaxed line-clamp-2">' + escapeHtml(goal.description) + '</p>' : '') +
+            progressHtml +
+            agentHtml +
+            resultPreview +
+            actionsHtml;
+
+        card.onclick = function() { openGoalDetail(goal); };
+        return card;
     }
 
-    // ===== GOAL DETAIL PANEL =====
+    // ===== GOAL ACTIONS =====
+    async function pauseGoal(goalId) {
+        await fetch('/api/goals', {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({goal_id: goalId, status: 'paused'})
+        });
+        goalRefresh();
+    }
+
+    async function resumeGoal(goalId) {
+        await fetch('/api/goals', {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({goal_id: goalId, status: 'active'})
+        });
+        goalRefresh();
+    }
+
+    async function cancelGoal(goalId) {
+        if (!confirm('Stop this goal? It will be marked as failed.')) return;
+        await fetch('/api/goals', {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({goal_id: goalId, status: 'failed'})
+        });
+        goalRefresh();
+    }
+
+    async function deleteGoal(goalId) {
+        if (!confirm('Delete this goal and all its history? This cannot be undone.')) return;
+        await fetch('/api/goals?goal_id=' + goalId, {
+            method: 'DELETE',
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        });
+        goalRefresh();
+    }
+
+    // ===== GOAL DETAIL MODAL =====
     async function openGoalDetail(goal) {
-        const panel = document.getElementById('goal-detail-panel');
+        var panel = document.getElementById('goal-detail-panel');
         panel.classList.remove('hidden');
 
         document.getElementById('goal-detail-name').textContent = goal.name || '';
         document.getElementById('goal-detail-desc').textContent = goal.description || '';
 
         // Status badge
-        var statusColors = {active:'text-green-400',completed:'text-green-500',failed:'text-red-400',paused:'text-amber-400'};
+        var statusColors = {active:'text-green-400',completed:'text-blue-400',failed:'text-red-400',paused:'text-amber-400'};
         var statusEl = document.getElementById('goal-detail-status');
         statusEl.textContent = goal.status || '';
         statusEl.className = 'text-[9px] font-bold uppercase tracking-widest ' + (statusColors[goal.status]||'text-zinc-500');
@@ -454,8 +472,20 @@
         prioEl.className = 'text-[9px] font-bold uppercase tracking-widest ' + (prioColors[goal.priority]||'text-zinc-500');
 
         // Icon color
-        var iconBg = {active:'bg-green-500/10',completed:'bg-green-500/10',failed:'bg-red-500/10',paused:'bg-amber-500/10'};
+        var iconBg = {active:'bg-green-500/10',completed:'bg-blue-500/10',failed:'bg-red-500/10',paused:'bg-amber-500/10'};
         document.getElementById('goal-detail-icon').className = 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ' + (iconBg[goal.status]||'bg-zinc-800');
+
+        // Action buttons in header
+        var actionsContainer = document.getElementById('goal-detail-actions');
+        actionsContainer.innerHTML = '';
+        if (goal.status === 'active') {
+            actionsContainer.innerHTML =
+                '<button onclick="pauseGoal(' + goal.id + ');closeGoalDetail()" class="px-2.5 py-1 rounded-lg text-[10px] font-semibold text-amber-400 border border-amber-500/30 hover:bg-amber-500/10 transition-colors">Pause</button>' +
+                '<button onclick="cancelGoal(' + goal.id + ');closeGoalDetail()" class="px-2.5 py-1 rounded-lg text-[10px] font-semibold text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors">Stop</button>';
+        } else if (goal.status === 'paused') {
+            actionsContainer.innerHTML =
+                '<button onclick="resumeGoal(' + goal.id + ');closeGoalDetail()" class="px-2.5 py-1 rounded-lg text-[10px] font-semibold text-green-400 border border-green-500/30 hover:bg-green-500/10 transition-colors">Resume</button>';
+        }
 
         // Result summary
         var resultSection = document.getElementById('goal-detail-result');
@@ -463,9 +493,16 @@
         if (goal.result) {
             resultSection.classList.remove('hidden');
             resultText.textContent = goal.result;
+            resultText.style.maxHeight = '7rem';
+            document.getElementById('goal-result-expand-btn').textContent = 'Expand';
+            detectAndShowFiles(goal.result);
         } else {
             resultSection.classList.add('hidden');
+            document.getElementById('goal-detail-files').classList.add('hidden');
         }
+
+        // Plan mini-Kanban
+        renderPlanMiniKanban(goal.plan);
 
         // Fetch step log
         var logContainer = document.getElementById('goal-detail-log');
@@ -483,9 +520,76 @@
             logContainer.innerHTML = '<div class="text-xs text-red-400 font-mono">Failed to load log.</div>';
         }
 
-        lucide.createIcons({ root: panel });
+        refreshIcons();
     }
 
+    // ===== PLAN MINI-KANBAN =====
+    function renderPlanMiniKanban(plan) {
+        var section = document.getElementById('goal-detail-plan');
+        if (!plan || !plan.steps || plan.steps.length === 0) {
+            section.classList.add('hidden');
+            return;
+        }
+        section.classList.remove('hidden');
+
+        var steps = plan.steps;
+        var completed = steps.filter(function(s) { return s.status === 'completed'; }).length;
+        document.getElementById('goal-detail-plan-title').textContent = 'Plan: ' + (plan.goal || '');
+        document.getElementById('goal-detail-plan-progress').textContent = completed + ' / ' + steps.length + ' done';
+
+        var cols = { pending: [], in_progress: [], completed: [], failed: [] };
+        steps.forEach(function(s) {
+            var status = s.status || 'pending';
+            if (!cols[status]) cols[status] = [];
+            cols[status].push(s);
+        });
+
+        ['pending', 'in_progress', 'completed', 'failed'].forEach(function(status) {
+            var col = document.getElementById('task-col-' + status);
+            col.innerHTML = '';
+
+            cols[status].forEach(function(step) {
+                var card = document.createElement('div');
+                card.className = 'p-2 rounded-lg border text-[11px]';
+
+                if (status === 'in_progress') {
+                    card.className += ' border-amber-500/30 bg-amber-500/[0.05]';
+                } else if (status === 'completed') {
+                    card.className += ' border-green-500/20 bg-green-500/[0.03]';
+                } else if (status === 'failed') {
+                    card.className += ' border-red-500/20 bg-red-500/[0.03]';
+                } else {
+                    card.className += ' border-[var(--border-color)] bg-[var(--bg-main)]';
+                }
+
+                var stepNum = '<span class="text-[8px] font-mono font-bold px-1 py-0.5 rounded ';
+                if (status === 'in_progress') stepNum += 'bg-amber-500/20 text-amber-400';
+                else if (status === 'completed') stepNum += 'bg-green-500/20 text-green-400';
+                else if (status === 'failed') stepNum += 'bg-red-500/20 text-red-400';
+                else stepNum += 'bg-zinc-800 text-zinc-400';
+                stepNum += '">#' + (step.index + 1) + '</span>';
+
+                var assignedHtml = '';
+                if (step.assigned_to) {
+                    var aName = resolveAgentName(step.assigned_to);
+                    assignedHtml = '<div class="flex items-center gap-1 mt-1 text-[8px] text-zinc-500">' +
+                        '<i data-lucide="bot" class="w-2.5 h-2.5"></i>' + escapeHtml(aName) + '</div>';
+                }
+
+                card.innerHTML = '<div class="flex items-center gap-1.5 mb-1">' + stepNum + '</div>' +
+                    '<div class="text-[var(--text-main)] leading-snug ' + (status === 'completed' ? 'line-through opacity-60' : '') + '">' +
+                    escapeHtml(step.description || '') + '</div>' +
+                    assignedHtml +
+                    (step.result ? '<div class="mt-1.5 p-1.5 rounded bg-black/20 border border-[var(--border-color)]"><div class="text-[10px] text-zinc-400 font-mono whitespace-pre-wrap max-h-16 overflow-y-auto">' + escapeHtml(step.result) + '</div></div>' : '');
+
+                col.appendChild(card);
+            });
+
+            refreshIcons();
+        });
+    }
+
+    // ===== RENDER GOAL LOG =====
     function renderGoalLog(entries) {
         var logContainer = document.getElementById('goal-detail-log');
         logContainer.innerHTML = '';
@@ -530,14 +634,14 @@
                 (timeStr ? '<span class="text-[9px] text-zinc-700 ml-auto">' + timeStr + '</span>' : '') +
                 '  </div>' +
                 '  <div class="text-[11px] text-zinc-400 mt-1">' + escapeHtml(e.step || '') + '</div>' +
-                (e.result ? '<div class="mt-2 p-2 rounded bg-black/30 border border-[var(--border-color)]"><div class="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">Output</div><div class="text-[11px] text-zinc-300 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">' + escapeHtml(e.result) + '</div></div>' : '') +
+                (e.result ? '<div class="mt-2 p-2 rounded bg-black/30 border border-[var(--border-color)]"><div class="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">Output</div><div class="text-[11px] text-zinc-300 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">' + linkifyStepResult(e.result) + '</div></div>' : '') +
                 '</div>' +
                 '</div>';
 
             logContainer.appendChild(entry);
         });
 
-        lucide.createIcons({ root: logContainer });
+        refreshIcons();
     }
 
     function closeGoalDetail() {
@@ -554,6 +658,73 @@
         if (e.key === 'Escape') closeGoalDetail();
     });
 
+    // ===== RESULT EXPAND =====
+    function toggleResultExpand() {
+        var el = document.getElementById('goal-detail-result-text');
+        var btn = document.getElementById('goal-result-expand-btn');
+        if (el.style.maxHeight === 'none') {
+            el.style.maxHeight = '7rem';
+            btn.textContent = 'Expand';
+        } else {
+            el.style.maxHeight = 'none';
+            btn.textContent = 'Collapse';
+        }
+    }
+
+    // ===== FILE DETECTION =====
+    function detectAndShowFiles(text) {
+        var filesDiv = document.getElementById('goal-detail-files');
+        var filesList = document.getElementById('goal-detail-files-list');
+        filesList.innerHTML = '';
+
+        var patterns = [
+            /(?:wrote|created|saved|generated|output|written to|file:?)\s+[`"]?([^\s`"]+\.[a-zA-Z0-9]+)/gi,
+            /([a-zA-Z0-9_/.-]+\.(?:md|txt|json|yaml|yml|go|py|js|ts|html|csv|log|xml|toml))/g,
+        ];
+
+        var found = {};
+        patterns.forEach(function(re) {
+            var m;
+            while ((m = re.exec(text)) !== null) {
+                var file = m[1] || m[0];
+                file = file.replace(/^[`"']+|[`"']+$/g, '');
+                if (file.indexOf('://') >= 0 || file.length < 3) continue;
+                if (/\.[a-zA-Z0-9]+$/.test(file)) {
+                    found[file] = true;
+                }
+            }
+        });
+
+        var files = Object.keys(found);
+        if (files.length === 0) {
+            filesDiv.classList.add('hidden');
+            return;
+        }
+
+        filesDiv.classList.remove('hidden');
+        files.forEach(function(f) {
+            var chip = document.createElement('a');
+            chip.className = 'inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-sofia/10 border border-sofia/20 text-[10px] text-sofia font-mono hover:bg-sofia/20 cursor-pointer transition-colors';
+            chip.innerHTML = '<i data-lucide="file-text" class="w-3 h-3"></i>' + escapeHtml(f);
+            chip.onclick = function() {
+                if (window.openWorkspaceFile) window.openWorkspaceFile(f);
+            };
+            filesList.appendChild(chip);
+        });
+        refreshIcons();
+    }
+
+    // ===== STEP LOG FILE LINKS =====
+    function linkifyStepResult(text) {
+        return escapeHtml(text).replace(
+            /([a-zA-Z0-9_/.-]+\.(?:md|txt|json|yaml|yml|go|py|js|ts|html|csv|log|xml|toml))/g,
+            function(match) {
+                return '<a class="text-sofia hover:underline cursor-pointer" onclick="if(window.openWorkspaceFile)window.openWorkspaceFile(\'' +
+                    match.replace(/'/g, "\\'") + '\')">' + match + '</a>';
+            }
+        );
+    }
+
     // ===== AGENT NAME CACHE =====
     var agentNameCache = {};
     function fetchAgentNames() {
@@ -569,9 +740,9 @@
     // ===== WS HOOK =====
     window._goalsRefresh = goalRefresh;
 
-    // Also listen for plan step events for instant refresh
     window._goalsPlanEvent = function(d) {
-        if (d.type === 'plan_step_assigned' || d.type === 'plan_step_done') {
+        if (d.type === 'plan_step_assigned' || d.type === 'plan_step_done' ||
+            d.type === 'goal_status_changed' || d.type === 'goal_deleted') {
             goalRefresh();
         }
     };

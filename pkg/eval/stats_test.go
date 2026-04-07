@@ -104,5 +104,3 @@ func TestBootstrapConfidence_DifferentLevels(t *testing.T) {
 	ci99Width := ci99.Upper - ci99.Lower
 	assert.GreaterOrEqual(t, ci99Width, ci90Width, "99%% CI should be at least as wide as 90%% CI")
 }
-
-

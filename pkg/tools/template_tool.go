@@ -75,14 +75,14 @@ func (t *TemplateTool) executeList() *ToolResult {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Available templates (%d):\n\n", len(tpls)))
+	fmt.Fprintf(&sb, "Available templates (%d):\n\n", len(tpls))
 	for _, tpl := range tpls {
-		sb.WriteString(fmt.Sprintf("- **%s**", tpl.Name))
+		fmt.Fprintf(&sb, "- **%s**", tpl.Name)
 		if tpl.Description != "" {
-			sb.WriteString(fmt.Sprintf(": %s", tpl.Description))
+			fmt.Fprintf(&sb, ": %s", tpl.Description)
 		}
 		if len(tpl.Tags) > 0 {
-			sb.WriteString(fmt.Sprintf(" [%s]", strings.Join(tpl.Tags, ", ")))
+			fmt.Fprintf(&sb, " [%s]", strings.Join(tpl.Tags, ", "))
 		}
 		sb.WriteString("\n")
 	}
@@ -101,17 +101,17 @@ func (t *TemplateTool) executeShow(args map[string]any) *ToolResult {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Template: %s\n", tpl.Name))
+	fmt.Fprintf(&sb, "Template: %s\n", tpl.Name)
 	if tpl.Description != "" {
-		sb.WriteString(fmt.Sprintf("Description: %s\n", tpl.Description))
+		fmt.Fprintf(&sb, "Description: %s\n", tpl.Description)
 	}
 	if len(tpl.Variables) > 0 {
-		sb.WriteString(fmt.Sprintf("Variables: %s\n", strings.Join(tpl.Variables, ", ")))
+		fmt.Fprintf(&sb, "Variables: %s\n", strings.Join(tpl.Variables, ", "))
 	}
 	if len(tpl.Tags) > 0 {
-		sb.WriteString(fmt.Sprintf("Tags: %s\n", strings.Join(tpl.Tags, ", ")))
+		fmt.Fprintf(&sb, "Tags: %s\n", strings.Join(tpl.Tags, ", "))
 	}
-	sb.WriteString(fmt.Sprintf("\n---\n%s", tpl.Content))
+	fmt.Fprintf(&sb, "\n---\n%s", tpl.Content)
 	return SilentResult(sb.String())
 }
 

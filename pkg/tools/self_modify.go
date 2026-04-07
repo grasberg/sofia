@@ -72,11 +72,24 @@ func (t *SelfModifyTool) Execute(ctx context.Context, args map[string]any) *Tool
 		absPath = filepath.Join(t.workspace, pathStr)
 	}
 
-	// Guardrail: Prevent modifying golden configs
+	// Guardrail: Prevent modifying golden configs (check this FIRST before workspace boundary)
 	baseName := strings.ToLower(filepath.Base(absPath))
 	if baseName == "config.json" || baseName == "config.yaml" || baseName == ".env" {
 		logger.WarnCF("self_modify", "Blocked attempt to modify golden config", map[string]any{"path": absPath})
 		return ErrorResult(fmt.Sprintf("Guardrail blocked modification of golden config file: %s", baseName))
+	}
+
+	// Guardrail: Enforce workspace boundary - prevent writes outside workspace
+	if t.workspace != "" {
+		cleanWorkspace := filepath.Clean(t.workspace)
+		cleanPath := filepath.Clean(absPath)
+		if !strings.HasPrefix(cleanPath, cleanWorkspace) {
+			logger.WarnCF("self_modify", "Blocked attempt to write outside workspace", map[string]any{
+				"path":      absPath,
+				"workspace": t.workspace,
+			})
+			return ErrorResult(fmt.Sprintf("Guardrail blocked: path '%s' is outside workspace '%s'", absPath, t.workspace))
+		}
 	}
 
 	// Verify confirmation hash

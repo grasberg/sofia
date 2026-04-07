@@ -55,12 +55,57 @@ func NewSafeModifier(
 	}
 }
 
-// IsImmutable returns true if path matches any immutable pattern via substring or prefix.
+// IsImmutable returns true if path matches any immutable pattern via prefix or exact basename match.
 func (sm *SafeModifier) IsImmutable(path string) bool {
-	normalized := filepath.ToSlash(path)
+	// Try to get absolute path, but fall back to original path if it fails
+	absPath, absErr := filepath.Abs(path)
+
+	baseName := strings.ToLower(filepath.Base(path))
+
 	for _, pattern := range sm.immutablePaths {
-		if strings.Contains(normalized, pattern) {
-			return true
+		// Check if pattern is a basename (no slashes) - match against filename
+		if !strings.Contains(pattern, "/") && !strings.Contains(pattern, string(filepath.Separator)) {
+			if baseName == strings.ToLower(pattern) {
+				return true
+			}
+		} else {
+			// Pattern is a directory path - check various matching strategies
+			normalizedPattern := filepath.ToSlash(pattern)
+			
+			// For patterns like "pkg/", we need to check:
+			// 1. If user provided absolute path like "/some/path/evolution/foo.go", check if it contains "/evolution/"
+			// 2. If user provided relative path like "pkg/agent/loop.go", check if it starts with "pkg/"
+			// IMPORTANT: Only check "contains" on user's original path to avoid false positives from
+			// absolute paths that happen to contain the pattern (e.g., running tests from /path/to/pkg/evolution/)
+			
+			if strings.HasSuffix(normalizedPattern, "/") {
+				dirName := strings.TrimSuffix(normalizedPattern, "/")
+				
+				// Check if path starts with the pattern (relative path matching)
+				normalizedPath := filepath.ToSlash(path)
+				if strings.HasPrefix(normalizedPath, normalizedPattern) {
+					return true
+				}
+				
+				// Check if absolute path starts with the pattern (for absolute user paths like "/pkg/...")
+				if absErr == nil {
+					normalizedAbs := filepath.ToSlash(absPath)
+					if strings.HasPrefix(normalizedAbs, normalizedPattern) {
+						return true
+					}
+				}
+				
+				// Check if original path contains the pattern as a directory component
+				// This handles cases like "/some/path/evolution/foo.go" matching "evolution/"
+				if strings.Contains(normalizedPath, "/"+dirName+"/") || strings.HasSuffix(normalizedPath, "/"+dirName) {
+					return true
+				}
+			} else {
+				// Pattern without slash - treat as basename
+				if baseName == strings.ToLower(normalizedPattern) {
+					return true
+				}
+			}
 		}
 	}
 	return false

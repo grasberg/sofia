@@ -69,6 +69,15 @@ func registerSharedTools(
 func (r sharedToolRegistrar) registerForAgent(agentID string, agent *AgentInstance) {
 	agent.Tools.SetTracker(r.toolTracker)
 
+	// Wire up Circuit Breaker for this agent's tools
+	if r.cfg.Guardrails.CircuitBreaker.Enabled {
+		cb := tools.NewCircuitBreaker(
+			r.cfg.Guardrails.CircuitBreaker.FailureThreshold,
+			r.cfg.Guardrails.CircuitBreaker.CooldownPeriod,
+		)
+		agent.Tools.SetCircuitBreaker(cb)
+	}
+
 	r.registerPerformanceTools(agent)
 	r.registerWebAndSystemTools(agent)
 	r.registerMessageTool(agent)
@@ -363,7 +372,7 @@ func formatActiveGoals(db *memory.MemoryDB, agentID string) string {
 		if !strings.Contains(props, `"active"`) {
 			continue
 		}
-		sb.WriteString(fmt.Sprintf("- [%d] %s\n", n.ID, n.Name))
+		fmt.Fprintf(&sb, "- [%d] %s\n", n.ID, n.Name)
 	}
 	return sb.String()
 }

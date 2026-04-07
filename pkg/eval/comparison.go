@@ -8,17 +8,17 @@ import (
 // ComparisonResult holds the outcome of comparing two evaluation runs
 // (baseline vs candidate).
 type ComparisonResult struct {
-	BaselineReport  EvalReport       `json:"baseline"`
-	CandidateReport EvalReport       `json:"candidate"`
-	ScoreDelta      float64          `json:"score_delta"`
-	PassRateDelta   float64          `json:"pass_rate_delta"`
-	CostDelta       float64          `json:"cost_delta_usd"`
-	SpeedDelta      float64          `json:"speed_delta_ms"`
-	Winner          ComparisonWinner `json:"winner"`
-	Confidence      float64          `json:"confidence"` // 0.0-1.0
+	BaselineReport  EvalReport         `json:"baseline"`
+	CandidateReport EvalReport         `json:"candidate"`
+	ScoreDelta      float64            `json:"score_delta"`
+	PassRateDelta   float64            `json:"pass_rate_delta"`
+	CostDelta       float64            `json:"cost_delta_usd"`
+	SpeedDelta      float64            `json:"speed_delta_ms"`
+	Winner          ComparisonWinner   `json:"winner"`
+	Confidence      float64            `json:"confidence"` // 0.0-1.0
 	CI              ConfidenceInterval `json:"confidence_interval"`
-	Summary         string           `json:"summary"`
-	PerTest         []TestComparison `json:"per_test"`
+	Summary         string             `json:"summary"`
+	PerTest         []TestComparison   `json:"per_test"`
 }
 
 // TestComparison holds the per-test score comparison between baseline and
@@ -167,9 +167,12 @@ func buildSummary(result ComparisonResult, basePassRate, candPassRate float64) s
 	case WinnerTie:
 		return fmt.Sprintf(
 			"Tie: avg score delta %.4f is within threshold (+-%.2f). Baseline %.2f vs Candidate %.2f. Pass rates: %.0f%% vs %.0f%%.",
-			result.ScoreDelta, tieThreshold,
-			result.BaselineReport.AvgScore, result.CandidateReport.AvgScore,
-			basePassRate*100, candPassRate*100,
+			result.ScoreDelta,
+			tieThreshold,
+			result.BaselineReport.AvgScore,
+			result.CandidateReport.AvgScore,
+			basePassRate*100,
+			candPassRate*100,
 		)
 	case WinnerCandidate:
 		s := fmt.Sprintf(
@@ -180,7 +183,12 @@ func buildSummary(result ComparisonResult, basePassRate, candPassRate float64) s
 		)
 
 		if result.CI.Significant {
-			s += fmt.Sprintf(" Statistically significant (%.0f%% CI: [%.4f, %.4f]).", result.CI.Level*100, result.CI.Lower, result.CI.Upper)
+			s += fmt.Sprintf(
+				" Statistically significant (%.0f%% CI: [%.4f, %.4f]).",
+				result.CI.Level*100,
+				result.CI.Lower,
+				result.CI.Upper,
+			)
 		}
 
 		return s
@@ -193,7 +201,12 @@ func buildSummary(result ComparisonResult, basePassRate, candPassRate float64) s
 		)
 
 		if result.CI.Significant {
-			s += fmt.Sprintf(" Statistically significant (%.0f%% CI: [%.4f, %.4f]).", result.CI.Level*100, result.CI.Lower, result.CI.Upper)
+			s += fmt.Sprintf(
+				" Statistically significant (%.0f%% CI: [%.4f, %.4f]).",
+				result.CI.Level*100,
+				result.CI.Lower,
+				result.CI.Upper,
+			)
 		}
 
 		return s

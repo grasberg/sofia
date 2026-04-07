@@ -139,7 +139,7 @@ func (t *BraveSearchTool) Execute(ctx context.Context, args map[string]any) *Too
 	// Format results for LLM
 	var sb strings.Builder
 	if result.Query.Altered != "" {
-		sb.WriteString(fmt.Sprintf("(Search corrected to: %s)\n\n", result.Query.Altered))
+		fmt.Fprintf(&sb, "(Search corrected to: %s)\n\n", result.Query.Altered)
 	}
 
 	if result.Web == nil || len(result.Web.Results) == 0 {
@@ -147,13 +147,13 @@ func (t *BraveSearchTool) Execute(ctx context.Context, args map[string]any) *Too
 	}
 
 	for i, r := range result.Web.Results {
-		sb.WriteString(fmt.Sprintf("%d. **%s**\n", i+1, r.Title))
-		sb.WriteString(fmt.Sprintf("   URL: %s\n", r.URL))
+		fmt.Fprintf(&sb, "%d. **%s**\n", i+1, r.Title)
+		fmt.Fprintf(&sb, "   URL: %s\n", r.URL)
 		if r.Description != "" {
-			sb.WriteString(fmt.Sprintf("   %s\n", r.Description))
+			fmt.Fprintf(&sb, "   %s\n", r.Description)
 		}
 		if r.Age != "" {
-			sb.WriteString(fmt.Sprintf("   Age: %s\n", r.Age))
+			fmt.Fprintf(&sb, "   Age: %s\n", r.Age)
 		}
 		sb.WriteString("\n")
 	}

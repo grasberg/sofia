@@ -157,6 +157,30 @@ func (gm *GoalManager) UpdateGoalResult(goalID int64, result string) error {
 	return err
 }
 
+// DeleteGoal removes a goal and its log entries from the database.
+func (gm *GoalManager) DeleteGoal(goalID int64) error {
+	// Delete log entries first (child records).
+	if err := gm.memDB.DeleteGoalLog(goalID); err != nil {
+		return fmt.Errorf("failed to delete goal log: %w", err)
+	}
+	return gm.memDB.DeleteNode(goalID)
+}
+
+// DeleteAllGoals removes all goals (and their logs) for an agent.
+func (gm *GoalManager) DeleteAllGoals(agentID string) (int, error) {
+	goals, err := gm.ListAllGoals(agentID)
+	if err != nil {
+		return 0, err
+	}
+	deleted := 0
+	for _, g := range goals {
+		if err := gm.DeleteGoal(g.ID); err == nil {
+			deleted++
+		}
+	}
+	return deleted, nil
+}
+
 func parseGoalNode(node *memory.SemanticNode) *Goal {
 	g := &Goal{
 		ID:        node.ID,

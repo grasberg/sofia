@@ -210,7 +210,11 @@ func gatewayCmd(debug bool) error {
 			logger.ErrorCF("health", "Health server error", map[string]any{"error": err.Error()})
 		}
 	}()
-	fmt.Printf("✓ Health endpoints available at http://%s:%d/health, /ready, and /metrics\n", cfg.Gateway.Host, cfg.Gateway.Port)
+	fmt.Printf(
+		"✓ Health endpoints available at http://%s:%d/health, /ready, and /metrics\n",
+		cfg.Gateway.Host,
+		cfg.Gateway.Port,
+	)
 
 	if cfg.WebUI.Enabled {
 		webServer := web.NewServer(cfg, agentLoop, internal.GetVersion())

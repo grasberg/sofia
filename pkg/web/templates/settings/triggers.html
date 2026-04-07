@@ -80,7 +80,7 @@
             '  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>' +
             '</button>';
         list.appendChild(row);
-        lucide.createIcons({ root: row });
+        refreshIcons();
     }
     function checkWhTriggerEmpty() {
         const empty = document.getElementById('wh-trigger-empty');
@@ -109,7 +109,7 @@
             '<input type="text" placeholder="Prompt template (use {{.File}} {{.Event}})" value="' + (prompt || '') + '"' +
             '  class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)] fw-trigger-prompt">';
         list.appendChild(row);
-        lucide.createIcons({ root: row });
+        refreshIcons();
     }
     function checkFwTriggerEmpty() {
         const empty = document.getElementById('fw-trigger-empty');
@@ -136,12 +136,12 @@
             '<input type="text" placeholder="Prompt template (use {{.Match}})" value="' + (prompt || '') + '"' +
             '  class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)] pt-trigger-prompt">';
         list.appendChild(row);
-        lucide.createIcons({ root: row });
+        refreshIcons();
     }
     function checkPtTriggerEmpty() {
         const empty = document.getElementById('pt-trigger-empty');
         if (empty) empty.style.display = document.querySelectorAll('.pt-trigger-row').length === 0 ? '' : 'none';
     }
 
-    lucide.createIcons();
+    refreshIcons();
 </script>

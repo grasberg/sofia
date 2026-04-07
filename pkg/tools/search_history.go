@@ -81,16 +81,14 @@ func (t *SearchHistoryTool) Execute(_ context.Context, args map[string]any) *Too
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Found %d matching messages:\n\n", len(results)))
+	fmt.Fprintf(&sb, "Found %d matching messages:\n\n", len(results))
 	for i, r := range results {
 		preview := r.Content
 		if len(preview) > 200 {
 			preview = preview[:200] + "..."
 		}
-		sb.WriteString(fmt.Sprintf(
-			"%d. [%s] (session: %s, score: %.2f)\n   %s\n\n",
-			i+1, r.Role, r.SessionKey, r.Score, preview,
-		))
+		fmt.Fprintf(&sb, "%d. [%s] (session: %s, score: %.2f)\n   %s\n\n",
+			i+1, r.Role, r.SessionKey, r.Score, preview)
 	}
 
 	return SilentResult(sb.String())

@@ -35,6 +35,8 @@ type Provider struct {
 	apiBase        string
 	maxTokensField string // Field name for max tokens (e.g., "max_completion_tokens" for o1/glm models)
 	httpClient     *http.Client
+	requestDelay   time.Duration    // delay before each request (rate-limit friendly)
+	tokenSource    func() (string, error) // optional: refresh token before each request
 }
 
 type Option func(*Provider)
@@ -53,6 +55,32 @@ func WithRequestTimeout(timeout time.Duration) Option {
 			p.httpClient.Timeout = timeout
 		}
 	}
+}
+
+func WithRequestDelay(delay time.Duration) Option {
+	return func(p *Provider) {
+		if delay > 0 {
+			p.requestDelay = delay
+		}
+	}
+}
+
+// WithTokenSource sets a function that returns a fresh access token before each request.
+// If set, the returned token overrides the initial apiKey.
+func WithTokenSource(ts func() (string, error)) Option {
+	return func(p *Provider) {
+		p.tokenSource = ts
+	}
+}
+
+// resolveAPIKey returns the current API key, checking the token source if set.
+func (p *Provider) resolveAPIKey() string {
+	if p.tokenSource != nil {
+		if tok, err := p.tokenSource(); err == nil && tok != "" {
+			return tok
+		}
+	}
+	return p.apiKey
 }
 
 func NewProvider(apiKey, apiBase, proxy string, opts ...Option) *Provider {
@@ -123,6 +151,14 @@ func (p *Provider) Chat(
 	model string,
 	options map[string]any,
 ) (*LLMResponse, error) {
+	if p.requestDelay > 0 {
+		select {
+		case <-time.After(p.requestDelay):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
 	if p.apiBase == "" {
 		return nil, fmt.Errorf("API base not configured")
 	}
@@ -199,8 +235,8 @@ func (p *Provider) Chat(
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	if p.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	if key := p.resolveAPIKey(); key != "" {
+		req.Header.Set("Authorization", "Bearer "+key)
 	}
 
 	resp, err := p.httpClient.Do(req)
@@ -228,6 +264,14 @@ func (p *Provider) ChatStream(
 	model string,
 	options map[string]any,
 ) (<-chan StreamChunk, error) {
+	if p.requestDelay > 0 {
+		select {
+		case <-time.After(p.requestDelay):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
 	if p.apiBase == "" {
 		return nil, fmt.Errorf("API base not configured")
 	}
@@ -292,8 +336,8 @@ func (p *Provider) ChatStream(
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
-	if p.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	if key := p.resolveAPIKey(); key != "" {
+		req.Header.Set("Authorization", "Bearer "+key)
 	}
 
 	resp, err := p.httpClient.Do(req)
@@ -502,8 +546,8 @@ func (p *Provider) Embeddings(
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	if p.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	if key := p.resolveAPIKey(); key != "" {
+		req.Header.Set("Authorization", "Bearer "+key)
 	}
 
 	resp, err := p.httpClient.Do(req)

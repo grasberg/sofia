@@ -44,6 +44,7 @@ func (al *AgentLoop) runLLMIteration(
 	// Cache tool definitions across iterations — user intent doesn't change,
 	// only tool results do, so re-filtering is wasted work.
 	var cachedToolDefs []providers.ToolDefinition
+	var cachedToolDefsVersion int64 // track registry version for cache invalidation
 
 	for iteration < agent.MaxIterations {
 		iteration++
@@ -55,7 +56,7 @@ func (al *AgentLoop) runLLMIteration(
 		}
 		select {
 		case <-ctx.Done():
-			logger.InfoCF(agentComp, "LLM loop aborted: context cancelled", nil)
+			logger.InfoCF(agentComp, "LLM loop aborted: context canceled", nil)
 			return "", iteration, errorCount, ctx.Err()
 		default:
 		}
@@ -112,61 +113,70 @@ func (al *AgentLoop) runLLMIteration(
 		// first call lets the model respond naturally. Tools are provided on
 		// subsequent iterations (after the model has seen the conversation).
 		var providerToolDefs []providers.ToolDefinition
-		if cachedToolDefs != nil {
-			providerToolDefs = cachedToolDefs
-		} else {
-			isTask := looksLikeTask(opts.UserMessage)
-			if !isTask && iteration == 1 {
-				// Conversational message — no tools on first call
-				providerToolDefs = nil
-			} else {
-				var activeTools []tools.Tool
-				allToolNames := agent.Tools.List()
-				filterTopK := 10
 
-				var allToolsList []tools.Tool
-				for _, name := range allToolNames {
-					if t, ok := agent.Tools.Get(name); ok {
-						allToolsList = append(allToolsList, t)
-					}
+		// Build or retrieve cached tool definitions.
+		// Always populate the cache even if we won't use tools this iteration,
+		// so subsequent iterations don't re-run the expensive matcher.
+		currentVersion := agent.Tools.GetVersion()
+		if cachedToolDefs == nil || cachedToolDefsVersion != currentVersion {
+			var activeTools []tools.Tool
+			allToolNames := agent.Tools.List()
+			filterTopK := 15
+
+			var allToolsList []tools.Tool
+			for _, name := range allToolNames {
+				if t, ok := agent.Tools.Get(name); ok {
+					allToolsList = append(allToolsList, t)
 				}
-
-				if len(allToolNames) > filterTopK {
-					var intent string
-					for i := len(messages) - 1; i >= 0; i-- {
-						if messages[i].Role == "user" {
-							intent = messages[i].Content
-							break
-						}
-					}
-
-					if al.semanticMatcher != nil {
-						activeTools = al.semanticMatcher.MatchTools(ctx, intent, allToolsList, filterTopK)
-					} else {
-						activeTools = tools.KeywordMatchTools(intent, allToolsList, filterTopK)
-					}
-				} else {
-					activeTools = allToolsList
-				}
-
-				for _, t := range activeTools {
-					schema := tools.ToolToSchema(t)
-					if fn, ok := schema["function"].(map[string]any); ok {
-						name, _ := fn["name"].(string)
-						desc, _ := fn["description"].(string)
-						params, _ := fn["parameters"].(map[string]any)
-						providerToolDefs = append(providerToolDefs, providers.ToolDefinition{
-							Type: "function",
-							Function: providers.ToolFunctionDefinition{
-								Name:        name,
-								Description: desc,
-								Parameters:  params,
-							},
-						})
-					}
-				}
-				cachedToolDefs = providerToolDefs
 			}
+
+			if len(allToolNames) > filterTopK {
+				var intent string
+				for i := len(messages) - 1; i >= 0; i-- {
+					if messages[i].Role == "user" {
+						intent = messages[i].Content
+						break
+					}
+				}
+
+				if al.semanticMatcher != nil {
+					activeTools = al.semanticMatcher.MatchTools(ctx, intent, allToolsList, filterTopK)
+				} else {
+					activeTools = tools.KeywordMatchTools(intent, allToolsList, filterTopK)
+				}
+			} else {
+				activeTools = allToolsList
+			}
+
+			var builtDefs []providers.ToolDefinition
+			for _, t := range activeTools {
+				schema := tools.ToolToSchema(t)
+				if fn, ok := schema["function"].(map[string]any); ok {
+					name, _ := fn["name"].(string)
+					desc, _ := fn["description"].(string)
+					params, _ := fn["parameters"].(map[string]any)
+					builtDefs = append(builtDefs, providers.ToolDefinition{
+						Type: "function",
+						Function: providers.ToolFunctionDefinition{
+							Name:        name,
+							Description: desc,
+							Parameters:  params,
+						},
+					})
+				}
+			}
+			cachedToolDefs = builtDefs
+			cachedToolDefsVersion = currentVersion
+		}
+
+		// Decide whether to include tools this iteration.
+		// On first iteration of conversational messages, withhold tools to let
+		// the model respond naturally (small/local models compulsively call tools).
+		isTask := looksLikeTask(opts.UserMessage)
+		if !isTask && iteration == 1 {
+			providerToolDefs = nil
+		} else {
+			providerToolDefs = cachedToolDefs
 		}
 
 		// Log LLM request details
@@ -183,12 +193,14 @@ func (al *AgentLoop) runLLMIteration(
 			})
 
 		// Log full messages (detailed)
-		logger.DebugCF(agentComp, "Full LLM request",
-			map[string]any{
-				"iteration":     iteration,
-				"messages_json": formatMessagesForLog(messages),
-				"tools_json":    formatToolsForLog(providerToolDefs),
-			})
+		if logger.IsDebug() {
+			logger.DebugCF(agentComp, "Full LLM request",
+				map[string]any{
+					"iteration":     iteration,
+					"messages_json": formatMessagesForLog(messages),
+					"tools_json":    formatToolsForLog(providerToolDefs),
+				})
+		}
 
 		// Call LLM with fallback chain if candidates are configured.
 		var response *providers.LLMResponse
@@ -403,6 +415,14 @@ func (al *AgentLoop) runLLMIteration(
 		// Record token usage
 		if response.Usage != nil {
 			al.usageTracker.Record(opts.SessionKey, response.Usage)
+			
+			// Record budget spend based on token usage
+			if al.budgetManager != nil {
+				costUSD := estimateCostUSD(response.Usage, agent.ModelID, al.cfg)
+				if costUSD > 0 {
+					al.budgetManager.RecordSpend(agent.ID, costUSD)
+				}
+			}
 		}
 
 		// Capture reasoning content for verbose mode
@@ -563,18 +583,104 @@ func (al *AgentLoop) runLLMIteration(
 		}
 
 		executeSingleTool := func(idx int, tc providers.ToolCall) toolCallResult {
+			// Marshal arguments once and reuse throughout this function.
+			argumentsJSON, _ := json.Marshal(tc.Arguments)
+			argsPreview := utils.Truncate(string(argumentsJSON), 300)
+
 			// Trace: create a tool_call span if tracing is active
 			var toolSpan *trace.Span
 			if al.tracer != nil && opts.ParentSpan != nil {
 				toolSpan = al.tracer.StartSpan(opts.ParentSpan, trace.SpanToolCall, tc.Name)
-				argsJSON, _ := json.Marshal(tc.Arguments)
-				toolSpan.Attributes["args_preview"] = utils.Truncate(string(argsJSON), 300)
+				toolSpan.Attributes["args_preview"] = argsPreview
 				toolSpan.Attributes["iteration"] = iteration
 			}
 
+			// Budget check: verify budget before executing tool
+			if al.budgetManager != nil {
+				_, allowed := al.budgetManager.CheckBudget(agent.ID)
+				if !allowed {
+					logger.WarnCF(agentComp, "Tool execution blocked: budget exceeded",
+						map[string]any{
+							"agent_id": agent.ID,
+							"tool":     tc.Name,
+						})
+					return toolCallResult{
+						index: idx,
+						tc:    tc,
+						result: &tools.ToolResult{
+							ForLLM:  "Error: Budget exceeded. Tool execution blocked.",
+							ForUser: "⚠️ Budget limit reached. Cannot execute tool.",
+							IsError: true,
+						},
+						durMs: 0,
+						resultMsg: providers.Message{
+							Role:       "tool",
+							Content:    "Error: Budget exceeded. Tool execution blocked.",
+							ToolCallID: tc.ID,
+							ToolName:   tc.Name,
+						},
+					}
+				}
+			}
+
+			// Approval gate: check if tool requires human approval
+			if al.approvalGate != nil {
+				if al.approvalGate.RequiresApproval(tc.Name, string(argumentsJSON)) {
+					req := ApprovalRequest{
+						ID:         fmt.Sprintf("approval-%d-%d", iteration, idx),
+						ToolName:   tc.Name,
+						Arguments:  string(argumentsJSON),
+						AgentID:    agent.ID,
+						SessionKey: opts.SessionKey,
+						Channel:    opts.Channel,
+						ChatID:     opts.ChatID,
+					}
+					approved, err := al.approvalGate.RequestApproval(ctx, req)
+					if err != nil {
+						return toolCallResult{
+							index: idx,
+							tc:    tc,
+							result: &tools.ToolResult{
+								ForLLM:  fmt.Sprintf("Error: Approval check failed: %v", err),
+								ForUser: "⚠️ Tool approval encountered an error.",
+								IsError: true,
+							},
+							durMs: 0,
+							resultMsg: providers.Message{
+								Role:       "tool",
+								Content:    fmt.Sprintf("Error: Approval check failed: %v", err),
+								ToolCallID: tc.ID,
+								ToolName:   tc.Name,
+							},
+						}
+					}
+					if !approved {
+						logger.InfoCF(agentComp, "Tool execution denied by approval gate",
+							map[string]any{
+								"agent_id": agent.ID,
+								"tool":     tc.Name,
+							})
+						return toolCallResult{
+							index: idx,
+							tc:    tc,
+							result: &tools.ToolResult{
+								ForLLM:  "Error: Tool call denied by human approval gate.",
+								ForUser: "⚠️ Tool execution was denied by human reviewer.",
+								IsError: true,
+							},
+							durMs: 0,
+							resultMsg: providers.Message{
+								Role:       "tool",
+								Content:    "Error: Tool call denied by human approval gate.",
+								ToolCallID: tc.ID,
+								ToolName:   tc.Name,
+							},
+						}
+					}
+				}
+			}
+
 			al.activeStatus.Store(fmt.Sprintf("Executing tool: %s", tc.Name))
-			argsJSON, _ := json.Marshal(tc.Arguments)
-			argsPreview := utils.Truncate(string(argsJSON), 200)
 			logger.InfoCF(agentComp, fmt.Sprintf("TOOL: started %s", tc.Name),
 				map[string]any{
 					"agent_id":     agent.ID,
@@ -690,7 +796,7 @@ func (al *AgentLoop) runLLMIteration(
 					Channel:    opts.Channel,
 					Action:     "tool_call",
 					Detail:     tc.Name,
-					Input:      utils.Truncate(string(argsJSON), 500),
+					Input:      utils.Truncate(string(argumentsJSON), 500),
 					Output:     utils.Truncate(toolResult.ForLLM, 500),
 					Duration:   toolDur,
 					Success:    toolResult.Err == nil && !toolResult.IsError,
@@ -872,7 +978,10 @@ func (al *AgentLoop) runLLMIteration(
 		}
 
 		// Auto-rollback: if error count reaches threshold, rollback to last checkpoint
-		const autoRollbackThreshold = 3
+		autoRollbackThreshold := al.cfg.Agents.Defaults.AutoRollbackThreshold
+		if autoRollbackThreshold <= 0 {
+			autoRollbackThreshold = 3 // Default value
+		}
 		if errorCount >= autoRollbackThreshold {
 			cp, restoredMsgs, rbErr := al.checkpointMgr.RollbackToLatest(opts.SessionKey)
 			if rbErr != nil {
@@ -921,7 +1030,7 @@ func (al *AgentLoop) runLLMIteration(
 				logger.WarnCF(agentComp, "Tool confirmation timed out after 5 minutes", nil)
 			case <-ctx.Done():
 				timer.Stop()
-				// Context cancelled (new message or shutdown)
+				// Context canceled (new message or shutdown)
 			}
 			break
 		}
@@ -936,7 +1045,7 @@ func (al *AgentLoop) runLLMIteration(
 			map[string]any{"agent_id": agent.ID, "iterations": iteration})
 
 		messages = append(messages, providers.Message{
-			Role: "user",
+			Role:    "user",
 			Content: "[SYSTEM] Respond to the user directly with plain text. Do NOT call any tools.",
 		})
 
@@ -960,118 +1069,4 @@ func (al *AgentLoop) runLLMIteration(
 	}
 
 	return finalContent, iteration, errorCount, nil
-}
-
-// applyOutputFilter checks a string against OutputFiltering redact patterns,
-// optionally blocking or redacting the content, and logging audits.
-func (al *AgentLoop) applyOutputFilter(agentComp, source, content string) string {
-	if !al.cfg.Guardrails.OutputFiltering.Enabled || len(al.cfg.Guardrails.OutputFiltering.RedactPatterns) == 0 {
-		return content
-	}
-
-	filteredContent := content
-	for _, pattern := range al.cfg.Guardrails.OutputFiltering.RedactPatterns {
-		re := getCachedRegex(pattern)
-		if re == nil {
-			continue
-		}
-
-		if re.MatchString(filteredContent) {
-			if al.cfg.Guardrails.OutputFiltering.Action == "block" {
-				logger.WarnCF(agentComp, "Guardrail blocked output", map[string]any{
-					"source":  source,
-					"pattern": pattern,
-				})
-				logger.Audit("Output Blocked", map[string]any{
-					"source":  source,
-					"pattern": pattern,
-				})
-				return "[OUTPUT BLOCKED BY FILTER]"
-			}
-
-			// Redact action
-			filteredContent = re.ReplaceAllString(filteredContent, "[REDACTED]")
-			logger.WarnCF(agentComp, "Guardrail redacted output", map[string]any{
-				"source":  source,
-				"pattern": pattern,
-			})
-			logger.Audit("Output Redacted", map[string]any{
-				"source":  source,
-				"pattern": pattern,
-			})
-		}
-	}
-
-	scrubbed, secretTypes := guardrails.ScrubSecrets(filteredContent)
-	if len(secretTypes) > 0 {
-		logger.WarnCF(agentComp, "Guardrail scrubbed secrets from output", map[string]any{
-			"source":       source,
-			"secret_types": secretTypes,
-		})
-		logger.Audit("Secrets Scrubbed", map[string]any{
-			"source":       source,
-			"secret_types": secretTypes,
-		})
-		filteredContent = scrubbed
-	}
-
-	return filteredContent
-}
-
-// safeToParallelize checks whether a batch of tool calls can be safely
-// executed in parallel. If any two calls reference overlapping file paths
-// (via "path", "file", or "file_path" arguments), they must run sequentially.
-func safeToParallelize(calls []providers.ToolCall) bool {
-	// File-mutating tools that should be checked for path overlap
-	writingTools := map[string]bool{
-		"write_file": true, "edit_file": true, "append_file": true,
-		"shell": true, "exec": true,
-	}
-
-	var paths []string
-	hasWriter := false
-	for _, tc := range calls {
-		p := extractFilePath(tc.Arguments)
-		if p != "" {
-			paths = append(paths, p)
-			if writingTools[tc.Name] {
-				hasWriter = true
-			}
-		}
-	}
-
-	// If no writing tools involved, parallel is safe
-	if !hasWriter || len(paths) < 2 {
-		return true
-	}
-
-	// Check for any overlapping paths
-	for i := 0; i < len(paths); i++ {
-		for j := i + 1; j < len(paths); j++ {
-			if pathsOverlap(paths[i], paths[j]) {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func extractFilePath(args map[string]any) string {
-	for _, key := range []string{"path", "file", "file_path", "filename"} {
-		if v, ok := args[key].(string); ok && v != "" {
-			return v
-		}
-	}
-	return ""
-}
-
-func pathsOverlap(a, b string) bool {
-	if a == b {
-		return true
-	}
-	// Check if one is a parent directory of the other
-	if strings.HasPrefix(a, b+"/") || strings.HasPrefix(b, a+"/") {
-		return true
-	}
-	return false
 }

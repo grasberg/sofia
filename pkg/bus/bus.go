@@ -9,12 +9,12 @@ import (
 )
 
 type MessageBus struct {
-	inbound        chan InboundMessage
-	outbound       chan OutboundMessage
-	handlers       map[string]MessageHandler
-	closed         bool
-	mu             sync.RWMutex
-	inboundCount   atomic.Int64 // total inbound messages published
+	inbound      chan InboundMessage
+	outbound     chan OutboundMessage
+	handlers     map[string]MessageHandler
+	closed       bool
+	mu           sync.RWMutex
+	inboundCount atomic.Int64 // total inbound messages published
 }
 
 func NewMessageBus() *MessageBus {

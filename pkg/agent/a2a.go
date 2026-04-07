@@ -63,7 +63,7 @@ func (r *A2ARouter) Register(agentID string) {
 }
 
 // Send delivers a message to a specific agent's mailbox.
-// Returns an error if the target agent is not registered or mailbox is full.
+// Returns an error if the target agent is not registered or mailbox is full after retries.
 func (r *A2ARouter) Send(msg *A2AMessage) error {
 	r.mu.RLock()
 	ch, ok := r.mailboxes[msg.To]
@@ -83,18 +83,41 @@ func (r *A2ARouter) Send(msg *A2AMessage) error {
 		msg.Timestamp = time.Now()
 	}
 
-	select {
-	case ch <- msg:
-		r.mu.RLock()
-		cb := r.monitorCallback
-		r.mu.RUnlock()
-		if cb != nil {
-			cb(msg)
+	// Try to send with retry and backoff to handle temporary mailbox congestion
+	const maxRetries = 3
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		select {
+		case ch <- msg:
+			r.mu.RLock()
+			cb := r.monitorCallback
+			r.mu.RUnlock()
+			if cb != nil {
+				cb(msg)
+			}
+			return nil
+		default:
+			// Mailbox full, wait briefly before retry
+			if attempt < maxRetries-1 {
+				time.Sleep(time.Duration(attempt+1) * 10 * time.Millisecond)
+			}
 		}
-		return nil
-	default:
-		return fmt.Errorf("a2a: mailbox full for agent %q", msg.To)
 	}
+
+	// All retries exhausted - log and return error
+	r.mu.RLock()
+	cb := r.monitorCallback
+	r.mu.RUnlock()
+	if cb != nil {
+		cb(&A2AMessage{
+			From:    "a2a-router",
+			To:      msg.To,
+			Type:    A2ABroadcast,
+			Subject: "MAILBOX_FULL",
+			Payload: fmt.Sprintf("Message from %s dropped: mailbox full after %d retries", msg.From, maxRetries),
+		})
+	}
+
+	return fmt.Errorf("a2a: mailbox full for agent %q after %d retries", msg.To, maxRetries)
 }
 
 // Broadcast sends a message to all registered agents except the sender.

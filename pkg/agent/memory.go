@@ -9,7 +9,9 @@ package agent
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/grasberg/sofia/pkg/memory"
 )
@@ -21,6 +23,7 @@ type MemoryStore struct {
 	db       *memory.MemoryDB
 	agentID  string
 	semantic *SemanticMemory
+	version  atomic.Int64 // incremented on each write for change tracking
 }
 
 // NewMemoryStore creates a new MemoryStore backed by the given MemoryDB.
@@ -51,7 +54,11 @@ func (ms *MemoryStore) WriteLongTerm(content string) error {
 	if ms.db == nil {
 		return nil
 	}
-	return ms.db.SetNote(ms.agentID, "longterm", "", content)
+	err := ms.db.SetNote(ms.agentID, "longterm", "", content)
+	if err == nil {
+		ms.version.Add(1)
+	}
+	return err
 }
 
 // ReadToday reads today's daily note.
@@ -80,7 +87,16 @@ func (ms *MemoryStore) AppendToday(content string) error {
 		newContent = existing + "\n" + content
 	}
 
-	return ms.db.SetNote(ms.agentID, "daily", key, newContent)
+	err := ms.db.SetNote(ms.agentID, "daily", key, newContent)
+	if err == nil {
+		ms.version.Add(1)
+	}
+	return err
+}
+
+// GetVersion returns the current memory version for change tracking.
+func (ms *MemoryStore) GetVersion() int64 {
+	return ms.version.Load()
 }
 
 // GetRecentDailyNotes returns daily notes from the last N days.
@@ -110,19 +126,49 @@ func (ms *MemoryStore) GetRecentDailyNotes(days int) string {
 
 // GetMemoryContext returns formatted memory context for the agent prompt.
 // Includes long-term memory, recent daily notes, knowledge graph, and reflection lessons.
-func (ms *MemoryStore) GetMemoryContext() string {
+// If maxTokens > 0, the context is budgeted to stay within the token limit.
+func (ms *MemoryStore) GetMemoryContext(maxTokens int) string {
 	longTerm := ms.ReadLongTerm()
 	recentNotes := ms.GetRecentDailyNotes(3)
+	
+	// Calculate tokens used so far
+	usedTokens := 0
+	if maxTokens > 0 {
+		usedTokens += estimateTokensFromString(longTerm)
+		usedTokens += estimateTokensFromString(recentNotes)
+	}
+	
+	// Knowledge graph with budget
 	graphContext := ""
 	if ms.semantic != nil {
-		graphContext = ms.semantic.GetContext(10)
+		if maxTokens > 0 {
+			kgBudget := maxTokens - usedTokens
+			if kgBudget > 0 {
+				graphContext = ms.semantic.GetContextWithBudget(kgBudget)
+				usedTokens += estimateTokensFromString(graphContext)
+			}
+		} else {
+			graphContext = ms.semantic.GetContext(10)
+		}
 	}
 
 	// Reflection lessons from past self-evaluations
 	reflectionContext := ""
 	if ms.db != nil {
 		engine := NewReflectionEngine(ms.db, ms.agentID)
-		reflectionContext = engine.FormatLessonsContext(5)
+		if maxTokens > 0 {
+			// Limit lessons based on remaining budget
+			remainingBudget := maxTokens - usedTokens
+			if remainingBudget > 0 {
+				// Estimate ~50 tokens per lesson, take top N that fit
+				maxLessons := remainingBudget / 50
+				if maxLessons > 0 {
+					reflectionContext = engine.FormatLessonsContext(min(maxLessons, 5))
+				}
+			}
+		} else {
+			reflectionContext = engine.FormatLessonsContext(5)
+		}
 	}
 
 	if longTerm == "" && recentNotes == "" && graphContext == "" && reflectionContext == "" {
@@ -183,11 +229,25 @@ func (ms *MemoryStore) GetRelevantLessonsFormatted(query string, limit int) stri
 		if r.Lessons == "" {
 			continue
 		}
-		sb.WriteString(fmt.Sprintf("- (score=%.1f) %s\n", r.Score, r.Lessons))
+		fmt.Fprintf(&sb, "- (score=%.1f) %s\n", r.Score, r.Lessons)
 	}
 	result := sb.String()
 	if result == "## Relevant Past Lessons\n\n" {
 		return ""
 	}
 	return result
+}
+
+// estimateTokensFromString estimates the number of tokens in a string.
+// Uses the approximation of 2.5 characters per token.
+func estimateTokensFromString(s string) int {
+	return utf8.RuneCountInString(s) * 2 / 5
+}
+
+// min returns the minimum of two integers.
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

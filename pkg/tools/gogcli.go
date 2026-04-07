@@ -1,13 +1,9 @@
 package tools
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"math"
-	"os"
-	"os/exec"
 	"strings"
 	"time"
 )
@@ -158,50 +154,15 @@ func (t *GoogleCLITool) Execute(ctx context.Context, args map[string]any) *ToolR
 	}
 	finalArgs = append(finalArgs, commandArgs...)
 
-	runCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(runCtx, t.binaryPath, finalArgs...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err = cmd.Run()
-
-	output := strings.TrimSpace(stdout.String())
-	if stderr.Len() > 0 {
-		if output != "" {
-			output += "\n\n"
-		}
-		output += "STDERR:\n" + strings.TrimSpace(stderr.String())
-	}
-	if output == "" {
-		output = "(no output)"
-	}
-
-	const maxLen = 12000
-	if len(output) > maxLen {
-		output = output[:maxLen] + fmt.Sprintf("\n... (truncated, %d more chars)", len(output)-maxLen)
-	}
-
-	if err != nil {
-		if isBinaryNotFound(err) {
-			return ErrorResult(
-				fmt.Sprintf("gog binary not found at %q. Install gogcli and ensure it is in PATH", t.binaryPath),
-			)
-		}
-		if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
-			msg := fmt.Sprintf("gog command timed out after %v", timeout)
-			if output != "" {
-				msg += "\n\n" + output
-			}
-			return &ToolResult{ForLLM: msg, ForUser: msg, IsError: true}
-		}
-		output += fmt.Sprintf("\n\nExit error: %v", err)
-		return &ToolResult{ForLLM: output, ForUser: output, IsError: true}
-	}
-
-	return &ToolResult{ForLLM: output, ForUser: output, IsError: false}
+	// Execute the CLI command using shared helper
+	return ExecuteCLICommand(CLICommandInput{
+		Ctx:         ctx,
+		BinaryPath:  t.binaryPath,
+		Args:        finalArgs,
+		Timeout:     timeout,
+		ToolName:    "gog",
+		InstallHint: "Install gogcli and ensure it is in PATH",
+	})
 }
 
 func parseStringArgs(raw any) ([]string, error) {
@@ -333,16 +294,3 @@ func injectBatchIDs(commandArgs, ids []string) ([]string, error) {
 	return merged, nil
 }
 
-func isBinaryNotFound(err error) bool {
-	var execErr *exec.Error
-	if errors.As(err, &execErr) && errors.Is(execErr.Err, exec.ErrNotFound) {
-		return true
-	}
-
-	var pathErr *os.PathError
-	if errors.As(err, &pathErr) && os.IsNotExist(pathErr.Err) {
-		return true
-	}
-
-	return false
-}

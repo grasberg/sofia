@@ -41,8 +41,8 @@ func TestEmailChannel_NewWithConfig(t *testing.T) {
 	require.NotNil(t, ch)
 	assert.Equal(t, "email", ch.Name())
 	assert.False(t, ch.IsRunning())
-	assert.NotNil(t, ch.sender, "sender should be initialised when SMTPServer is set")
-	assert.NotNil(t, ch.receiver, "receiver should always be initialised (stub or real)")
+	assert.NotNil(t, ch.sender, "sender should be initialized when SMTPServer is set")
+	assert.NotNil(t, ch.receiver, "receiver should always be initialized (stub or real)")
 
 	// AllowFrom should be forwarded to the BaseChannel allowlist.
 	assert.True(t, ch.IsAllowed("user@example.com"))

@@ -397,15 +397,15 @@ func (t *knowledgeGraphTool) stats() *ToolResult {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Knowledge graph: %d total nodes\n\nTop entities by access:\n", totalNodes))
+	fmt.Fprintf(&sb, "Knowledge graph: %d total nodes\n\nTop entities by access:\n", totalNodes)
 	limit := 20
 	if len(stats) < limit {
 		limit = len(stats)
 	}
 	for i := 0; i < limit; i++ {
 		s := stats[i]
-		sb.WriteString(fmt.Sprintf("  [%s] %s — %d accesses, %d queries, %d hits\n",
-			s.Label, s.Name, s.AccessCount, s.QueryCount, s.HitCount))
+		fmt.Fprintf(&sb, "  [%s] %s — %d accesses, %d queries, %d hits\n",
+			s.Label, s.Name, s.AccessCount, s.QueryCount, s.HitCount)
 	}
 	return SilentResult(sb.String())
 }
@@ -459,25 +459,25 @@ func formatGraphToolResults(results []memory.GraphResult) string {
 		var props map[string]any
 		_ = json.Unmarshal([]byte(r.Node.Properties), &props)
 
-		sb.WriteString(fmt.Sprintf("[%s] %s", r.Node.Label, r.Node.Name))
+		fmt.Fprintf(&sb, "[%s] %s", r.Node.Label, r.Node.Name)
 		if len(props) > 0 {
 			propParts := make([]string, 0, len(props))
 			for k, v := range props {
 				propParts = append(propParts, fmt.Sprintf("%s=%v", k, v))
 			}
-			sb.WriteString(fmt.Sprintf(" {%s}", strings.Join(propParts, ", ")))
+			fmt.Fprintf(&sb, " {%s}", strings.Join(propParts, ", "))
 		}
-		sb.WriteString(fmt.Sprintf(" (accessed %d times)\n", r.Node.AccessCount))
+		fmt.Fprintf(&sb, " (accessed %d times)\n", r.Node.AccessCount)
 
 		if len(r.Edges) > 0 {
 			sb.WriteString("Relations:\n")
 			for _, e := range r.Edges {
 				if e.SourceID == r.Node.ID {
-					sb.WriteString(fmt.Sprintf("  → %s → [%s] %s (w=%.2f)\n",
-						e.Relation, e.TargetLabel, e.TargetName, e.Weight))
+					fmt.Fprintf(&sb, "  → %s → [%s] %s (w=%.2f)\n",
+						e.Relation, e.TargetLabel, e.TargetName, e.Weight)
 				} else {
-					sb.WriteString(fmt.Sprintf("  ← %s ← [%s] %s (w=%.2f)\n",
-						e.Relation, e.SourceLabel, e.SourceName, e.Weight))
+					fmt.Fprintf(&sb, "  ← %s ← [%s] %s (w=%.2f)\n",
+						e.Relation, e.SourceLabel, e.SourceName, e.Weight)
 				}
 			}
 		}

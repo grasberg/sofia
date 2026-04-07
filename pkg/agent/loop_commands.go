@@ -279,9 +279,9 @@ func (al *AgentLoop) handlePersonaCommand(args []string, sessionKey string) stri
 		active := al.personaManager.GetActive(sessionKey)
 		var sb strings.Builder
 		if active != nil {
-			sb.WriteString(fmt.Sprintf("Active persona: %s", active.Name))
+			fmt.Fprintf(&sb, "Active persona: %s", active.Name)
 			if active.Description != "" {
-				sb.WriteString(fmt.Sprintf(" — %s", active.Description))
+				fmt.Fprintf(&sb, " — %s", active.Description)
 			}
 			sb.WriteString("\n\n")
 		} else {
@@ -300,9 +300,9 @@ func (al *AgentLoop) handlePersonaCommand(args []string, sessionKey string) stri
 				marker = "* "
 			}
 			if peeked != nil && peeked.Description != "" {
-				sb.WriteString(fmt.Sprintf("%s%s — %s\n", marker, name, peeked.Description))
+				fmt.Fprintf(&sb, "%s%s — %s\n", marker, name, peeked.Description)
 			} else {
-				sb.WriteString(fmt.Sprintf("%s%s\n", marker, name))
+				fmt.Fprintf(&sb, "%s%s\n", marker, name)
 			}
 		}
 		return sb.String()
@@ -312,7 +312,7 @@ func (al *AgentLoop) handlePersonaCommand(args []string, sessionKey string) stri
 
 	if target == "off" {
 		al.personaManager.Clear(sessionKey)
-		return "Persona cleared. Using default behaviour."
+		return "Persona cleared. Using default behavior."
 	}
 
 	if err := al.personaManager.Switch(sessionKey, target); err != nil {
@@ -341,13 +341,13 @@ func (al *AgentLoop) handleRoleCommand(args []string, sessionKey string) string 
 		var sb strings.Builder
 		if active != nil && strings.HasPrefix(active.Name, "role:") {
 			roleName := strings.TrimPrefix(active.Name, "role:")
-			sb.WriteString(fmt.Sprintf("Active role: %s\n\n", roleName))
+			fmt.Fprintf(&sb, "Active role: %s\n\n", roleName)
 		} else {
 			sb.WriteString("No active role.\n\n")
 		}
 		sb.WriteString("Available roles:\n")
 		for _, r := range roles {
-			sb.WriteString(fmt.Sprintf("  %s — %s\n", strings.ToLower(r.Name), r.Description))
+			fmt.Fprintf(&sb, "  %s — %s\n", strings.ToLower(r.Name), r.Description)
 		}
 		sb.WriteString("\nUsage: /role <name> | /role off")
 		return sb.String()
@@ -362,7 +362,7 @@ func (al *AgentLoop) handleRoleCommand(args []string, sessionKey string) string 
 			al.personaManager.Unregister("role:" + roleName)
 		}
 		al.personaManager.Clear(sessionKey)
-		return "Role cleared. Using default behaviour."
+		return "Role cleared. Using default behavior."
 	}
 
 	role, ok := GetBuiltinRole(target)
@@ -460,7 +460,7 @@ func (al *AgentLoop) handleBranchesCommand(sessionKey string) string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Branches of %s:\n", rootKey))
+	fmt.Fprintf(&sb, "Branches of %s:\n", rootKey)
 	for _, b := range branches {
 		line := fmt.Sprintf("• %s (%d msgs, %s)",
 			b.BranchKey, b.MessageCount,
@@ -491,15 +491,13 @@ func (al *AgentLoop) handleCheckpointCommand(
 		}
 
 		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("Checkpoints for %s:\n", sessionKey))
+		fmt.Fprintf(&sb, "Checkpoints for %s:\n", sessionKey)
 		for _, cp := range checkpoints {
-			sb.WriteString(fmt.Sprintf(
-				"- %d %q msgs=%d created=%s\n",
+			fmt.Fprintf(&sb, "- %d %q msgs=%d created=%s\n",
 				cp.ID,
 				cp.Name,
 				cp.MsgCount,
-				cp.CreatedAt.Format(time.RFC3339),
-			))
+				cp.CreatedAt.Format(time.RFC3339))
 		}
 		return strings.TrimRight(sb.String(), "\n")
 	}
@@ -665,32 +663,30 @@ func (al *AgentLoop) handleHealthCommand(args []string, agent *AgentInstance, se
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Session health: %s\n", status))
-	sb.WriteString(fmt.Sprintf("- Session: %s\n", sessionKey))
-	sb.WriteString(fmt.Sprintf("- Messages: %d\n", len(history)))
-	sb.WriteString(fmt.Sprintf("- Estimated context: %d/%d tokens (%d%%)\n", totalTokens, window, tokenPercent))
+	fmt.Fprintf(&sb, "Session health: %s\n", status)
+	fmt.Fprintf(&sb, "- Session: %s\n", sessionKey)
+	fmt.Fprintf(&sb, "- Messages: %d\n", len(history))
+	fmt.Fprintf(&sb, "- Estimated context: %d/%d tokens (%d%%)\n", totalTokens, window, tokenPercent)
 	if summary == "" {
 		sb.WriteString("- Summary: none\n")
 	} else {
-		sb.WriteString(fmt.Sprintf(
-			"- Summary: %d chars (%d estimated tokens)\n",
+		fmt.Fprintf(&sb, "- Summary: %d chars (%d estimated tokens)\n",
 			utf8.RuneCountInString(summary),
-			summaryTokens,
-		))
+			summaryTokens)
 	}
 	if meta != nil {
-		sb.WriteString(fmt.Sprintf("- Last activity: %s\n", meta.UpdatedAt.Format(time.RFC3339)))
+		fmt.Fprintf(&sb, "- Last activity: %s\n", meta.UpdatedAt.Format(time.RFC3339))
 	}
 	if al.checkpointMgr == nil || al.memDB == nil {
 		sb.WriteString("- Checkpoints: unavailable\n")
 	} else if checkpointCount == 0 {
 		sb.WriteString("- Checkpoints: 0\n")
 	} else {
-		sb.WriteString(fmt.Sprintf("- Checkpoints: %d (latest: %s)\n", checkpointCount, latestCheckpoint))
+		fmt.Fprintf(&sb, "- Checkpoints: %d (latest: %s)\n", checkpointCount, latestCheckpoint)
 	}
-	sb.WriteString(fmt.Sprintf("- Branches from root: %d\n", branchCount))
+	fmt.Fprintf(&sb, "- Branches from root: %d\n", branchCount)
 	if usage != nil {
-		sb.WriteString(fmt.Sprintf("- Usage: %d calls, %d total tokens\n", usage.CallCount, usage.TotalTokens))
+		fmt.Fprintf(&sb, "- Usage: %d calls, %d total tokens\n", usage.CallCount, usage.TotalTokens)
 	}
 	if isSummarizing {
 		sb.WriteString("- Background summarization: running\n")
@@ -793,13 +789,13 @@ func (al *AgentLoop) handlePauseCommand(
 	var sb strings.Builder
 	sb.WriteString("Session paused.\n")
 	if note != "" {
-		sb.WriteString(fmt.Sprintf("- Note: %s\n", note))
+		fmt.Fprintf(&sb, "- Note: %s\n", note)
 	}
-	sb.WriteString(fmt.Sprintf("- Messages: %d\n", len(history)))
+	fmt.Fprintf(&sb, "- Messages: %d\n", len(history))
 	if checkpointID > 0 {
-		sb.WriteString(fmt.Sprintf("- Checkpoint: %d\n", checkpointID))
+		fmt.Fprintf(&sb, "- Checkpoint: %d\n", checkpointID)
 	}
-	sb.WriteString(fmt.Sprintf("- Session: %s\n", sessionKey))
+	fmt.Fprintf(&sb, "- Session: %s\n", sessionKey)
 	sb.WriteString("\nUse /resume to pick up where you left off.")
 	return sb.String()
 }
@@ -867,23 +863,23 @@ func (al *AgentLoop) formatAndClearHandoff(agent *AgentInstance, sessionKey, raw
 
 	var sb strings.Builder
 	sb.WriteString("Resuming session.\n")
-	sb.WriteString(fmt.Sprintf("- Session: %s\n", h.SessionKey))
+	fmt.Fprintf(&sb, "- Session: %s\n", h.SessionKey)
 	if h.AgentName != "" {
-		sb.WriteString(fmt.Sprintf("- Agent: %s\n", h.AgentName))
+		fmt.Fprintf(&sb, "- Agent: %s\n", h.AgentName)
 	}
-	sb.WriteString(fmt.Sprintf("- Messages: %d\n", h.Messages))
-	sb.WriteString(fmt.Sprintf("- Paused: %s\n", h.PausedAt.Format("2006-01-02 15:04 UTC")))
+	fmt.Fprintf(&sb, "- Messages: %d\n", h.Messages)
+	fmt.Fprintf(&sb, "- Paused: %s\n", h.PausedAt.Format("2006-01-02 15:04 UTC"))
 	if h.Checkpoint > 0 {
-		sb.WriteString(fmt.Sprintf("- Checkpoint: %d (use /checkpoint rollback %d to go back)\n",
-			h.Checkpoint, h.Checkpoint))
+		fmt.Fprintf(&sb, "- Checkpoint: %d (use /checkpoint rollback %d to go back)\n",
+			h.Checkpoint, h.Checkpoint)
 	}
 
 	if h.Summary != "" {
-		sb.WriteString(fmt.Sprintf("\nSession summary:\n%s\n", h.Summary))
+		fmt.Fprintf(&sb, "\nSession summary:\n%s\n", h.Summary)
 	}
 
 	if h.Note != "" {
-		sb.WriteString(fmt.Sprintf("\nHandoff note:\n%s\n", h.Note))
+		fmt.Fprintf(&sb, "\nHandoff note:\n%s\n", h.Note)
 	}
 
 	if len(h.Context) > 0 {
@@ -933,16 +929,14 @@ func (al *AgentLoop) handleSearchCommand(query string) string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Search results for %q (%d matches):\n\n", query, len(results)))
+	fmt.Fprintf(&sb, "Search results for %q (%d matches):\n\n", query, len(results))
 	for i, r := range results {
 		preview := r.Content
 		if len(preview) > 120 {
 			preview = preview[:120] + "..."
 		}
-		sb.WriteString(fmt.Sprintf(
-			"%d. [%s] %s (session: %s, score: %.0f%%)\n",
-			i+1, r.Role, preview, r.SessionKey, r.Score*100,
-		))
+		fmt.Fprintf(&sb, "%d. [%s] %s (session: %s, score: %.0f%%)\n",
+			i+1, r.Role, preview, r.SessionKey, r.Score*100)
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }
@@ -993,8 +987,8 @@ func (al *AgentLoop) handleEvolveCommand(args []string, _ string) (string, bool)
 			if e.Outcome != "" {
 				outcome = fmt.Sprintf(" [%s]", e.Outcome)
 			}
-			sb.WriteString(fmt.Sprintf("  %s | %s | %s%s\n",
-				e.Timestamp.Format("01-02 15:04"), e.Action, e.Summary, outcome))
+			fmt.Fprintf(&sb, "  %s | %s | %s%s\n",
+				e.Timestamp.Format("01-02 15:04"), e.Action, e.Summary, outcome)
 		}
 		return sb.String(), true
 	case "run":

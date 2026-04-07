@@ -95,26 +95,26 @@ func checkConfig() (cfg *config.Config, passed, warned, failed int) {
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		printFail("Config file", fmt.Sprintf("%s not found", configPath))
 		failed++
-		return
+		return cfg, passed, warned, failed
 	}
 
 	loaded, err := internal.LoadConfig()
 	if err != nil {
 		printFail("Config load", err.Error())
 		failed++
-		return
+		return cfg, passed, warned, failed
 	}
 
 	if err := loaded.Validate(); err != nil {
 		printFail("Config validation", err.Error())
 		failed++
-		return
+		return cfg, passed, warned, failed
 	}
 
 	printPass("Config", fmt.Sprintf("loaded and valid (%s)", configPath))
 	passed++
 	cfg = loaded
-	return
+	return cfg, passed, warned, failed
 }
 
 // noKeyProtocols lists provider protocols that may work without an API key.
@@ -131,7 +131,7 @@ func checkProviderAPIKeys(cfg *config.Config) (passed, warned, failed int) {
 	if len(cfg.ModelList) == 0 {
 		printWarn("Provider API keys", "no models configured in model_list")
 		warned++
-		return
+		return passed, warned, failed
 	}
 
 	missing := 0
@@ -154,7 +154,7 @@ func checkProviderAPIKeys(cfg *config.Config) (passed, warned, failed int) {
 			fmt.Sprintf("all %d model(s) have keys configured", len(cfg.ModelList)))
 		passed++
 	}
-	return
+	return passed, warned, failed
 }
 
 // cliProtocols lists protocols that are CLI-based and have no HTTP endpoint.
@@ -193,7 +193,7 @@ func checkProviderReachability(cfg *config.Config) (passed, warned, failed int) 
 	}
 
 	if len(endpoints) == 0 {
-		return
+		return passed, warned, failed
 	}
 
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -210,7 +210,7 @@ func checkProviderReachability(cfg *config.Config) (passed, warned, failed int) 
 			fmt.Sprintf("%s (%s) -- HTTP %d", ep.name, ep.baseURL, resp.StatusCode))
 		passed++
 	}
-	return
+	return passed, warned, failed
 }
 
 // defaultAPIBase mirrors the provider factory defaults for reachability checks.
@@ -244,7 +244,7 @@ func checkChannelTokens(cfg *config.Config) (passed, warned, failed int) {
 	if !tg.Enabled && !dc.Enabled {
 		printWarn("Channel tokens", "no channels enabled")
 		warned++
-		return
+		return passed, warned, failed
 	}
 
 	if tg.Enabled {
@@ -266,7 +266,7 @@ func checkChannelTokens(cfg *config.Config) (passed, warned, failed int) {
 			passed++
 		}
 	}
-	return
+	return passed, warned, failed
 }
 
 // checkDatabase tries to open the SQLite database.
@@ -280,13 +280,13 @@ func checkDatabase(cfg *config.Config) (passed, warned, failed int) {
 	if err != nil {
 		printFail("Database", fmt.Sprintf("cannot open %s -- %s", dbPath, err.Error()))
 		failed++
-		return
+		return passed, warned, failed
 	}
 	_ = db.Close()
 
 	printPass("Database", fmt.Sprintf("opened successfully (%s)", dbPath))
 	passed++
-	return
+	return passed, warned, failed
 }
 
 // checkWorkspace verifies workspace directory and key files exist.
@@ -300,7 +300,7 @@ func checkWorkspace(cfg *config.Config) (passed, warned, failed int) {
 	if err != nil || !info.IsDir() {
 		printWarn("Workspace", fmt.Sprintf("directory not found: %s", wsPath))
 		warned++
-		return
+		return passed, warned, failed
 	}
 
 	var missingFiles []string
@@ -318,7 +318,7 @@ func checkWorkspace(cfg *config.Config) (passed, warned, failed int) {
 		printPass("Workspace", fmt.Sprintf("AGENT.md and USER.md present (%s)", wsPath))
 		passed++
 	}
-	return
+	return passed, warned, failed
 }
 
 // checkSecurity warns about enabled channels with no AllowFrom restrictions.
@@ -341,5 +341,5 @@ func checkSecurity(cfg *config.Config) (passed, warned, failed int) {
 		printPass("Security", "all enabled channels have allow_from configured")
 		passed++
 	}
-	return
+	return passed, warned, failed
 }

@@ -125,6 +125,10 @@ func (c *Config) validateAgents() error {
 		return fmt.Errorf("defaults.max_tool_iterations must be non-negative, got %d", defaults.MaxToolIterations)
 	}
 
+	if defaults.MaxConcurrentSubagents < 0 {
+		return fmt.Errorf("defaults.max_concurrent_subagents must be non-negative, got %d", defaults.MaxConcurrentSubagents)
+	}
+
 	if defaults.Temperature != nil {
 		t := *defaults.Temperature
 		if t < 0 || t > 2 {
@@ -135,7 +139,7 @@ func (c *Config) validateAgents() error {
 	if err := validateAllowedValues(
 		"defaults.code_editor",
 		defaults.CodeEditor,
-		"opencode", "claudecode", "codex",
+		"opencode", "claudecode", "codex", "qwencode",
 	); err != nil {
 		return err
 	}

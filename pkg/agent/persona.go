@@ -60,7 +60,7 @@ func (pm *PersonaManager) GetActive(sessionKey string) *Persona {
 }
 
 // Clear removes any persona override for the given session, reverting to the
-// default behaviour.
+// default behavior.
 func (pm *PersonaManager) Clear(sessionKey string) {
 	pm.activePersona.Delete(sessionKey)
 }

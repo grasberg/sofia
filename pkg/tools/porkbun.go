@@ -199,7 +199,7 @@ func (t *PorkbunTool) checkDomain(ctx context.Context, domain string) *ToolResul
 	avail := strings.EqualFold(availStr, "yes")
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("**Domain:** %s\n", domain))
+	fmt.Fprintf(&sb, "**Domain:** %s\n", domain)
 	if avail {
 		sb.WriteString("**Available:** Yes\n")
 	} else {
@@ -207,10 +207,10 @@ func (t *PorkbunTool) checkDomain(ctx context.Context, domain string) *ToolResul
 	}
 
 	if price, ok := resp["price"].(string); ok {
-		sb.WriteString(fmt.Sprintf("**Registration price:** $%s\n", price))
+		fmt.Fprintf(&sb, "**Registration price:** $%s\n", price)
 	}
 	if regularPrice, ok := resp["regularPrice"].(string); ok {
-		sb.WriteString(fmt.Sprintf("**Regular price:** $%s\n", regularPrice))
+		fmt.Fprintf(&sb, "**Regular price:** $%s\n", regularPrice)
 	}
 	if promo, ok := resp["firstYearPromo"].(string); ok && strings.EqualFold(promo, "yes") {
 		sb.WriteString("**First year promo:** Yes\n")
@@ -220,7 +220,7 @@ func (t *PorkbunTool) checkDomain(ctx context.Context, domain string) *ToolResul
 	if additional, ok := resp["additional"].(map[string]any); ok {
 		if renewal, ok := additional["renewal"].(map[string]any); ok {
 			if renewPrice, ok := renewal["price"].(string); ok {
-				sb.WriteString(fmt.Sprintf("**Renewal:** $%s/yr\n", renewPrice))
+				fmt.Fprintf(&sb, "**Renewal:** $%s/yr\n", renewPrice)
 			}
 		}
 	}
@@ -311,7 +311,7 @@ func (t *PorkbunTool) listDomains(ctx context.Context) *ToolResult {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("**Domains (%d):**\n\n", len(domains)))
+	fmt.Fprintf(&sb, "**Domains (%d):**\n\n", len(domains))
 
 	for i, d := range domains {
 		dm, ok := d.(map[string]any)
@@ -322,11 +322,11 @@ func (t *PorkbunTool) listDomains(ctx context.Context) *ToolResult {
 		expiry, _ := dm["expireDate"].(string)
 		autoRenew, _ := dm["autoRenew"].(bool)
 
-		sb.WriteString(fmt.Sprintf("%d. **%s**\n", i+1, name))
+		fmt.Fprintf(&sb, "%d. **%s**\n", i+1, name)
 		if expiry != "" {
-			sb.WriteString(fmt.Sprintf("   Expires: %s\n", expiry))
+			fmt.Fprintf(&sb, "   Expires: %s\n", expiry)
 		}
-		sb.WriteString(fmt.Sprintf("   Auto-renew: %v\n", autoRenew))
+		fmt.Fprintf(&sb, "   Auto-renew: %v\n", autoRenew)
 		sb.WriteString("\n")
 	}
 
@@ -362,13 +362,11 @@ func (t *PorkbunTool) getPricing(ctx context.Context) *ToolResult {
 		if p, ok := pricing[tld].(map[string]any); ok {
 			reg, _ := p["registration"].(string)
 			renew, _ := p["renewal"].(string)
-			sb.WriteString(fmt.Sprintf("| .%s | $%s | $%s |\n", tld, reg, renew))
+			fmt.Fprintf(&sb, "| .%s | $%s | $%s |\n", tld, reg, renew)
 		}
 	}
 
-	sb.WriteString(
-		fmt.Sprintf("\n*%d TLDs available total. Use check action for specific domain pricing.*", len(pricing)),
-	)
+	fmt.Fprintf(&sb, "\n*%d TLDs available total. Use check action for specific domain pricing.*", len(pricing))
 
 	return NewToolResult(sb.String())
 }
@@ -395,7 +393,7 @@ func (t *PorkbunTool) dnsListRecords(ctx context.Context, domain string) *ToolRe
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("**DNS Records for %s (%d):**\n\n", domain, len(records)))
+	fmt.Fprintf(&sb, "**DNS Records for %s (%d):**\n\n", domain, len(records))
 	sb.WriteString("| ID | Type | Name | Content | TTL | Prio |\n")
 	sb.WriteString("|-----|------|------|---------|-----|------|\n")
 
@@ -415,7 +413,7 @@ func (t *PorkbunTool) dnsListRecords(ctx context.Context, domain string) *ToolRe
 		if len(content) > 50 {
 			content = content[:47] + "..."
 		}
-		sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s | %s |\n", id, rType, name, content, ttl, prio))
+		fmt.Fprintf(&sb, "| %s | %s | %s | %s | %s | %s |\n", id, rType, name, content, ttl, prio)
 	}
 
 	return NewToolResult(sb.String())
@@ -509,10 +507,10 @@ func (t *PorkbunTool) getNameservers(ctx context.Context, domain string) *ToolRe
 
 	ns, _ := result["ns"].([]any)
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("**Nameservers for %s:**\n", domain))
+	fmt.Fprintf(&sb, "**Nameservers for %s:**\n", domain)
 	for i, n := range ns {
 		if s, ok := n.(string); ok {
-			sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, s))
+			fmt.Fprintf(&sb, "%d. %s\n", i+1, s)
 		}
 	}
 

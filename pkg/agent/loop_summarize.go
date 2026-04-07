@@ -7,11 +7,19 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/providers"
 )
 
 func (al *AgentLoop) maybeSummarize(agent *AgentInstance, sessionKey, channel, chatID string) {
+	// Fast path: skip full history load when message count is well below threshold.
+	// With <= 15 messages, neither trigger condition can fire (count <= 20 is true,
+	// and 15 short messages won't hit 75% of any reasonable context window).
+	if count := agent.Sessions.GetMessageCount(sessionKey); count <= 15 {
+		return
+	}
+
 	newHistory := agent.Sessions.GetHistory(sessionKey)
 	tokenEstimate := al.estimateTokens(newHistory)
 	threshold := agent.ContextWindow * 75 / 100
@@ -291,4 +299,22 @@ func (al *AgentLoop) estimateTokens(messages []providers.Message) int {
 	}
 	// 2.5 chars per token = totalChars * 2 / 5
 	return totalChars * 2 / 5
+}
+
+// estimateCostUSD calculates the approximate cost in USD based on token usage.
+// Uses rough averages: $0.01 per 1K tokens as a baseline.
+func estimateCostUSD(usage *providers.UsageInfo, modelID string, cfg *config.Config) float64 {
+	if usage == nil {
+		return 0
+	}
+
+	totalTokens := usage.PromptTokens + usage.CompletionTokens
+	
+	// Default rate: $0.01 per 1K tokens (varies greatly by model)
+	// This is a crude estimate - actual rates vary from $0.00015/1K (GPT-4o-mini) 
+	// to $0.015/1K (Claude Opus) for input tokens
+	defaultRatePer1K := 0.01
+	
+	cost := (float64(totalTokens) / 1000.0) * defaultRatePer1K
+	return cost
 }

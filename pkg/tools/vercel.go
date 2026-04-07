@@ -1,11 +1,8 @@
 package tools
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 )
@@ -139,51 +136,13 @@ func (t *VercelTool) Execute(ctx context.Context, args map[string]any) *ToolResu
 		timeout = time.Duration(ts) * time.Second
 	}
 
-	runCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(runCtx, t.binaryPath, finalArgs...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err = cmd.Run()
-
-	output := strings.TrimSpace(stdout.String())
-	if stderr.Len() > 0 {
-		errOut := strings.TrimSpace(stderr.String())
-		if errOut != "" {
-			if output != "" {
-				output += "\n\n"
-			}
-			output += "STDERR:\n" + errOut
-		}
-	}
-	if output == "" {
-		output = "(no output)"
-	}
-
-	// Truncate long output
-	const maxLen = 12000
-	if len(output) > maxLen {
-		output = output[:maxLen] + fmt.Sprintf("\n... (truncated, %d more chars)", len(output)-maxLen)
-	}
-
-	if err != nil {
-		if isBinaryNotFound(err) {
-			return ErrorResult(fmt.Sprintf(
-				"vercel CLI not found at %q. Install: npm i -g vercel", t.binaryPath))
-		}
-		if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
-			msg := fmt.Sprintf("vercel command timed out after %v", timeout)
-			if output != "(no output)" {
-				msg += "\n\n" + output
-			}
-			return &ToolResult{ForLLM: msg, ForUser: msg, IsError: true}
-		}
-		output += fmt.Sprintf("\n\nExit error: %v", err)
-		return &ToolResult{ForLLM: output, ForUser: output, IsError: true}
-	}
-
-	return &ToolResult{ForLLM: output, ForUser: output, IsError: false}
+	// Execute the CLI command using shared helper
+	return ExecuteCLICommand(CLICommandInput{
+		Ctx:         ctx,
+		BinaryPath:  t.binaryPath,
+		Args:        finalArgs,
+		Timeout:     timeout,
+		ToolName:    "vercel",
+		InstallHint: "Install Vercel CLI: npm i -g vercel",
+	})
 }

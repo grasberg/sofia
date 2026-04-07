@@ -137,6 +137,8 @@ linters:
           - maintidx
           - gocognit
           - gocyclo
+          - gosec
+          - errcheck
         path: _test\.go$
       - linters:
           - nolintlint

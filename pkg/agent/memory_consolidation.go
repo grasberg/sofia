@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/grasberg/sofia/pkg/logger"
@@ -13,6 +14,7 @@ type ConsolidationReport struct {
 	MergedNodes      int
 	ResolvedConflict int
 	PrunedNodes      int
+	TriggeredBy      string // "schedule", "new_nodes", "low_reflection", "session_rotation"
 	Details          []string
 }
 
@@ -21,26 +23,69 @@ type MemoryConsolidator struct {
 	db       *memory.MemoryDB
 	agentID  string
 	semantic *SemanticMemory
+	
+	// Event-driven consolidation tracking
+	newNodesSinceConsolidation atomic.Int64
+	lastConsolidationTime      time.Time
+	consolidationThreshold     int64 // trigger when this many new nodes added
 }
 
 // NewMemoryConsolidator creates a new consolidator.
 func NewMemoryConsolidator(db *memory.MemoryDB, agentID string) *MemoryConsolidator {
 	return &MemoryConsolidator{
-		db:       db,
-		agentID:  agentID,
-		semantic: NewSemanticMemory(db, agentID),
+		db:                   db,
+		agentID:              agentID,
+		semantic:             NewSemanticMemory(db, agentID),
+		lastConsolidationTime: time.Now(),
+		consolidationThreshold: 10, // Default: consolidate after 10 new nodes
 	}
+}
+
+// SetConsolidationThreshold sets the number of new nodes that trigger consolidation.
+func (mc *MemoryConsolidator) SetConsolidationThreshold(threshold int64) {
+	mc.consolidationThreshold = threshold
+}
+
+// RecordNewNode increments the new node counter for event-driven consolidation.
+func (mc *MemoryConsolidator) RecordNewNode() {
+	mc.newNodesSinceConsolidation.Add(1)
+}
+
+// GetNewNodeCount returns the number of new nodes since last consolidation.
+func (mc *MemoryConsolidator) GetNewNodeCount() int64 {
+	return mc.newNodesSinceConsolidation.Load()
+}
+
+// ShouldTriggerConsolidation checks if event-driven consolidation should run.
+// Returns (shouldTrigger, reason).
+func (mc *MemoryConsolidator) ShouldTriggerConsolidation() (bool, string) {
+	// Check new node threshold
+	if mc.newNodesSinceConsolidation.Load() >= mc.consolidationThreshold {
+		return true, "new_nodes"
+	}
+	
+	// Time-based fallback: consolidate if it's been more than 24 hours
+	if time.Since(mc.lastConsolidationTime) > 24*time.Hour {
+		return true, "schedule"
+	}
+	
+	return false, ""
 }
 
 // Consolidate runs the full consolidation process:
 // 1. Merge duplicate nodes (same label + similar name)
 // 2. Resolve conflicting edges (same source+target, different relations — keep strongest)
 func (mc *MemoryConsolidator) Consolidate() (ConsolidationReport, error) {
+	return mc.consolidateWithTrigger("schedule")
+}
+
+// consolidateWithTrigger runs consolidation with trigger tracking.
+func (mc *MemoryConsolidator) consolidateWithTrigger(trigger string) (ConsolidationReport, error) {
 	if mc.db == nil {
-		return ConsolidationReport{}, nil
+		return ConsolidationReport{TriggeredBy: trigger}, nil
 	}
 
-	report := ConsolidationReport{}
+	report := ConsolidationReport{TriggeredBy: trigger}
 
 	// Step 1: Merge duplicate nodes
 	duplicates, err := mc.db.FindDuplicateNodes(mc.agentID)
@@ -117,12 +162,17 @@ func (mc *MemoryConsolidator) Consolidate() (ConsolidationReport, error) {
 	// Step 3: Quality-based pruning — remove stale, low-value nodes
 	report.PrunedNodes = mc.pruneStaleNodes(30)
 
+	// Reset event-driven counters
+	mc.newNodesSinceConsolidation.Store(0)
+	mc.lastConsolidationTime = time.Now()
+
 	if report.MergedNodes > 0 || report.ResolvedConflict > 0 || report.PrunedNodes > 0 {
 		logger.InfoCF("memory", "Memory consolidation completed",
 			map[string]any{
 				"merged_nodes":       report.MergedNodes,
 				"resolved_conflicts": report.ResolvedConflict,
 				"pruned_nodes":       report.PrunedNodes,
+				"triggered_by":       report.TriggeredBy,
 			})
 	}
 

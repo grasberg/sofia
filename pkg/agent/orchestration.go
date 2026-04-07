@@ -171,6 +171,16 @@ func (al *AgentLoop) OrchestrateSubtasks(
 			go func(idx int, id, agentID, desc string) {
 				defer wg.Done()
 
+				// Acquire subagent semaphore to limit concurrency.
+				if al.subagentSem != nil {
+					select {
+					case al.subagentSem <- struct{}{}:
+						defer func() { <-al.subagentSem }()
+					case <-ctx.Done():
+						return
+					}
+				}
+
 				logger.InfoCF("orchestration",
 					fmt.Sprintf("Dispatching subtask %q to agent %q (wave %d)", id, agentID, waveIdx),
 					map[string]any{"task_id": id, "agent_id": agentID, "wave": waveIdx})
@@ -205,13 +215,13 @@ func (al *AgentLoop) OrchestrateSubtasks(
 		usedAgents = append(usedAgents, st.AgentID)
 		switch st.Status {
 		case SubtaskCompleted:
-			sb.WriteString(fmt.Sprintf("Task %s (agent %s):\n%s\n\n", st.ID, st.AgentID, st.Result))
+			fmt.Fprintf(&sb, "Task %s (agent %s):\n%s\n\n", st.ID, st.AgentID, st.Result)
 			completedCount++
 		case SubtaskFailed:
-			sb.WriteString(fmt.Sprintf("Task %s (agent %s): FAILED — %s\n\n", st.ID, st.AgentID, st.Result))
+			fmt.Fprintf(&sb, "Task %s (agent %s): FAILED — %s\n\n", st.ID, st.AgentID, st.Result)
 		case SubtaskSkipped:
-			sb.WriteString(fmt.Sprintf("Task %s (agent %s): SKIPPED — upstream dependency failed\n\n",
-				st.ID, st.AgentID))
+			fmt.Fprintf(&sb, "Task %s (agent %s): SKIPPED — upstream dependency failed\n\n",
+				st.ID, st.AgentID)
 		}
 	}
 

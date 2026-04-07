@@ -18,8 +18,8 @@ var promptInjectionPatterns = func() []*regexp.Regexp {
 		`(?i)new instructions:`,
 
 		// --- Multilingual injection attempts ---
-		`忽略之前的指令`,                              // Chinese: "ignore previous instructions"
-		`忽略以上(所有)?内容`,                            // Chinese: "ignore all above content"
+		`忽略之前的指令`,                                  // Chinese: "ignore previous instructions"
+		`忽略以上(所有)?内容`,                              // Chinese: "ignore all above content"
 		`(?i)ignoriere die vorherigen Anweisungen`, // German: "ignore previous instructions"
 		`(?i)ignorez les instructions précédentes`, // French: "ignore previous instructions"
 		`(?i)ignora le istruzioni precedenti`,      // Italian: "ignore previous instructions"
@@ -77,12 +77,10 @@ var regexCache = struct {
 	cache: make(map[string]*regexp.Regexp),
 }
 
-// maxRegexCacheSize is the maximum number of entries in the regex cache.
-// When exceeded, the cache is cleared to prevent unbounded growth.
-const maxRegexCacheSize = 100
-
 // getCachedRegex returns a compiled regex for the given pattern, using a cache
 // to avoid recompilation. Returns nil if the pattern is invalid.
+// Patterns come from config (which doesn't change at runtime), so the cache
+// grows monotonically and never evicts.
 func getCachedRegex(pattern string) *regexp.Regexp {
 	regexCache.mu.RLock()
 	if re, ok := regexCache.cache[pattern]; ok {
@@ -97,9 +95,6 @@ func getCachedRegex(pattern string) *regexp.Regexp {
 	}
 
 	regexCache.mu.Lock()
-	if len(regexCache.cache) >= maxRegexCacheSize {
-		regexCache.cache = make(map[string]*regexp.Regexp)
-	}
 	regexCache.cache[pattern] = re
 	regexCache.mu.Unlock()
 	return re

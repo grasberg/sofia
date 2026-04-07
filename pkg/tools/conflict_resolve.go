@@ -187,7 +187,7 @@ func (t *ConflictResolveTool) detectScratchpad(args map[string]any) *ToolResult 
 	result := conflict.Detect(outputs)
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Scratchpad group %q conflict analysis:\n", group))
+	fmt.Fprintf(&sb, "Scratchpad group %q conflict analysis:\n", group)
 	sb.WriteString(result.Format())
 
 	// If conflicts found, suggest resolution

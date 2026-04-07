@@ -250,33 +250,34 @@ func (t *OrchestrateTool) Execute(ctx context.Context, args map[string]any) *Too
 
 	// Synthesize results
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Orchestration Results for: %s\n\n", goal))
+	fmt.Fprintf(&sb, "Orchestration Results for: %s\n\n", goal)
 	for _, task := range tasks {
 		status := task.Status
 		icon := "[x]"
-		if status == "failed" {
+		switch status {
+		case "failed":
 			icon = "[!]"
-		} else if status == "pending" {
+		case "pending":
 			icon = "[ ]"
 		}
-		sb.WriteString(fmt.Sprintf("%s Task %s (agent: %s): %s\n", icon, task.ID, task.AgentID, task.Description))
+		fmt.Fprintf(&sb, "%s Task %s (agent: %s): %s\n", icon, task.ID, task.AgentID, task.Description)
 		if task.Result != "" {
 			resultPreview := task.Result
 			if len(resultPreview) > 500 {
 				resultPreview = resultPreview[:500] + "..."
 			}
-			sb.WriteString(fmt.Sprintf("    Result: %s\n", resultPreview))
+			fmt.Fprintf(&sb, "    Result: %s\n", resultPreview)
 		}
 		sb.WriteString("\n")
 	}
 
 	allCompleted := len(completed) == len(tasks)
 	if allCompleted {
-		sb.WriteString(fmt.Sprintf("All %d tasks completed successfully.", len(tasks)))
+		fmt.Fprintf(&sb, "All %d tasks completed successfully.", len(tasks))
 	} else {
-		sb.WriteString(fmt.Sprintf("Completed %d/%d tasks.", len(completed), len(tasks)))
+		fmt.Fprintf(&sb, "Completed %d/%d tasks.", len(completed), len(tasks))
 		if len(failed) > 0 {
-			sb.WriteString(fmt.Sprintf(" %d task(s) failed.", len(failed)))
+			fmt.Fprintf(&sb, " %d task(s) failed.", len(failed))
 		}
 	}
 

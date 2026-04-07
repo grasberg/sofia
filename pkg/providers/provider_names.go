@@ -26,6 +26,8 @@ const (
 	ProviderClaudeCodeAlias    = "claudecode"
 	ProviderCodexCLI           = "codex-cli"
 	ProviderCodexCode          = "codex-code"
+	ProviderQwenCLI            = "qwen-cli"
+	ProviderQwenCode           = "qwen-code"
 	ProviderDeepSeek           = "deepseek"
 	ProviderMistral            = "mistral"
 	ProviderGitHubCopilot      = "github_copilot"
@@ -34,9 +36,10 @@ const (
 
 // Auth method constants for provider configuration.
 const (
-	AuthMethodOAuth    = "oauth"
-	AuthMethodToken    = "token"
-	AuthMethodCodexCLI = "codex-cli"
+	AuthMethodOAuth     = "oauth"
+	AuthMethodToken     = "token"
+	AuthMethodCodexCLI  = "codex-cli"
+	AuthMethodQwenOAuth = "qwen-oauth"
 )
 
 // Default API base URLs for each provider.

@@ -19,10 +19,10 @@ type UsageInfo struct {
 // HarnessConfig configures an evaluation harness.
 type HarnessConfig struct {
 	AgentFn     AgentFunc
-	Timeout     time.Duration          // per-test timeout, default 60s
-	Concurrency int                    // max parallel tests, default 1
-	JudgeFn     JudgeFunc              // optional LLM-as-judge function
-	Scorers     map[string]ScorerFunc  // optional custom scoring functions
+	Timeout     time.Duration         // per-test timeout, default 60s
+	Concurrency int                   // max parallel tests, default 1
+	JudgeFn     JudgeFunc             // optional LLM-as-judge function
+	Scorers     map[string]ScorerFunc // optional custom scoring functions
 }
 
 // Harness executes test suites against an agent function.

@@ -105,7 +105,7 @@
                 '</button>';
             list.appendChild(row);
         });
-        lucide.createIcons({ root: list });
+        refreshIcons();
     }
 
     async function addCronJob() {
@@ -163,6 +163,6 @@
         }
     }
 
-    lucide.createIcons();
+    refreshIcons();
     fetchCronJobs();
 </script>

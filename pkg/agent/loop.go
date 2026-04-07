@@ -43,9 +43,11 @@ type AgentLoop struct {
 	cfg             *config.Config
 	registry        *AgentRegistry
 	registryMu      sync.RWMutex
+	configMu        sync.Mutex // protects cfg.Agents.List mutations during dynamic agent creation
 	state           *state.Manager
 	memDB           *memory.MemoryDB
 	running         atomic.Bool
+	degradedMode    atomic.Bool // set when critical components fail to initialize
 	summarizing     sync.Map
 	fallback        *providers.FallbackChain
 	channelManager  *channels.Manager
@@ -82,9 +84,14 @@ type AgentLoop struct {
 
 	agentModelMu sync.RWMutex // protects defaultAgent.Model writes/reads
 
-	dispatchWg sync.WaitGroup // tracks goroutines from dispatchPendingSteps
+	dispatchWg   sync.WaitGroup  // tracks goroutines from dispatchPendingSteps
+	subagentSem  chan struct{}    // limits concurrent subagent tasks
 
 	evolveRunning atomic.Bool // prevents duplicate /evolve run goroutines
+
+	// Tool result deduplication cache
+	toolResultCache   sync.Map // key: "toolName:argsHash" → *cacheEntry
+	toolResultCacheTTL time.Duration
 
 	tracer         *trace.Tracer             // structured execution tracing
 	providerRanker *providers.ProviderRanker // adaptive provider ranking
@@ -105,6 +112,15 @@ type AgentLoop struct {
 	directCancels   map[string]context.CancelFunc
 
 	playwrightCancel context.CancelFunc // cancels playwright install goroutine
+}
+
+// makeSubagentSem creates a buffered channel used as a semaphore to limit
+// concurrent subagent tasks. A value <= 0 means unlimited.
+func makeSubagentSem(max int) chan struct{} {
+	if max <= 0 {
+		return nil // no limit
+	}
+	return make(chan struct{}, max)
 }
 
 // processOptions configures how a message is processed
@@ -140,9 +156,15 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	}
 	memDB, err := memory.Open(memDBPath)
 	if err != nil {
-		// Non-fatal: log and continue without persistence.
-		logger.ErrorCF("agent", "Failed to open memory database",
-			map[string]any{"path": memDBPath, "error": err.Error()})
+		// Critical failure: log error and mark as degraded mode
+		logger.ErrorCF("agent", "Failed to open memory database — running in DEGRADED MODE",
+			map[string]any{
+				"path":  memDBPath,
+				"error": err.Error(),
+			})
+		logger.ErrorCF("agent", "⚠️  DEGRADED MODE: Memory, budgets, audit, tracing, and evolution will be disabled",
+			map[string]any{"impact": "reduced functionality"})
+		// memDB is nil, subsystems will check for nil and disable gracefully
 	}
 
 	registry := NewAgentRegistry(cfg, provider, memDB)
@@ -190,10 +212,22 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	}
 
 	pushService := notifications.NewPushService("Sofia")
+	if cfg.WebUI.Enabled && cfg.WebUI.Port > 0 {
+		host := cfg.WebUI.Host
+		if host == "" || host == "0.0.0.0" {
+			host = "localhost"
+		}
+		pushService.SetOpenURL(fmt.Sprintf("http://%s:%d", host, cfg.WebUI.Port))
+	}
 
 	// Set up Tool Performance Tracker
 	toolStatsPath := filepath.Join(filepath.Dir(memDBPath), "tool_stats.json")
 	toolTracker := tools.NewToolTracker(toolStatsPath)
+	
+	// Attach tracker to semantic matcher for usage-based ranking
+	if semanticMatcher != nil {
+		semanticMatcher.SetTracker(toolTracker)
+	}
 
 	// Set up Audit Logger for tool call tracing
 	auditDBPath := filepath.Join(filepath.Dir(memDBPath), "audit.db")
@@ -261,7 +295,16 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		tracer:           trace.NewTracer(memDB),
 		providerRanker:   providers.NewProviderRanker(memDB),
 		directCancels:    make(map[string]context.CancelFunc),
+		subagentSem:      makeSubagentSem(cfg.Agents.Defaults.MaxConcurrentSubagents),
 	}
+
+	// Set degraded mode flag if memory database failed to open
+	if memDB == nil {
+		al.degradedMode.Store(true)
+	}
+
+	// Initialize tool result deduplication cache (30 second TTL by default)
+	al.toolResultCacheTTL = 30 * time.Second
 
 	al.a2aRouter.SetMonitorCallback(func(msg *A2AMessage) {
 		al.dashboardHub.Broadcast(map[string]any{
@@ -302,7 +345,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 			}
 		case <-pwCtx.Done():
 			logger.WarnCF("agent",
-				"Playwright install cancelled or timed out", nil)
+				"Playwright install canceled or timed out", nil)
 		}
 	}()
 
@@ -498,7 +541,7 @@ func (al *AgentLoop) Reset() map[string]any {
 		delete(al.directCancels, key)
 	}
 	al.directCancelsMu.Unlock()
-	result["direct_calls_cancelled"] = directCancelled
+	result["direct_calls_canceled"] = directCancelled
 
 	// 3. Stop all autonomy services (background goal pursuit, proactive suggestions)
 	al.stopAutonomyServices()

@@ -59,11 +59,11 @@ func (mp *MetricsProvider) RegisterBudgetSpend(fn func() float64) {
 
 // metricsResponse is the JSON shape served at /metrics.
 type metricsResponse struct {
-	UptimeSeconds        float64 `json:"uptime_seconds"`
+	UptimeSeconds          float64 `json:"uptime_seconds"`
 	TotalMessagesProcessed int64   `json:"total_messages_processed"`
-	TotalToolCalls       int64   `json:"total_tool_calls"`
-	ActiveSessions       int     `json:"active_sessions"`
-	BudgetSpendUSD       float64 `json:"budget_spend_usd"`
+	TotalToolCalls         int64   `json:"total_tool_calls"`
+	ActiveSessions         int     `json:"active_sessions"`
+	BudgetSpendUSD         float64 `json:"budget_spend_usd"`
 }
 
 // Handler returns an http.HandlerFunc that serves the /metrics endpoint.

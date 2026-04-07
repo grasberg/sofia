@@ -197,7 +197,7 @@ func TestSwitchCommand_ValidModel(t *testing.T) {
 	resp, handled := al.handleCommand(
 		nil,
 		inMsg,
-	) //nolint:staticcheck // context is unused in handleCommand for commands
+	)
 	if !handled {
 		t.Fatal("expected /switch to be handled")
 	}

@@ -48,7 +48,7 @@ func newTestServerWithConfig(cfg *config.Config) *Server {
 	mux.HandleFunc("/ui/monitor", templateHandler(monitorHTML))
 	mux.HandleFunc("/ui/calendar", templateHandler(calendarHTML))
 	mux.HandleFunc("/ui/memory", templateHandler(memoryHTML))
-mux.HandleFunc("/ui/goals", templateHandler(goalsHTML))
+	mux.HandleFunc("/ui/goals", templateHandler(goalsHTML))
 	mux.HandleFunc("/ui/history", templateHandler(historyHTML))
 	mux.HandleFunc("/ui/settings/models", templateHandler(settingsModelsHTML))
 	mux.HandleFunc("/ui/settings/channels", templateHandler(settingsChannelsHTML))

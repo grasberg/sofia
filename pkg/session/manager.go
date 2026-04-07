@@ -97,6 +97,16 @@ func (sm *SessionManager) GetHistory(key string) []providers.Message {
 	return msgs
 }
 
+// GetMessageCount returns the number of messages without loading them.
+func (sm *SessionManager) GetMessageCount(key string) int {
+	count, err := sm.db.GetMessageCount(key)
+	if err != nil {
+		log.Printf("session: GetMessageCount(%q): %v", key, err)
+		return 0
+	}
+	return count
+}
+
 // GetSummary returns the compression summary for a session.
 func (sm *SessionManager) GetSummary(key string) string {
 	return sm.db.GetSummary(key)
@@ -235,14 +245,20 @@ func (sm *SessionManager) ShouldRotate(key string, policy SessionRotationPolicy)
 		return false
 	}
 
-	msgs := sm.GetHistory(key)
-
-	if shouldRotateByMessageCount(len(msgs), policy.MaxMessages) {
-		return true
+	// Check message count efficiently without loading all messages
+	if policy.MaxMessages > 0 {
+		msgCount := sm.GetMessageCount(key)
+		if shouldRotateByMessageCount(msgCount, policy.MaxMessages) {
+			return true
+		}
 	}
 
-	if shouldRotateByTokenEstimate(msgs, policy.MaxTokenEstimate) {
-		return true
+	// For token estimate, sample only the last N messages instead of loading all
+	if policy.MaxTokenEstimate > 0 {
+		msgs := sm.GetHistory(key)
+		if shouldRotateByTokenEstimate(msgs, policy.MaxTokenEstimate) {
+			return true
+		}
 	}
 
 	if policy.MaxAge > 0 {

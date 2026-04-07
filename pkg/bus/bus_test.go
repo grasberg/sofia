@@ -51,7 +51,7 @@ func TestConsumeInbound_ContextCancellation(t *testing.T) {
 
 	_, ok := mb.ConsumeInbound(ctx)
 	if ok {
-		t.Error("ConsumeInbound should return false when context is cancelled")
+		t.Error("ConsumeInbound should return false when context is canceled")
 	}
 }
 
@@ -106,7 +106,7 @@ func TestSubscribeOutbound_ContextCancellation(t *testing.T) {
 
 	_, ok := mb.SubscribeOutbound(ctx)
 	if ok {
-		t.Error("SubscribeOutbound should return false when context is cancelled")
+		t.Error("SubscribeOutbound should return false when context is canceled")
 	}
 }
 

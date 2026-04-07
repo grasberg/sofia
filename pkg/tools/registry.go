@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/grasberg/sofia/pkg/logger"
@@ -15,12 +16,15 @@ type ToolRegistry struct {
 	tools          map[string]Tool
 	tracker        *ToolTracker
 	circuitBreaker *CircuitBreaker
+	schemaCache    map[string]providers.ToolDefinition // cached provider definitions per tool name
 	mu             sync.RWMutex
+	version        atomic.Int64 // incremented on Register/Unregister for cache invalidation
 }
 
 func NewToolRegistry() *ToolRegistry {
 	return &ToolRegistry{
-		tools: make(map[string]Tool),
+		tools:       make(map[string]Tool),
+		schemaCache: make(map[string]providers.ToolDefinition),
 	}
 }
 
@@ -43,6 +47,8 @@ func (r *ToolRegistry) Register(tool Tool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.tools[tool.Name()] = tool
+	delete(r.schemaCache, tool.Name()) // invalidate cached schema
+	r.version.Add(1)
 }
 
 // Unregister removes a tool from the registry.
@@ -50,6 +56,14 @@ func (r *ToolRegistry) Unregister(name string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.tools, name)
+	delete(r.schemaCache, name) // invalidate cached schema
+	r.version.Add(1)
+}
+
+// GetVersion returns the current registry version.
+// The version is incremented on each Register/Unregister call.
+func (r *ToolRegistry) GetVersion() int64 {
+	return r.version.Load()
 }
 
 func (r *ToolRegistry) Get(name string) (Tool, bool) {
@@ -57,6 +71,51 @@ func (r *ToolRegistry) Get(name string) (Tool, bool) {
 	defer r.mu.RUnlock()
 	tool, ok := r.tools[name]
 	return tool, ok
+}
+
+// GetProviderDefinition returns a cached providers.ToolDefinition for the named tool.
+// The result is cached after first computation and invalidated on Register/Unregister.
+func (r *ToolRegistry) GetProviderDefinition(name string) (providers.ToolDefinition, bool) {
+	r.mu.RLock()
+	if cached, ok := r.schemaCache[name]; ok {
+		r.mu.RUnlock()
+		return cached, true
+	}
+	r.mu.RUnlock()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Double-check after acquiring write lock.
+	if cached, ok := r.schemaCache[name]; ok {
+		return cached, true
+	}
+
+	tool, ok := r.tools[name]
+	if !ok {
+		return providers.ToolDefinition{}, false
+	}
+
+	schema := ToolToSchema(tool)
+	fn, ok := schema["function"].(map[string]any)
+	if !ok {
+		return providers.ToolDefinition{}, false
+	}
+
+	fnName, _ := fn["name"].(string)
+	desc, _ := fn["description"].(string)
+	params, _ := fn["parameters"].(map[string]any)
+
+	def := providers.ToolDefinition{
+		Type: "function",
+		Function: providers.ToolFunctionDefinition{
+			Name:        fnName,
+			Description: desc,
+			Parameters:  params,
+		},
+	}
+	r.schemaCache[name] = def
+	return def, true
 }
 
 func (r *ToolRegistry) Execute(ctx context.Context, name string, args map[string]any) *ToolResult {

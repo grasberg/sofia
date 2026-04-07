@@ -5,6 +5,22 @@ import (
 	"fmt"
 )
 
+// ToolErrorCode represents standardized error categories for tool execution.
+// These enable smarter error handling in the agent loop (e.g., auto-retry on RateLimited).
+type ToolErrorCode string
+
+const (
+	ErrTimeout         ToolErrorCode = "TIMEOUT"
+	ErrPermissionDenied ToolErrorCode = "PERMISSION_DENIED"
+	ErrNotFound        ToolErrorCode = "NOT_FOUND"
+	ErrRateLimited     ToolErrorCode = "RATE_LIMITED"
+	ErrInvalidInput    ToolErrorCode = "INVALID_INPUT"
+	ErrNetworkError    ToolErrorCode = "NETWORK_ERROR"
+	ErrInternalError   ToolErrorCode = "INTERNAL_ERROR"
+	ErrNotImplemented  ToolErrorCode = "NOT_IMPLEMENTED"
+	ErrQuotaExceeded   ToolErrorCode = "QUOTA_EXCEEDED"
+)
+
 // ToolResult represents the structured return value from tool execution.
 // It provides clear semantics for different types of results and supports
 // async operations, user-facing messages, and error handling.
@@ -41,6 +57,18 @@ type ToolResult struct {
 	// RetryHint provides guidance to the LLM on how to retry or work around the error.
 	// Only meaningful when IsError is true.
 	RetryHint string `json:"retry_hint,omitempty"`
+
+	// ErrorCode provides a standardized error category for smarter agent loop handling.
+	// Examples: TIMEOUT, PERMISSION_DENIED, NOT_FOUND, RATE_LIMITED, etc.
+	ErrorCode ToolErrorCode `json:"error_code,omitempty"`
+
+	// StructuredData holds optional structured output from tools.
+	// Enables downstream tools to consume parsed data without re-parsing strings.
+	StructuredData any `json:"structured_data,omitempty"`
+
+	// ContentType indicates the format of StructuredData.
+	// Examples: "text", "json", "table", "csv"
+	ContentType string `json:"content_type,omitempty"`
 
 	// ConfirmationRequired indicates the tool needs user confirmation before proceeding.
 	// When true, the agent loop should pause and request confirmation from the user.
@@ -180,6 +208,70 @@ func RetryableError(message, hint string) *ToolResult {
 		Retryable: true,
 		RetryHint: hint,
 	}
+}
+
+// WithErrorCode sets the standardized error code and returns the result for chaining.
+func (tr *ToolResult) WithErrorCode(code ToolErrorCode) *ToolResult {
+	tr.ErrorCode = code
+	// Auto-set Retryable based on error code
+	switch code {
+	case ErrTimeout, ErrRateLimited, ErrNetworkError:
+		tr.Retryable = true
+	case ErrPermissionDenied, ErrNotFound, ErrInvalidInput, ErrNotImplemented, ErrQuotaExceeded:
+		tr.Retryable = false
+	default:
+		// ErrInternalError - unknown retryability
+	}
+	return tr
+}
+
+// WithStructuredData attaches structured data to the result for downstream consumption.
+func (tr *ToolResult) WithStructuredData(data any, contentType string) *ToolResult {
+	tr.StructuredData = data
+	tr.ContentType = contentType
+	return tr
+}
+
+// StructuredResult creates a result with structured data output.
+func StructuredResult(data any, contentType, summary string) *ToolResult {
+	return &ToolResult{
+		ForLLM:         summary,
+		StructuredData: data,
+		ContentType:    contentType,
+		Silent:         false,
+		IsError:        false,
+	}
+}
+
+// CodedError creates an error result with a standardized error code.
+func CodedError(message string, code ToolErrorCode) *ToolResult {
+	result := &ToolResult{
+		ForLLM:    message,
+		ForUser:   message,
+		IsError:   true,
+		ErrorCode: code,
+	}
+	
+	// Auto-set Retryable based on error code
+	switch code {
+	case ErrTimeout, ErrRateLimited, ErrNetworkError:
+		result.Retryable = true
+		result.RetryHint = fmt.Sprintf("This error (%s) is transient. Retry after a brief delay.", code)
+	case ErrPermissionDenied:
+		result.Retryable = false
+		result.RetryHint = "This error indicates insufficient permissions. Do not retry without fixing permissions."
+	case ErrNotFound:
+		result.Retryable = false
+		result.RetryHint = "The requested resource was not found. Verify the identifier or path and try again."
+	case ErrInvalidInput:
+		result.Retryable = false
+		result.RetryHint = "The input provided was invalid. Check the format and try again."
+	case ErrQuotaExceeded:
+		result.Retryable = true
+		result.RetryHint = "Quota exceeded. Retry after the quota resets or reduce the request size."
+	}
+	
+	return result
 }
 
 // NonRetryableError creates an error result that should not be retried.

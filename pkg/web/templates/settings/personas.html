@@ -110,7 +110,7 @@
             '</div>';
 
         list.appendChild(row);
-        lucide.createIcons({ root: row });
+        refreshIcons();
     }
 
     function checkPersonasEmpty() {
@@ -119,5 +119,5 @@
         if (empty) empty.style.display = rows.length === 0 ? '' : 'none';
     }
 
-    lucide.createIcons();
+    refreshIcons();
 </script>
