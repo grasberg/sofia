@@ -290,6 +290,103 @@ func (pm *PlanManager) ReorderStep(planID string, oldIndex, newIndex int) error 
 	return nil
 }
 
+// CreatePlanForGoal creates a plan linked to a goal from LLM-generated step definitions.
+func (pm *PlanManager) CreatePlanForGoal(goalID int64, goal string, stepDefs []PlanStepDef) *Plan {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	planID := fmt.Sprintf("plan-%d", pm.nextID)
+	pm.nextID++
+
+	steps := make([]PlanStep, len(stepDefs))
+	for i, def := range stepDefs {
+		steps[i] = PlanStep{
+			Index:       i,
+			Description: def.Description,
+			Status:      PlanStatusPending,
+			DependsOn:   def.DependsOn,
+		}
+	}
+
+	plan := &Plan{
+		ID:     planID,
+		Goal:   goal,
+		GoalID: goalID,
+		Steps:  steps,
+		Status: PlanStatusPending,
+	}
+	pm.plans[planID] = plan
+
+	go pm.autoSave()
+	return plan
+}
+
+// ReadySteps returns indices of steps that are pending, unassigned, and have all
+// dependencies satisfied (all DependsOn steps are completed).
+func (pm *PlanManager) ReadySteps(planID string) []int {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	plan, ok := pm.plans[planID]
+	if !ok {
+		return nil
+	}
+
+	var ready []int
+	for i, step := range plan.Steps {
+		if step.Status != PlanStatusPending || step.AssignedTo != "" {
+			continue
+		}
+		allDepsCompleted := true
+		for _, dep := range step.DependsOn {
+			if dep < 0 || dep >= len(plan.Steps) || plan.Steps[dep].Status != PlanStatusCompleted {
+				allDepsCompleted = false
+				break
+			}
+		}
+		if allDepsCompleted {
+			ready = append(ready, i)
+		}
+	}
+	return ready
+}
+
+// GetPlanByGoalID returns the plan linked to a specific goal ID, or nil.
+func (pm *PlanManager) GetPlanByGoalID(goalID int64) *Plan {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	for _, plan := range pm.plans {
+		if plan.GoalID == goalID {
+			return plan
+		}
+	}
+	return nil
+}
+
+// ClaimStep marks a specific step as in_progress and assigns it to the given agent.
+// Returns false if the plan or step does not exist, or if the step is not pending.
+func (pm *PlanManager) ClaimStep(planID string, stepIdx int, assignee string) bool {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	plan, ok := pm.plans[planID]
+	if !ok || stepIdx < 0 || stepIdx >= len(plan.Steps) {
+		return false
+	}
+	if plan.Steps[stepIdx].Status != PlanStatusPending {
+		return false
+	}
+
+	plan.Steps[stepIdx].Status = PlanStatusInProgress
+	plan.Steps[stepIdx].AssignedTo = assignee
+	if plan.Status == PlanStatusPending {
+		plan.Status = PlanStatusInProgress
+	}
+
+	go pm.autoSave()
+	return true
+}
+
 // CreateSubPlan creates a child plan linked to a parent step.
 func (pm *PlanManager) CreateSubPlan(
 	parentPlanID string,
