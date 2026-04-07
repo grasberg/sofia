@@ -47,6 +47,7 @@ func (al *AgentLoop) startAutonomyServices(provider providers.LLMProvider, pushS
 		)
 		svc.SetDashboardHub(al.dashboardHub)
 		svc.SetTaskRunner(al.runSpawnedTaskAsAgent)
+		svc.SetPlanManager(al.planManager)
 		if al.state != nil {
 			svc.SetLastChannelFunc(al.state.GetLastChannel)
 		}

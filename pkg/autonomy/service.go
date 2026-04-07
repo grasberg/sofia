@@ -43,6 +43,7 @@ type Service struct {
 	push          *notifications.PushService
 	hub           *dashboard.Hub
 	taskRunner    TaskRunner
+	planMgr       *tools.PlanManager
 	mu            sync.Mutex
 	cancelFunc    context.CancelFunc
 
@@ -96,6 +97,20 @@ func (s *Service) SetLastChannelFunc(fn LastChannelFunc) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lastChannelFn = fn
+}
+
+// SetPlanManager sets the plan manager for goal-to-plan pipeline.
+func (s *Service) SetPlanManager(pm *tools.PlanManager) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.planMgr = pm
+}
+
+// GetSubagentManager returns the subagent manager for this service.
+func (s *Service) GetSubagentManager() *tools.SubagentManager {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.subMgr
 }
 
 // Start spawns the background periodic ticker.
