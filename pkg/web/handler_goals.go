@@ -50,8 +50,8 @@ func (s *Server) handleGoalsPatch(w http.ResponseWriter, r *http.Request) {
 		s.sendJSONError(w, "goal_id is required", http.StatusBadRequest)
 		return
 	}
-	if req.Status != "paused" && req.Status != "failed" && req.Status != "active" {
-		s.sendJSONError(w, "status must be paused, failed, or active", http.StatusBadRequest)
+	if req.Status != "paused" && req.Status != "failed" && req.Status != "active" && req.Status != "in_progress" {
+		s.sendJSONError(w, "status must be paused, failed, active, or in_progress", http.StatusBadRequest)
 		return
 	}
 
@@ -151,4 +151,76 @@ func (s *Server) handlePlans(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(plans)
+}
+
+// handleGoalsCompleted returns completed goals with full execution logs and plan data.
+func (s *Server) handleGoalsCompleted(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	goals, err := s.agentLoop.ListGoals("")
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	memDB := s.agentLoop.GetMemoryDB()
+	pm := s.agentLoop.GetPlanManager()
+
+	var completed []map[string]any
+	for _, g := range goals {
+		if g.Status != "completed" {
+			continue
+		}
+
+		entry := map[string]any{
+			"id":          g.ID,
+			"name":        g.Name,
+			"description": g.Description,
+			"priority":    g.Priority,
+			"result":      g.Result,
+			"goal_result": g.GoalResult,
+			"created_at":  g.CreatedAt,
+			"updated_at":  g.UpdatedAt,
+		}
+
+		if pm != nil {
+			if plan := pm.GetPlanByGoalID(g.ID); plan != nil {
+				steps := make([]map[string]any, len(plan.Steps))
+				for i, step := range plan.Steps {
+					steps[i] = map[string]any{
+						"index":       step.Index,
+						"description": step.Description,
+						"status":      string(step.Status),
+						"result":      step.Result,
+						"assigned_to": step.AssignedTo,
+						"depends_on":  step.DependsOn,
+					}
+				}
+				entry["plan"] = map[string]any{
+					"id":     plan.ID,
+					"status": string(plan.Status),
+					"steps":  steps,
+				}
+			}
+		}
+
+		if memDB != nil {
+			entries, logErr := memDB.GetGoalLog(g.ID)
+			if logErr == nil && entries != nil {
+				entry["log"] = entries
+			}
+		}
+
+		completed = append(completed, entry)
+	}
+
+	if completed == nil {
+		completed = []map[string]any{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(completed)
 }
