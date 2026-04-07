@@ -133,6 +133,16 @@
                 <span class="material-symbols-outlined" style="font-size:20px">flag</span>
                 <span class="hidden lg:inline">Goals</span>
             </a>
+            <a href="#" hx-get="/ui/activity" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-activity"
+                class="nav-item">
+                <span class="material-symbols-outlined" style="font-size:20px">sprint</span>
+                <span class="hidden lg:inline">Activity</span>
+            </a>
+            <a href="#" hx-get="/ui/completed" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-completed"
+                class="nav-item">
+                <span class="material-symbols-outlined" style="font-size:20px">task_alt</span>
+                <span class="hidden lg:inline">Completed</span>
+            </a>
             <a href="#" hx-get="/ui/agents" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-agents"
                 class="nav-item">
                 <span class="material-symbols-outlined" style="font-size:20px">group</span>
