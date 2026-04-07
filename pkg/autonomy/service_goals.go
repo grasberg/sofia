@@ -13,6 +13,7 @@ import (
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/tools"
+	"github.com/grasberg/sofia/pkg/utils"
 )
 
 var goalSlugRe = regexp.MustCompile(`[^a-zA-Z0-9]+`)
@@ -22,14 +23,18 @@ var goalSlugRe = regexp.MustCompile(`[^a-zA-Z0-9]+`)
 func (s *Service) pursueGoals(ctx context.Context) {
 	gm := NewGoalManager(s.memDB)
 
-	// Phase 1: Generate plans for active goals that don't have one yet.
-	activeGoals, err := gm.ListGoalsByStatus(s.agentID, GoalStatusActive)
+	// Fetch all goals once, split by status to avoid duplicate DB queries.
+	allGoals, err := gm.ListAllGoals(s.agentID)
 	if err != nil {
-		logger.WarnCF("autonomy", "Failed to list active goals", map[string]any{"error": err.Error()})
+		logger.WarnCF("autonomy", "Failed to list goals", map[string]any{"error": err.Error()})
 		return
 	}
 
-	for _, goal := range activeGoals {
+	// Phase 1: Generate plans for active goals that don't have one yet.
+	for _, goal := range allGoals {
+		if goal.Status != GoalStatusActive {
+			continue
+		}
 		select {
 		case <-ctx.Done():
 			return
@@ -39,13 +44,10 @@ func (s *Service) pursueGoals(ctx context.Context) {
 	}
 
 	// Phase 2: Dispatch ready steps for in_progress goals.
-	inProgressGoals, err := gm.ListGoalsByStatus(s.agentID, GoalStatusInProgress)
-	if err != nil {
-		logger.WarnCF("autonomy", "Failed to list in_progress goals", map[string]any{"error": err.Error()})
-		return
-	}
-
-	for _, goal := range inProgressGoals {
+	for _, goal := range allGoals {
+		if goal.Status != GoalStatusInProgress {
+			continue
+		}
 		select {
 		case <-ctx.Done():
 			return
@@ -57,43 +59,23 @@ func (s *Service) pursueGoals(ctx context.Context) {
 
 // goalPlanResponse is the parsed LLM plan response.
 type goalPlanResponse struct {
-	GoalID   int64    `json:"goal_id"`
-	GoalName string   `json:"goal_name"`
-	Plan     planBody `json:"plan"`
-	// Fallback: steps at top level
-	Steps []planStepDef `json:"steps"`
-}
-
-type planBody struct {
-	Steps []planStepDef `json:"steps"`
-}
-
-type planStepDef struct {
-	Description string `json:"description"`
-	DependsOn   []int  `json:"depends_on"`
+	GoalID   int64  `json:"goal_id"`
+	GoalName string `json:"goal_name"`
+	Plan     struct {
+		Steps []tools.PlanStepDef `json:"steps"`
+	} `json:"plan"`
+	Steps []tools.PlanStepDef `json:"steps"` // fallback: steps at top level
 }
 
 // parseGoalPlanResponse parses the LLM's plan JSON response.
-// Accepts code-fenced JSON and top-level steps as fallback.
 func parseGoalPlanResponse(content string) (*goalPlanResponse, error) {
-	cleaned := strings.TrimSpace(content)
-
-	// Strip code fences if present.
-	if strings.HasPrefix(cleaned, "```") {
-		cleaned = strings.TrimPrefix(cleaned, "```json")
-		cleaned = strings.TrimPrefix(cleaned, "```")
-		if idx := strings.LastIndex(cleaned, "```"); idx >= 0 {
-			cleaned = cleaned[:idx]
-		}
-		cleaned = strings.TrimSpace(cleaned)
-	}
+	cleaned := utils.CleanJSONFences(content)
 
 	var resp goalPlanResponse
 	if err := json.Unmarshal([]byte(cleaned), &resp); err != nil {
 		return nil, err
 	}
 
-	// Fallback: if plan.steps is empty but top-level steps exist, promote them.
 	if len(resp.Plan.Steps) == 0 && len(resp.Steps) > 0 {
 		resp.Plan.Steps = resp.Steps
 	}
@@ -114,17 +96,7 @@ type goalResultResponse struct {
 
 // parseGoalResultResponse parses the LLM's goal finalization JSON.
 func parseGoalResultResponse(content string) (*goalResultResponse, error) {
-	cleaned := strings.TrimSpace(content)
-
-	// Strip code fences if present.
-	if strings.HasPrefix(cleaned, "```") {
-		cleaned = strings.TrimPrefix(cleaned, "```json")
-		cleaned = strings.TrimPrefix(cleaned, "```")
-		if idx := strings.LastIndex(cleaned, "```"); idx >= 0 {
-			cleaned = cleaned[:idx]
-		}
-		cleaned = strings.TrimSpace(cleaned)
-	}
+	cleaned := utils.CleanJSONFences(content)
 
 	var resp goalResultResponse
 	if err := json.Unmarshal([]byte(cleaned), &resp); err != nil {
@@ -207,16 +179,7 @@ func (s *Service) generatePlanForGoal(ctx context.Context, gm *GoalManager, goal
 		return
 	}
 
-	// Convert parsed steps to PlanStepDef for the PlanManager.
-	stepDefs := make([]tools.PlanStepDef, len(planResp.Plan.Steps))
-	for i, s := range planResp.Plan.Steps {
-		stepDefs[i] = tools.PlanStepDef{
-			Description: s.Description,
-			DependsOn:   s.DependsOn,
-		}
-	}
-
-	plan := pm.CreatePlanForGoal(goal.ID, goal.Name, stepDefs)
+	plan := pm.CreatePlanForGoal(goal.ID, goal.Name, planResp.Plan.Steps)
 
 	// Transition goal to in_progress.
 	if _, err := gm.UpdateGoalStatus(goal.ID, GoalStatusInProgress); err != nil {
@@ -291,8 +254,7 @@ func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal 
 		}
 
 		stepDesc := plan.Steps[stepIdx].Description
-		s.ensureGoalFolder(goal.ID, goal.Name)
-		goalDir := s.goalFolderPath(goal.ID, goal.Name)
+		goalDir := s.ensureGoalFolder(goal.ID, goal.Name)
 
 		taskPrompt := fmt.Sprintf(`You are working toward goal: "%s"
 

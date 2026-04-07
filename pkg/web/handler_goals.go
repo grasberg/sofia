@@ -50,7 +50,13 @@ func (s *Server) handleGoalsPatch(w http.ResponseWriter, r *http.Request) {
 		s.sendJSONError(w, "goal_id is required", http.StatusBadRequest)
 		return
 	}
-	if req.Status != "paused" && req.Status != "failed" && req.Status != "active" && req.Status != "in_progress" {
+	validStatuses := map[string]bool{
+		autonomy.GoalStatusPaused:     true,
+		autonomy.GoalStatusFailed:     true,
+		autonomy.GoalStatusActive:     true,
+		autonomy.GoalStatusInProgress: true,
+	}
+	if !validStatuses[req.Status] {
 		s.sendJSONError(w, "status must be paused, failed, active, or in_progress", http.StatusBadRequest)
 		return
 	}
@@ -171,7 +177,7 @@ func (s *Server) handleGoalsCompleted(w http.ResponseWriter, r *http.Request) {
 
 	var completed []map[string]any
 	for _, g := range goals {
-		if g.Status != "completed" {
+		if g.Status != autonomy.GoalStatusCompleted {
 			continue
 		}
 
