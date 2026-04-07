@@ -113,3 +113,52 @@ func TestGoalManager_ListActiveGoals(t *testing.T) {
 
 	assert.Equal(t, "Goal 1", fetched.Name)
 }
+
+func TestGoalManager_ListGoalsByStatus(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	agentID := "agent-1"
+
+	_, err := gm.AddGoal(agentID, "Goal A", "desc a", "high")
+	require.NoError(t, err)
+	_, err = gm.AddGoal(agentID, "Goal B", "desc b", "medium")
+	require.NoError(t, err)
+
+	active, err := gm.ListGoalsByStatus(agentID, GoalStatusActive)
+	require.NoError(t, err)
+	assert.Len(t, active, 2)
+
+	inProg, err := gm.ListGoalsByStatus(agentID, GoalStatusInProgress)
+	require.NoError(t, err)
+	assert.Len(t, inProg, 0)
+}
+
+func TestGoalManager_SetGoalResult(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	agentID := "agent-1"
+
+	gAny, err := gm.AddGoal(agentID, "Goal A", "desc", "high")
+	require.NoError(t, err)
+	goal := gAny.(*Goal)
+
+	result := GoalResult{
+		Summary:     "Deployed the stack",
+		Artifacts:   []string{"/workspace/goals/goal-1/docker-compose.yml"},
+		NextSteps:   []string{"Run ./deploy.sh"},
+		CompletedAt: "2026-04-07T15:00:00Z",
+	}
+	err = gm.SetGoalResult(goal.ID, result)
+	require.NoError(t, err)
+
+	updated, err := gm.GetGoalByID(goal.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, updated.GoalResult)
+	assert.Equal(t, "Deployed the stack", updated.GoalResult.Summary)
+	assert.Equal(t, []string{"/workspace/goals/goal-1/docker-compose.yml"}, updated.GoalResult.Artifacts)
+	assert.Equal(t, []string{"Run ./deploy.sh"}, updated.GoalResult.NextSteps)
+}

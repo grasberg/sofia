@@ -10,23 +10,33 @@ import (
 
 // Goal Statuses
 const (
-	GoalStatusActive    = "active"
-	GoalStatusCompleted = "completed"
-	GoalStatusFailed    = "failed"
-	GoalStatusPaused    = "paused"
+	GoalStatusActive     = "active"
+	GoalStatusInProgress = "in_progress"
+	GoalStatusCompleted  = "completed"
+	GoalStatusFailed     = "failed"
+	GoalStatusPaused     = "paused"
 )
+
+// GoalResult holds the structured outcome of a completed goal.
+type GoalResult struct {
+	Summary     string   `json:"summary"`
+	Artifacts   []string `json:"artifacts"`
+	NextSteps   []string `json:"next_steps"`
+	CompletedAt string   `json:"completed_at"`
+}
 
 // Goal represents a long-term user or agent objective.
 type Goal struct {
-	ID          int64     `json:"id"`
-	AgentID     string    `json:"agent_id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Status      string    `json:"status"`
-	Priority    string    `json:"priority"` // low, medium, high
-	Result      string    `json:"result,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          int64       `json:"id"`
+	AgentID     string      `json:"agent_id"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Status      string      `json:"status"`
+	Priority    string      `json:"priority"` // low, medium, high
+	Result      string      `json:"result,omitempty"`
+	GoalResult  *GoalResult `json:"goal_result,omitempty"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
 }
 
 // GoalManager handles querying and storing goals in the memory DB.
@@ -157,6 +167,49 @@ func (gm *GoalManager) UpdateGoalResult(goalID int64, result string) error {
 	return err
 }
 
+// ListGoalsByStatus returns goals matching a specific status for an agent.
+func (gm *GoalManager) ListGoalsByStatus(agentID, status string) ([]*Goal, error) {
+	nodes, err := gm.memDB.FindNodes(agentID, "Goal", "", 100)
+	if err != nil {
+		return nil, err
+	}
+
+	var goals []*Goal
+	for _, node := range nodes {
+		g := parseGoalNode(&node)
+		if g.Status == status {
+			goals = append(goals, g)
+		}
+	}
+	return goals, nil
+}
+
+// SetGoalResult stores a structured GoalResult in the goal's properties.
+func (gm *GoalManager) SetGoalResult(goalID int64, result GoalResult) error {
+	node, err := gm.memDB.GetNodeByID(goalID)
+	if err != nil {
+		return err
+	}
+	if node == nil || node.Label != "Goal" {
+		return fmt.Errorf("goal %d not found", goalID)
+	}
+
+	var props map[string]any
+	if err := json.Unmarshal([]byte(node.Properties), &props); err != nil {
+		props = make(map[string]any)
+	}
+
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("failed to marshal goal result: %w", err)
+	}
+	props["goal_result"] = json.RawMessage(resultJSON)
+
+	propsJSON, _ := json.Marshal(props)
+	_, err = gm.memDB.UpsertNode(node.AgentID, "Goal", node.Name, string(propsJSON))
+	return err
+}
+
 // DeleteGoal removes a goal and its log entries from the database.
 func (gm *GoalManager) DeleteGoal(goalID int64) error {
 	// Delete log entries first (child records).
@@ -189,12 +242,27 @@ func parseGoalNode(node *memory.SemanticNode) *Goal {
 		CreatedAt: node.CreatedAt,
 		UpdatedAt: node.UpdatedAt,
 	}
-	var props map[string]string
+
+	var props map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(node.Properties), &props); err == nil {
-		g.Description = props["description"]
-		g.Status = props["status"]
-		g.Priority = props["priority"]
-		g.Result = props["result"]
+		if v, ok := props["description"]; ok {
+			json.Unmarshal(v, &g.Description) //nolint:errcheck
+		}
+		if v, ok := props["status"]; ok {
+			json.Unmarshal(v, &g.Status) //nolint:errcheck
+		}
+		if v, ok := props["priority"]; ok {
+			json.Unmarshal(v, &g.Priority) //nolint:errcheck
+		}
+		if v, ok := props["result"]; ok {
+			json.Unmarshal(v, &g.Result) //nolint:errcheck
+		}
+		if v, ok := props["goal_result"]; ok {
+			var gr GoalResult
+			if json.Unmarshal(v, &gr) == nil {
+				g.GoalResult = &gr
+			}
+		}
 	}
 	return g
 }
