@@ -282,3 +282,36 @@ func (al *AgentLoop) GetToolTracker() *tools.ToolTracker {
 func (al *AgentLoop) GetBudgetManager() *budget.BudgetManager {
 	return al.budgetManager
 }
+
+// GetPlanManager returns the plan manager. Used by web handlers for activity/completed data.
+func (al *AgentLoop) GetPlanManager() *tools.PlanManager {
+	return al.planManager
+}
+
+// GetActiveSubagentTasks returns running subagent tasks across all autonomy services.
+func (al *AgentLoop) GetActiveSubagentTasks() []map[string]any {
+	al.autonomyMu.Lock()
+	defer al.autonomyMu.Unlock()
+
+	var tasks []map[string]any
+	for agentID, svc := range al.autonomyServices {
+		if svc == nil {
+			continue
+		}
+		subMgr := svc.GetSubagentManager()
+		if subMgr == nil {
+			continue
+		}
+		for _, task := range subMgr.ListTasks() {
+			tasks = append(tasks, map[string]any{
+				"agent_id":    agentID,
+				"subagent_id": task.ID,
+				"task":        task.Task,
+				"label":       task.Label,
+				"status":      task.Status,
+				"created":     task.Created,
+			})
+		}
+	}
+	return tasks
+}
