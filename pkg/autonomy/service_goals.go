@@ -4,375 +4,484 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/providers"
+	"github.com/grasberg/sofia/pkg/tools"
 )
 
-// maxStepsPerCycle limits how many goal steps we execute per autonomy tick
-// to prevent runaway execution while still making meaningful progress.
-const maxStepsPerCycle = 5
+var goalSlugRe = regexp.MustCompile(`[^a-zA-Z0-9]+`)
 
-// pursueGoals checks active goals and executes multiple steps in a loop
-// until the LLM says NO_ACTION, a step fails, or maxStepsPerCycle is reached.
+// pursueGoals is the new plan-first, parallel-dispatch pipeline entry point.
+// It processes active goals (generating plans) and in_progress goals (dispatching ready steps).
 func (s *Service) pursueGoals(ctx context.Context) {
 	gm := NewGoalManager(s.memDB)
 
-	for step := 0; step < maxStepsPerCycle; step++ {
-		// Check context cancellation between steps
+	// Phase 1: Generate plans for active goals that don't have one yet.
+	activeGoals, err := gm.ListGoalsByStatus(s.agentID, GoalStatusActive)
+	if err != nil {
+		logger.WarnCF("autonomy", "Failed to list active goals", map[string]any{"error": err.Error()})
+		return
+	}
+
+	for _, goal := range activeGoals {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		s.generatePlanForGoal(ctx, gm, goal)
+	}
+
+	// Phase 2: Dispatch ready steps for in_progress goals.
+	inProgressGoals, err := gm.ListGoalsByStatus(s.agentID, GoalStatusInProgress)
+	if err != nil {
+		logger.WarnCF("autonomy", "Failed to list in_progress goals", map[string]any{"error": err.Error()})
+		return
+	}
+
+	for _, goal := range inProgressGoals {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		s.dispatchReadySteps(ctx, gm, goal)
+	}
+}
+
+// goalPlanResponse is the parsed LLM plan response.
+type goalPlanResponse struct {
+	GoalID   int64    `json:"goal_id"`
+	GoalName string   `json:"goal_name"`
+	Plan     planBody `json:"plan"`
+	// Fallback: steps at top level
+	Steps []planStepDef `json:"steps"`
+}
+
+type planBody struct {
+	Steps []planStepDef `json:"steps"`
+}
+
+type planStepDef struct {
+	Description string `json:"description"`
+	DependsOn   []int  `json:"depends_on"`
+}
+
+// parseGoalPlanResponse parses the LLM's plan JSON response.
+// Accepts code-fenced JSON and top-level steps as fallback.
+func parseGoalPlanResponse(content string) (*goalPlanResponse, error) {
+	cleaned := strings.TrimSpace(content)
+
+	// Strip code fences if present.
+	if strings.HasPrefix(cleaned, "```") {
+		cleaned = strings.TrimPrefix(cleaned, "```json")
+		cleaned = strings.TrimPrefix(cleaned, "```")
+		if idx := strings.LastIndex(cleaned, "```"); idx >= 0 {
+			cleaned = cleaned[:idx]
+		}
+		cleaned = strings.TrimSpace(cleaned)
+	}
+
+	var resp goalPlanResponse
+	if err := json.Unmarshal([]byte(cleaned), &resp); err != nil {
+		return nil, err
+	}
+
+	// Fallback: if plan.steps is empty but top-level steps exist, promote them.
+	if len(resp.Plan.Steps) == 0 && len(resp.Steps) > 0 {
+		resp.Plan.Steps = resp.Steps
+	}
+
+	if len(resp.Plan.Steps) == 0 {
+		return nil, fmt.Errorf("plan contains no steps")
+	}
+
+	return &resp, nil
+}
+
+// goalResultResponse is the parsed LLM finalization response.
+type goalResultResponse struct {
+	Summary   string   `json:"summary"`
+	Artifacts []string `json:"artifacts"`
+	NextSteps []string `json:"next_steps"`
+}
+
+// parseGoalResultResponse parses the LLM's goal finalization JSON.
+func parseGoalResultResponse(content string) (*goalResultResponse, error) {
+	cleaned := strings.TrimSpace(content)
+
+	// Strip code fences if present.
+	if strings.HasPrefix(cleaned, "```") {
+		cleaned = strings.TrimPrefix(cleaned, "```json")
+		cleaned = strings.TrimPrefix(cleaned, "```")
+		if idx := strings.LastIndex(cleaned, "```"); idx >= 0 {
+			cleaned = cleaned[:idx]
+		}
+		cleaned = strings.TrimSpace(cleaned)
+	}
+
+	var resp goalResultResponse
+	if err := json.Unmarshal([]byte(cleaned), &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
+}
+
+// buildPlanGenerationPrompt creates the LLM prompt that asks for a complete plan.
+func buildPlanGenerationPrompt(goal *Goal) string {
+	return fmt.Sprintf(`You are an autonomous AI agent. You need to create a complete plan for the following goal:
+
+Goal ID: %d
+Goal Name: %s
+Description: %s
+Priority: %s
+
+Create a detailed plan with 3-10 steps. Each step should be:
+- Specific and actionable (can be delegated to a subagent)
+- Independent where possible, but declare dependencies when a step requires output from a prior step
+- Ordered logically (research before implementation, implementation before testing)
+
+Respond in this exact JSON format (no markdown, no code fences):
+{"goal_id": %d, "goal_name": "%s", "plan": {"steps": [{"description": "...", "depends_on": []}]}}
+
+The "depends_on" field is an array of step indices (0-based) that must complete before this step can start.
+An empty depends_on means the step can start immediately.`, goal.ID, goal.Name, goal.Description, goal.Priority, goal.ID, goal.Name)
+}
+
+// generatePlanForGoal calls the LLM to produce a plan, creates it via PlanManager,
+// transitions the goal to in_progress, and broadcasts the event.
+func (s *Service) generatePlanForGoal(ctx context.Context, gm *GoalManager, goal *Goal) {
+	s.mu.Lock()
+	pm := s.planMgr
+	s.mu.Unlock()
+
+	if pm == nil {
+		logger.WarnCF("autonomy", "PlanManager not set, skipping plan generation", nil)
+		return
+	}
+
+	// Skip if goal already has a plan.
+	if existing := pm.GetPlanByGoalID(goal.ID); existing != nil {
+		return
+	}
+
+	if !s.checkBudget() {
+		return
+	}
+
+	prompt := buildPlanGenerationPrompt(goal)
+	messages := []providers.Message{
+		{Role: "user", Content: prompt},
+	}
+
+	resp, err := s.provider.Chat(ctx, messages, nil, s.modelID, map[string]any{
+		"max_tokens":  1000,
+		"temperature": 0.3,
+	})
+	if err != nil || resp == nil || len(resp.Content) == 0 {
+		logger.WarnCF("autonomy", "Plan generation LLM call failed", map[string]any{
+			"goal_id": goal.ID,
+			"error":   fmt.Sprintf("%v", err),
+		})
+		return
+	}
+
+	if resp.Usage != nil {
+		s.trackCost(resp.Usage.TotalTokens)
+	}
+
+	planResp, err := parseGoalPlanResponse(resp.Content)
+	if err != nil {
+		logger.WarnCF("autonomy", "Failed to parse plan response", map[string]any{
+			"goal_id": goal.ID,
+			"error":   err.Error(),
+			"content": truncate(resp.Content, 500),
+		})
+		return
+	}
+
+	// Convert parsed steps to PlanStepDef for the PlanManager.
+	stepDefs := make([]tools.PlanStepDef, len(planResp.Plan.Steps))
+	for i, s := range planResp.Plan.Steps {
+		stepDefs[i] = tools.PlanStepDef{
+			Description: s.Description,
+			DependsOn:   s.DependsOn,
+		}
+	}
+
+	plan := pm.CreatePlanForGoal(goal.ID, goal.Name, stepDefs)
+
+	// Transition goal to in_progress.
+	if _, err := gm.UpdateGoalStatus(goal.ID, GoalStatusInProgress); err != nil {
+		logger.WarnCF("autonomy", "Failed to transition goal to in_progress", map[string]any{
+			"goal_id": goal.ID,
+			"error":   err.Error(),
+		})
+	}
+
+	logger.InfoCF("autonomy", "Plan created for goal", map[string]any{
+		"goal_id":    goal.ID,
+		"goal_name":  goal.Name,
+		"plan_id":    plan.ID,
+		"step_count": len(plan.Steps),
+	})
+
+	s.broadcast(map[string]any{
+		"type":       "goal_plan_created",
+		"agent_id":   s.agentID,
+		"goal_id":    goal.ID,
+		"goal_name":  goal.Name,
+		"plan_id":    plan.ID,
+		"step_count": len(plan.Steps),
+	})
+}
+
+// dispatchReadySteps finds steps whose dependencies are satisfied, claims them,
+// and spawns subagents to execute each one in parallel.
+func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal *Goal) {
+	s.mu.Lock()
+	pm := s.planMgr
+	sm := s.subMgr
+	s.mu.Unlock()
+
+	if pm == nil || sm == nil {
+		return
+	}
+
+	plan := pm.GetPlanByGoalID(goal.ID)
+	if plan == nil {
+		return
+	}
+
+	// Check if plan is already completed or failed.
+	if plan.Status == tools.PlanStatusCompleted {
+		s.finalizeGoal(ctx, gm, goal, plan)
+		return
+	}
+	if plan.Status == tools.PlanStatusFailed {
+		logger.WarnCF("autonomy", "Plan failed, not dispatching", map[string]any{
+			"goal_id": goal.ID,
+			"plan_id": plan.ID,
+		})
+		return
+	}
+
+	readyIndices := pm.ReadySteps(plan.ID)
+	if len(readyIndices) == 0 {
+		return
+	}
+
+	for _, stepIdx := range readyIndices {
 		select {
 		case <-ctx.Done():
 			return
 		default:
 		}
 
-		// Re-fetch active goals each iteration (status may have changed)
-		goalsAny, err := gm.ListActiveGoals(s.agentID)
-		if err != nil {
-			logger.WarnCF("autonomy", "Failed to list active goals", map[string]any{"error": err.Error()})
-			return
-		}
-		if len(goalsAny) == 0 {
-			if step == 0 {
-				logger.DebugCF("autonomy", "No active goals to pursue", nil)
-			} else {
-				logger.InfoCF("autonomy", fmt.Sprintf("All goals completed after %d step(s)", step), nil)
-			}
-			return
-		}
-
-		if step == 0 {
-			logger.InfoCF("autonomy", fmt.Sprintf("Pursuing %d active goal(s)", len(goalsAny)),
-				map[string]any{"agent_id": s.agentID, "goal_count": len(goalsAny)})
-		}
-
-		result := s.executeOneGoalStep(ctx, gm, goalsAny, step)
-		switch result {
-		case stepResultDone:
-			// LLM said NO_ACTION or GOAL_COMPLETE — re-evaluate on next iteration
-			continue
-		case stepResultSuccess:
-			// Step succeeded — immediately plan and execute the next step
-			logger.InfoCF("autonomy", fmt.Sprintf("Step %d/%d completed, continuing to next step",
-				step+1, maxStepsPerCycle), nil)
-			continue
-		case stepResultFailed, stepResultError:
-			// Step failed — stop this cycle, retry on next interval
-			logger.InfoCF("autonomy", fmt.Sprintf("Stopping after %d step(s) due to failure", step+1), nil)
-			return
-		}
-	}
-	logger.InfoCF("autonomy", fmt.Sprintf("Completed maximum %d steps per cycle, pausing until next interval",
-		maxStepsPerCycle), nil)
-}
-
-type stepOutcome int
-
-const (
-	stepResultSuccess stepOutcome = iota
-	stepResultFailed
-	stepResultDone  // NO_ACTION or GOAL_COMPLETE
-	stepResultError // parse/LLM error
-)
-
-type goalRef struct {
-	id       int64
-	name     string
-	priority string
-}
-
-type goalStepPlan struct {
-	GoalID   int64  `json:"goal_id"`
-	GoalName string `json:"goal_name"`
-	Step     string `json:"step"`
-}
-
-type goalPlannerDecision struct {
-	Plan           goalStepPlan
-	NoAction       bool
-	MarkComplete   bool
-	CompleteGoalID int64
-}
-
-func buildGoalsSummary(goalsAny []any) (string, []goalRef) {
-	var goalsSummary strings.Builder
-	refs := make([]goalRef, 0, len(goalsAny))
-
-	for _, gAny := range goalsAny {
-		b, _ := json.Marshal(gAny)
-		var g map[string]any
-		if err := json.Unmarshal(b, &g); err != nil {
+		label := fmt.Sprintf("goal-%d-step-%d", goal.ID, stepIdx)
+		if !pm.ClaimStep(plan.ID, stepIdx, label) {
 			continue
 		}
 
-		idValue, ok := g["id"].(float64)
-		if !ok {
-			continue
-		}
+		stepDesc := plan.Steps[stepIdx].Description
+		s.ensureGoalFolder(goal.ID, goal.Name)
+		goalDir := s.goalFolderPath(goal.ID, goal.Name)
 
-		name, _ := g["name"].(string)
-		desc, _ := g["description"].(string)
-		priority, _ := g["priority"].(string)
+		taskPrompt := fmt.Sprintf(`You are working toward goal: "%s"
 
-		refs = append(refs, goalRef{id: int64(idValue), name: name, priority: priority})
-		fmt.Fprintf(&goalsSummary, "- [ID:%d] %s (priority: %s)\n  %s\n", int64(idValue), name, priority, desc)
-	}
+Your task: %s
 
-	return goalsSummary.String(), refs
-}
-
-func (s *Service) buildGoalPlannerPrompt(goalsSummary string) string {
-	return fmt.Sprintf(`You are an autonomous AI agent. You have the following active goals:
-
-%s
-
-Decide which goal to work on next (prioritize high-priority goals). Then determine a single, concrete, actionable next step that can be completed in one task.
+Working directory for this goal: %s
 
 Rules:
-- Pick ONE goal and ONE step. Do not try to do everything at once.
-- The step must be specific and achievable with available tools (read_file, write_file, exec, edit_file, list_dir, append_file).
-- All file operations MUST use absolute paths under the workspace: %s
-- If a goal needs research, the step could be "Research X and write findings to %s/research_X.md".
-- If a goal needs code, the step could be "Create file at %s/filename with content Y".
-- If a goal is already effectively complete, say GOAL_COMPLETE:<goal_id>.
-- If none of the goals have a useful next step right now, reply ONLY with "NO_ACTION".
+- Use tools to do real work (read_file, write_file, exec, edit_file, list_dir, append_file).
+- All file operations MUST use absolute paths under the goal folder.
+- Do NOT just describe what you would do. Actually do it.
+- When done, summarize what you actually accomplished.`, goal.Name, stepDesc, goalDir)
+
+		// Capture values for the closure to avoid race conditions.
+		capturedGoalID := goal.ID
+		capturedGoalName := goal.Name
+		capturedStepIdx := stepIdx
+		capturedPlanID := plan.ID
+		capturedAgentID := s.agentID
+
+		s.broadcast(map[string]any{
+			"type":       "goal_step_start",
+			"agent_id":   s.agentID,
+			"goal_id":    goal.ID,
+			"goal_name":  goal.Name,
+			"step_index": stepIdx,
+			"step":       stepDesc,
+		})
+
+		callback := func(cbCtx context.Context, result *tools.ToolResult) {
+			success := result != nil && !result.IsError
+			resultText := ""
+			if result != nil {
+				resultText = result.ForLLM
+			}
+
+			pm.CompleteStep(capturedPlanID, capturedStepIdx, success, truncate(resultText, 2000))
+
+			// Log to goal_log.
+			if s.memDB != nil {
+				_ = s.memDB.InsertGoalLog(capturedGoalID, capturedAgentID, stepDesc, truncate(resultText, 2000), success, 0)
+			}
+
+			s.broadcast(map[string]any{
+				"type":       "goal_step_end",
+				"agent_id":   capturedAgentID,
+				"goal_id":    capturedGoalID,
+				"goal_name":  capturedGoalName,
+				"step_index": capturedStepIdx,
+				"success":    success,
+			})
+
+			// Recursively dispatch next ready steps (cascade).
+			updatedGoal, err := gm.GetGoalByID(capturedGoalID)
+			if err != nil || updatedGoal == nil {
+				return
+			}
+
+			updatedPlan := pm.GetPlanByGoalID(capturedGoalID)
+			if updatedPlan != nil && updatedPlan.Status == tools.PlanStatusCompleted {
+				s.finalizeGoal(cbCtx, gm, updatedGoal, updatedPlan)
+				return
+			}
+
+			s.dispatchReadySteps(cbCtx, gm, updatedGoal)
+		}
+
+		if _, err := sm.Spawn(ctx, taskPrompt, label, "", nil, "system", "autonomy", callback); err != nil {
+			logger.WarnCF("autonomy", "Failed to spawn subagent for step", map[string]any{
+				"goal_id":    goal.ID,
+				"step_index": stepIdx,
+				"error":      err.Error(),
+			})
+		}
+	}
+}
+
+// finalizeGoal gathers step results, asks the LLM for a summary, and completes the goal.
+func (s *Service) finalizeGoal(ctx context.Context, gm *GoalManager, goal *Goal, plan *tools.Plan) {
+	// Build a summary of step results.
+	var sb strings.Builder
+	for _, step := range plan.Steps {
+		status := "completed"
+		if step.Status == tools.PlanStatusFailed {
+			status = "failed"
+		}
+		fmt.Fprintf(&sb, "Step %d (%s): %s\nResult: %s\n\n", step.Index, status, step.Description, truncate(step.Result, 500))
+	}
+
+	if !s.checkBudget() {
+		// If no budget, just mark completed without LLM summary.
+		_ = gm.SetGoalResult(goal.ID, GoalResult{
+			Summary:     "Goal completed (budget exceeded before summary generation)",
+			CompletedAt: time.Now().UTC().Format(time.RFC3339),
+		})
+		if _, err := gm.UpdateGoalStatus(goal.ID, GoalStatusCompleted); err != nil {
+			logger.WarnCF("autonomy", "Failed to mark goal completed", map[string]any{"goal_id": goal.ID, "error": err.Error()})
+		}
+		return
+	}
+
+	prompt := fmt.Sprintf(`A goal has been completed. Summarize the outcome.
+
+Goal: %s
+Description: %s
+
+Step results:
+%s
 
 Respond in this exact JSON format (no markdown, no code fences):
-{"goal_id": <number>, "goal_name": "<name>", "step": "<description of the concrete task to execute>"}
-
-Or respond with NO_ACTION if nothing to do.`, goalsSummary, s.workspace, s.workspace, s.workspace)
-}
-
-func parseGoalPlannerResponse(content string) (goalPlannerDecision, error) {
-	trimmed := strings.TrimSpace(content)
-	if trimmed == "" || trimmed == "NO_ACTION" {
-		return goalPlannerDecision{NoAction: true}, nil
-	}
-
-	if strings.HasPrefix(trimmed, "GOAL_COMPLETE:") {
-		idStr := strings.TrimSpace(strings.TrimPrefix(trimmed, "GOAL_COMPLETE:"))
-		var goalID int64
-		if _, err := fmt.Sscanf(idStr, "%d", &goalID); err == nil {
-			return goalPlannerDecision{MarkComplete: true, CompleteGoalID: goalID}, nil
-		}
-		return goalPlannerDecision{NoAction: true}, nil
-	}
-
-	cleaned := strings.TrimSpace(
-		strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(trimmed, "```json"), "```"), "```"),
-	)
-
-	var plan goalStepPlan
-	if err := json.Unmarshal([]byte(cleaned), &plan); err != nil {
-		return goalPlannerDecision{}, err
-	}
-	if plan.Step == "" {
-		return goalPlannerDecision{NoAction: true}, nil
-	}
-
-	return goalPlannerDecision{Plan: plan}, nil
-}
-
-func (s *Service) buildGoalTaskPrompt(plan goalStepPlan) string {
-	return fmt.Sprintf(`You are working toward goal: "%s"
-
-Your next step: %s
-
-CRITICAL RULES:
-- You MUST use tool calls (read_file, write_file, exec, list_dir, etc.) to do real work.
-- All file operations MUST use absolute paths under the workspace: %s
-- Do NOT just describe what you would do. Actually do it with tools.
-- Do NOT roleplay or narrate. No stage directions. No fictional progress.
-- Every response must contain at least one tool call unless the step is purely informational.
-- When done, summarize what you actually accomplished (files created, commands run, results).`, plan.GoalName, plan.Step, s.workspace)
-}
-
-func (s *Service) executeGoalTask(ctx context.Context, plan goalStepPlan) (string, error) {
-	taskPrompt := s.buildGoalTaskPrompt(plan)
-
-	s.mu.Lock()
-	runner := s.taskRunner
-	s.mu.Unlock()
-
-	if runner != nil {
-		return runner(ctx, s.agentID, fmt.Sprintf("goal:%d", plan.GoalID), taskPrompt, "system", "autonomy")
-	}
-
-	taskMessages := []providers.Message{{Role: "user", Content: taskPrompt}}
-	taskResp, err := s.provider.Chat(ctx, taskMessages, nil, s.modelID, map[string]any{
-		"max_tokens":  2000,
-		"temperature": 0.4,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	return taskResp.Content, nil
-}
-
-// executeOneGoalStep plans and executes a single goal step. Returns the outcome.
-func (s *Service) executeOneGoalStep(ctx context.Context, gm *GoalManager, goalsAny []any, stepNum int) stepOutcome {
-	goalsSummary, refs := buildGoalsSummary(goalsAny)
-
-	if len(refs) == 0 {
-		return stepResultDone
-	}
-
-	if stepNum == 0 {
-		s.broadcast(map[string]any{
-			"type":       "goal_evaluation_start",
-			"agent_id":   s.agentID,
-			"goal_count": len(refs),
-		})
-	}
-
-	// Ask the LLM which goal to work on and what the next concrete step is
-	prompt := s.buildGoalPlannerPrompt(goalsSummary)
+{"summary": "...", "artifacts": ["file1.txt", ...], "next_steps": ["..."]}`, goal.Name, goal.Description, sb.String())
 
 	messages := []providers.Message{
 		{Role: "user", Content: prompt},
-	}
-
-	// Budget check before LLM call.
-	if !s.checkBudget() {
-		return stepResultError
 	}
 
 	resp, err := s.provider.Chat(ctx, messages, nil, s.modelID, map[string]any{
 		"max_tokens":  500,
 		"temperature": 0.3,
 	})
-	if err != nil || len(resp.Content) == 0 {
-		logger.WarnCF("autonomy", "Goal planner LLM call failed", map[string]any{"error": fmt.Sprintf("%v", err)})
-		return stepResultError
-	}
 
-	// Track cost of this LLM call.
-	if resp.Usage != nil {
-		s.trackCost(resp.Usage.TotalTokens)
-	}
+	var goalResult GoalResult
+	goalResult.CompletedAt = time.Now().UTC().Format(time.RFC3339)
 
-	decision, err := parseGoalPlannerResponse(resp.Content)
-	if err != nil {
-		logger.WarnCF("autonomy", "Failed to parse goal planner response", map[string]any{
-			"error":   err.Error(),
-			"content": strings.TrimSpace(resp.Content),
-		})
-		return stepResultError
-	}
-
-	if decision.MarkComplete {
-		if _, err := gm.UpdateGoalStatus(decision.CompleteGoalID, GoalStatusCompleted); err == nil {
-			// Persist a summary result on the goal itself.
-			if decision.Plan.Step != "" {
-				_ = gm.UpdateGoalResult(decision.CompleteGoalID, decision.Plan.Step)
-			}
-			logger.InfoCF("autonomy", "Goal auto-completed", map[string]any{"goal_id": decision.CompleteGoalID})
-			s.broadcast(map[string]any{
-				"type":    "goal_completed",
-				"goal_id": decision.CompleteGoalID,
-			})
-			s.notifyUser(fmt.Sprintf("🏁 Mål slutfört: *%d*", decision.CompleteGoalID))
+	if err == nil && resp != nil && len(resp.Content) > 0 {
+		if resp.Usage != nil {
+			s.trackCost(resp.Usage.TotalTokens)
 		}
-		return stepResultDone
+		parsed, parseErr := parseGoalResultResponse(resp.Content)
+		if parseErr == nil {
+			goalResult.Summary = parsed.Summary
+			goalResult.Artifacts = parsed.Artifacts
+			goalResult.NextSteps = parsed.NextSteps
+		} else {
+			goalResult.Summary = truncate(resp.Content, 1000)
+		}
+	} else {
+		goalResult.Summary = "Goal completed (summary generation failed)"
 	}
 
-	if decision.NoAction {
-		logger.DebugCF("autonomy", "Goal planner: no action needed", nil)
-		return stepResultDone
+	_ = gm.SetGoalResult(goal.ID, goalResult)
+
+	if _, err := gm.UpdateGoalStatus(goal.ID, GoalStatusCompleted); err != nil {
+		logger.WarnCF("autonomy", "Failed to mark goal completed", map[string]any{"goal_id": goal.ID, "error": err.Error()})
 	}
 
-	plan := decision.Plan
-
-	logger.InfoCF("autonomy", "Goal step planned", map[string]any{
-		"agent_id":  s.agentID,
-		"goal_id":   plan.GoalID,
-		"goal_name": plan.GoalName,
-		"step":      plan.Step,
-		"step_num":  stepNum + 1,
+	logger.InfoCF("autonomy", "Goal finalized", map[string]any{
+		"goal_id":   goal.ID,
+		"goal_name": goal.Name,
+		"summary":   truncate(goalResult.Summary, 200),
 	})
 
 	s.broadcast(map[string]any{
-		"type":      "goal_step_start",
+		"type":      "goal_completed",
 		"agent_id":  s.agentID,
-		"goal_id":   plan.GoalID,
-		"goal_name": plan.GoalName,
-		"step":      plan.Step,
+		"goal_id":   goal.ID,
+		"goal_name": goal.Name,
+		"summary":   goalResult.Summary,
 	})
 
-	s.notifyUser(fmt.Sprintf("🎯 *%s* (steg %d)\nArbetar på: %s", plan.GoalName, stepNum+1, plan.Step))
+	s.notifyUser(fmt.Sprintf("Goal completed: %s\n\n%s", goal.Name, truncate(goalResult.Summary, 300)))
+}
 
-	start := time.Now()
-	result, taskErr := s.executeGoalTask(ctx, plan)
+// goalFolderName returns a filesystem-safe folder name for a goal.
+func goalFolderName(goalID int64, goalName string) string {
+	slug := strings.ToLower(strings.TrimSpace(goalSlugRe.ReplaceAllString(goalName, "-")))
+	slug = strings.Trim(slug, "-")
+	if len(slug) > 50 {
+		slug = slug[:50]
+	}
+	if slug == "" {
+		slug = "goal"
+	}
+	return fmt.Sprintf("goal-%d-%s", goalID, slug)
+}
 
-	dur := time.Since(start).Milliseconds()
+// goalFolderPath returns the absolute path for a goal's working directory.
+func (s *Service) goalFolderPath(goalID int64, goalName string) string {
+	return filepath.Join(s.workspace, "goals", goalFolderName(goalID, goalName))
+}
 
-	if taskErr != nil {
-		logger.WarnCF("autonomy", "Goal step execution failed", map[string]any{
-			"goal_id":     plan.GoalID,
-			"goal_name":   plan.GoalName,
-			"step":        plan.Step,
-			"error":       taskErr.Error(),
-			"duration_ms": dur,
+// ensureGoalFolder creates the goal folder if it doesn't exist.
+func (s *Service) ensureGoalFolder(goalID int64, goalName string) string {
+	dir := s.goalFolderPath(goalID, goalName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		logger.WarnCF("autonomy", "Failed to create goal folder", map[string]any{
+			"path":  dir,
+			"error": err.Error(),
 		})
-
-		// Persist failed step to goal log.
-		if s.memDB != nil {
-			_ = s.memDB.InsertGoalLog(plan.GoalID, s.agentID, plan.Step, taskErr.Error(), false, dur)
-		}
-
-		s.broadcast(map[string]any{
-			"type":        "goal_step_end",
-			"agent_id":    s.agentID,
-			"goal_id":     plan.GoalID,
-			"goal_name":   plan.GoalName,
-			"success":     false,
-			"error":       taskErr.Error(),
-			"duration_ms": dur,
-		})
-		s.notifyUser(fmt.Sprintf("❌ *%s*\nMisslyckades: %s\n\nFel: %s",
-			plan.GoalName, plan.Step, truncate(taskErr.Error(), 200)))
-		return stepResultFailed
 	}
-
-	logger.InfoCF("autonomy", "Goal step completed", map[string]any{
-		"goal_id":     plan.GoalID,
-		"goal_name":   plan.GoalName,
-		"step":        plan.Step,
-		"duration_ms": dur,
-		"result_len":  len(result),
-	})
-
-	// Persist successful step to goal log.
-	if s.memDB != nil {
-		_ = s.memDB.InsertGoalLog(plan.GoalID, s.agentID, plan.Step, result, true, dur)
-		// Update the goal's result field with the latest step output.
-		_ = gm.UpdateGoalResult(plan.GoalID, truncate(result, 2000))
-	}
-
-	s.broadcast(map[string]any{
-		"type":        "goal_step_end",
-		"agent_id":    s.agentID,
-		"goal_id":     plan.GoalID,
-		"goal_name":   plan.GoalName,
-		"step":        plan.Step,
-		"success":     true,
-		"result":      truncate(result, 500),
-		"duration_ms": dur,
-	})
-
-	// Notify user via their active channel
-	s.notifyUser(fmt.Sprintf("✅ *%s* (steg %d)\nKlart: %s\n\nResultat: %s",
-		plan.GoalName, stepNum+1, plan.Step, truncate(result, 300)))
-
-	if s.push != nil {
-		_ = s.push.Send(
-			fmt.Sprintf("Sofia: Goal Progress — %s", plan.GoalName),
-			fmt.Sprintf("Completed step: %s", truncate(plan.Step, 100)),
-		)
-	}
-
-	return stepResultSuccess
+	return dir
 }
