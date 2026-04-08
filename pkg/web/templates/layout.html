@@ -2091,33 +2091,34 @@
                 }
 
                 // Populate Evolution settings
-                if (cfg.evolution) {
+                {
                     const el = (id) => document.getElementById(id);
-                    if (el('cfg-evolution-enabled')) el('cfg-evolution-enabled').checked = !!cfg.evolution.enabled;
-                    if (el('cfg-evolution-interval')) { el('cfg-evolution-interval').value = cfg.evolution.interval_minutes || 30; if (el('cfg-evolution-interval-val')) el('cfg-evolution-interval-val').textContent = cfg.evolution.interval_minutes || 30; }
-                    if (el('cfg-evolution-max-cost')) el('cfg-evolution-max-cost').value = cfg.evolution.max_cost_per_day || '';
-                    if (el('cfg-evolution-self-modify')) el('cfg-evolution-self-modify').checked = !!cfg.evolution.self_modify_enabled;
-                    if (el('cfg-evolution-max-agents')) el('cfg-evolution-max-agents').value = cfg.evolution.max_agents || '';
-                    if (el('cfg-evolution-retire-threshold')) el('cfg-evolution-retire-threshold').value = cfg.evolution.retirement_threshold || '';
-                    if (el('cfg-evolution-retire-min-tasks')) el('cfg-evolution-retire-min-tasks').value = cfg.evolution.retirement_min_tasks || '';
-                    if (el('cfg-evolution-retire-inactive')) el('cfg-evolution-retire-inactive').value = cfg.evolution.retirement_inactive_days || '';
-                    if (el('cfg-evolution-summary-enabled')) el('cfg-evolution-summary-enabled').checked = !!cfg.evolution.daily_summary;
-                    if (el('cfg-evolution-summary-time')) el('cfg-evolution-summary-time').value = cfg.evolution.daily_summary_time || '';
-                    if (el('cfg-evolution-summary-channel')) el('cfg-evolution-summary-channel').value = cfg.evolution.daily_summary_channel || '';
-                    if (el('cfg-evolution-summary-chatid')) el('cfg-evolution-summary-chatid').value = cfg.evolution.daily_summary_chat_id || '';
-                    if (el('cfg-evolution-memory-consolidation')) el('cfg-evolution-memory-consolidation').checked = !!cfg.evolution.memory_consolidation;
-                    if (el('cfg-evolution-consolidation-interval')) { el('cfg-evolution-consolidation-interval').value = cfg.evolution.consolidation_interval_h || 6; if (el('cfg-evolution-consolidation-interval-val')) el('cfg-evolution-consolidation-interval-val').textContent = cfg.evolution.consolidation_interval_h || 6; }
-                    if (el('cfg-evolution-skill-auto-improve')) el('cfg-evolution-skill-auto-improve').checked = !!cfg.evolution.skill_auto_improve;
+                    const evo = cfg.evolution || {};
+                    if (el('cfg-evolution-enabled')) el('cfg-evolution-enabled').checked = !!evo.enabled;
+                    if (el('cfg-evolution-interval')) { el('cfg-evolution-interval').value = evo.interval_minutes || 30; if (el('cfg-evolution-interval-val')) el('cfg-evolution-interval-val').textContent = evo.interval_minutes || 30; }
+                    if (el('cfg-evolution-max-cost')) el('cfg-evolution-max-cost').value = evo.max_cost_per_day || '';
+                    if (el('cfg-evolution-self-modify')) el('cfg-evolution-self-modify').checked = !!evo.self_modify_enabled;
+                    if (el('cfg-evolution-max-agents')) el('cfg-evolution-max-agents').value = evo.max_agents || '';
+                    if (el('cfg-evolution-retire-threshold')) el('cfg-evolution-retire-threshold').value = evo.retirement_threshold || '';
+                    if (el('cfg-evolution-retire-min-tasks')) el('cfg-evolution-retire-min-tasks').value = evo.retirement_min_tasks || '';
+                    if (el('cfg-evolution-retire-inactive')) el('cfg-evolution-retire-inactive').value = evo.retirement_inactive_days || '';
+                    if (el('cfg-evolution-summary-enabled')) el('cfg-evolution-summary-enabled').checked = !!evo.daily_summary;
+                    if (el('cfg-evolution-summary-time')) el('cfg-evolution-summary-time').value = evo.daily_summary_time || '';
+                    if (el('cfg-evolution-summary-channel')) el('cfg-evolution-summary-channel').value = evo.daily_summary_channel || '';
+                    if (el('cfg-evolution-summary-chatid')) el('cfg-evolution-summary-chatid').value = evo.daily_summary_chat_id || '';
+                    if (el('cfg-evolution-memory-consolidation')) el('cfg-evolution-memory-consolidation').checked = !!evo.memory_consolidation;
+                    if (el('cfg-evolution-consolidation-interval')) { el('cfg-evolution-consolidation-interval').value = evo.consolidation_interval_h || 6; if (el('cfg-evolution-consolidation-interval-val')) el('cfg-evolution-consolidation-interval-val').textContent = evo.consolidation_interval_h || 6; }
+                    if (el('cfg-evolution-skill-auto-improve')) el('cfg-evolution-skill-auto-improve').checked = !!evo.skill_auto_improve;
                     const evoModelEl = el('cfg-evolution-model');
                     if (evoModelEl) {
                         evoModelEl.innerHTML = '<option value="">Default (uses main agent model)</option>';
-                        (cfg.model_list || []).forEach(m => {
-                            const opt = document.createElement('option');
+                        for (const m of configuredModels) {
+                            const opt = document.createElement("option");
                             opt.value = m.model_name;
                             opt.textContent = m.model_name;
                             evoModelEl.appendChild(opt);
-                        });
-                        evoModelEl.value = cfg.evolution.model || "";
+                        }
+                        evoModelEl.value = evo.model || "";
                     }
                 }
 
