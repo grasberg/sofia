@@ -493,7 +493,11 @@ func TestBuildNewFileDiff(t *testing.T) {
 
 	diff := buildNewFileDiff(content, path)
 
-	assert.True(t, strings.HasPrefix(diff, "+++ (new file) "+path), "Expected diff to start with '+++ (new file) <path>'")
+	assert.True(
+		t,
+		strings.HasPrefix(diff, "+++ (new file) "+path),
+		"Expected diff to start with '+++ (new file) <path>'",
+	)
 	assert.Contains(t, diff, "+first line", "Expected '+first line' in new file diff")
 	assert.Contains(t, diff, "+second line", "Expected '+second line' in new file diff")
 	assert.Contains(t, diff, "+third line", "Expected '+third line' in new file diff")
@@ -510,7 +514,7 @@ func TestCapDiffLines(t *testing.T) {
 	// Build a diff with more than 100 lines
 	var sb strings.Builder
 	for i := range 150 {
-		sb.WriteString(fmt.Sprintf("+line%d\n", i))
+		fmt.Fprintf(&sb, "+line%d\n", i)
 	}
 	longDiff := sb.String()
 
@@ -521,6 +525,7 @@ func TestCapDiffLines(t *testing.T) {
 	// The trailer line is appended without a trailing newline, so Split gives diffMaxLines+1 elements.
 	assert.Equal(t, diffMaxLines+1, len(resultLines),
 		"Expected exactly %d lines + trailer after capping, got %d", diffMaxLines, len(resultLines))
+	assert.Contains(t, result, "... 50 more lines omitted", "Expected exact omitted count in capped diff")
 	assert.Contains(t, result, "more lines omitted", "Expected 'more lines omitted' trailer in capped diff")
 }
 

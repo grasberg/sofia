@@ -36,10 +36,11 @@ func buildNewFileDiff(content, path string) string {
 		return ""
 	}
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("+++ (new file) %s\n", path))
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
-		sb.WriteString("+" + line + "\n")
+	fmt.Fprintf(&sb, "+++ (new file) %s\n", path)
+	for _, line := range strings.SplitAfter(content, "\n") {
+		if line != "" {
+			sb.WriteString("+" + line)
+		}
 	}
 	return capDiffLines(sb.String())
 }
@@ -47,6 +48,10 @@ func buildNewFileDiff(content, path string) string {
 // capDiffLines truncates a diff string to diffMaxLines lines with a trailer if needed.
 func capDiffLines(diff string) string {
 	lines := strings.Split(diff, "\n")
+	// Strip trailing empty element produced by a terminal "\n"
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
 	if len(lines) <= diffMaxLines {
 		return diff
 	}
