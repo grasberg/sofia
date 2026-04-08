@@ -22,7 +22,7 @@ func (al *AgentLoop) maybeSummarize(agent *AgentInstance, sessionKey, channel, c
 
 	newHistory := agent.Sessions.GetHistory(sessionKey)
 	tokenEstimate := al.estimateTokens(newHistory)
-	threshold := agent.ContextWindow * 75 / 100
+	threshold := agent.ContextWindow * agent.Summarization.ContextTriggerPctOrDefault() / 100
 
 	if len(newHistory) > 20 || tokenEstimate > threshold {
 		summarizeKey := agent.ID + ":" + sessionKey
@@ -46,14 +46,14 @@ func (al *AgentLoop) forceCompression(agent *AgentInstance, sessionKey string) {
 		return
 	}
 
-	// Protected regions: head (first 2) and tail (last ~30%, min 4)
-	headSize := 2
+	// Protected regions: head (first N) and tail (last ~pct%, min minTail)
+	headSize := agent.Summarization.ProtectHeadOrDefault()
 	if headSize > len(history) {
 		headSize = 1
 	}
-	tailSize := len(history) * 30 / 100
-	if tailSize < 4 {
-		tailSize = 4
+	tailSize := len(history) * agent.Summarization.ProtectTailPctOrDefault() / 100
+	if tailSize < agent.Summarization.MinTailOrDefault() {
+		tailSize = agent.Summarization.MinTailOrDefault()
 	}
 	if headSize+tailSize >= len(history) {
 		// Nothing to compress
@@ -71,7 +71,7 @@ func (al *AgentLoop) forceCompression(agent *AgentInstance, sessionKey string) {
 	// Phase 1: Truncate tool results in the middle to placeholders
 	truncatedCount := 0
 	for i := range middle {
-		if middle[i].Role == "tool" && len(middle[i].Content) > 200 {
+		if middle[i].Role == "tool" && len(middle[i].Content) > agent.Summarization.ToolResultTruncateCharsOrDefault() {
 			middle[i].Content = fmt.Sprintf("[Tool result truncated — originally %d chars]",
 				utf8.RuneCountInString(middle[i].Content))
 			truncatedCount++
@@ -85,7 +85,7 @@ func (al *AgentLoop) forceCompression(agent *AgentInstance, sessionKey string) {
 	newHistory = append(newHistory, tail...)
 
 	tokenEstimate := al.estimateTokens(newHistory)
-	threshold := agent.ContextWindow * 90 / 100
+	threshold := agent.ContextWindow * agent.Summarization.ForceTriggerPctOrDefault() / 100
 
 	if tokenEstimate <= threshold {
 		// Tool result truncation was sufficient
@@ -260,15 +260,36 @@ func (al *AgentLoop) summarizeBatch(
 	existingSummary string,
 ) (string, error) {
 	var sb strings.Builder
-	sb.WriteString("Provide a concise summary of this conversation segment, preserving core context and key points.\n")
+	sb.WriteString(`Summarize this conversation segment into a structured, actionable summary.
+
+CRITICAL: You must preserve ALL of the following in your summary:
+1. **User Intent** — What the user asked for and why. Include the original goal.
+2. **Technical Details** — Exact file names, paths, function names, variable names, code snippets, commands run.
+3. **Errors & Fixes** — Every error encountered and how it was resolved (or not).
+4. **Problem-Solving Progress** — What approaches were tried, what worked, what didn't.
+5. **Pending Tasks** — Any work that was started but not completed. Be explicit.
+6. **Current State** — Where things stand right now. What files were modified, what's deployed, etc.
+7. **Next Steps** — What the user or agent planned to do next.
+8. **User Preferences** — Any stated preferences about style, approach, or tools.
+
+<analysis>
+Before writing the summary, identify:
+- The main goal(s) of this conversation
+- What concrete actions were taken (tool calls, file edits, commands)
+- What is still pending or unresolved
+- What context would be needed to continue this work seamlessly
+</analysis>
+
+Format the summary as structured sections. Be concise but NEVER omit technical specifics (file paths, error messages, code) that would be needed to continue the work.
+`)
 	if existingSummary != "" {
-		sb.WriteString("Existing context: ")
+		sb.WriteString("\nExisting context from earlier in the conversation:\n")
 		sb.WriteString(existingSummary)
 		sb.WriteString("\n")
 	}
-	sb.WriteString("\nCONVERSATION:\n")
+	sb.WriteString("\nCONVERSATION TO SUMMARIZE:\n")
 	for _, m := range batch {
-		fmt.Fprintf(&sb, "%s: %s\n", m.Role, m.Content)
+		fmt.Fprintf(&sb, "[%s]: %s\n", m.Role, m.Content)
 	}
 	prompt := sb.String()
 
@@ -309,12 +330,12 @@ func estimateCostUSD(usage *providers.UsageInfo, modelID string, cfg *config.Con
 	}
 
 	totalTokens := usage.PromptTokens + usage.CompletionTokens
-	
+
 	// Default rate: $0.01 per 1K tokens (varies greatly by model)
-	// This is a crude estimate - actual rates vary from $0.00015/1K (GPT-4o-mini) 
+	// This is a crude estimate - actual rates vary from $0.00015/1K (GPT-4o-mini)
 	// to $0.015/1K (Claude Opus) for input tokens
 	defaultRatePer1K := 0.01
-	
+
 	cost := (float64(totalTokens) / 1000.0) * defaultRatePer1K
 	return cost
 }

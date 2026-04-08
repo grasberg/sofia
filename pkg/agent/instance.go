@@ -39,6 +39,7 @@ type AgentInstance struct {
 	IsLocalModel   bool
 	PurposePrompt  string
 	Candidates     []providers.FallbackCandidate
+	Summarization  config.SummarizationConfig
 }
 
 // NewAgentInstance creates an agent instance from config.
@@ -76,6 +77,29 @@ func NewAgentInstance(
 	toolsRegistry.Register(tools.NewScreenshotTool(workspace))
 	toolsRegistry.Register(tools.NewDocGenTool(workspace))
 	toolsRegistry.Register(tools.NewSearchHistoryTool(memDB))
+
+	// Code navigation & search tools
+	toolsRegistry.Register(tools.NewGlobTool(workspace, restrict))
+	toolsRegistry.Register(tools.NewGrepTool(workspace, restrict))
+	toolsRegistry.Register(tools.NewGitTool(workspace))
+
+	// Session task tracking
+	toolsRegistry.Register(tools.NewTaskTool())
+
+	// Data processing tools
+	toolsRegistry.Register(tools.NewJqTool())
+	toolsRegistry.Register(tools.NewDNSTool())
+	toolsRegistry.Register(tools.NewDatabaseTool())
+	toolsRegistry.Register(tools.NewHTTPClientTool())
+	toolsRegistry.Register(tools.NewArchiveTool(workspace, restrict))
+
+	// CLI wrappers (only register if agent config enables them or as general tools)
+	toolsRegistry.Register(tools.NewDockerTool("", 0))
+	toolsRegistry.Register(tools.NewKubectlTool("", 0))
+	toolsRegistry.Register(tools.NewTerraformTool("", 0))
+	toolsRegistry.Register(tools.NewFFmpegTool("", 0))
+	toolsRegistry.Register(tools.NewPandocTool("", 0))
+	toolsRegistry.Register(tools.NewSemgrepTool("", 0))
 
 	if mcpManager != nil {
 		for _, srv := range mcpManager.GetServers() {
@@ -172,6 +196,30 @@ func NewAgentInstance(
 		isLocal = strings.Contains(mc.APIBase, "localhost") || strings.Contains(mc.APIBase, "127.0.0.1")
 	}
 
+	// Resolve summarization config: per-agent fields override defaults field-by-field.
+	summarization := defaults.Summarization
+	if agentCfg != nil {
+		ac := agentCfg.Summarization
+		if ac.ContextTriggerPct > 0 {
+			summarization.ContextTriggerPct = ac.ContextTriggerPct
+		}
+		if ac.ForceTriggerPct > 0 {
+			summarization.ForceTriggerPct = ac.ForceTriggerPct
+		}
+		if ac.ProtectHead > 0 {
+			summarization.ProtectHead = ac.ProtectHead
+		}
+		if ac.ProtectTailPct > 0 {
+			summarization.ProtectTailPct = ac.ProtectTailPct
+		}
+		if ac.MinTail > 0 {
+			summarization.MinTail = ac.MinTail
+		}
+		if ac.ToolResultTruncateChars > 0 {
+			summarization.ToolResultTruncateChars = ac.ToolResultTruncateChars
+		}
+	}
+
 	return &AgentInstance{
 		ID:   agentID,
 		Name: agentName,
@@ -198,6 +246,7 @@ func NewAgentInstance(
 		IsLocalModel:   isLocal,
 		PurposePrompt:  contextBuilder.purposeInstructions,
 		Candidates:     candidates,
+		Summarization:  summarization,
 	}
 }
 

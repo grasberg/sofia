@@ -52,17 +52,70 @@ type BudgetConfig struct {
 	Period     string  `json:"period"` // "daily", "weekly", or "monthly"
 }
 
+// SummarizationConfig controls when and how conversation history is compressed.
+type SummarizationConfig struct {
+	ContextTriggerPct       int `json:"context_trigger_pct,omitempty"`
+	ForceTriggerPct         int `json:"force_trigger_pct,omitempty"`
+	ProtectHead             int `json:"protect_head,omitempty"`
+	ProtectTailPct          int `json:"protect_tail_pct,omitempty"`
+	MinTail                 int `json:"min_tail,omitempty"`
+	ToolResultTruncateChars int `json:"tool_result_truncate_chars,omitempty"`
+}
+
+func (s SummarizationConfig) ContextTriggerPctOrDefault() int {
+	if s.ContextTriggerPct > 0 {
+		return s.ContextTriggerPct
+	}
+	return 75
+}
+
+func (s SummarizationConfig) ForceTriggerPctOrDefault() int {
+	if s.ForceTriggerPct > 0 {
+		return s.ForceTriggerPct
+	}
+	return 90
+}
+
+func (s SummarizationConfig) ProtectHeadOrDefault() int {
+	if s.ProtectHead > 0 {
+		return s.ProtectHead
+	}
+	return 2
+}
+
+func (s SummarizationConfig) ProtectTailPctOrDefault() int {
+	if s.ProtectTailPct > 0 {
+		return s.ProtectTailPct
+	}
+	return 30
+}
+
+func (s SummarizationConfig) MinTailOrDefault() int {
+	if s.MinTail > 0 {
+		return s.MinTail
+	}
+	return 4
+}
+
+func (s SummarizationConfig) ToolResultTruncateCharsOrDefault() int {
+	if s.ToolResultTruncateChars > 0 {
+		return s.ToolResultTruncateChars
+	}
+	return 200
+}
+
 type AgentConfig struct {
-	ID                 string            `json:"id"`
-	Default            bool              `json:"default,omitempty"`
-	Name               string            `json:"name,omitempty"`
-	Template           string            `json:"template,omitempty"`
-	TemplateSkillsMode string            `json:"template_skills_mode,omitempty"`
-	Workspace          string            `json:"workspace,omitempty"`
-	Model              *AgentModelConfig `json:"model,omitempty"`
-	Skills             []string          `json:"skills,omitempty"`
-	Subagents          *SubagentsConfig  `json:"subagents,omitempty"`
-	Budget             *BudgetConfig     `json:"budget,omitempty"`
+	ID                 string              `json:"id"`
+	Default            bool                `json:"default,omitempty"`
+	Name               string              `json:"name,omitempty"`
+	Template           string              `json:"template,omitempty"`
+	TemplateSkillsMode string              `json:"template_skills_mode,omitempty"`
+	Workspace          string              `json:"workspace,omitempty"`
+	Model              *AgentModelConfig   `json:"model,omitempty"`
+	Skills             []string            `json:"skills,omitempty"`
+	Subagents          *SubagentsConfig    `json:"subagents,omitempty"`
+	Budget             *BudgetConfig       `json:"budget,omitempty"`
+	Summarization      SummarizationConfig `json:"summarization,omitempty"`
 }
 
 type SubagentsConfig struct {
@@ -94,31 +147,32 @@ type SessionConfig struct {
 }
 
 type AgentDefaults struct {
-	Workspace           string                   `json:"workspace"                       env:"SOFIA_AGENTS_DEFAULTS_WORKSPACE"`
-	RestrictToWorkspace bool                     `json:"restrict_to_workspace"           env:"SOFIA_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE"`
-	CodeEditor          string                   `json:"code_editor,omitempty"           env:"SOFIA_AGENTS_DEFAULTS_CODE_EDITOR"`
-	Provider            string                   `json:"provider"                        env:"SOFIA_AGENTS_DEFAULTS_PROVIDER"`
-	ModelName           string                   `json:"model_name,omitempty"            env:"SOFIA_AGENTS_DEFAULTS_MODEL_NAME"`
-	Model               string                   `json:"model,omitempty"                 env:"SOFIA_AGENTS_DEFAULTS_MODEL"` // Deprecated: use model_name instead
-	ModelFallbacks      []string                 `json:"model_fallbacks,omitempty"`
-	ImageModel          string                   `json:"image_model,omitempty"           env:"SOFIA_AGENTS_DEFAULTS_IMAGE_MODEL"`
-	ImageModelFallbacks []string                 `json:"image_model_fallbacks,omitempty"`
-	MaxTokens           int                      `json:"max_tokens"                      env:"SOFIA_AGENTS_DEFAULTS_MAX_TOKENS"`
-	Temperature         *float64                 `json:"temperature,omitempty"           env:"SOFIA_AGENTS_DEFAULTS_TEMPERATURE"`
-	MaxToolIterations      int                      `json:"max_tool_iterations"             env:"SOFIA_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS"`
+	Workspace              string                   `json:"workspace"                          env:"SOFIA_AGENTS_DEFAULTS_WORKSPACE"`
+	RestrictToWorkspace    bool                     `json:"restrict_to_workspace"              env:"SOFIA_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE"`
+	CodeEditor             string                   `json:"code_editor,omitempty"              env:"SOFIA_AGENTS_DEFAULTS_CODE_EDITOR"`
+	Provider               string                   `json:"provider"                           env:"SOFIA_AGENTS_DEFAULTS_PROVIDER"`
+	ModelName              string                   `json:"model_name,omitempty"               env:"SOFIA_AGENTS_DEFAULTS_MODEL_NAME"`
+	Model                  string                   `json:"model,omitempty"                    env:"SOFIA_AGENTS_DEFAULTS_MODEL"` // Deprecated: use model_name instead
+	ModelFallbacks         []string                 `json:"model_fallbacks,omitempty"`
+	ImageModel             string                   `json:"image_model,omitempty"              env:"SOFIA_AGENTS_DEFAULTS_IMAGE_MODEL"`
+	ImageModelFallbacks    []string                 `json:"image_model_fallbacks,omitempty"`
+	MaxTokens              int                      `json:"max_tokens"                         env:"SOFIA_AGENTS_DEFAULTS_MAX_TOKENS"`
+	Temperature            *float64                 `json:"temperature,omitempty"              env:"SOFIA_AGENTS_DEFAULTS_TEMPERATURE"`
+	MaxToolIterations      int                      `json:"max_tool_iterations"                env:"SOFIA_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS"`
 	MaxConcurrentSubagents int                      `json:"max_concurrent_subagents,omitempty" env:"SOFIA_AGENTS_DEFAULTS_MAX_CONCURRENT_SUBAGENTS"`
-	AutoRollbackThreshold  int                      `json:"auto_rollback_threshold,omitempty" env:"SOFIA_AGENTS_DEFAULTS_AUTO_ROLLBACK_THRESHOLD"` // errors before rollback (default 3)
-	ReflectionInterval  int                      `json:"reflection_interval,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_REFLECTION_INTERVAL"`
-	LearnFromFeedback   bool                     `json:"learn_from_feedback,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_LEARN_FROM_FEEDBACK"`
-	ParallelToolCalls   bool                     `json:"parallel_tool_calls,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_PARALLEL_TOOL_CALLS"`
-	PostTaskReflection  bool                     `json:"post_task_reflection,omitempty"  env:"SOFIA_AGENTS_DEFAULTS_POST_TASK_REFLECTION"`
-	PerformanceScoring  bool                     `json:"performance_scoring,omitempty"   env:"SOFIA_AGENTS_DEFAULTS_PERFORMANCE_SCORING"`
-	EvaluationLoop      EvaluationLoopConfig     `json:"evaluation_loop,omitempty"`
-	DoomLoopDetection   DoomLoopConfig           `json:"doom_loop_detection,omitempty"`
-	AutoEscalation      AutoEscalationConfig     `json:"auto_escalation,omitempty"`
-	Personas            map[string]PersonaConfig `json:"personas,omitempty"`
-	Budget              *BudgetConfig            `json:"budget,omitempty"`
-	PromptOptimization  PromptOptimizationConfig `json:"prompt_optimization,omitempty"`
+	AutoRollbackThreshold  int                      `json:"auto_rollback_threshold,omitempty"  env:"SOFIA_AGENTS_DEFAULTS_AUTO_ROLLBACK_THRESHOLD"` // errors before rollback (default 3)
+	ReflectionInterval     int                      `json:"reflection_interval,omitempty"      env:"SOFIA_AGENTS_DEFAULTS_REFLECTION_INTERVAL"`
+	LearnFromFeedback      bool                     `json:"learn_from_feedback,omitempty"      env:"SOFIA_AGENTS_DEFAULTS_LEARN_FROM_FEEDBACK"`
+	ParallelToolCalls      bool                     `json:"parallel_tool_calls,omitempty"      env:"SOFIA_AGENTS_DEFAULTS_PARALLEL_TOOL_CALLS"`
+	PostTaskReflection     bool                     `json:"post_task_reflection,omitempty"     env:"SOFIA_AGENTS_DEFAULTS_POST_TASK_REFLECTION"`
+	PerformanceScoring     bool                     `json:"performance_scoring,omitempty"      env:"SOFIA_AGENTS_DEFAULTS_PERFORMANCE_SCORING"`
+	EvaluationLoop         EvaluationLoopConfig     `json:"evaluation_loop,omitempty"`
+	DoomLoopDetection      DoomLoopConfig           `json:"doom_loop_detection,omitempty"`
+	AutoEscalation         AutoEscalationConfig     `json:"auto_escalation,omitempty"`
+	Personas               map[string]PersonaConfig `json:"personas,omitempty"`
+	Budget                 *BudgetConfig            `json:"budget,omitempty"`
+	PromptOptimization     PromptOptimizationConfig `json:"prompt_optimization,omitempty"`
+	Summarization          SummarizationConfig      `json:"summarization,omitempty"`
 }
 
 // PromptOptimizationConfig configures automatic prompt refinement via A/B testing.
