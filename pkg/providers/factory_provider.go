@@ -46,7 +46,9 @@ func createQwenAuthProvider(requestTimeout int, opts ...openai_compat.Option) (L
 		return nil, fmt.Errorf("loading qwen auth credentials: %w", err)
 	}
 	if cred == nil {
-		return nil, fmt.Errorf("no credentials for qwen. Configure Qwen OAuth in Settings or import ~/.qwen/oauth_creds.json")
+		return nil, fmt.Errorf(
+			"no credentials for qwen. Configure Qwen OAuth in Settings or import ~/.qwen/oauth_creds.json",
+		)
 	}
 
 	apiBase := "https://portal.qwen.ai/v1"
@@ -114,6 +116,34 @@ func delayOpts(cfg *config.ModelConfig) []openai_compat.Option {
 	return nil
 }
 
+// collectAPIKeys returns the deduplicated list of API keys from a ModelConfig.
+// APIKey (single) and APIKeys (pool) are merged, preserving order.
+func collectAPIKeys(cfg *config.ModelConfig) []string {
+	seen := make(map[string]bool)
+	var keys []string
+	if cfg.APIKey != "" {
+		seen[cfg.APIKey] = true
+		keys = append(keys, cfg.APIKey)
+	}
+	for _, k := range cfg.APIKeys {
+		if k != "" && !seen[k] {
+			seen[k] = true
+			keys = append(keys, k)
+		}
+	}
+	return keys
+}
+
+// createSingleKeyProvider creates a provider from cfg, forcing the given API key.
+// Used by the key-rotation path to build one provider instance per key.
+func createSingleKeyProvider(cfg *config.ModelConfig, key string) (LLMProvider, error) {
+	single := *cfg
+	single.APIKey = key
+	single.APIKeys = nil // prevent recursive rotation
+	p, _, err := CreateProviderFromConfig(&single)
+	return p, err
+}
+
 func CreateProviderFromConfig(cfg *config.ModelConfig) (LLMProvider, string, error) {
 	if cfg == nil {
 		return nil, "", fmt.Errorf("config is nil")
@@ -124,6 +154,22 @@ func CreateProviderFromConfig(cfg *config.ModelConfig) (LLMProvider, string, err
 	}
 
 	protocol, modelID := ExtractProtocol(cfg.Model)
+
+	// Key rotation: when multiple API keys are configured, build one provider
+	// per key and wrap them in a KeyRotatingProvider.
+	if allKeys := collectAPIKeys(cfg); len(allKeys) > 1 {
+		kp := make([]keyedProvider, 0, len(allKeys))
+		for _, key := range allKeys {
+			p, err := createSingleKeyProvider(cfg, key)
+			if err != nil {
+				return nil, "", fmt.Errorf("key_pool: creating provider for key %s…: %w",
+					key[:min(8, len(key))], err)
+			}
+			kp = append(kp, keyedProvider{key: key, provider: p})
+		}
+		pool := NewKeyPool(allKeys, cfg.PoolStrategy)
+		return NewKeyRotatingProvider(pool, kp), modelID, nil
+	}
 
 	switch protocol {
 	case "openai":
@@ -269,7 +315,7 @@ func getDefaultAPIBase(protocol string) string {
 	case "ollama":
 		return "http://localhost:11434/v1"
 	case "moonshot":
-		return "https://api.moonshot.cn/v1"
+		return "https://api.moonshot.ai/v1"
 	case "deepseek":
 		return "https://api.deepseek.com/v1"
 	case "cerebras":
@@ -277,7 +323,7 @@ func getDefaultAPIBase(protocol string) string {
 	case "volcengine":
 		return "https://ark.cn-beijing.volces.com/api/v3"
 	case "qwen":
-		return "https://dashscope.aliyuncs.com/compatible-mode/v1"
+		return "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
 	case "mistral":
 		return "https://api.mistral.ai/v1"
 	case "grok":

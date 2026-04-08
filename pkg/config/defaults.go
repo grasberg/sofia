@@ -25,12 +25,12 @@ func DefaultConfig() *Config {
 	return &Config{
 		Agents: AgentsConfig{
 			Defaults: AgentDefaults{
-				Workspace:           "~/.sofia/workspace",
-				RestrictToWorkspace: true,
-				Provider:            "",
-				Model:               "",
-				MaxTokens:           32768,
-				Temperature:         nil, // nil means use provider default
+				Workspace:              "~/.sofia/workspace",
+				RestrictToWorkspace:    true,
+				Provider:               "",
+				Model:                  "",
+				MaxTokens:              32768,
+				Temperature:            nil, // nil means use provider default
 				MaxToolIterations:      50,
 				MaxConcurrentSubagents: 2,
 			},
@@ -62,7 +62,7 @@ func DefaultConfig() *Config {
 		Providers: ProvidersConfig{
 			OpenAI: OpenAIProviderConfig{WebSearch: true},
 		},
-		ModelList: []ModelConfig{},
+		ModelList: defaultModelList(),
 		Gateway: GatewayConfig{
 			Host: "127.0.0.1",
 			Port: 18790,
