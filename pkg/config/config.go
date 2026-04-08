@@ -108,9 +108,9 @@ type GuardrailsConfig struct {
 
 // CircuitBreakerConfig configures the circuit breaker for tool calls.
 type CircuitBreakerConfig struct {
-	Enabled            bool          `json:"enabled" env:"SOFIA_GUARDRAILS_CB_ENABLED"`
-	FailureThreshold   int           `json:"failure_threshold" env:"SOFIA_GUARDRAILS_CB_THRESHOLD"`
-	CooldownPeriod     time.Duration `json:"cooldown_period" env:"SOFIA_GUARDRAILS_CB_COOLDOWN"`
+	Enabled          bool          `json:"enabled"           env:"SOFIA_GUARDRAILS_CB_ENABLED"`
+	FailureThreshold int           `json:"failure_threshold" env:"SOFIA_GUARDRAILS_CB_THRESHOLD"`
+	CooldownPeriod   time.Duration `json:"cooldown_period"   env:"SOFIA_GUARDRAILS_CB_COOLDOWN"`
 }
 
 // ApprovalConfig defines which tool calls require human-in-the-loop approval.
@@ -120,6 +120,7 @@ type ApprovalConfig struct {
 	PatternMatch  []string `json:"pattern_match"`  // regex patterns on tool args
 	TimeoutSec    int      `json:"timeout_sec"`    // how long to wait (default 300)
 	DefaultAction string   `json:"default_action"` // "deny" or "allow" on timeout
+	GooseMode     string   `json:"goose_mode"`     // "auto", "approve", "smart_approve", "chat"
 }
 
 // PIIDetectionConfig configures automatic PII detection on inbound messages.
@@ -268,6 +269,11 @@ func LoadConfig(path string) (*Config, error) {
 	if len(cfg.ModelList) == 0 && cfg.HasProvidersConfig() {
 		cfg.ModelList = ConvertProvidersToModelList(cfg)
 	}
+
+	// Merge catalog: add any default catalog entries not already in the user's list.
+	// This ensures new models added to the built-in catalog in software updates are
+	// immediately available after restart, without overriding user customizations.
+	mergeCatalogEntries(cfg)
 
 	// Ensure the main/default agent is always present in agents.list.
 	// This handles existing configs written before the main agent was added to
