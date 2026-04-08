@@ -479,33 +479,51 @@ Sofia integrates directly with the Bitcoin blockchain, allowing for both public 
 
 | Tool | Description |
 |---|---|
-| `file_read` / `file_write` / `file_edit` | Read, write, and edit files |
-| `shell` | Run terminal commands |
-| `web_browse` | Autonomous web browsing via Playwright |
+| `a2a` | Agent-to-Agent communication (send, receive, and broadcast messages) |
+| `ab_test` / `analyze` | Run comparative A/B task testing framework and analyze results |
+| `bitcoin` | Local HD wallet management, UTXOs, and public blockchain queries |
+| `checkpoint` / `archive` | Agent state rollback checkpoints and workspace archiving |
 | `computer_use` | Control the computer's screen, mouse, and keyboard |
-| `image_analyze` | Analyze local images via vision-LLM |
-| `orchestrate` | Multi-agent orchestration with dependency graphs |
-| `spawn` / `subagent` | Launch asynchronous/synchronous sub-agents |
-| `a2a` | Agent-to-Agent communication (send/receive/broadcast) |
-| `plan` | Structured task planning |
-| `scratchpad` | Shared key-value store between agents |
-| `cron` | Create and manage scheduled jobs |
-| `message` | Send messages to chat channels |
-| `gogcli` | Google Gmail, Calendar, and Drive |
-| `knowledge_graph` | Knowledge graph — add, search, and delete facts and relations |
-| `manage_goals` | Create, update, and track long-term goals |
-| `manage_triggers` | Create context-aware triggers for conditional actions |
-| `create_skill` | Automatically create new skills from successful approaches |
-| `update_skill` | Refine existing skills based on feedback |
-| `distill_knowledge` | Distill experiences into reusable knowledge |
-| `self_modify` | Code/configuration self-modification with safety guardrails |
-| `notify_user` | Push notifications to the user's desktop |
-| `get_tool_stats` | Fetch performance data and success rates for tools |
-| `create_pipeline` | Create a new macro tool by chaining existing tools |
-| `mcp` | Connect to external MCP servers for dynamic tools |
-| `domain_name` | Manage domains via Porkbun (check, register, dns, nameservers) |
 | `cpanel` | Manage cPanel web hosting (files, domains, databases, SSL) |
-| `bitcoin` | Bitcoin integration: local HD wallet management, UTXOs, send transactions, and public queries |
+| `create_agent` | Dynamically create new specialized sub-agents on the fly |
+| `create_pipeline` | Compose a new reusable macro tool by chaining existing tools |
+| `create_skill` / `update_skill` | Automatically create or refine skills from successful approaches |
+| `cron` | Create and manage scheduled background jobs |
+| `database` | Direct interaction with local and remote SQL databases |
+| `distill_knowledge` | Compress and distill vast experiences into reusable knowledge |
+| `dns` / `domain_name` | DNS lookup and complete domain management (via Porkbun) |
+| `docker` / `docker_compose` | Manage local Docker environments, containers, and compose stacks |
+| `ffmpeg` | Process and manipulate local media and audio files directly |
+| `read_file` / `write_file` / `edit_file` / `list_dir` | Read, write, list files, and perform precision targeted line edits |
+| `get_tool_stats` | Fetch performance data, speed, and success rates for all tools |
+| `git` / `github_cli` | Complete workspace version control and cloud repository management |
+| `glob` / `grep` / `jq` | Advanced file searching, regex matching, and structured JSON parsing |
+| `gogcli` | Secure Google Services integrations (Gmail, Calendar, Drive) |
+| `http` / `web_fetch` | Make rich HTTP API requests or cleanly fetch raw web text/HTML |
+| `i2c` / `spi` | Interact directly with hardware bus peripherals and sensors |
+| `image_analyze` | Analyze local visual media (PNG, JPEG, GIF, WebP) via vision-LLM |
+| `knowledge_graph` | Semantic memory — add, search, and delete entity relations |
+| `kubectl` | Manage and observe external Kubernetes clusters and pods |
+| `manage_goals` | Create, update, track, and pursue persistent long-term goals |
+| `manage_triggers` | Create context-aware conversational listeners for conditional actions |
+| `mcp` / `mcp_tool` | Connect to Model Context Protocol servers to load dynamic tools |
+| `message` / `notify_user` | Push OS-level notifications or send direct messages to chat channels |
+| `orchestrate` | Multi-agent topological orchestration with complex dependency graphs |
+| `pandoc` / `template` | Document format conversion and dynamic prompt template rendering |
+| `plan` | Create, update, and hierarchically manage task execution plans |
+| `practice_past_failures`| Spawn sandbox agents to independently retry and resolve past failed tasks |
+| `recipe` | Discover and run pre-configured reusable agent workflows |
+| `scratchpad` | Shared memory key-value store for cross-agent data sharing |
+| `screenshot` | Capture the host machine's desktop view for visual analysis |
+| `search_history` | Semantic vector search through the entire previous chat history |
+| `security` / `semgrep`| Run static analysis, vulnerability validation, and egress inspection |
+| `self_modify` | Config and source-code self-modification with strict safety guardrails |
+| `exec` | Execute raw bash/zsh shell commands safely inside the workspace |
+| `spawn` / `subagent` | Launch asynchronous background or synchronous sub-agents |
+| `task` / `todo` | Context-aware checklist tracking and cross-session to-do execution |
+| `terraform` | Manage scalable infrastructure state and applies via Terraform |
+| `vercel` | Deploy and control serverless cloud web deployments via Vercel |
+| `web_browse` | Autonomously browse websites using Chromium Playwright integration |
 
 
 ---
