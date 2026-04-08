@@ -8,9 +8,11 @@ import (
 	"github.com/grasberg/sofia/pkg/config"
 )
 
-var getCredential = auth.GetCredential
-var setCredential = auth.SetCredential
-var refreshQwenToken = auth.RefreshQwenToken
+var (
+	getCredential    = auth.GetCredential
+	setCredential    = auth.SetCredential
+	refreshQwenToken = auth.RefreshQwenToken
+)
 
 type providerType int
 

@@ -10,15 +10,15 @@ import (
 type ToolErrorCode string
 
 const (
-	ErrTimeout         ToolErrorCode = "TIMEOUT"
+	ErrTimeout          ToolErrorCode = "TIMEOUT"
 	ErrPermissionDenied ToolErrorCode = "PERMISSION_DENIED"
-	ErrNotFound        ToolErrorCode = "NOT_FOUND"
-	ErrRateLimited     ToolErrorCode = "RATE_LIMITED"
-	ErrInvalidInput    ToolErrorCode = "INVALID_INPUT"
-	ErrNetworkError    ToolErrorCode = "NETWORK_ERROR"
-	ErrInternalError   ToolErrorCode = "INTERNAL_ERROR"
-	ErrNotImplemented  ToolErrorCode = "NOT_IMPLEMENTED"
-	ErrQuotaExceeded   ToolErrorCode = "QUOTA_EXCEEDED"
+	ErrNotFound         ToolErrorCode = "NOT_FOUND"
+	ErrRateLimited      ToolErrorCode = "RATE_LIMITED"
+	ErrInvalidInput     ToolErrorCode = "INVALID_INPUT"
+	ErrNetworkError     ToolErrorCode = "NETWORK_ERROR"
+	ErrInternalError    ToolErrorCode = "INTERNAL_ERROR"
+	ErrNotImplemented   ToolErrorCode = "NOT_IMPLEMENTED"
+	ErrQuotaExceeded    ToolErrorCode = "QUOTA_EXCEEDED"
 )
 
 // ToolResult represents the structured return value from tool execution.
@@ -251,7 +251,7 @@ func CodedError(message string, code ToolErrorCode) *ToolResult {
 		IsError:   true,
 		ErrorCode: code,
 	}
-	
+
 	// Auto-set Retryable based on error code
 	switch code {
 	case ErrTimeout, ErrRateLimited, ErrNetworkError:
@@ -270,7 +270,7 @@ func CodedError(message string, code ToolErrorCode) *ToolResult {
 		result.Retryable = true
 		result.RetryHint = "Quota exceeded. Retry after the quota resets or reduce the request size."
 	}
-	
+
 	return result
 }
 

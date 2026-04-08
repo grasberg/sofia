@@ -8,12 +8,12 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/grasberg/sofia/pkg/logger"
-
 	_ "modernc.org/sqlite" // pure-Go SQLite driver (CGO_ENABLED=0 compatible)
+
+	"github.com/grasberg/sofia/pkg/logger"
 )
 
-const schemaVersion = 14
+const schemaVersion = 15
 
 // Encryptor defines the interface for encrypting/decrypting stored values.
 // Implementations must be safe for concurrent use.
@@ -229,6 +229,7 @@ func (m *MemoryDB) migrate() error {
 		{12, nil, m.applyV12},
 		{13, m.applyV13tx, nil},
 		{14, m.applyV14tx, nil},
+		{15, m.applyV15tx, nil},
 	}
 
 	for _, mig := range migrations {
@@ -293,7 +294,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_notes_key ON memory_notes(agent_id,
 	_, err := tx.Exec(ddl)
 	return err
 }
-
 
 // ---------------------------------------------------------------------------
 // Session CRUD — see db_sessions.go

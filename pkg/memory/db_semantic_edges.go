@@ -38,7 +38,14 @@ func (m *MemoryDB) UpsertEdge(
 		   weight = excluded.weight,
 		   properties = excluded.properties,
 		   updated_at = excluded.updated_at`,
-		agentID, sourceID, targetID, relation, weight, properties, now, now,
+		agentID,
+		sourceID,
+		targetID,
+		relation,
+		weight,
+		properties,
+		now,
+		now,
 	)
 	if err != nil {
 		return fmt.Errorf("memory: upsert edge: %w", err)

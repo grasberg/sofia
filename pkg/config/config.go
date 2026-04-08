@@ -51,7 +51,7 @@ type Config struct {
 	Session      SessionConfig         `json:"session,omitempty"`
 	Channels     ChannelsConfig        `json:"channels"`
 	Providers    ProvidersConfig       `json:"providers,omitempty"`
-	ModelList    []ModelConfig         `json:"model_list"` // New model-centric provider configuration
+	ModelList    []ModelConfig         `json:"model_list,omitempty"` // Runtime cache — stored in DB, not in config.json
 	Gateway      GatewayConfig         `json:"gateway"`
 	Tools        ToolsConfig           `json:"tools"`
 	Triggers     TriggersConfig        `json:"triggers,omitempty"`
@@ -239,19 +239,12 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
-	// Pre-scan the JSON to check how many model_list entries the user provided.
-	// Go's JSON decoder reuses existing slice backing-array elements rather than
-	// zero-initializing them, so fields absent from the user's JSON (e.g. api_base)
-	// would silently inherit values from the DefaultConfig template at the same
-	// index position. We only reset cfg.ModelList when the user actually provides
-	// entries; when count is 0 we keep DefaultConfig's built-in list as fallback.
-	// The same logic applies to agents.list.
+	// Pre-scan agents.list: Go's JSON decoder reuses existing slice elements
+	// rather than zero-initialising them, so absent fields would silently
+	// inherit values from DefaultConfig. Reset only when user has entries.
 	var tmp Config
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return nil, err
-	}
-	if len(tmp.ModelList) > 0 {
-		cfg.ModelList = nil
 	}
 	if len(tmp.Agents.List) > 0 {
 		cfg.Agents.List = nil
@@ -265,27 +258,16 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
-	// Auto-migrate: if only legacy providers config exists, convert to model_list
+	// Auto-migrate: if only legacy providers config exists, convert to model_list.
+	// The resulting entries will be seeded into the DB on first startup.
 	if len(cfg.ModelList) == 0 && cfg.HasProvidersConfig() {
 		cfg.ModelList = ConvertProvidersToModelList(cfg)
 	}
 
-	// Merge catalog: add any default catalog entries not already in the user's list.
-	// This ensures new models added to the built-in catalog in software updates are
-	// immediately available after restart, without overriding user customizations.
-	mergeCatalogEntries(cfg)
-
 	// Ensure the main/default agent is always present in agents.list.
-	// This handles existing configs written before the main agent was added to
-	// DefaultConfig, so existing users get the correct behavior on upgrade.
 	ensureMainAgent(cfg)
 
-	// Validate model_list for uniqueness and required fields
-	if err := cfg.ValidateModelList(); err != nil {
-		return nil, err
-	}
-
-	// Validate overall config structure
+	// Validate overall config structure (model_list is validated after DB load).
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("config validation: %w", err)
 	}
@@ -294,7 +276,14 @@ func LoadConfig(path string) (*Config, error) {
 }
 
 func SaveConfig(path string, cfg *Config) error {
-	data, err := json.MarshalIndent(cfg, "", "  ")
+	// Make a shallow copy with ModelList cleared — the model catalog and API
+	// keys are stored in the SQLite database and must not be written to the
+	// config file. This keeps config.json minimal and avoids persisting keys
+	// in plaintext alongside other settings.
+	cfgToSave := *cfg
+	cfgToSave.ModelList = nil
+
+	data, err := json.MarshalIndent(&cfgToSave, "", "  ")
 	if err != nil {
 		return err
 	}

@@ -112,7 +112,11 @@ func (e *EvolutionEngine) diagnose(ctx context.Context, report ObservationReport
 				"limit": e.cfg.MaxCostPerDay,
 				"phase": "diagnose",
 			})
-			return Diagnosis{}, fmt.Errorf("daily budget exceeded during diagnosis: $%.2f/$%.2f", e.budgetSpent, e.cfg.MaxCostPerDay)
+			return Diagnosis{}, fmt.Errorf(
+				"daily budget exceeded during diagnosis: $%.2f/$%.2f",
+				e.budgetSpent,
+				e.cfg.MaxCostPerDay,
+			)
 		}
 	}
 

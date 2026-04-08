@@ -180,11 +180,11 @@ func (m *MemoryDB) SetMessages(key string, msgs []providers.Message) error {
 		// Build placeholders: (?, ?, ?, ...), (?, ?, ?, ...), ...
 		placeholders := make([]string, len(msgs))
 		values := make([]any, 0, len(msgs)*9)
-		
+
 		for i, msg := range msgs {
 			toolCallsJSON, _ := json.Marshal(msg.ToolCalls)
 			imagesJSON, _ := json.Marshal(msg.Images)
-			
+
 			placeholders[i] = "(?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))"
 			values = append(values,
 				key, i,
@@ -193,14 +193,14 @@ func (m *MemoryDB) SetMessages(key string, msgs []providers.Message) error {
 				string(imagesJSON), m.enc.Encrypt(msg.ReasoningContent),
 			)
 		}
-		
+
 		query := fmt.Sprintf(
 			`INSERT INTO messages
 			    (session_key, position, role, content, tool_calls, tool_call_id, tool_name, images, reasoning_content, created_at)
 			 VALUES %s`,
 			strings.Join(placeholders, ","),
 		)
-		
+
 		if _, err = tx.Exec(query, values...); err != nil {
 			return fmt.Errorf("memory: batch insert messages: %w", err)
 		}
@@ -382,7 +382,7 @@ func (m *MemoryDB) searchMessagesEncrypted(query string, limit int) ([]SearchMes
 	if maxRows > 10000 {
 		maxRows = 10000
 	}
-	
+
 	q := fmt.Sprintf(`SELECT m.session_key, m.role, m.content, m.created_at
 	      FROM messages m
 	      WHERE m.role IN ('user', 'assistant')

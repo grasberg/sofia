@@ -13,9 +13,9 @@ var validPipelineName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 // PipelineStep defines a single step in a composite tool pipeline.
 type PipelineStep struct {
-	Tool   string            `json:"tool"`   // Tool name to execute
-	Params map[string]string `json:"params,omitempty"` // Parameter mapping: {"arg": "{{input.field}}"}
-	Parallel bool            `json:"parallel,omitempty"` // If true, run in parallel with next step
+	Tool     string            `json:"tool"`               // Tool name to execute
+	Params   map[string]string `json:"params,omitempty"`   // Parameter mapping: {"arg": "{{input.field}}"}
+	Parallel bool              `json:"parallel,omitempty"` // If true, run in parallel with next step
 }
 
 // CompositeTool enables chaining existing tools together into reusable pipelines.
@@ -30,7 +30,7 @@ type CompositeTool struct {
 // For backwards compatibility, converts string steps to PipelineStep.
 func NewCompositeTool(name, description string, steps any, registry *ToolRegistry) *CompositeTool {
 	var pipelineSteps []PipelineStep
-	
+
 	switch v := steps.(type) {
 	case []string:
 		// Backwards compatibility: convert string array to PipelineStep array
@@ -41,7 +41,7 @@ func NewCompositeTool(name, description string, steps any, registry *ToolRegistr
 	case []PipelineStep:
 		pipelineSteps = v
 	}
-	
+
 	return &CompositeTool{
 		name:        name,
 		description: description,
@@ -107,7 +107,7 @@ func (c *CompositeTool) Execute(ctx context.Context, args map[string]any) *ToolR
 		// Prepare arguments for the sub-tool using parameter mapping
 		stepArgs := c.resolveStepParams(step.Params, initialInput, stepResults, stepOutputs, currentOutput)
 
-		result := c.registry.ExecuteWithContext(ctx, step.Tool, stepArgs, "", "", nil)
+		result := c.registry.ExecuteWithContext(ctx, step.Tool, stepArgs, "", "", "", nil)
 
 		stepKey := fmt.Sprintf("step%d", i+1)
 		stepResults[stepKey] = result
@@ -139,11 +139,11 @@ func (c *CompositeTool) Execute(ctx context.Context, args map[string]any) *ToolR
 			// Execute next step in parallel
 			nextStep := c.steps[i+1]
 			nextStepArgs := c.resolveStepParams(nextStep.Params, initialInput, stepResults, stepOutputs, currentOutput)
-			
+
 			// Use goroutine for parallel execution
 			resultChan := make(chan *ToolResult, 1)
 			go func() {
-				resultChan <- c.registry.ExecuteWithContext(ctx, nextStep.Tool, nextStepArgs, "", "", nil)
+				resultChan <- c.registry.ExecuteWithContext(ctx, nextStep.Tool, nextStepArgs, "", "", "", nil)
 			}()
 
 			// Wait for parallel step to complete
@@ -154,7 +154,9 @@ func (c *CompositeTool) Execute(ctx context.Context, args map[string]any) *ToolR
 			if result.IsError {
 				fmt.Fprintf(&sb, "\n[Step %d: %s (parallel)] ❌ FAILED\n", i+2, nextStep.Tool)
 				fmt.Fprintf(&sb, "Error: %v\n", result.Err)
-				return ErrorResult(sb.String()).WithError(fmt.Errorf("parallel pipeline step %s failed: %w", nextStep.Tool, result.Err))
+				return ErrorResult(
+					sb.String(),
+				).WithError(fmt.Errorf("parallel pipeline step %s failed: %w", nextStep.Tool, result.Err))
 			}
 
 			if result.ForLLM != "" {
@@ -226,7 +228,7 @@ func (c *CompositeTool) resolveTemplate(
 		inner := template[2 : len(template)-2]
 		parts := strings.SplitN(inner, ".", 2)
 		stepKey := parts[0]
-		
+
 		if result, ok := stepResults[stepKey]; ok {
 			if len(parts) == 2 && parts[1] == "ForLLM" {
 				return result.ForLLM
@@ -235,7 +237,7 @@ func (c *CompositeTool) resolveTemplate(
 				return result.ForLLM
 			}
 		}
-		
+
 		// Try stepOutputs
 		if output, ok := stepOutputs[stepKey]; ok {
 			return output
@@ -278,7 +280,7 @@ func (t *CreatePipelineTool) Parameters() map[string]any {
 				"description": "Description of what the pipeline does",
 			},
 			"steps": map[string]any{
-				"type": "array",
+				"type":        "array",
 				"description": "Ordered list of pipeline steps. Each step can be a string (tool name) or object with tool, params, and parallel fields.",
 				"items": map[string]any{
 					"oneOf": []map[string]any{
@@ -286,9 +288,15 @@ func (t *CreatePipelineTool) Parameters() map[string]any {
 						{
 							"type": "object",
 							"properties": map[string]any{
-								"tool":     map[string]any{"type": "string", "description": "Tool name to execute"},
-								"params":   map[string]any{"type": "object", "description": "Parameter mapping (optional)"},
-								"parallel": map[string]any{"type": "boolean", "description": "Run in parallel with next step (optional)"},
+								"tool": map[string]any{"type": "string", "description": "Tool name to execute"},
+								"params": map[string]any{
+									"type":        "object",
+									"description": "Parameter mapping (optional)",
+								},
+								"parallel": map[string]any{
+									"type":        "boolean",
+									"description": "Run in parallel with next step (optional)",
+								},
 							},
 							"required": []string{"tool"},
 						},
@@ -303,9 +311,11 @@ func (t *CreatePipelineTool) Parameters() map[string]any {
 func (t *CreatePipelineTool) Execute(ctx context.Context, args map[string]any) *ToolResult {
 	name, _ := args["name"].(string)
 	desc, _ := args["description"].(string)
-	
+
 	if !validPipelineName.MatchString(name) {
-		return ErrorResult("Invalid pipeline name. Must start with lowercase letter and contain only lowercase letters, numbers, and underscores.")
+		return ErrorResult(
+			"Invalid pipeline name. Must start with lowercase letter and contain only lowercase letters, numbers, and underscores.",
+		)
 	}
 
 	// Parse steps - can be array of strings or array of objects
@@ -326,9 +336,9 @@ func (t *CreatePipelineTool) Execute(ctx context.Context, args map[string]any) *
 			if toolName == "" {
 				return ErrorResult("Each step object must have a 'tool' field")
 			}
-			
+
 			step := PipelineStep{Tool: toolName}
-			
+
 			// Parse params if present
 			if paramsRaw, ok := v["params"].(map[string]any); ok {
 				step.Params = make(map[string]string)
@@ -338,12 +348,12 @@ func (t *CreatePipelineTool) Execute(ctx context.Context, args map[string]any) *
 					}
 				}
 			}
-			
+
 			// Parse parallel flag if present
 			if parallel, ok := v["parallel"].(bool); ok {
 				step.Parallel = parallel
 			}
-			
+
 			pipelineSteps = append(pipelineSteps, step)
 		default:
 			return ErrorResult(fmt.Sprintf("Invalid step format at index %d", len(pipelineSteps)))

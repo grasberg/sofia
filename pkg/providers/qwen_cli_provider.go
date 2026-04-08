@@ -166,14 +166,14 @@ type acpxEvent struct {
 }
 
 type acpxParams struct {
-	SessionID string       `json:"sessionId,omitempty"`
-	Update    *acpxUpdate  `json:"update,omitempty"`
+	SessionID string      `json:"sessionId,omitempty"`
+	Update    *acpxUpdate `json:"update,omitempty"`
 }
 
 type acpxUpdate struct {
-	SessionUpdate string        `json:"sessionUpdate"`
-	Content       *acpxContent  `json:"content,omitempty"`
-	Meta          *acpxMeta     `json:"_meta,omitempty"`
+	SessionUpdate string       `json:"sessionUpdate"`
+	Content       *acpxContent `json:"content,omitempty"`
+	Meta          *acpxMeta    `json:"_meta,omitempty"`
 }
 
 type acpxContent struct {

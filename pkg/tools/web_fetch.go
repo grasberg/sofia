@@ -24,7 +24,8 @@ var (
 type WebFetchTool struct {
 	maxChars     int
 	proxy        string
-	allowPrivate bool // for testing only — bypasses SSRF check
+	proxyFn      func() string // takes precedence over proxy when non-nil
+	allowPrivate bool          // for testing only — bypasses SSRF check
 }
 
 func NewWebFetchTool(maxChars int) *WebFetchTool {
@@ -43,6 +44,19 @@ func NewWebFetchToolWithProxy(maxChars int, proxy string) *WebFetchTool {
 	return &WebFetchTool{
 		maxChars: maxChars,
 		proxy:    proxy,
+	}
+}
+
+// NewWebFetchToolWithProxyFn creates a WebFetchTool whose proxy URL is resolved
+// dynamically on each request by calling fn. This allows runtime proxy switching
+// (e.g. toggling Tor on/off) without re-registering the tool.
+func NewWebFetchToolWithProxyFn(maxChars int, fn func() string) *WebFetchTool {
+	if maxChars <= 0 {
+		maxChars = 50000
+	}
+	return &WebFetchTool{
+		maxChars: maxChars,
+		proxyFn:  fn,
 	}
 }
 
@@ -112,7 +126,11 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 
 	req.Header.Set("User-Agent", userAgent)
 
-	client, err := createHTTPClient(t.proxy, 60*time.Second)
+	proxy := t.proxy
+	if t.proxyFn != nil {
+		proxy = t.proxyFn()
+	}
+	client, err := createHTTPClient(proxy, 60*time.Second)
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("failed to create HTTP client: %v", err))
 	}

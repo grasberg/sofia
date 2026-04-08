@@ -19,7 +19,7 @@ type SemanticMatcher struct {
 	cache    map[string][]float32
 	mu       sync.RWMutex
 	tracker  *ToolTracker // optional usage stats for ranking
-	
+
 	// Intent embedding cache to avoid redundant API calls
 	intentCache map[string][]float32 // key: intent hash → embedding
 }
@@ -57,7 +57,7 @@ func (sm *SemanticMatcher) MatchTools(
 	}
 
 	start := time.Now()
-	
+
 	// Check intent cache to avoid redundant API calls
 	intentHash := hashIntent(intent)
 	sm.mu.RLock()
@@ -160,21 +160,21 @@ func (sm *SemanticMatcher) MatchTools(
 		}
 
 		score := cosineSimilarity(intentEmbedding, toolEmbed)
-		
+
 		// Apply usage-based ranking boost
 		if sm.tracker != nil {
 			if stats, ok := sm.tracker.GetStat(t.Name()); ok {
 				// Boost for high success rate (0-0.3 boost)
 				successBoost := float32(stats.SuccessRate) * 0.3
-				
+
 				// Boost for low latency (0-0.2 boost)
 				avgLatencyMs := stats.AverageTime.Milliseconds()
 				latencyBoost := float32(max(0, 1000-int(avgLatencyMs))) / 1000.0 * 0.2
-				
+
 				score += score * (successBoost + latencyBoost)
 			}
 		}
-		
+
 		scores = append(scores, matchScore{tool: t, score: score})
 	}
 

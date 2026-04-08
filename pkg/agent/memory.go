@@ -130,14 +130,14 @@ func (ms *MemoryStore) GetRecentDailyNotes(days int) string {
 func (ms *MemoryStore) GetMemoryContext(maxTokens int) string {
 	longTerm := ms.ReadLongTerm()
 	recentNotes := ms.GetRecentDailyNotes(3)
-	
+
 	// Calculate tokens used so far
 	usedTokens := 0
 	if maxTokens > 0 {
 		usedTokens += estimateTokensFromString(longTerm)
 		usedTokens += estimateTokensFromString(recentNotes)
 	}
-	
+
 	// Knowledge graph with budget
 	graphContext := ""
 	if ms.semantic != nil {

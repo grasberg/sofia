@@ -81,14 +81,24 @@ func (m *MemoryDB) RestoreNode(nodeID int64) error {
 }
 
 // RecordProgress stores a tool execution progress entry for post-mortem analysis.
-func (m *MemoryDB) RecordProgress(agentID, sessionKey, toolName, status, message string, progress float64, elapsedMs int64) error {
+func (m *MemoryDB) RecordProgress(
+	agentID, sessionKey, toolName, status, message string,
+	progress float64,
+	elapsedMs int64,
+) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	_, err := m.db.Exec(
 		`INSERT INTO progress_history (agent_id, session_key, tool_name, status, message, progress, elapsed_ms, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-		agentID, sessionKey, toolName, status, message, progress, elapsedMs,
+		agentID,
+		sessionKey,
+		toolName,
+		status,
+		message,
+		progress,
+		elapsedMs,
 	)
 	if err != nil {
 		return fmt.Errorf("memory: record progress: %w", err)

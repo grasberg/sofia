@@ -16,6 +16,7 @@ import (
 	"github.com/grasberg/sofia/pkg/reputation"
 	"github.com/grasberg/sofia/pkg/skills"
 	"github.com/grasberg/sofia/pkg/tools"
+	"github.com/grasberg/sofia/pkg/tor"
 )
 
 type sharedToolRegistrar struct {
@@ -29,6 +30,7 @@ type sharedToolRegistrar struct {
 	memDB           *memory.MemoryDB
 	a2aRouter       *A2ARouter
 	toolTracker     *tools.ToolTracker
+	torSvc          *tor.Service
 }
 
 func registerSharedTools(
@@ -42,6 +44,7 @@ func registerSharedTools(
 	memDB *memory.MemoryDB,
 	a2aRouter *A2ARouter,
 	toolTracker *tools.ToolTracker,
+	torSvc *tor.Service,
 ) {
 	registrar := sharedToolRegistrar{
 		cfg:             cfg,
@@ -54,6 +57,7 @@ func registerSharedTools(
 		memDB:           memDB,
 		a2aRouter:       a2aRouter,
 		toolTracker:     toolTracker,
+		torSvc:          torSvc,
 	}
 
 	for _, agentID := range registry.ListAgentIDs() {
@@ -109,12 +113,12 @@ func (r sharedToolRegistrar) registerWebAndSystemTools(agent *AgentInstance) {
 		PerplexityAPIKey:     r.cfg.Tools.Web.Perplexity.APIKey,
 		PerplexityMaxResults: r.cfg.Tools.Web.Perplexity.MaxResults,
 		PerplexityEnabled:    r.cfg.Tools.Web.Perplexity.Enabled,
-		Proxy:                r.cfg.Tools.Web.Proxy,
+		ProxyFn:              r.torSvc.ProxyURL,
 	}); searchTool != nil {
 		agent.Tools.Register(searchTool)
 	}
 
-	agent.Tools.Register(tools.NewWebFetchToolWithProxy(50000, r.cfg.Tools.Web.Proxy))
+	agent.Tools.Register(tools.NewWebFetchToolWithProxyFn(50000, r.torSvc.ProxyURL))
 	agent.Tools.Register(tools.NewWebBrowseTool(tools.BrowseToolOptions{
 		Headless:       r.cfg.Tools.Web.Browser.Headless,
 		TimeoutSeconds: r.cfg.Tools.Web.Browser.TimeoutSeconds,

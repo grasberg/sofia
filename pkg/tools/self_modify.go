@@ -88,7 +88,9 @@ func (t *SelfModifyTool) Execute(ctx context.Context, args map[string]any) *Tool
 				"path":      absPath,
 				"workspace": t.workspace,
 			})
-			return ErrorResult(fmt.Sprintf("Guardrail blocked: path '%s' is outside workspace '%s'", absPath, t.workspace))
+			return ErrorResult(
+				fmt.Sprintf("Guardrail blocked: path '%s' is outside workspace '%s'", absPath, t.workspace),
+			)
 		}
 	}
 

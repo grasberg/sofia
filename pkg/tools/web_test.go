@@ -468,8 +468,8 @@ func TestNewWebSearchTool_PropagatesProxy(t *testing.T) {
 		if !ok {
 			t.Fatalf("provider type = %T, want *PerplexitySearchProvider", tool.provider)
 		}
-		if p.proxy != "http://127.0.0.1:7890" {
-			t.Fatalf("provider proxy = %q, want %q", p.proxy, "http://127.0.0.1:7890")
+		if got := p.proxyFn(); got != "http://127.0.0.1:7890" {
+			t.Fatalf("provider proxyFn() = %q, want %q", got, "http://127.0.0.1:7890")
 		}
 	})
 
@@ -484,8 +484,8 @@ func TestNewWebSearchTool_PropagatesProxy(t *testing.T) {
 		if !ok {
 			t.Fatalf("provider type = %T, want *BraveSearchProvider", tool.provider)
 		}
-		if p.proxy != "http://127.0.0.1:7890" {
-			t.Fatalf("provider proxy = %q, want %q", p.proxy, "http://127.0.0.1:7890")
+		if got := p.proxyFn(); got != "http://127.0.0.1:7890" {
+			t.Fatalf("provider proxyFn() = %q, want %q", got, "http://127.0.0.1:7890")
 		}
 	})
 
@@ -499,8 +499,8 @@ func TestNewWebSearchTool_PropagatesProxy(t *testing.T) {
 		if !ok {
 			t.Fatalf("provider type = %T, want *DuckDuckGoSearchProvider", tool.provider)
 		}
-		if p.proxy != "http://127.0.0.1:7890" {
-			t.Fatalf("provider proxy = %q, want %q", p.proxy, "http://127.0.0.1:7890")
+		if got := p.proxyFn(); got != "http://127.0.0.1:7890" {
+			t.Fatalf("provider proxyFn() = %q, want %q", got, "http://127.0.0.1:7890")
 		}
 	})
 }

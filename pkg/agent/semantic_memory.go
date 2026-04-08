@@ -158,7 +158,7 @@ func (sm *SemanticMemory) GetContextWithBudget(maxTokens int) string {
 
 	var sb strings.Builder
 	usedTokens := 0
-	
+
 	// Track topic diversity: max 3 nodes per label
 	labelCounts := make(map[string]int)
 	maxPerLabel := 3
@@ -208,7 +208,7 @@ func (sm *SemanticMemory) GetContextWithBudget(maxTokens int) string {
 		if maxTokens > 0 && estimateTokensFromString(sb.String()) > maxTokens {
 			break
 		}
-		
+
 		// Track label usage for diversity
 		labelCounts[n.Label]++
 	}

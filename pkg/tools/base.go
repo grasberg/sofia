@@ -1,6 +1,23 @@
 package tools
 
-import "context"
+import (
+	"context"
+)
+
+type ctxKey string
+
+const sessionKeyCtx ctxKey = "sessionKey"
+
+// WithSessionKey adds a session key to a context.
+func WithSessionKey(ctx context.Context, key string) context.Context {
+	return context.WithValue(ctx, sessionKeyCtx, key)
+}
+
+// SessionKeyFromContext extracts the session key from a context.
+func SessionKeyFromContext(ctx context.Context) string {
+	v, _ := ctx.Value(sessionKeyCtx).(string)
+	return v
+}
 
 // Tool is the interface that all tools must implement.
 type Tool interface {

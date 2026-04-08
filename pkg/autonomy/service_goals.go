@@ -295,7 +295,14 @@ Rules:
 
 			// Log to goal_log.
 			if s.memDB != nil {
-				_ = s.memDB.InsertGoalLog(capturedGoalID, capturedAgentID, stepDesc, truncate(resultText, 2000), success, 0)
+				_ = s.memDB.InsertGoalLog(
+					capturedGoalID,
+					capturedAgentID,
+					stepDesc,
+					truncate(resultText, 2000),
+					success,
+					0,
+				)
 			}
 
 			s.broadcast(map[string]any{
@@ -341,7 +348,14 @@ func (s *Service) finalizeGoal(ctx context.Context, gm *GoalManager, goal *Goal,
 		if step.Status == tools.PlanStatusFailed {
 			status = "failed"
 		}
-		fmt.Fprintf(&sb, "Step %d (%s): %s\nResult: %s\n\n", step.Index, status, step.Description, truncate(step.Result, 500))
+		fmt.Fprintf(
+			&sb,
+			"Step %d (%s): %s\nResult: %s\n\n",
+			step.Index,
+			status,
+			step.Description,
+			truncate(step.Result, 500),
+		)
 	}
 
 	if !s.checkBudget() {
@@ -351,7 +365,11 @@ func (s *Service) finalizeGoal(ctx context.Context, gm *GoalManager, goal *Goal,
 			CompletedAt: time.Now().UTC().Format(time.RFC3339),
 		})
 		if _, err := gm.UpdateGoalStatus(goal.ID, GoalStatusCompleted); err != nil {
-			logger.WarnCF("autonomy", "Failed to mark goal completed", map[string]any{"goal_id": goal.ID, "error": err.Error()})
+			logger.WarnCF(
+				"autonomy",
+				"Failed to mark goal completed",
+				map[string]any{"goal_id": goal.ID, "error": err.Error()},
+			)
 		}
 		return
 	}
@@ -398,7 +416,11 @@ Respond in this exact JSON format (no markdown, no code fences):
 	_ = gm.SetGoalResult(goal.ID, goalResult)
 
 	if _, err := gm.UpdateGoalStatus(goal.ID, GoalStatusCompleted); err != nil {
-		logger.WarnCF("autonomy", "Failed to mark goal completed", map[string]any{"goal_id": goal.ID, "error": err.Error()})
+		logger.WarnCF(
+			"autonomy",
+			"Failed to mark goal completed",
+			map[string]any{"goal_id": goal.ID, "error": err.Error()},
+		)
 	}
 
 	logger.InfoCF("autonomy", "Goal finalized", map[string]any{

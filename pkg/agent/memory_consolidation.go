@@ -23,7 +23,7 @@ type MemoryConsolidator struct {
 	db       *memory.MemoryDB
 	agentID  string
 	semantic *SemanticMemory
-	
+
 	// Event-driven consolidation tracking
 	newNodesSinceConsolidation atomic.Int64
 	lastConsolidationTime      time.Time
@@ -33,10 +33,10 @@ type MemoryConsolidator struct {
 // NewMemoryConsolidator creates a new consolidator.
 func NewMemoryConsolidator(db *memory.MemoryDB, agentID string) *MemoryConsolidator {
 	return &MemoryConsolidator{
-		db:                   db,
-		agentID:              agentID,
-		semantic:             NewSemanticMemory(db, agentID),
-		lastConsolidationTime: time.Now(),
+		db:                     db,
+		agentID:                agentID,
+		semantic:               NewSemanticMemory(db, agentID),
+		lastConsolidationTime:  time.Now(),
 		consolidationThreshold: 10, // Default: consolidate after 10 new nodes
 	}
 }
@@ -63,12 +63,12 @@ func (mc *MemoryConsolidator) ShouldTriggerConsolidation() (bool, string) {
 	if mc.newNodesSinceConsolidation.Load() >= mc.consolidationThreshold {
 		return true, "new_nodes"
 	}
-	
+
 	// Time-based fallback: consolidate if it's been more than 24 hours
 	if time.Since(mc.lastConsolidationTime) > 24*time.Hour {
 		return true, "schedule"
 	}
-	
+
 	return false, ""
 }
 

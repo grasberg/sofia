@@ -170,6 +170,16 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		// memDB is nil, subsystems will check for nil and disable gracefully
 	}
 
+	// Seed the models table from the catalog and migrate any existing
+	// model_list entries from config. After this, cfg.ModelList is populated
+	// from the DB and config.json no longer needs to store model_list.
+	if memDB != nil {
+		if initErr := memDB.InitModels(cfg); initErr != nil {
+			logger.WarnCF("agent", "Failed to initialise models DB — using in-memory list",
+				map[string]any{"error": initErr.Error()})
+		}
+	}
+
 	registry := NewAgentRegistry(cfg, provider, memDB)
 
 	// Set up shared fallback chain

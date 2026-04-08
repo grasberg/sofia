@@ -23,7 +23,9 @@ func (m *MemoryDB) GetStaleNodes(agentID string, maxAge time.Duration, minAccess
 		   AND access_count < ?
 		   AND (last_accessed IS NULL OR last_accessed < ?)
 		 ORDER BY access_count ASC, last_accessed ASC`,
-		agentID, minAccessCount, cutoff,
+		agentID,
+		minAccessCount,
+		cutoff,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("memory: get stale nodes: %w", err)

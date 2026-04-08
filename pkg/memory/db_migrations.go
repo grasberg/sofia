@@ -289,3 +289,35 @@ CREATE INDEX IF NOT EXISTS idx_goal_log_goal ON goal_log(goal_id, created_at);
 	_, err := tx.Exec(ddl)
 	return err
 }
+
+func (m *MemoryDB) applyV15tx(tx *sql.Tx) error {
+	const ddl = `
+CREATE TABLE IF NOT EXISTS models (
+    model_name        TEXT PRIMARY KEY,
+    model             TEXT    NOT NULL DEFAULT '',
+    api_base          TEXT    NOT NULL DEFAULT '',
+    api_key           TEXT    NOT NULL DEFAULT '',
+    api_keys          TEXT    NOT NULL DEFAULT '[]',
+    pool_strategy     TEXT    NOT NULL DEFAULT '',
+    proxy             TEXT    NOT NULL DEFAULT '',
+    auth_method       TEXT    NOT NULL DEFAULT '',
+    connect_mode      TEXT    NOT NULL DEFAULT '',
+    workspace         TEXT    NOT NULL DEFAULT '',
+    rpm               INTEGER NOT NULL DEFAULT 0,
+    max_tokens        INTEGER NOT NULL DEFAULT 0,
+    max_tokens_field  TEXT    NOT NULL DEFAULT '',
+    request_timeout   INTEGER NOT NULL DEFAULT 0,
+    request_delay     INTEGER NOT NULL DEFAULT 0,
+    context_window    INTEGER NOT NULL DEFAULT 0,
+    cost_per_1k_input  REAL   NOT NULL DEFAULT 0,
+    cost_per_1k_output REAL   NOT NULL DEFAULT 0,
+    capabilities      TEXT    NOT NULL DEFAULT '[]',
+    is_catalog        INTEGER NOT NULL DEFAULT 0,
+    created_at        DATETIME NOT NULL DEFAULT (datetime('now')),
+    updated_at        DATETIME NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_models_catalog ON models(is_catalog);
+`
+	_, err := tx.Exec(ddl)
+	return err
+}

@@ -200,14 +200,14 @@ func (d *DoomLoopDetector) noProgress() bool {
 func hashToolCall(name string, args map[string]any) uint64 {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(name))
-	
+
 	// Sort keys to ensure deterministic hashing
 	keys := make([]string, 0, len(args))
 	for k := range args {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	
+
 	for _, k := range keys {
 		_, _ = h.Write([]byte(k))
 		_, _ = fmt.Fprint(h, args[k])

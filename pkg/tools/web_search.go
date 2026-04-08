@@ -103,8 +103,8 @@ func formatWebSearchResults(query, provider string, results []searchResult, coun
 }
 
 type BraveSearchProvider struct {
-	apiKey string
-	proxy  string
+	apiKey  string
+	proxyFn func() string
 }
 
 func (p *BraveSearchProvider) Search(ctx context.Context, query string, count int) (string, error) {
@@ -119,7 +119,7 @@ func (p *BraveSearchProvider) Search(ctx context.Context, query string, count in
 			"X-Subscription-Token": p.apiKey,
 		},
 		timeout: 10 * time.Second,
-		proxy:   p.proxy,
+		proxy:   p.proxyFn(),
 	})
 	if err != nil {
 		return "", err
@@ -156,7 +156,7 @@ func (p *BraveSearchProvider) Search(ctx context.Context, query string, count in
 type TavilySearchProvider struct {
 	apiKey  string
 	baseURL string
-	proxy   string
+	proxyFn func() string
 }
 
 func (p *TavilySearchProvider) Search(ctx context.Context, query string, count int) (string, error) {
@@ -189,7 +189,7 @@ func (p *TavilySearchProvider) Search(ctx context.Context, query string, count i
 			"User-Agent":   userAgent,
 		},
 		timeout: 10 * time.Second,
-		proxy:   p.proxy,
+		proxy:   p.proxyFn(),
 	})
 	if err != nil {
 		return "", err
@@ -224,7 +224,7 @@ func (p *TavilySearchProvider) Search(ctx context.Context, query string, count i
 }
 
 type DuckDuckGoSearchProvider struct {
-	proxy string
+	proxyFn func() string
 }
 
 func (p *DuckDuckGoSearchProvider) Search(ctx context.Context, query string, count int) (string, error) {
@@ -237,7 +237,7 @@ func (p *DuckDuckGoSearchProvider) Search(ctx context.Context, query string, cou
 			"User-Agent": userAgent,
 		},
 		timeout: 10 * time.Second,
-		proxy:   p.proxy,
+		proxy:   p.proxyFn(),
 	})
 	if err != nil {
 		return "", err
@@ -309,8 +309,8 @@ func stripTags(content string) string {
 }
 
 type PerplexitySearchProvider struct {
-	apiKey string
-	proxy  string
+	apiKey  string
+	proxyFn func() string
 }
 
 func (p *PerplexitySearchProvider) Search(ctx context.Context, query string, count int) (string, error) {
@@ -346,7 +346,7 @@ func (p *PerplexitySearchProvider) Search(ctx context.Context, query string, cou
 			"User-Agent":    userAgent,
 		},
 		timeout: 30 * time.Second,
-		proxy:   p.proxy,
+		proxy:   p.proxyFn(),
 	})
 	if err != nil {
 		return "", err
@@ -393,21 +393,29 @@ type WebSearchToolOptions struct {
 	PerplexityAPIKey     string
 	PerplexityMaxResults int
 	PerplexityEnabled    bool
-	Proxy                string
+	Proxy                string        // static proxy URL
+	ProxyFn              func() string // dynamic proxy, takes precedence over Proxy when non-nil
 }
 
 func NewWebSearchTool(opts WebSearchToolOptions) *WebSearchTool {
 	var provider SearchProvider
 	maxResults := 5
 
+	// Resolve proxy function: dynamic ProxyFn takes precedence over static Proxy.
+	proxyFn := opts.ProxyFn
+	if proxyFn == nil {
+		static := opts.Proxy
+		proxyFn = func() string { return static }
+	}
+
 	// Priority: Perplexity > Brave > Tavily > DuckDuckGo
 	if opts.PerplexityEnabled && opts.PerplexityAPIKey != "" {
-		provider = &PerplexitySearchProvider{apiKey: opts.PerplexityAPIKey, proxy: opts.Proxy}
+		provider = &PerplexitySearchProvider{apiKey: opts.PerplexityAPIKey, proxyFn: proxyFn}
 		if opts.PerplexityMaxResults > 0 {
 			maxResults = opts.PerplexityMaxResults
 		}
 	} else if opts.BraveEnabled && opts.BraveAPIKey != "" {
-		provider = &BraveSearchProvider{apiKey: opts.BraveAPIKey, proxy: opts.Proxy}
+		provider = &BraveSearchProvider{apiKey: opts.BraveAPIKey, proxyFn: proxyFn}
 		if opts.BraveMaxResults > 0 {
 			maxResults = opts.BraveMaxResults
 		}
@@ -415,13 +423,13 @@ func NewWebSearchTool(opts WebSearchToolOptions) *WebSearchTool {
 		provider = &TavilySearchProvider{
 			apiKey:  opts.TavilyAPIKey,
 			baseURL: opts.TavilyBaseURL,
-			proxy:   opts.Proxy,
+			proxyFn: proxyFn,
 		}
 		if opts.TavilyMaxResults > 0 {
 			maxResults = opts.TavilyMaxResults
 		}
 	} else if opts.DuckDuckGoEnabled {
-		provider = &DuckDuckGoSearchProvider{proxy: opts.Proxy}
+		provider = &DuckDuckGoSearchProvider{proxyFn: proxyFn}
 		if opts.DuckDuckGoMaxResults > 0 {
 			maxResults = opts.DuckDuckGoMaxResults
 		}

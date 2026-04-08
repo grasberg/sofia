@@ -71,7 +71,7 @@ type CostBenefit struct {
 type Plan struct {
 	ID              string       `json:"id"`
 	Goal            string       `json:"goal"`
-	GoalID          int64        `json:"goal_id,omitempty"`           // Links to autonomy Goal
+	GoalID          int64        `json:"goal_id,omitempty"` // Links to autonomy Goal
 	Steps           []PlanStep   `json:"steps"`
 	Status          PlanStatus   `json:"status"`
 	ParentPlanID    string       `json:"parent_plan_id,omitempty"`    // For hierarchical plans

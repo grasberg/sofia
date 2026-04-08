@@ -29,7 +29,9 @@ func (m *MemoryDB) QueryGraph(agentID, query string, limit int) ([]GraphResult, 
 	labelNodes, err := m.db.Query(
 		`SELECT id, agent_id, label, name, properties, access_count, last_accessed, quality_score, created_at, updated_at
 		 FROM semantic_nodes WHERE agent_id = ? AND label LIKE ? ORDER BY access_count DESC LIMIT ?`,
-		agentID, pattern, limit,
+		agentID,
+		pattern,
+		limit,
 	)
 	if err == nil {
 		defer labelNodes.Close()
@@ -97,4 +99,3 @@ func (m *MemoryDB) QueryGraph(agentID, query string, limit int) ([]GraphResult, 
 	}
 	return results, nil
 }
-

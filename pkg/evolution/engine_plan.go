@@ -56,7 +56,11 @@ func (e *EvolutionEngine) plan(ctx context.Context, diagnosis Diagnosis) ([]Evol
 				"limit": e.cfg.MaxCostPerDay,
 				"phase": "plan",
 			})
-			return nil, fmt.Errorf("daily budget exceeded during planning: $%.2f/$%.2f", e.budgetSpent, e.cfg.MaxCostPerDay)
+			return nil, fmt.Errorf(
+				"daily budget exceeded during planning: $%.2f/$%.2f",
+				e.budgetSpent,
+				e.cfg.MaxCostPerDay,
+			)
 		}
 	}
 

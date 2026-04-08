@@ -91,9 +91,11 @@ type ModelConfig struct {
 	Model     string `json:"model"`      // Protocol/model-identifier (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4.6")
 
 	// HTTP-based providers
-	APIBase string `json:"api_base,omitempty"` // API endpoint URL
-	APIKey  string `json:"api_key"`            // API authentication key
-	Proxy   string `json:"proxy,omitempty"`    // HTTP proxy URL
+	APIBase      string   `json:"api_base,omitempty"`      // API endpoint URL
+	APIKey       string   `json:"api_key"`                 // Primary API authentication key
+	APIKeys      []string `json:"api_keys,omitempty"`      // Additional API keys for rotation (key pool)
+	PoolStrategy string   `json:"pool_strategy,omitempty"` // Key selection strategy: fill_first (default), round_robin, random, least_used
+	Proxy        string   `json:"proxy,omitempty"`         // HTTP proxy URL
 
 	// Special providers (CLI-based, OAuth, etc.)
 	AuthMethod  string `json:"auth_method,omitempty"`  // Authentication method: oauth, token
@@ -106,6 +108,12 @@ type ModelConfig struct {
 	MaxTokensField string `json:"max_tokens_field,omitempty"` // Field name for max tokens (e.g., "max_completion_tokens")
 	RequestTimeout int    `json:"request_timeout,omitempty"`
 	RequestDelay   int    `json:"request_delay,omitempty"` // Delay in seconds before each request (rate-limit friendly)
+
+	// Model metadata (declarative provider hints)
+	ContextWindow   int      `json:"context_window,omitempty"`     // Model's context window size in tokens
+	CostPer1KInput  float64  `json:"cost_per_1k_input,omitempty"`  // Cost per 1K input tokens in USD
+	CostPer1KOutput float64  `json:"cost_per_1k_output,omitempty"` // Cost per 1K output tokens in USD
+	Capabilities    []string `json:"capabilities,omitempty"`       // e.g., ["vision", "function_calling", "streaming"]
 }
 
 // Validate checks if the ModelConfig has all required fields.

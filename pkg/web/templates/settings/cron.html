@@ -10,6 +10,9 @@
                     <button onclick="fetchCronJobs()" class="px-3 py-1.5 rounded-lg text-[10px] font-bold border border-[var(--border-color)] text-zinc-400 hover:text-[var(--text-main)] hover:border-zinc-600 transition flex items-center gap-1">
                         <i data-lucide="refresh-cw" class="w-3 h-3"></i> Refresh
                     </button>
+                    <button id="cron-remove-all-btn" onclick="removeAllCronJobs()" class="hidden px-3 py-1.5 rounded-lg text-[10px] font-bold border border-error/30 text-error hover:bg-error/10 transition flex items-center gap-1">
+                        <i data-lucide="trash-2" class="w-3 h-3"></i> Remove All
+                    </button>
                     <button onclick="toggleCronForm()" class="px-3 py-1.5 rounded-lg text-[10px] font-bold border border-sofia/30 text-sofia hover:bg-sofia/10 transition flex items-center gap-1">
                         <i data-lucide="plus" class="w-3 h-3"></i> Add Job
                     </button>
@@ -78,11 +81,14 @@
         const empty = document.getElementById('cron-jobs-empty');
         list.querySelectorAll('.cron-job-row').forEach(function(el) { el.remove(); });
 
+        var removeAllBtn = document.getElementById('cron-remove-all-btn');
         if (!jobs || jobs.length === 0) {
             if (empty) empty.style.display = '';
+            if (removeAllBtn) removeAllBtn.classList.add('hidden');
             return;
         }
         if (empty) empty.style.display = 'none';
+        if (removeAllBtn) removeAllBtn.classList.remove('hidden');
 
         jobs.forEach(function(job) {
             const row = document.createElement('div');
@@ -160,6 +166,21 @@
             });
         } catch (e) {
             console.error('Failed to toggle cron job:', e);
+        }
+    }
+
+    async function removeAllCronJobs() {
+        if (!confirm('Remove all cron jobs? This cannot be undone.')) return;
+        try {
+            const res = await fetch('/api/cron');
+            if (!res.ok) return;
+            const jobs = await res.json();
+            for (const job of (jobs || [])) {
+                await fetch('/api/cron?name=' + encodeURIComponent(job.name), { method: 'DELETE' });
+            }
+            fetchCronJobs();
+        } catch (e) {
+            alert('Failed to remove cron jobs');
         }
     }
 

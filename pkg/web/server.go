@@ -259,6 +259,8 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("GET /api/plan", api(s.handlePlan))
 	mux.HandleFunc("GET /api/plans", api(s.handlePlans))
 	mux.HandleFunc("GET /api/backup", api(s.handleBackupExport))
+	mux.HandleFunc("GET /api/tor/status", api(s.handleTorStatus))
+	mux.HandleFunc("POST /api/tor/toggle", api(s.handleTorToggle))
 	mux.HandleFunc("GET /api/evolution/status", api(s.handleEvolutionStatus))
 	mux.HandleFunc("GET /api/evolution/changelog", api(s.handleEvolutionChangelog))
 	mux.HandleFunc("GET /api/eval/runs", api(s.handleEvalRuns))

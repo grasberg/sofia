@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/logger"
 )
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -86,12 +87,30 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Sync model list to DB if present in the incoming config.
+		// Models are stored in the database, not in config.json.
+		if len(newCfg.ModelList) > 0 {
+			if memDB := s.agentLoop.GetMemoryDB(); memDB != nil {
+				catalogNames := make(map[string]bool)
+				for _, m := range config.DefaultModelList() {
+					catalogNames[m.ModelName] = true
+				}
+				if err := memDB.SyncModels(newCfg.ModelList, catalogNames); err != nil {
+					logger.WarnCF("web", "Failed to sync models to DB", map[string]any{"error": err.Error()})
+				}
+				// Reload from DB to pick up any catalog entries the user didn't send.
+				if err := memDB.LoadModelsIntoConfig(&newCfg); err != nil {
+					logger.WarnCF("web", "Failed to reload models from DB", map[string]any{"error": err.Error()})
+				}
+			}
+		}
+
 		// Update internal config
 		s.mu.Lock()
 		*s.cfg = newCfg
 		s.mu.Unlock()
 
-		// Save to file (assuming default path for now)
+		// Save to file (model_list is excluded — stored in DB).
 		home, _ := os.UserHomeDir()
 		configPath := os.Getenv("SOFIA_CONFIG")
 		if configPath == "" {

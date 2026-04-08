@@ -87,4 +87,3 @@ func (al *AgentLoop) ProcessHeartbeat(ctx context.Context, content, channel, cha
 		ModelOverride:   al.cfg.Heartbeat.Model, // Use dedicated heartbeat model if configured
 	})
 }
-

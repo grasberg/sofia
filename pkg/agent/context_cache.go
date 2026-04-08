@@ -239,4 +239,3 @@ func skillFilesModifiedSince(skillsDir string, t time.Time) bool {
 	}
 	return changed
 }
-

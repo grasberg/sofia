@@ -11,6 +11,60 @@
 		</div>
 		<div class="space-y-4">
 
+			<!-- Tor Anonymity Network -->
+			<div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
+				<div class="flex items-center justify-between mb-4">
+					<div class="flex items-center gap-3">
+						<div class="w-9 h-9 rounded-xl bg-purple-500/10 flex items-center justify-center">
+							<i data-lucide="shield" class="w-5 h-5 text-purple-400"></i>
+						</div>
+						<div>
+							<h3 class="text-sm font-bold text-[var(--text-main)]">Tor Anonymity Network</h3>
+							<p class="text-[10px] text-zinc-500">Route all agent web requests through Tor for anonymous browsing</p>
+						</div>
+					</div>
+					<label class="relative inline-flex items-center cursor-pointer">
+						<input type="checkbox" id="tor-toggle-checkbox" class="sr-only peer" onchange="toggleTor()">
+						<div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-purple-500 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+					</label>
+				</div>
+
+				<p id="tor-status-text" class="text-[11px] text-zinc-500 mb-4">Inactive</p>
+
+				<div class="p-3 rounded-xl bg-[var(--bg-main)] border border-[var(--border-color)] mb-4">
+					<p class="text-[11px] text-zinc-400 leading-relaxed">
+						When enabled, Sofia starts the <code class="px-1 py-0.5 rounded bg-zinc-800 text-purple-400 text-[10px]">tor</code> daemon and routes
+						all <strong>web_search</strong>, <strong>web_fetch</strong>, and <strong>http_client</strong> requests through the Tor SOCKS5 proxy
+						at <code class="px-1 py-0.5 rounded bg-zinc-800 text-purple-400 text-[10px]">127.0.0.1:9050</code>.
+						LLM provider API calls are not affected. Tor state resets when Sofia restarts.
+					</p>
+				</div>
+
+				<div class="p-3 rounded-xl bg-[var(--bg-main)] border border-[var(--border-color)]">
+					<h4 class="text-[10px] uppercase tracking-widest text-zinc-500 mb-2 font-bold">Installation</h4>
+					<p class="text-[11px] text-zinc-400 mb-2">Tor must be installed and available on your <code class="px-1 py-0.5 rounded bg-zinc-800 text-purple-400 text-[10px]">PATH</code> before enabling.</p>
+					<div class="space-y-2">
+						<div>
+							<p class="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">macOS</p>
+							<code class="block px-3 py-2 rounded-lg bg-zinc-900 text-purple-300 text-[11px] font-mono">brew install tor</code>
+						</div>
+						<div>
+							<p class="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Debian / Ubuntu</p>
+							<code class="block px-3 py-2 rounded-lg bg-zinc-900 text-purple-300 text-[11px] font-mono">sudo apt install tor</code>
+						</div>
+						<div>
+							<p class="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Arch Linux</p>
+							<code class="block px-3 py-2 rounded-lg bg-zinc-900 text-purple-300 text-[11px] font-mono">sudo pacman -S tor</code>
+						</div>
+						<div>
+							<p class="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Fedora / RHEL</p>
+							<code class="block px-3 py-2 rounded-lg bg-zinc-900 text-purple-300 text-[11px] font-mono">sudo dnf install tor</code>
+						</div>
+					</div>
+					<p class="text-[10px] text-zinc-600 mt-3">Sofia manages the Tor process automatically — you do not need to run <code class="px-1 py-0.5 rounded bg-zinc-800 text-[10px]">tor</code> yourself. Just install it and toggle above.</p>
+				</div>
+			</div>
+
 			<!-- Code Editor CLI -->
 			<div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-all duration-300">
 				<div class="flex items-center gap-3 mb-4">
@@ -422,3 +476,7 @@
 		</div>
 	</div>
 </div>
+
+<script>
+loadTorStatus();
+</script>

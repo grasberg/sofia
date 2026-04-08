@@ -35,7 +35,7 @@ type Provider struct {
 	apiBase        string
 	maxTokensField string // Field name for max tokens (e.g., "max_completion_tokens" for o1/glm models)
 	httpClient     *http.Client
-	requestDelay   time.Duration    // delay before each request (rate-limit friendly)
+	requestDelay   time.Duration          // delay before each request (rate-limit friendly)
 	tokenSource    func() (string, error) // optional: refresh token before each request
 }
 

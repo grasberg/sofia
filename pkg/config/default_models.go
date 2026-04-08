@@ -1,26 +1,10 @@
 package config
 
-// mergeCatalogEntries appends built-in catalog entries that aren't already
-// present in cfg.ModelList (matched by ModelName). User entries always win —
-// nothing is removed or overwritten. Called from LoadConfig so that new
-// catalog entries added in software updates become available on next restart.
-func mergeCatalogEntries(cfg *Config) {
-	catalog := defaultModelList()
-	existing := make(map[string]bool, len(cfg.ModelList))
-	for _, m := range cfg.ModelList {
-		existing[m.ModelName] = true
-	}
-	for _, m := range catalog {
-		if !existing[m.ModelName] {
-			cfg.ModelList = append(cfg.ModelList, m)
-		}
-	}
-}
-
-// defaultModelList returns the curated catalog of direct API provider models,
-// sourced from NousResearch/hermes-agent provider definitions (v0.8.0).
-// API keys are intentionally empty — users fill them in via config or env vars.
-func defaultModelList() []ModelConfig {
+// DefaultModelList returns the curated catalog of direct API provider models.
+// API keys are intentionally empty — users fill them in via the settings UI.
+// The returned slice is used to seed the models DB table on first run and
+// to add newly-introduced catalog entries on subsequent starts.
+func DefaultModelList() []ModelConfig {
 	return []ModelConfig{
 		// ── Anthropic ────────────────────────────────────────────────────────
 		{ModelName: "claude-opus-4-6",            Model: "anthropic/claude-opus-4-6"},

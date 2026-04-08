@@ -109,3 +109,34 @@ func (s *Server) SetAuditLogger(al *audit.AuditLogger) {
 func (s *Server) SetCronService(cs *cron.CronService) {
 	s.cronService = cs
 }
+
+// handleTorStatus returns the current Tor service state as JSON.
+func (s *Server) handleTorStatus(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"enabled": s.agentLoop.TorService().IsEnabled()})
+}
+
+// handleTorToggle starts or stops the Tor service based on its current state.
+func (s *Server) handleTorToggle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	svc := s.agentLoop.TorService()
+	w.Header().Set("Content-Type", "application/json")
+
+	if svc.IsEnabled() {
+		if err := svc.Stop(); err != nil {
+			json.NewEncoder(w).Encode(map[string]any{"enabled": false, "error": err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]bool{"enabled": false})
+	} else {
+		if err := svc.Start(); err != nil {
+			json.NewEncoder(w).Encode(map[string]any{"enabled": false, "error": err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]bool{"enabled": true})
+	}
+}

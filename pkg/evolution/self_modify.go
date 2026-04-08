@@ -71,22 +71,22 @@ func (sm *SafeModifier) IsImmutable(path string) bool {
 		} else {
 			// Pattern is a directory path - check various matching strategies
 			normalizedPattern := filepath.ToSlash(pattern)
-			
+
 			// For patterns like "pkg/", we need to check:
 			// 1. If user provided absolute path like "/some/path/evolution/foo.go", check if it contains "/evolution/"
 			// 2. If user provided relative path like "pkg/agent/loop.go", check if it starts with "pkg/"
 			// IMPORTANT: Only check "contains" on user's original path to avoid false positives from
 			// absolute paths that happen to contain the pattern (e.g., running tests from /path/to/pkg/evolution/)
-			
+
 			if strings.HasSuffix(normalizedPattern, "/") {
 				dirName := strings.TrimSuffix(normalizedPattern, "/")
-				
+
 				// Check if path starts with the pattern (relative path matching)
 				normalizedPath := filepath.ToSlash(path)
 				if strings.HasPrefix(normalizedPath, normalizedPattern) {
 					return true
 				}
-				
+
 				// Check if absolute path starts with the pattern (for absolute user paths like "/pkg/...")
 				if absErr == nil {
 					normalizedAbs := filepath.ToSlash(absPath)
@@ -94,7 +94,7 @@ func (sm *SafeModifier) IsImmutable(path string) bool {
 						return true
 					}
 				}
-				
+
 				// Check if original path contains the pattern as a directory component
 				// This handles cases like "/some/path/evolution/foo.go" matching "evolution/"
 				if strings.Contains(normalizedPath, "/"+dirName+"/") || strings.HasSuffix(normalizedPath, "/"+dirName) {

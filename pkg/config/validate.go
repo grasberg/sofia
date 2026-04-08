@@ -126,7 +126,10 @@ func (c *Config) validateAgents() error {
 	}
 
 	if defaults.MaxConcurrentSubagents < 0 {
-		return fmt.Errorf("defaults.max_concurrent_subagents must be non-negative, got %d", defaults.MaxConcurrentSubagents)
+		return fmt.Errorf(
+			"defaults.max_concurrent_subagents must be non-negative, got %d",
+			defaults.MaxConcurrentSubagents,
+		)
 	}
 
 	if defaults.Temperature != nil {

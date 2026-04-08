@@ -42,8 +42,8 @@ type ContextBuilder struct {
 
 	// Frozen memory snapshot: captured once per session to preserve prompt cache.
 	// Mid-session memory writes update the database but don't invalidate the cached prompt.
-	frozenMemory     string
-	frozenMemoryOnce sync.Once
+	frozenMemory        string
+	frozenMemoryOnce    sync.Once
 	frozenMemoryVersion int64 // tracks memory version for auto-refresh
 }
 
@@ -239,7 +239,7 @@ When delegating to subagents, tell them which skills to use: "Read workspace/ski
 	// Mid-session memory writes go to disk but don't change the system prompt.
 	// Auto-refreshes if memory version has changed significantly.
 	currentVersion := cb.memory.GetVersion()
-	if cb.frozenMemoryVersion == 0 || currentVersion - cb.frozenMemoryVersion > 5 {
+	if cb.frozenMemoryVersion == 0 || currentVersion-cb.frozenMemoryVersion > 5 {
 		// First call or memory has changed significantly (5+ updates)
 		cb.frozenMemoryOnce = sync.Once{}
 		cb.frozenMemoryOnce.Do(func() {

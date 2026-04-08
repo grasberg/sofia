@@ -141,7 +141,11 @@ func NewExecToolWithConfig(workingDir string, restrict bool, cfg *config.Config)
 			}
 		} else {
 			// Caution patterns are disabled, but destructive patterns are always enforced above.
-			logger.WarnCF("exec", "Caution deny patterns are disabled. Critical destructive patterns remain enforced.", nil)
+			logger.WarnCF(
+				"exec",
+				"Caution deny patterns are disabled. Critical destructive patterns remain enforced.",
+				nil,
+			)
 		}
 	} else {
 		denyPatterns = append(denyPatterns, cautionDenyPatterns...)
@@ -509,4 +513,3 @@ func (t *ExecTool) SetAllowPatterns(patterns []string) error {
 	}
 	return nil
 }
-

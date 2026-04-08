@@ -293,4 +293,3 @@ func injectBatchIDs(commandArgs, ids []string) ([]string, error) {
 	merged = append(merged, commandArgs[injectAt:]...)
 	return merged, nil
 }
-
