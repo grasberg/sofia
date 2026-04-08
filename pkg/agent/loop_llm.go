@@ -295,16 +295,7 @@ func (al *AgentLoop) runLLMIteration(
 		// -------------------
 
 		// Build LLM call options, injecting thinking level if set
-		effectiveMaxTokens := agent.MaxTokens
-		// Apply built-in Anthropic output caps when using a Claude model.
-		// This prevents requests from exceeding the model's per-response limit.
-		// The cap only applies when the user hasn't set an explicit per-model
-		// max_tokens override (handled in instance.go), so we use it as a ceiling.
-		if strings.HasPrefix(strings.ToLower(agent.ModelID), "claude-") {
-			if cap := config.AnthropicOutputCap(agent.ModelID); cap > 0 && effectiveMaxTokens > cap {
-				effectiveMaxTokens = cap
-			}
-		}
+		effectiveMaxTokens := anthropicOutputCap(agent.MaxTokens, agent.ModelID)
 		llmOpts := map[string]any{
 			"max_tokens":       effectiveMaxTokens,
 			"temperature":      callTemp,
@@ -1063,12 +1054,7 @@ func (al *AgentLoop) runLLMIteration(
 			Content: "[SYSTEM] Respond to the user directly with plain text. Do NOT call any tools.",
 		})
 
-		wrapMaxTokens := agent.MaxTokens
-		if strings.HasPrefix(strings.ToLower(agent.ModelID), "claude-") {
-			if cap := config.AnthropicOutputCap(agent.ModelID); cap > 0 && wrapMaxTokens > cap {
-				wrapMaxTokens = cap
-			}
-		}
+		wrapMaxTokens := anthropicOutputCap(agent.MaxTokens, agent.ModelID)
 		wrapResp, wrapErr := agent.Provider.Chat(ctx, messages, nil, agent.ModelID, map[string]any{
 			"max_tokens":  wrapMaxTokens,
 			"temperature": 0.7,
@@ -1089,4 +1075,16 @@ func (al *AgentLoop) runLLMIteration(
 	}
 
 	return finalContent, iteration, errorCount, nil
+}
+
+// anthropicOutputCap returns the effective max_tokens to use for a model,
+// clamping agentMaxTokens to the model's known output limit if lower.
+func anthropicOutputCap(agentMaxTokens int, modelID string) int {
+	mt := agentMaxTokens
+	if strings.HasPrefix(strings.ToLower(modelID), "claude-") {
+		if capVal := config.AnthropicOutputCap(modelID); capVal > 0 && mt > capVal {
+			mt = capVal
+		}
+	}
+	return mt
 }

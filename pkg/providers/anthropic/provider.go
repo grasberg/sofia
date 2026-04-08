@@ -3,6 +3,7 @@ package anthropicprovider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -87,9 +88,9 @@ func (p *Provider) Chat(
 
 	resp, err := p.client.Messages.New(ctx, params, opts...)
 	if err != nil {
-		// If this is a 429 long-context-tier error, retry with a reduced context cap.
+		// If this is a 429 long-context-tier error, retry with standard service tier.
 		if isLongContextTierError(err) {
-			params.MaxTokens = 200 * 1024 // reduce to 200K context window cap
+			params.ServiceTier = anthropic.MessageNewParamsServiceTierStandardOnly
 			resp, err = p.client.Messages.New(ctx, params, opts...)
 		}
 		if err != nil {
@@ -103,11 +104,11 @@ func (p *Provider) Chat(
 // isLongContextTierError reports whether an error is a 429 long-context-tier
 // rate-limit error from the Anthropic API.
 func isLongContextTierError(err error) bool {
-	if err == nil {
-		return false
+	var apierr *anthropic.Error
+	if errors.As(err, &apierr) {
+		return apierr.StatusCode == 429 && strings.Contains(apierr.Error(), "long-context-tier")
 	}
-	s := err.Error()
-	return strings.Contains(s, "long-context-tier") && strings.Contains(s, "429")
+	return false
 }
 
 func (p *Provider) GetDefaultModel() string {

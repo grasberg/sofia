@@ -586,7 +586,7 @@ func (al *AgentLoop) executeToolWithTracking(
 
 	toolStart := time.Now()
 	toolResult := agent.Tools.ExecuteWithContext(
-		ctx, tc.Name, tc.Arguments, opts.Channel, opts.ChatID, asyncCallback,
+		ctx, tc.Name, tc.Arguments, opts.Channel, opts.ChatID, opts.SessionKey, asyncCallback,
 	)
 	toolDur := time.Since(toolStart).Milliseconds()
 
@@ -674,10 +674,10 @@ func (al *AgentLoop) executeToolWithTracking(
 	al.storeToolResultCache(tc.Name, tc.Arguments, toolResult)
 
 	return toolCallResult{
-		index: -1, // will be set by caller
-		tc:    tc,
-		result: toolResult,
-		durMs:  toolDur,
+		index:     -1, // will be set by caller
+		tc:        tc,
+		result:    toolResult,
+		durMs:     toolDur,
 		resultMsg: buildToolResultMessage(tc, toolResult),
 	}
 }
@@ -784,36 +784,6 @@ func (al *AgentLoop) handleConfirmationWait(ctx context.Context, agentComp strin
 	case <-ctx.Done():
 		return ""
 	}
-}
-
-// forceFinalWrapup makes a last LLM call without tools if no text response was generated.
-func (al *AgentLoop) forceFinalWrapup(
-	ctx context.Context,
-	agent *AgentInstance,
-	messages []providers.Message,
-	agentComp string,
-	iteration int,
-) string {
-	if iteration > 0 {
-		logger.InfoCF(agentComp, "No text response after LLM loop — forcing wrap-up call without tools",
-			map[string]any{"agent_id": agent.ID, "iterations": iteration})
-	}
-
-	messages = append(messages, providers.Message{
-		Role:    "user",
-		Content: "[SYSTEM] Respond to the user directly with plain text. Do NOT call any tools.",
-	})
-
-	wrapResp, wrapErr := agent.Provider.Chat(ctx, messages, nil, agent.ModelID, map[string]any{
-		"max_tokens":  agent.MaxTokens,
-		"temperature": 0.7,
-	})
-	if wrapErr == nil && wrapResp != nil && wrapResp.Content != "" {
-		logger.InfoCF(agentComp, "Wrap-up response received",
-			map[string]any{"agent_id": agent.ID, "content_len": len(wrapResp.Content)})
-		return wrapResp.Content
-	}
-	return ""
 }
 
 // applyVerboseReasoning prepends reasoning content to final response in verbose mode.
