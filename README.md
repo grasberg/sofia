@@ -325,15 +325,17 @@ When pursuing goals independently:
 
 ## 🎨 Web UI
 
-Sofia's web interface is built with **HTMX** and **Go Templates**, featuring a unique brutalist design theme with CRT effects:
+Sofia's web interface is built with **HTMX**, **Go Templates**, and **TailwindCSS**, featuring a sleek, responsive dark mode design with ambient glow effects:
 
-*   **Chat:** Real-time conversation with streaming, markdown rendering, and file uploads (including image uploads for vision models).
-*   **Chat History:** Search, browse, and resume previous conversations with full session management.
-*   **Memory Explorer:** Interactive, graphical exploration of Sofia's semantic memory and knowledge nodes.
-*   **Goals Kanban:** An integrated Kanban board to track system goals with drag-and-drop.
-*   **Agents & Pixel Agents:** Visual live overview and performance management of all your agents and the entirely new "Pixel Agents".
-*   **Monitor:** Real-time monitoring of agent activity, tool calls, system status, and ongoing goals (Activity Monitor).
-*   **System (Settings Hub):** A comprehensive settings section to manage every aspect of Sofia's behavior, guardrails, and integrations:
+*   **Terminal:** Real-time conversation interface with Markdown rendering, streaming, and vision-model image uploads.
+*   **Goals:** An integrated Kanban board for managing and tracking long-term autonomous system objectives.
+*   **Activity & Completed:** Live view of the agent's current background execution traces, plus an archive of successfully finished tasks.
+*   **Agents:** Visual live overview and performance management of all your specialized sub-agents.
+*   **History:** Search, browse, and resume previous conversational sessions.
+*   **Memory:** Interactive, graphical exploration of Sofia's semantic knowledge nodes.
+*   **Calendar & Files:** Built-in views to interact with your Google Calendar and the internal workspace file system.
+*   **Monitor & Eval:** Real-time metrics for activity, tool calls, database stats, and an agent benchmarking test harness.
+*   **Settings Hub:** A comprehensive configuration suite to manage every aspect of Sofia's behavior, guardrails, and integrations:
 
     | Configuration | Description |
     | :--- | :--- |
