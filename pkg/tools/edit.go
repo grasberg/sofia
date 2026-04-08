@@ -5,8 +5,55 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path/filepath"
 	"strings"
+
+	"github.com/pmezard/go-difflib/difflib"
 )
+
+const diffMaxLines = 100
+
+// buildUnifiedDiff returns a unified diff string for original→modified content,
+// capped at diffMaxLines total lines. Returns "" if there is no diff.
+func buildUnifiedDiff(original, modified, path string) string {
+	diff, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+		A:        difflib.SplitLines(original),
+		B:        difflib.SplitLines(modified),
+		FromFile: "a/" + path,
+		ToFile:   "b/" + path,
+		Context:  3,
+	})
+	if err != nil || diff == "" {
+		return ""
+	}
+	return capDiffLines(diff)
+}
+
+// buildNewFileDiff returns a simple all-additions diff representation for a new file,
+// capped at diffMaxLines total lines.
+func buildNewFileDiff(content, path string) string {
+	if content == "" {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("+++ (new file) %s\n", path))
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		sb.WriteString("+" + line + "\n")
+	}
+	return capDiffLines(sb.String())
+}
+
+// capDiffLines truncates a diff string to diffMaxLines lines with a trailer if needed.
+func capDiffLines(diff string) string {
+	lines := strings.Split(diff, "\n")
+	if len(lines) <= diffMaxLines {
+		return diff
+	}
+	omitted := len(lines) - diffMaxLines
+	truncated := strings.Join(lines[:diffMaxLines], "\n")
+	return truncated + fmt.Sprintf("\n... %d more lines omitted", omitted)
+}
 
 // EditFileTool edits a file by replacing old_text with new_text.
 // The old_text must exist exactly in the file.
@@ -71,11 +118,19 @@ func (t *EditFileTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 		return ErrorResult("new_text is required")
 	}
 
+	// If running under a goal, redirect relative paths into the goal folder.
+	if gf := goalFolderForSession(ctx, workspaceFromFS(t.fs)); gf != "" && !filepath.IsAbs(path) {
+		path = filepath.Join(gf, path)
+	}
+
 	if t.stalenessTracker != nil {
 		if warning := t.stalenessTracker.CheckBeforeWrite(path); warning != "" {
 			return NewToolResult(warning)
 		}
 	}
+
+	// Read original content for diff generation (best-effort; failures fall back to bare result).
+	originalBytes, readErr := t.fs.ReadFile(path)
 
 	if err := editFile(t.fs, path, oldText, newText); err != nil {
 		return ErrorResult(err.Error())
@@ -85,7 +140,16 @@ func (t *EditFileTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 		t.stalenessTracker.UpdateAfterWrite(path)
 	}
 
-	return SilentResult(fmt.Sprintf("File edited: %s", path))
+	bare := fmt.Sprintf("File edited: %s", path)
+	if readErr != nil {
+		return SilentResult(bare)
+	}
+	originalContent := string(originalBytes)
+	modifiedContent := strings.Replace(originalContent, oldText, newText, 1)
+	if diff := buildUnifiedDiff(originalContent, modifiedContent, path); diff != "" {
+		return SilentResult(bare + "\n\n" + diff)
+	}
+	return SilentResult(bare)
 }
 
 // SetStalenessTracker sets the file staleness tracker for write checking.
@@ -142,6 +206,11 @@ func (t *AppendFileTool) Execute(ctx context.Context, args map[string]any) *Tool
 	content, ok := args["content"].(string)
 	if !ok {
 		return ErrorResult("content is required")
+	}
+
+	// If running under a goal, redirect relative paths into the goal folder.
+	if gf := goalFolderForSession(ctx, workspaceFromFS(t.fs)); gf != "" && !filepath.IsAbs(path) {
+		path = filepath.Join(gf, path)
 	}
 
 	if t.stalenessTracker != nil {

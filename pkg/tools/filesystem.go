@@ -6,11 +6,45 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/grasberg/sofia/pkg/fileutil"
 )
+
+var goalSessionRe = regexp.MustCompile(`^goal:(\d+)$`)
+
+// goalFolderForSession checks whether ctx carries a goal session key. If so it
+// returns the goal-folder path under mainWorkspace. The folder is created
+// automatically the first time it is requested.
+func goalFolderForSession(ctx context.Context, mainWorkspace string) string {
+	sk := SessionKeyFromContext(ctx)
+	if sk == "" || mainWorkspace == "" {
+		return ""
+	}
+	m := goalSessionRe.FindStringSubmatch(sk)
+	if m == nil {
+		return ""
+	}
+	goalID, _ := strconv.ParseInt(m[1], 10, 64)
+	if goalID <= 0 {
+		return ""
+	}
+	dir := filepath.Join(mainWorkspace, "goals", fmt.Sprintf("goal-%d", goalID))
+	_ = os.MkdirAll(dir, 0o755)
+	return dir
+}
+
+// workspaceFromFS extracts the workspace path from a fileSystem. Returns ""
+// for unrestricted (host) file systems.
+func workspaceFromFS(fsys fileSystem) string {
+	if s, ok := fsys.(*sandboxFs); ok {
+		return s.workspace
+	}
+	return ""
+}
 
 // validatePath ensures the given path is within the workspace if restrict is true.
 func validatePath(path, workspace string, restrict bool) (string, error) {
@@ -125,6 +159,14 @@ func (t *ReadFileTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 		return ErrorResult("path is required")
 	}
 
+	// If running under a goal, try goal folder first for relative paths.
+	if gf := goalFolderForSession(ctx, workspaceFromFS(t.fs)); gf != "" && !filepath.IsAbs(path) {
+		candidate := filepath.Join(gf, path)
+		if _, err := os.Stat(candidate); err == nil {
+			path = candidate
+		}
+	}
+
 	content, err := t.fs.ReadFile(path)
 	if err != nil {
 		return ErrorResult(err.Error())
@@ -191,12 +233,20 @@ func (t *WriteFileTool) Execute(ctx context.Context, args map[string]any) *ToolR
 		return ErrorResult("content is required")
 	}
 
+	// If running under a goal, redirect relative paths into the goal folder.
+	if gf := goalFolderForSession(ctx, workspaceFromFS(t.fs)); gf != "" && !filepath.IsAbs(path) {
+		path = filepath.Join(gf, path)
+	}
+
 	// File staleness check: warn if file was modified since last read
 	if t.stalenessTracker != nil {
 		if warning := t.stalenessTracker.CheckBeforeWrite(path); warning != "" {
 			return NewToolResult(warning)
 		}
 	}
+
+	// Try to read existing content for diff (best-effort; ignore error if file doesn't exist).
+	existingBytes, existingErr := t.fs.ReadFile(path)
 
 	if err := t.fs.WriteFile(path, []byte(content)); err != nil {
 		return ErrorResult(err.Error())
@@ -206,7 +256,25 @@ func (t *WriteFileTool) Execute(ctx context.Context, args map[string]any) *ToolR
 		t.stalenessTracker.UpdateAfterWrite(path)
 	}
 
-	return SilentResult(fmt.Sprintf("File written: %s", path))
+	bare := fmt.Sprintf("File written: %s", path)
+
+	if existingErr == nil {
+		// File existed: show unified diff of old vs new.
+		if diff := buildUnifiedDiff(string(existingBytes), content, path); diff != "" {
+			return SilentResult(bare + "\n\n" + diff)
+		}
+		return SilentResult(bare)
+	}
+
+	// New file: show all-additions representation.
+	if content == "" {
+		return SilentResult(bare)
+	}
+	newFileDiff := buildNewFileDiff(content, path)
+	if newFileDiff != "" {
+		return SilentResult(bare + "\n\n" + newFileDiff)
+	}
+	return SilentResult(bare)
 }
 
 // SetStalenessTracker sets the file staleness tracker for write checking.
@@ -253,6 +321,13 @@ func (t *ListDirTool) Execute(ctx context.Context, args map[string]any) *ToolRes
 	path, ok := args["path"].(string)
 	if !ok {
 		path = "."
+	}
+
+	// If running under a goal, default listing to the goal folder.
+	if gf := goalFolderForSession(ctx, workspaceFromFS(t.fs)); gf != "" && (path == "." || path == "") {
+		path = gf
+	} else if gf != "" && !filepath.IsAbs(path) {
+		path = filepath.Join(gf, path)
 	}
 
 	entries, err := t.fs.ReadDir(path)
