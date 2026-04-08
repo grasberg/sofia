@@ -71,8 +71,8 @@ func (ag *ApprovalGate) SetBypass(sessionKey string, on bool) {
 
 // IsBypassed returns true if approval is currently bypassed for the given session.
 func (ag *ApprovalGate) IsBypassed(sessionKey string) bool {
-	v, ok := ag.approvalBypass.Load(sessionKey)
-	return ok && v.(bool)
+	_, ok := ag.approvalBypass.Load(sessionKey)
+	return ok
 }
 
 // RequiresApproval checks whether a tool call needs human approval.

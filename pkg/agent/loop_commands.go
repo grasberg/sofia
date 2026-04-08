@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grasberg/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/search"
@@ -198,9 +199,11 @@ func (al *AgentLoop) handleSessionCommand(
 		switch args[0] {
 		case "on":
 			al.approvalGate.SetBypass(sessionKey, true)
+			logger.WarnCF("approval", "YOLO mode enabled", map[string]any{"session_key": sessionKey})
 			return "YOLO mode enabled — all tool approvals bypassed for this session.", true
 		case "off":
 			al.approvalGate.SetBypass(sessionKey, false)
+			logger.WarnCF("approval", "YOLO mode disabled", map[string]any{"session_key": sessionKey})
 			return "YOLO mode disabled — normal approval rules restored.", true
 		default:
 			return "Usage: /yolo on|off", true
