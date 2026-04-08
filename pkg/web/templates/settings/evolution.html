@@ -18,6 +18,15 @@
                 </div>
             </div>
 
+            <div class="mt-4 space-y-2">
+                <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Evolution Model</label>
+                <select id="cfg-evolution-model" onchange="saveConfig()"
+                    class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                    <option value="">Default (uses main agent model)</option>
+                </select>
+                <p class="text-[10px] text-zinc-600 ml-1">Select a dedicated model for evolution cycles. A capable model produces better plans; a cheaper model saves budget.</p>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <div class="space-y-2">
                     <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Check Interval (minutes)</label>

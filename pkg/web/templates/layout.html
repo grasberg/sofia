@@ -2108,6 +2108,17 @@
                     if (el('cfg-evolution-memory-consolidation')) el('cfg-evolution-memory-consolidation').checked = !!cfg.evolution.memory_consolidation;
                     if (el('cfg-evolution-consolidation-interval')) { el('cfg-evolution-consolidation-interval').value = cfg.evolution.consolidation_interval_h || 6; if (el('cfg-evolution-consolidation-interval-val')) el('cfg-evolution-consolidation-interval-val').textContent = cfg.evolution.consolidation_interval_h || 6; }
                     if (el('cfg-evolution-skill-auto-improve')) el('cfg-evolution-skill-auto-improve').checked = !!cfg.evolution.skill_auto_improve;
+                    const evoModelEl = el('cfg-evolution-model');
+                    if (evoModelEl) {
+                        evoModelEl.innerHTML = '<option value="">Default (uses main agent model)</option>';
+                        (cfg.model_list || []).forEach(m => {
+                            const opt = document.createElement('option');
+                            opt.value = m.model_name;
+                            opt.textContent = m.model_name;
+                            evoModelEl.appendChild(opt);
+                        });
+                        evoModelEl.value = cfg.evolution.model || "";
+                    }
                 }
 
                 // Populate Intelligence settings (agent defaults)
@@ -3225,6 +3236,8 @@
                     if (evoConsolidationInterval) cfg.evolution.consolidation_interval_h = parseInt(evoConsolidationInterval.value, 10) || 6;
                     const evoSkillAutoImprove = document.getElementById("cfg-evolution-skill-auto-improve");
                     if (evoSkillAutoImprove) cfg.evolution.skill_auto_improve = evoSkillAutoImprove.checked;
+                    const evoModelSaveEl = document.getElementById("cfg-evolution-model");
+                    if (evoModelSaveEl) cfg.evolution.model = evoModelSaveEl.value.trim();
                 }
 
                 // Save Intelligence settings (agent defaults)

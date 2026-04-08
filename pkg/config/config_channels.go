@@ -55,6 +55,7 @@ type AutonomyConfig struct {
 // EvolutionConfig configures the self-improving evolution engine.
 type EvolutionConfig struct {
 	Enabled                bool     `json:"enabled"                   env:"SOFIA_EVOLUTION_ENABLED"`
+	Model                  string   `json:"model,omitempty"           env:"SOFIA_EVOLUTION_MODEL"`
 	IntervalMinutes        int      `json:"interval_minutes"          env:"SOFIA_EVOLUTION_INTERVAL"`
 	MaxCostPerDay          float64  `json:"max_cost_per_day"          env:"SOFIA_EVOLUTION_MAX_COST"`
 	DailySummary           bool     `json:"daily_summary"             env:"SOFIA_EVOLUTION_DAILY_SUMMARY"`

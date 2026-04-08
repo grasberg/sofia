@@ -398,10 +398,13 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 			historyDir, cfg.Evolution.ImmutableFiles, provider,
 		)
 
-		// Resolve the model for the evolution engine from the main agent or defaults.
+		// Resolve the model for the evolution engine: config override > main agent > defaults.
 		evoModel := cfg.Agents.Defaults.GetModelName()
 		if mainAgent, ok := registry.GetAgent("main"); ok && mainAgent.Model != "" {
 			evoModel = mainAgent.Model
+		}
+		if cfg.Evolution.Model != "" {
+			evoModel = cfg.Evolution.Model
 		}
 
 		architect := evolution.NewAgentArchitect(
