@@ -1063,8 +1063,14 @@ func (al *AgentLoop) runLLMIteration(
 			Content: "[SYSTEM] Respond to the user directly with plain text. Do NOT call any tools.",
 		})
 
+		wrapMaxTokens := agent.MaxTokens
+		if strings.HasPrefix(strings.ToLower(agent.ModelID), "claude-") {
+			if cap := config.AnthropicOutputCap(agent.ModelID); cap > 0 && wrapMaxTokens > cap {
+				wrapMaxTokens = cap
+			}
+		}
 		wrapResp, wrapErr := agent.Provider.Chat(ctx, messages, nil, agent.ModelID, map[string]any{
-			"max_tokens":  agent.MaxTokens,
+			"max_tokens":  wrapMaxTokens,
 			"temperature": 0.7,
 		})
 		if wrapErr == nil && wrapResp != nil && wrapResp.Content != "" {
