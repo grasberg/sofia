@@ -225,6 +225,7 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 
 	mux.HandleFunc("/api/status", api(s.handleStatus))
 	mux.HandleFunc("/api/config", api(s.handleConfig))
+	mux.HandleFunc("GET /api/models", api(s.handleModels))
 	mux.HandleFunc("/api/chat/stream", api(s.handleChatStream))
 	mux.HandleFunc("/api/chat", api(s.handleChat))
 	mux.HandleFunc("/api/logs", api(s.handleLogs))

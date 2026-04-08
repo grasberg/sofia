@@ -50,6 +50,7 @@ type AutonomyConfig struct {
 	ContextTriggers bool    `json:"context_triggers" env:"SOFIA_AUTONOMY_CONTEXT_TRIGGERS"`
 	IntervalMinutes int     `json:"interval_minutes" env:"SOFIA_AUTONOMY_INTERVAL"`
 	MaxCostPerDay   float64 `json:"max_cost_per_day" env:"SOFIA_AUTONOMY_MAX_COST"`
+	MaxStepRetries  int     `json:"max_step_retries" env:"SOFIA_AUTONOMY_MAX_STEP_RETRIES"`
 }
 
 // EvolutionConfig configures the self-improving evolution engine.

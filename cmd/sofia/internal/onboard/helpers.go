@@ -84,6 +84,11 @@ func copyEmbeddedTree(embeddedRoot string, targetDir string) error {
 			return fmt.Errorf("Failed to create directory %s: %w", filepath.Dir(targetPath), err)
 		}
 
+		// Skip files that already exist — don't overwrite user customizations.
+		if _, err := os.Stat(targetPath); err == nil {
+			return nil
+		}
+
 		// Write file
 		if err := os.WriteFile(targetPath, data, 0o644); err != nil {
 			return fmt.Errorf("Failed to write file %s: %w", targetPath, err)

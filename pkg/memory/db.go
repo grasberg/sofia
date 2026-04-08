@@ -13,7 +13,7 @@ import (
 	"github.com/grasberg/sofia/pkg/logger"
 )
 
-const schemaVersion = 15
+const schemaVersion = 16
 
 // Encryptor defines the interface for encrypting/decrypting stored values.
 // Implementations must be safe for concurrent use.
@@ -230,6 +230,7 @@ func (m *MemoryDB) migrate() error {
 		{13, m.applyV13tx, nil},
 		{14, m.applyV14tx, nil},
 		{15, m.applyV15tx, nil},
+		{16, m.applyV16tx, nil},
 	}
 
 	for _, mig := range migrations {

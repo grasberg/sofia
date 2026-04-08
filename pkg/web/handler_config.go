@@ -30,6 +30,52 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(info)
 }
 
+// handleModels returns all models from the DB, grouped by provider.
+// The frontend uses this as the single source of truth for the model catalog
+// and for displaying configured models.
+func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
+	memDB := s.agentLoop.GetMemoryDB()
+	if memDB == nil {
+		s.sendJSONError(w, "database not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	allModels, err := memDB.ListModels()
+	if err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Group by provider, masking API keys.
+	type modelEntry struct {
+		ModelName   string `json:"model_name"`
+		DisplayName string `json:"display_name"`
+		Model       string `json:"model"`
+		APIBase     string `json:"api_base"`
+		AuthMethod  string `json:"auth_method,omitempty"`
+		HasKey      bool   `json:"has_key"`
+	}
+
+	catalog := make(map[string][]modelEntry)
+	for _, m := range allModels {
+		provider := m.Provider
+		if provider == "" {
+			provider = "Other"
+		}
+		catalog[provider] = append(catalog[provider], modelEntry{
+			ModelName:   m.ModelName,
+			DisplayName: m.DisplayName,
+			Model:       m.Model,
+			APIBase:     m.APIBase,
+			AuthMethod:  m.AuthMethod,
+			HasKey:      m.APIKey != "",
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(catalog)
+}
+
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		s.mu.RLock()
@@ -87,21 +133,13 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Sync model list to DB if present in the incoming config.
-		// Models are stored in the database, not in config.json.
-		if len(newCfg.ModelList) > 0 {
-			if memDB := s.agentLoop.GetMemoryDB(); memDB != nil {
-				catalogNames := make(map[string]bool)
-				for _, m := range config.DefaultModelList() {
-					catalogNames[m.ModelName] = true
-				}
-				if err := memDB.SyncModels(newCfg.ModelList, catalogNames); err != nil {
-					logger.WarnCF("web", "Failed to sync models to DB", map[string]any{"error": err.Error()})
-				}
-				// Reload from DB to pick up any catalog entries the user didn't send.
-				if err := memDB.LoadModelsIntoConfig(&newCfg); err != nil {
-					logger.WarnCF("web", "Failed to reload models from DB", map[string]any{"error": err.Error()})
-				}
+		// Sync model list to DB. Models are stored in the database, not config.json.
+		if memDB := s.agentLoop.GetMemoryDB(); memDB != nil {
+			if err := memDB.SyncModels(newCfg.ModelList, nil); err != nil {
+				logger.WarnCF("web", "Failed to sync models to DB", map[string]any{"error": err.Error()})
+			}
+			if err := memDB.LoadModelsIntoConfig(&newCfg); err != nil {
+				logger.WarnCF("web", "Failed to reload models from DB", map[string]any{"error": err.Error()})
 			}
 		}
 

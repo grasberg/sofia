@@ -321,3 +321,20 @@ CREATE INDEX IF NOT EXISTS idx_models_catalog ON models(is_catalog);
 	_, err := tx.Exec(ddl)
 	return err
 }
+
+// v16: Add provider/display_name columns and clear old catalog data so it can
+// be re-seeded with the new fields.  Models the user already configured (those
+// with an API key) are kept.
+func (m *MemoryDB) applyV16tx(tx *sql.Tx) error {
+	stmts := []string{
+		`ALTER TABLE models ADD COLUMN provider     TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE models ADD COLUMN display_name TEXT NOT NULL DEFAULT ''`,
+		`DELETE FROM models WHERE api_key = ''`,
+	}
+	for _, s := range stmts {
+		if _, err := tx.Exec(s); err != nil {
+			return err
+		}
+	}
+	return nil
+}

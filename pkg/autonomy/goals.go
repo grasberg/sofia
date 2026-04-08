@@ -17,12 +17,30 @@ const (
 	GoalStatusPaused     = "paused"
 )
 
+// Goal phases.
+const (
+	GoalPhaseSpecify   = "specify"
+	GoalPhasePlan      = "plan"
+	GoalPhaseImplement = "implement"
+	GoalPhaseCompleted = "completed"
+)
+
+// GoalSpec holds the structured specification for a goal.
+type GoalSpec struct {
+	Requirements    []string `json:"requirements"`
+	SuccessCriteria []string `json:"success_criteria"`
+	Constraints     []string `json:"constraints,omitempty"`
+	Context         string   `json:"context,omitempty"`
+}
+
 // GoalResult holds the structured outcome of a completed goal.
 type GoalResult struct {
-	Summary     string   `json:"summary"`
-	Artifacts   []string `json:"artifacts"`
-	NextSteps   []string `json:"next_steps"`
-	CompletedAt string   `json:"completed_at"`
+	Summary       string   `json:"summary"`
+	Artifacts     []string `json:"artifacts"`
+	NextSteps     []string `json:"next_steps"`
+	CompletedAt   string   `json:"completed_at"`
+	UnmetCriteria []string `json:"unmet_criteria,omitempty"`
+	Evidence      []string `json:"evidence,omitempty"`
 }
 
 // Goal represents a long-term user or agent objective.
@@ -33,6 +51,8 @@ type Goal struct {
 	Description string      `json:"description"`
 	Status      string      `json:"status"`
 	Priority    string      `json:"priority"` // low, medium, high
+	Phase       string      `json:"phase,omitempty"`
+	Spec        *GoalSpec   `json:"spec,omitempty"`
 	Result      string      `json:"result,omitempty"`
 	GoalResult  *GoalResult `json:"goal_result,omitempty"`
 	CreatedAt   time.Time   `json:"created_at"`
@@ -184,6 +204,53 @@ func (gm *GoalManager) ListGoalsByStatus(agentID, status string) ([]*Goal, error
 	return goals, nil
 }
 
+// UpdateGoalPhase updates a goal's phase in properties.
+func (gm *GoalManager) UpdateGoalPhase(goalID int64, phase string) error {
+	node, err := gm.memDB.GetNodeByID(goalID)
+	if err != nil {
+		return err
+	}
+	if node == nil || node.Label != "Goal" {
+		return fmt.Errorf("goal %d not found", goalID)
+	}
+
+	var props map[string]any
+	if err := json.Unmarshal([]byte(node.Properties), &props); err != nil {
+		props = make(map[string]any)
+	}
+	props["phase"] = phase
+
+	propsJSON, _ := json.Marshal(props)
+	_, err = gm.memDB.UpsertNode(node.AgentID, "Goal", node.Name, string(propsJSON))
+	return err
+}
+
+// SetGoalSpec stores a GoalSpec in the goal's properties.
+func (gm *GoalManager) SetGoalSpec(goalID int64, spec GoalSpec) error {
+	node, err := gm.memDB.GetNodeByID(goalID)
+	if err != nil {
+		return err
+	}
+	if node == nil || node.Label != "Goal" {
+		return fmt.Errorf("goal %d not found", goalID)
+	}
+
+	var props map[string]any
+	if err := json.Unmarshal([]byte(node.Properties), &props); err != nil {
+		props = make(map[string]any)
+	}
+
+	specJSON, err := json.Marshal(spec)
+	if err != nil {
+		return fmt.Errorf("failed to marshal goal spec: %w", err)
+	}
+	props["spec"] = json.RawMessage(specJSON)
+
+	propsJSON, _ := json.Marshal(props)
+	_, err = gm.memDB.UpsertNode(node.AgentID, "Goal", node.Name, string(propsJSON))
+	return err
+}
+
 // SetGoalResult stores a structured GoalResult in the goal's properties.
 func (gm *GoalManager) SetGoalResult(goalID int64, result GoalResult) error {
 	node, err := gm.memDB.GetNodeByID(goalID)
@@ -253,6 +320,15 @@ func parseGoalNode(node *memory.SemanticNode) *Goal {
 		}
 		if v, ok := props["priority"]; ok {
 			json.Unmarshal(v, &g.Priority) //nolint:errcheck
+		}
+		if v, ok := props["phase"]; ok {
+			json.Unmarshal(v, &g.Phase) //nolint:errcheck
+		}
+		if v, ok := props["spec"]; ok {
+			var gs GoalSpec
+			if json.Unmarshal(v, &gs) == nil {
+				g.Spec = &gs
+			}
 		}
 		if v, ok := props["result"]; ok {
 			json.Unmarshal(v, &g.Result) //nolint:errcheck

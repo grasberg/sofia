@@ -19,21 +19,7 @@
                                         <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">1. Select Provider</label>
                                         <select id="form-provider" onchange="onProviderChange()" class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sofia/50 text-[var(--text-main)]">
                                             <option value="">-- Choose a Provider --</option>
-                                            <option value="Google Gemini">Google Gemini</option>
-                                            <option value="OpenAI">OpenAI</option>
-                                            <option value="Anthropic">Anthropic</option>
-                                            <option value="DeepSeek">DeepSeek</option>
-                                            <option value="Groq">Groq</option>
-                                            <option value="Mistral">Mistral</option>
-                                            <option value="OpenRouter">OpenRouter</option>
-                                            <option value="Qwen">Qwen</option>
-                                            <option value="Moonshot">Moonshot</option>
-                                            <option value="xAI (Grok)">xAI (Grok)</option>
-                                            <option value="Z.ai">Z.ai</option>
-                                            <option value="MiniMax">MiniMax</option>
-                                            <option value="Ollama">Ollama (Local)</option>
-                                            <option value="Ollama Cloud">Ollama Cloud ☁️</option>
-                                            <option value="Custom">Custom / Other</option>
+                                            <!-- Populated from DB via loadModelCatalog() -->
                                         </select>
                                     </div>
 

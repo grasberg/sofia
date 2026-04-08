@@ -8,8 +8,71 @@ import (
 	"github.com/grasberg/sofia/pkg/config"
 )
 
-// SeedCatalogModels inserts built-in catalog entries that don't already exist.
-// Existing rows are never overwritten, so user API keys are preserved.
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+// upsertModelTx inserts or replaces a model row inside an existing transaction.
+func upsertModelTx(tx *sql.Tx, mc config.ModelConfig, isCatalog int) error {
+	apiKeysJSON, _ := json.Marshal(mc.APIKeys)
+	capJSON, _ := json.Marshal(mc.Capabilities)
+	_, err := tx.Exec(`
+		INSERT OR REPLACE INTO models
+			(model_name, display_name, provider, model, api_base, api_key,
+			 api_keys, pool_strategy, proxy,
+			 auth_method, connect_mode, workspace, rpm, max_tokens, max_tokens_field,
+			 request_timeout, request_delay, context_window,
+			 cost_per_1k_input, cost_per_1k_output, capabilities, is_catalog,
+			 updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+		mc.ModelName, mc.DisplayName, mc.Provider, mc.Model, mc.APIBase, mc.APIKey,
+		string(apiKeysJSON), mc.PoolStrategy, mc.Proxy,
+		mc.AuthMethod, mc.ConnectMode, mc.Workspace,
+		mc.RPM, mc.MaxTokens, mc.MaxTokensField,
+		mc.RequestTimeout, mc.RequestDelay, mc.ContextWindow,
+		mc.CostPer1KInput, mc.CostPer1KOutput, string(capJSON),
+		isCatalog,
+	)
+	return err
+}
+
+// scanModel reads a single row into a ModelConfig.
+func scanModel(rows *sql.Rows) (config.ModelConfig, error) {
+	var mc config.ModelConfig
+	var apiKeysJSON, capJSON string
+	if err := rows.Scan(
+		&mc.ModelName, &mc.DisplayName, &mc.Provider,
+		&mc.Model, &mc.APIBase, &mc.APIKey,
+		&apiKeysJSON, &mc.PoolStrategy, &mc.Proxy,
+		&mc.AuthMethod, &mc.ConnectMode, &mc.Workspace,
+		&mc.RPM, &mc.MaxTokens, &mc.MaxTokensField,
+		&mc.RequestTimeout, &mc.RequestDelay, &mc.ContextWindow,
+		&mc.CostPer1KInput, &mc.CostPer1KOutput, &capJSON,
+	); err != nil {
+		return mc, err
+	}
+	if apiKeysJSON != "" && apiKeysJSON != "null" && apiKeysJSON != "[]" {
+		_ = json.Unmarshal([]byte(apiKeysJSON), &mc.APIKeys)
+	}
+	if capJSON != "" && capJSON != "null" && capJSON != "[]" {
+		_ = json.Unmarshal([]byte(capJSON), &mc.Capabilities)
+	}
+	return mc, nil
+}
+
+const modelColumns = `model_name, display_name, provider, model, api_base, api_key,
+	api_keys, pool_strategy, proxy,
+	auth_method, connect_mode, workspace, rpm, max_tokens, max_tokens_field,
+	request_timeout, request_delay, context_window,
+	cost_per_1k_input, cost_per_1k_output, capabilities`
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+// SeedCatalogModels inserts catalog entries that don't already exist.
+// Existing rows (e.g. where the user has already set an API key) are never
+// overwritten.
 func (m *MemoryDB) SeedCatalogModels(models []config.ModelConfig) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -19,12 +82,13 @@ func (m *MemoryDB) SeedCatalogModels(models []config.ModelConfig) error {
 		capJSON, _ := json.Marshal(mc.Capabilities)
 		_, err := m.db.Exec(`
 			INSERT OR IGNORE INTO models
-				(model_name, model, api_base, api_key, api_keys, pool_strategy, proxy,
+				(model_name, display_name, provider, model, api_base, api_key,
+				 api_keys, pool_strategy, proxy,
 				 auth_method, connect_mode, workspace, rpm, max_tokens, max_tokens_field,
 				 request_timeout, request_delay, context_window,
 				 cost_per_1k_input, cost_per_1k_output, capabilities, is_catalog)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-			mc.ModelName, mc.Model, mc.APIBase, mc.APIKey,
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+			mc.ModelName, mc.DisplayName, mc.Provider, mc.Model, mc.APIBase, mc.APIKey,
 			string(apiKeysJSON), mc.PoolStrategy, mc.Proxy,
 			mc.AuthMethod, mc.ConnectMode, mc.Workspace,
 			mc.RPM, mc.MaxTokens, mc.MaxTokensField,
@@ -36,29 +100,6 @@ func (m *MemoryDB) SeedCatalogModels(models []config.ModelConfig) error {
 		}
 	}
 	return nil
-}
-
-// upsertModelTx inserts or replaces a model row inside an existing transaction.
-func upsertModelTx(tx *sql.Tx, mc config.ModelConfig, isCatalog int) error {
-	apiKeysJSON, _ := json.Marshal(mc.APIKeys)
-	capJSON, _ := json.Marshal(mc.Capabilities)
-	_, err := tx.Exec(`
-		INSERT OR REPLACE INTO models
-			(model_name, model, api_base, api_key, api_keys, pool_strategy, proxy,
-			 auth_method, connect_mode, workspace, rpm, max_tokens, max_tokens_field,
-			 request_timeout, request_delay, context_window,
-			 cost_per_1k_input, cost_per_1k_output, capabilities, is_catalog,
-			 updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-		mc.ModelName, mc.Model, mc.APIBase, mc.APIKey,
-		string(apiKeysJSON), mc.PoolStrategy, mc.Proxy,
-		mc.AuthMethod, mc.ConnectMode, mc.Workspace,
-		mc.RPM, mc.MaxTokens, mc.MaxTokensField,
-		mc.RequestTimeout, mc.RequestDelay, mc.ContextWindow,
-		mc.CostPer1KInput, mc.CostPer1KOutput, string(capJSON),
-		isCatalog,
-	)
-	return err
 }
 
 // SetModelAPIKey updates the api_key for a single model.
@@ -73,18 +114,12 @@ func (m *MemoryDB) SetModelAPIKey(modelName, apiKey string) error {
 	return err
 }
 
-// ListModels returns all model entries ordered by model_name.
+// ListModels returns all model entries ordered by provider then model_name.
 func (m *MemoryDB) ListModels() ([]config.ModelConfig, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	rows, err := m.db.Query(`
-		SELECT model_name, model, api_base, api_key, api_keys, pool_strategy, proxy,
-		       auth_method, connect_mode, workspace, rpm, max_tokens, max_tokens_field,
-		       request_timeout, request_delay, context_window,
-		       cost_per_1k_input, cost_per_1k_output, capabilities
-		FROM models
-		ORDER BY model_name`)
+	rows, err := m.db.Query(`SELECT ` + modelColumns + ` FROM models ORDER BY provider, model_name`)
 	if err != nil {
 		return nil, fmt.Errorf("memory: list models: %w", err)
 	}
@@ -92,32 +127,43 @@ func (m *MemoryDB) ListModels() ([]config.ModelConfig, error) {
 
 	var models []config.ModelConfig
 	for rows.Next() {
-		var mc config.ModelConfig
-		var apiKeysJSON, capJSON string
-		if err := rows.Scan(
-			&mc.ModelName, &mc.Model, &mc.APIBase, &mc.APIKey,
-			&apiKeysJSON, &mc.PoolStrategy, &mc.Proxy,
-			&mc.AuthMethod, &mc.ConnectMode, &mc.Workspace,
-			&mc.RPM, &mc.MaxTokens, &mc.MaxTokensField,
-			&mc.RequestTimeout, &mc.RequestDelay, &mc.ContextWindow,
-			&mc.CostPer1KInput, &mc.CostPer1KOutput, &capJSON,
-		); err != nil {
+		mc, err := scanModel(rows)
+		if err != nil {
 			return nil, fmt.Errorf("memory: scan model: %w", err)
-		}
-		if apiKeysJSON != "" && apiKeysJSON != "null" && apiKeysJSON != "[]" {
-			_ = json.Unmarshal([]byte(apiKeysJSON), &mc.APIKeys)
-		}
-		if capJSON != "" && capJSON != "null" && capJSON != "[]" {
-			_ = json.Unmarshal([]byte(capJSON), &mc.Capabilities)
 		}
 		models = append(models, mc)
 	}
 	return models, rows.Err()
 }
 
-// LoadModelsIntoConfig populates cfg.ModelList from the database.
+// ListConfiguredModels returns only models that the user has explicitly
+// configured (those with an API key or added as non-catalog entries).
+func (m *MemoryDB) ListConfiguredModels() ([]config.ModelConfig, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	rows, err := m.db.Query(`SELECT `+modelColumns+` FROM models WHERE api_key != '' OR is_catalog = 0 ORDER BY provider, model_name`)
+	if err != nil {
+		return nil, fmt.Errorf("memory: list configured models: %w", err)
+	}
+	defer rows.Close()
+
+	var models []config.ModelConfig
+	for rows.Next() {
+		mc, err := scanModel(rows)
+		if err != nil {
+			return nil, fmt.Errorf("memory: scan model: %w", err)
+		}
+		models = append(models, mc)
+	}
+	return models, rows.Err()
+}
+
+// LoadModelsIntoConfig populates cfg.ModelList with only the user-configured
+// models (those with an API key or local providers like Ollama).
+// The full catalog is served separately via the /api/models endpoint.
 func (m *MemoryDB) LoadModelsIntoConfig(cfg *config.Config) error {
-	models, err := m.ListModels()
+	models, err := m.ListConfiguredModels()
 	if err != nil {
 		return err
 	}
@@ -125,12 +171,11 @@ func (m *MemoryDB) LoadModelsIntoConfig(cfg *config.Config) error {
 	return nil
 }
 
-// SyncModels synchronises the models table with the given user-submitted list.
+// SyncModels synchronises user-configured models with the database.
 //
-// Catalog models in the list have their api_key (and other user-adjustable fields)
-// updated. Non-catalog models not in the list are deleted. New non-catalog models
-// are inserted. Catalog models absent from the list keep their DB row (with any
-// existing api_key cleared to empty).
+// Only non-catalog models are affected: those not in the incoming list are
+// deleted, and all incoming entries are upserted. Catalog entries are never
+// deleted by this call — their API keys are updated if present in incoming.
 func (m *MemoryDB) SyncModels(incoming []config.ModelConfig, catalogNames map[string]bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -147,10 +192,10 @@ func (m *MemoryDB) SyncModels(incoming []config.ModelConfig, catalogNames map[st
 		incomingSet[mc.ModelName] = true
 	}
 
-	// Delete user-custom (non-catalog) models not present in the incoming list.
+	// Delete non-catalog models not present in the incoming list.
 	rows, err := tx.Query(`SELECT model_name FROM models WHERE is_catalog = 0`)
 	if err != nil {
-		return fmt.Errorf("memory: sync models: query non-catalog: %w", err)
+		return fmt.Errorf("memory: sync models: query: %w", err)
 	}
 	var toDelete []string
 	for rows.Next() {
@@ -174,14 +219,36 @@ func (m *MemoryDB) SyncModels(incoming []config.ModelConfig, catalogNames map[st
 		}
 	}
 
-	// Upsert all incoming models.
+	// Upsert incoming models.  For catalog entries only update user-editable
+	// fields (api_key etc.); for non-catalog do a full upsert.
 	for _, mc := range incoming {
-		isCatalog := 0
-		if catalogNames[mc.ModelName] {
-			isCatalog = 1
-		}
-		if err := upsertModelTx(tx, mc, isCatalog); err != nil {
-			return fmt.Errorf("memory: sync models: upsert %q: %w", mc.ModelName, err)
+		// Check if this is a catalog entry.
+		var isCatalog int
+		_ = tx.QueryRow(`SELECT is_catalog FROM models WHERE model_name = ?`, mc.ModelName).Scan(&isCatalog)
+		if isCatalog == 1 {
+			// Update only the API key and user-adjustable fields.
+			apiKeysJSON, _ := json.Marshal(mc.APIKeys)
+			_, err := tx.Exec(`
+				UPDATE models SET
+					api_key = ?, api_keys = ?, pool_strategy = ?, proxy = ?,
+					rpm = ?, max_tokens = ?, max_tokens_field = ?,
+					request_timeout = ?, request_delay = ?, workspace = ?,
+					connect_mode = ?,
+					updated_at = datetime('now')
+				WHERE model_name = ?`,
+				mc.APIKey, string(apiKeysJSON), mc.PoolStrategy, mc.Proxy,
+				mc.RPM, mc.MaxTokens, mc.MaxTokensField,
+				mc.RequestTimeout, mc.RequestDelay, mc.Workspace,
+				mc.ConnectMode,
+				mc.ModelName,
+			)
+			if err != nil {
+				return fmt.Errorf("memory: sync models: update catalog %q: %w", mc.ModelName, err)
+			}
+		} else {
+			if err := upsertModelTx(tx, mc, 0); err != nil {
+				return fmt.Errorf("memory: sync models: upsert %q: %w", mc.ModelName, err)
+			}
 		}
 	}
 
@@ -190,49 +257,31 @@ func (m *MemoryDB) SyncModels(incoming []config.ModelConfig, catalogNames map[st
 
 // InitModels seeds the catalog and loads models into cfg.
 //
-// On first run (empty table) it also migrates any entries already in
-// cfg.ModelList (e.g. from a legacy config.json that still has model_list).
-// After loading from DB, any cfg.ModelList entries that are NOT in the DB
-// (e.g. test-only models set directly on the config) are preserved in
-// cfg.ModelList so that GetModelConfig continues to find them.
+// On each startup, new catalog entries from DefaultModelList() are inserted
+// (existing rows are never overwritten, preserving user-set API keys).
+// Only models with an API key (or local providers) are loaded into
+// cfg.ModelList for use by the agent.  In-memory-only entries (e.g. test
+// configs) are preserved.
 func (m *MemoryDB) InitModels(cfg *config.Config) error {
+	// Seed catalog — INSERT OR IGNORE keeps existing rows intact.
 	catalog := config.DefaultModelList()
-
-	// Check whether the table is empty (first run after migration).
-	var count int
-	_ = m.db.QueryRow(`SELECT COUNT(*) FROM models`).Scan(&count)
-
-	if count == 0 {
-		// Migrate any entries from the in-memory list (legacy config.json).
-		if len(cfg.ModelList) > 0 {
-			if err := m.SeedCatalogModels(cfg.ModelList); err != nil {
-				return err
-			}
-		}
-		// Seed catalog entries not yet in DB.
-		if err := m.SeedCatalogModels(catalog); err != nil {
-			return err
-		}
-	} else {
-		// DB already has entries — add new catalog models introduced in updates.
-		if err := m.SeedCatalogModels(catalog); err != nil {
-			return err
-		}
+	if err := m.SeedCatalogModels(catalog); err != nil {
+		return err
 	}
 
-	// Load from DB.
-	dbModels, err := m.ListModels()
+	// Load only configured models (those with API keys) into cfg.
+	configured, err := m.ListConfiguredModels()
 	if err != nil {
 		return err
 	}
 
 	// Preserve any cfg.ModelList entries absent from the DB (e.g. test configs
 	// that set ModelList directly without going through DB persistence).
-	dbNames := make(map[string]bool, len(dbModels))
-	for _, mc := range dbModels {
+	dbNames := make(map[string]bool, len(configured))
+	for _, mc := range configured {
 		dbNames[mc.ModelName] = true
 	}
-	result := dbModels
+	result := configured
 	for _, mc := range cfg.ModelList {
 		if !dbNames[mc.ModelName] {
 			result = append(result, mc)

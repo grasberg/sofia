@@ -178,6 +178,70 @@ func (pm *PlanManager) CompleteStep(planID string, stepIdx int, success bool, re
 	pm.autoSave()
 }
 
+// CompleteStepWithVerify marks a step as completed/failed with both result and verification output.
+func (pm *PlanManager) CompleteStepWithVerify(planID string, stepIdx int, success bool, result, verifyResult string) {
+	pm.mu.Lock()
+	plan, exists := pm.plans[planID]
+	if !exists || stepIdx < 0 || stepIdx >= len(plan.Steps) {
+		pm.mu.Unlock()
+		return
+	}
+	if success {
+		plan.Steps[stepIdx].Status = PlanStatusCompleted
+	} else {
+		plan.Steps[stepIdx].Status = PlanStatusFailed
+	}
+	plan.Steps[stepIdx].Result = result
+	plan.Steps[stepIdx].VerifyResult = verifyResult
+
+	allCompleted := true
+	anyFailed := false
+	for _, s := range plan.Steps {
+		if s.Status != PlanStatusCompleted {
+			allCompleted = false
+		}
+		if s.Status == PlanStatusFailed {
+			anyFailed = true
+		}
+	}
+	if allCompleted {
+		plan.Status = PlanStatusCompleted
+	} else if anyFailed {
+		plan.Status = PlanStatusFailed
+	}
+	pm.mu.Unlock()
+	pm.autoSave()
+}
+
+// RetryStep resets a failed step to pending for re-dispatch, incrementing its retry count.
+func (pm *PlanManager) RetryStep(planID string, stepIdx int) bool {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	plan, ok := pm.plans[planID]
+	if !ok || stepIdx < 0 || stepIdx >= len(plan.Steps) {
+		return false
+	}
+	step := &plan.Steps[stepIdx]
+	if step.Status != PlanStatusFailed {
+		return false
+	}
+
+	step.Status = PlanStatusPending
+	step.AssignedTo = ""
+	step.RetryCount++
+	step.Result = ""
+	step.VerifyResult = ""
+
+	// Reset plan status from failed back to in_progress so dispatch continues.
+	if plan.Status == PlanStatusFailed {
+		plan.Status = PlanStatusInProgress
+	}
+
+	go pm.autoSave()
+	return true
+}
+
 // HasPendingSteps returns true if any plan has unclaimed pending steps.
 func (pm *PlanManager) HasPendingSteps() bool {
 	pm.mu.RLock()
@@ -301,10 +365,12 @@ func (pm *PlanManager) CreatePlanForGoal(goalID int64, goal string, stepDefs []P
 	steps := make([]PlanStep, len(stepDefs))
 	for i, def := range stepDefs {
 		steps[i] = PlanStep{
-			Index:       i,
-			Description: def.Description,
-			Status:      PlanStatusPending,
-			DependsOn:   def.DependsOn,
+			Index:              i,
+			Description:        def.Description,
+			AcceptanceCriteria: def.AcceptanceCriteria,
+			VerifyCommand:      def.VerifyCommand,
+			Status:             PlanStatusPending,
+			DependsOn:          def.DependsOn,
 		}
 	}
 

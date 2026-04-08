@@ -607,6 +607,94 @@ func TestPlanToolWithNilDB(t *testing.T) {
 	}
 }
 
+// --- RetryStep and CompleteStepWithVerify tests ---
+
+func TestRetryStep(t *testing.T) {
+	_, mgr := newTestPlanTool(t)
+	plan := mgr.CreatePlanForGoal(1, "test", []PlanStepDef{
+		{Description: "step 1"},
+		{Description: "step 2"},
+	})
+
+	// Fail step 0
+	mgr.CompleteStep(plan.ID, 0, false, "it broke")
+
+	// Retry it
+	if !mgr.RetryStep(plan.ID, 0) {
+		t.Fatal("RetryStep should return true for failed step")
+	}
+
+	p := mgr.GetPlan(plan.ID)
+	if p.Steps[0].Status != PlanStatusPending {
+		t.Errorf("expected pending after retry, got: %s", p.Steps[0].Status)
+	}
+	if p.Steps[0].RetryCount != 1 {
+		t.Errorf("expected retry count 1, got: %d", p.Steps[0].RetryCount)
+	}
+	if p.Steps[0].AssignedTo != "" {
+		t.Error("expected AssignedTo cleared after retry")
+	}
+	if p.Status != PlanStatusInProgress {
+		t.Errorf("expected plan status reset to in_progress, got: %s", p.Status)
+	}
+}
+
+func TestRetryStepWrongStatus(t *testing.T) {
+	_, mgr := newTestPlanTool(t)
+	plan := mgr.CreatePlanForGoal(1, "test", []PlanStepDef{
+		{Description: "step 1"},
+	})
+
+	// Step is pending, not failed — retry should return false
+	if mgr.RetryStep(plan.ID, 0) {
+		t.Fatal("RetryStep should return false for pending step")
+	}
+}
+
+func TestRetryStepNotFound(t *testing.T) {
+	_, mgr := newTestPlanTool(t)
+	if mgr.RetryStep("nonexistent", 0) {
+		t.Fatal("RetryStep should return false for nonexistent plan")
+	}
+}
+
+func TestCompleteStepWithVerify(t *testing.T) {
+	_, mgr := newTestPlanTool(t)
+	plan := mgr.CreatePlanForGoal(1, "test", []PlanStepDef{
+		{Description: "step 1", AcceptanceCriteria: "file exists", VerifyCommand: "check file"},
+	})
+
+	mgr.CompleteStepWithVerify(plan.ID, 0, true, "created file", "PASS: file exists at /tmp/out.txt")
+
+	p := mgr.GetPlan(plan.ID)
+	if p.Steps[0].Result != "created file" {
+		t.Errorf("expected result stored, got: %s", p.Steps[0].Result)
+	}
+	if p.Steps[0].VerifyResult != "PASS: file exists at /tmp/out.txt" {
+		t.Errorf("expected verify result stored, got: %s", p.Steps[0].VerifyResult)
+	}
+}
+
+func TestCreatePlanForGoalCopiesNewFields(t *testing.T) {
+	_, mgr := newTestPlanTool(t)
+	plan := mgr.CreatePlanForGoal(1, "test", []PlanStepDef{
+		{
+			Description:        "build it",
+			AcceptanceCriteria: "compiles without errors",
+			VerifyCommand:      "run go build and check exit code",
+			DependsOn:          []int{},
+		},
+	})
+
+	p := mgr.GetPlan(plan.ID)
+	if p.Steps[0].AcceptanceCriteria != "compiles without errors" {
+		t.Errorf("expected acceptance criteria copied, got: %s", p.Steps[0].AcceptanceCriteria)
+	}
+	if p.Steps[0].VerifyCommand != "run go build and check exit code" {
+		t.Errorf("expected verify command copied, got: %s", p.Steps[0].VerifyCommand)
+	}
+}
+
 // --- Helper ---
 
 func contains(s, substr string) bool {

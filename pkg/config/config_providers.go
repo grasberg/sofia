@@ -87,8 +87,10 @@ type OpenAIProviderConfig struct {
 // Default protocol is "openai" if no prefix is specified.
 type ModelConfig struct {
 	// Required fields
-	ModelName string `json:"model_name"` // User-facing alias for the model
-	Model     string `json:"model"`      // Protocol/model-identifier (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4.6")
+	ModelName   string `json:"model_name"`             // User-facing alias for the model
+	DisplayName string `json:"display_name,omitempty"`  // Human-readable label (e.g. "Claude Opus 4.6")
+	Provider    string `json:"provider,omitempty"`      // Provider group for UI (e.g. "Anthropic", "OpenAI")
+	Model       string `json:"model"`                   // Protocol/model-identifier (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4.6")
 
 	// HTTP-based providers
 	APIBase      string   `json:"api_base,omitempty"`      // API endpoint URL

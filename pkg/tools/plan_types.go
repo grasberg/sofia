@@ -49,13 +49,17 @@ func isValidStatus(s PlanStatus) bool {
 
 // PlanStep represents a single step in a plan.
 type PlanStep struct {
-	Index       int        `json:"index"`
-	Description string     `json:"description"`
-	Status      PlanStatus `json:"status"`
-	Result      string     `json:"result,omitempty"`
-	SubPlanID   string     `json:"sub_plan_id,omitempty"` // Links to a child plan
-	AssignedTo  string     `json:"assigned_to,omitempty"` // Agent ID working on this step
-	DependsOn   []int      `json:"depends_on,omitempty"`  // Indices of steps this depends on
+	Index              int        `json:"index"`
+	Description        string     `json:"description"`
+	AcceptanceCriteria string     `json:"acceptance_criteria,omitempty"`
+	VerifyCommand      string     `json:"verify_command,omitempty"`
+	Status             PlanStatus `json:"status"`
+	Result             string     `json:"result,omitempty"`
+	VerifyResult       string     `json:"verify_result,omitempty"`
+	SubPlanID          string     `json:"sub_plan_id,omitempty"` // Links to a child plan
+	AssignedTo         string     `json:"assigned_to,omitempty"` // Agent ID working on this step
+	DependsOn          []int      `json:"depends_on,omitempty"`  // Indices of steps this depends on
+	RetryCount         int        `json:"retry_count,omitempty"`
 }
 
 // CostBenefit holds a trade-off assessment for a plan.
@@ -134,8 +138,10 @@ func (p *Plan) FormatStatus() string {
 
 // PlanStepDef is the LLM-generated definition of a plan step before it becomes a PlanStep.
 type PlanStepDef struct {
-	Description string `json:"description"`
-	DependsOn   []int  `json:"depends_on"`
+	Description        string `json:"description"`
+	AcceptanceCriteria string `json:"acceptance_criteria"`
+	VerifyCommand      string `json:"verify_command"`
+	DependsOn          []int  `json:"depends_on"`
 }
 
 // FormatStatusHierarchical returns the plan status with sub-plans expanded inline.

@@ -62,7 +62,7 @@ func DefaultConfig() *Config {
 		Providers: ProvidersConfig{
 			OpenAI: OpenAIProviderConfig{WebSearch: true},
 		},
-		ModelList: DefaultModelList(),
+		ModelList: nil,
 		Gateway: GatewayConfig{
 			Host: "127.0.0.1",
 			Port: 18790,

@@ -21,6 +21,7 @@ import (
 	"github.com/grasberg/sofia/pkg/health"
 	"github.com/grasberg/sofia/pkg/heartbeat"
 	"github.com/grasberg/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/state"
 	"github.com/grasberg/sofia/pkg/tools"
@@ -37,6 +38,17 @@ func gatewayCmd(debug bool) error {
 	cfg, err := internal.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("error loading config: %w", err)
+	}
+
+	// Load models from DB before creating the provider — config.json no
+	// longer stores model_list, so cfg.ModelList is empty until we seed/load.
+	if dbPath := cfg.MemoryDBPath(); dbPath != "" {
+		if earlyDB, dbErr := memory.Open(dbPath); dbErr == nil {
+			if initErr := earlyDB.InitModels(cfg); initErr != nil {
+				fmt.Printf("⚠  Failed to load models from DB: %v\n", initErr)
+			}
+			_ = earlyDB // closed when NewAgentLoop opens its own handle
+		}
 	}
 
 	provider, _, err := providers.CreateProvider(cfg)
