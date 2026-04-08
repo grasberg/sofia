@@ -212,6 +212,8 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 	// Expand @file and @url context references before any further processing
 	if agent.Workspace != "" {
 		msg.Content = enrichMessageContent(ctx, msg.Content, agent.Workspace, httpFetchForContext)
+		// NOTE: @url content is injected after guardrails. Ensure any URL content
+		// does not contain prompt injection or secrets — TODO: add re-scan pass.
 	}
 
 	al.activeAgentID.Store(agent.ID)

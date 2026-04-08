@@ -7,6 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func mockFetch(_ context.Context, url string) (string, error) {
@@ -130,6 +134,32 @@ func TestEnrichMessageContent_Truncation(t *testing.T) {
 	if !strings.Contains(result, "... truncated") {
 		t.Errorf("expected truncation marker, got: %s", result[:200])
 	}
+
+	// is_utf8 variant: write a file with multi-byte UTF-8 content (emoji-heavy)
+	f2 := filepath.Join(tmp, "emoji.txt")
+	emoji := strings.Repeat("🎉", (maxAtRefBytes/4)+100) // each emoji is 4 bytes
+	if err := os.WriteFile(f2, []byte(emoji), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	msg2 := fmt.Sprintf("@%s", f2)
+	result2 := enrichMessageContent(context.Background(), msg2, tmp, mockFetch)
+	assert.True(t, utf8.ValidString(result2), "truncated result should be valid UTF-8")
+	assert.Contains(t, result2, "... truncated")
+}
+
+func TestEnrichMessageContent_SiblingDirectoryTraversal(t *testing.T) {
+	dir := t.TempDir()
+	// Create a sibling directory with a secret file
+	siblingDir := dir + "-evil"
+	require.NoError(t, os.MkdirAll(siblingDir, 0o755))
+	secretFile := filepath.Join(siblingDir, "secret.key")
+	require.NoError(t, os.WriteFile(secretFile, []byte("secret"), 0o644))
+
+	content := "@" + secretFile
+	result := enrichMessageContent(context.Background(), content, dir, mockFetch)
+	assert.Equal(t, content, result, "sibling directory escape should be blocked")
+
+	os.RemoveAll(siblingDir)
 }
 
 func TestEnrichMessageContent_NoRefs(t *testing.T) {
