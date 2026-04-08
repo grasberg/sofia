@@ -310,6 +310,19 @@ func (al *AgentLoop) runLLMIteration(
 				}
 			}
 		}
+		if agent.ThinkingBudget > 0 {
+			llmOpts["thinking_budget"] = agent.ThinkingBudget
+		}
+		// Consolidate: if thinking_budget not set by config, promote the slash-command value.
+		// Config takes priority — only fall back to the slash-command budget if not already set.
+		if _, ok := llmOpts["thinking_budget"]; !ok {
+			if thinkingMap, ok := llmOpts["thinking"].(map[string]any); ok {
+				if budget, ok := thinkingMap["budget_tokens"].(int); ok && budget > 0 {
+					llmOpts["thinking_budget"] = budget
+				}
+			}
+		}
+		delete(llmOpts, "thinking") // clean up the old key; buildParams only reads thinking_budget
 
 		callLLM := func() (*providers.LLMResponse, error) {
 			if len(agent.Candidates) > 1 && al.fallback != nil {
@@ -533,9 +546,10 @@ func (al *AgentLoop) runLLMIteration(
 
 		// Build assistant message with tool calls
 		assistantMsg := providers.Message{
-			Role:             "assistant",
-			Content:          response.Content,
-			ReasoningContent: response.ReasoningContent,
+			Role:               "assistant",
+			Content:            response.Content,
+			ReasoningContent:   response.ReasoningContent,
+			ReasoningSignature: response.ReasoningSignature,
 		}
 		for _, tc := range normalizedToolCalls {
 			argumentsJSON, _ := json.Marshal(tc.Arguments)

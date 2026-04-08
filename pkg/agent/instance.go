@@ -40,6 +40,7 @@ type AgentInstance struct {
 	PurposePrompt  string
 	Candidates     []providers.FallbackCandidate
 	Summarization  config.SummarizationConfig
+	ThinkingBudget int
 }
 
 // NewAgentInstance creates an agent instance from config.
@@ -220,6 +221,11 @@ func NewAgentInstance(
 		}
 	}
 
+	thinkingBudget := defaults.ThinkingBudget
+	if agentCfg != nil && agentCfg.ThinkingBudget > 0 {
+		thinkingBudget = agentCfg.ThinkingBudget
+	}
+
 	return &AgentInstance{
 		ID:   agentID,
 		Name: agentName,
@@ -247,6 +253,7 @@ func NewAgentInstance(
 		PurposePrompt:  contextBuilder.purposeInstructions,
 		Candidates:     candidates,
 		Summarization:  summarization,
+		ThinkingBudget: thinkingBudget,
 	}
 }
 

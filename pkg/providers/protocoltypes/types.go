@@ -25,11 +25,12 @@ type FunctionCall struct {
 }
 
 type LLMResponse struct {
-	Content          string     `json:"content"`
-	ReasoningContent string     `json:"reasoning_content,omitempty"`
-	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
-	FinishReason     string     `json:"finish_reason"`
-	Usage            *UsageInfo `json:"usage,omitempty"`
+	Content            string     `json:"content"`
+	ReasoningContent   string     `json:"reasoning_content,omitempty"`
+	ReasoningSignature string     `json:"reasoning_signature,omitempty"`
+	ToolCalls          []ToolCall `json:"tool_calls,omitempty"`
+	FinishReason       string     `json:"finish_reason"`
+	Usage              *UsageInfo `json:"usage,omitempty"`
 }
 
 type UsageInfo struct {
@@ -54,14 +55,15 @@ type ContentBlock struct {
 }
 
 type Message struct {
-	Role             string         `json:"role"`
-	Content          string         `json:"content"`
-	Images           []string       `json:"images,omitempty"` // base64 data URLs for vision (e.g. "data:image/png;base64,...")
-	ReasoningContent string         `json:"reasoning_content,omitempty"`
-	SystemParts      []ContentBlock `json:"system_parts,omitempty"` // structured system blocks for cache-aware adapters
-	ToolCalls        []ToolCall     `json:"tool_calls,omitempty"`
-	ToolCallID       string         `json:"tool_call_id,omitempty"`
-	ToolName         string         `json:"tool_name,omitempty"` // function name for tool result messages (required by Gemini)
+	Role               string         `json:"role"`
+	Content            string         `json:"content"`
+	Images             []string       `json:"images,omitempty"` // base64 data URLs for vision (e.g. "data:image/png;base64,...")
+	ReasoningContent   string         `json:"reasoning_content,omitempty"`
+	ReasoningSignature string         `json:"reasoning_signature,omitempty"`
+	SystemParts        []ContentBlock `json:"system_parts,omitempty"` // structured system blocks for cache-aware adapters
+	ToolCalls          []ToolCall     `json:"tool_calls,omitempty"`
+	ToolCallID         string         `json:"tool_call_id,omitempty"`
+	ToolName           string         `json:"tool_name,omitempty"` // function name for tool result messages (required by Gemini)
 }
 
 type ToolDefinition struct {

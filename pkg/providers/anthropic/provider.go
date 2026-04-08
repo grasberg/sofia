@@ -177,6 +177,11 @@ func buildParams(
 			flushToolResults()
 			if len(msg.ToolCalls) > 0 {
 				var blocks []anthropic.ContentBlockParamUnion
+				if msg.ReasoningContent != "" {
+					// Re-send thinking block so the model retains extended reasoning context
+					// across multi-turn tool-use conversations.
+					blocks = append(blocks, anthropic.NewThinkingBlock(msg.ReasoningSignature, msg.ReasoningContent))
+				}
 				if msg.Content != "" {
 					blocks = append(blocks, anthropic.NewTextBlock(msg.Content))
 				}
@@ -185,9 +190,18 @@ func buildParams(
 				}
 				anthropicMessages = append(anthropicMessages, anthropic.NewAssistantMessage(blocks...))
 			} else {
-				anthropicMessages = append(anthropicMessages,
-					anthropic.NewAssistantMessage(anthropic.NewTextBlock(msg.Content)),
-				)
+				if msg.ReasoningContent != "" {
+					// Plain assistant message with a thinking block
+					blocks := []anthropic.ContentBlockParamUnion{
+						anthropic.NewThinkingBlock(msg.ReasoningSignature, msg.ReasoningContent),
+						anthropic.NewTextBlock(msg.Content),
+					}
+					anthropicMessages = append(anthropicMessages, anthropic.NewAssistantMessage(blocks...))
+				} else {
+					anthropicMessages = append(anthropicMessages,
+						anthropic.NewAssistantMessage(anthropic.NewTextBlock(msg.Content)),
+					)
+				}
 			}
 		case "tool":
 			// Accumulate — will be flushed as a single user message
@@ -215,6 +229,10 @@ func buildParams(
 
 	if temp, ok := options["temperature"].(float64); ok {
 		params.Temperature = anthropic.Float(temp)
+	}
+
+	if budget, ok := options["thinking_budget"].(int); ok && budget > 0 {
+		params.Thinking = anthropic.ThinkingConfigParamOfEnabled(int64(budget))
 	}
 
 	if len(tools) > 0 {
@@ -256,6 +274,8 @@ func translateTools(tools []ToolDefinition) []anthropic.ToolUnionParam {
 
 func parseResponse(resp *anthropic.Message) *LLMResponse {
 	var content string
+	var reasoningContent string
+	var reasoningSignature string
 	var toolCalls []ToolCall
 
 	for _, block := range resp.Content {
@@ -263,6 +283,10 @@ func parseResponse(resp *anthropic.Message) *LLMResponse {
 		case "text":
 			tb := block.AsText()
 			content += tb.Text
+		case "thinking":
+			tb := block.AsThinking()
+			reasoningContent += tb.Thinking
+			reasoningSignature = tb.Signature
 		case "tool_use":
 			tu := block.AsToolUse()
 			var args map[string]any
@@ -289,9 +313,11 @@ func parseResponse(resp *anthropic.Message) *LLMResponse {
 	}
 
 	return &LLMResponse{
-		Content:      content,
-		ToolCalls:    toolCalls,
-		FinishReason: finishReason,
+		Content:            content,
+		ReasoningContent:   reasoningContent,
+		ReasoningSignature: reasoningSignature,
+		ToolCalls:          toolCalls,
+		FinishReason:       finishReason,
 		Usage: &UsageInfo{
 			PromptTokens:     int(resp.Usage.InputTokens),
 			CompletionTokens: int(resp.Usage.OutputTokens),

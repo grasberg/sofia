@@ -272,6 +272,100 @@ func TestBuildParams_MaxTokens(t *testing.T) {
 	assert.Equal(t, int64(1024), params.MaxTokens)
 }
 
+func mustUnmarshalContentBlock(t *testing.T, raw string) anthropic.ContentBlockUnion {
+	t.Helper()
+	var block anthropic.ContentBlockUnion
+	if err := json.Unmarshal([]byte(raw), &block); err != nil {
+		t.Fatalf("failed to unmarshal ContentBlockUnion: %v", err)
+	}
+	return block
+}
+
+func TestParseResponse_ThinkingBlock(t *testing.T) {
+	thinkingBlock := mustUnmarshalContentBlock(t,
+		`{"type":"thinking","thinking":"I need to reason about this carefully.","signature":"sig1"}`)
+	textBlock := mustUnmarshalContentBlock(t,
+		`{"type":"text","text":"Here is my answer."}`)
+
+	resp := &anthropic.Message{
+		Content:    []anthropic.ContentBlockUnion{thinkingBlock, textBlock},
+		StopReason: anthropic.StopReasonEndTurn,
+		Usage: anthropic.Usage{
+			InputTokens:  10,
+			OutputTokens: 30,
+		},
+	}
+	result := parseResponse(resp)
+	require.NotNil(t, result)
+	assert.Equal(t, "Here is my answer.", result.Content)
+	assert.Equal(t, "I need to reason about this carefully.", result.ReasoningContent)
+	assert.Equal(t, "sig1", result.ReasoningSignature)
+	assert.Equal(t, "stop", result.FinishReason)
+}
+
+func TestBuildParams_ThinkingBlock(t *testing.T) {
+	messages := []Message{
+		{Role: "user", Content: "What is 2+2?"},
+		{
+			Role:               "assistant",
+			Content:            "The answer is 4.",
+			ReasoningContent:   "Let me think: 2+2=4.",
+			ReasoningSignature: "test-sig",
+			ToolCalls: []ToolCall{
+				{
+					ID:        "call_1",
+					Name:      "calculator",
+					Arguments: map[string]any{"expr": "2+2"},
+				},
+			},
+		},
+	}
+	params, err := buildParams(messages, nil, "claude-sonnet-4.6", map[string]any{})
+	require.NoError(t, err)
+	// The assistant message should have 3 blocks: thinking + text + tool_use
+	require.Len(t, params.Messages, 2)
+	blocks := params.Messages[1].Content
+	require.Len(t, blocks, 3, "expected thinking + text + tool_use blocks")
+	assert.NotNil(t, blocks[0].OfThinking, "first block should be thinking")
+	assert.Equal(t, "Let me think: 2+2=4.", blocks[0].OfThinking.Thinking)
+	assert.Equal(t, "test-sig", blocks[0].OfThinking.Signature)
+	assert.NotNil(t, blocks[1].OfText, "second block should be text")
+	assert.NotNil(t, blocks[2].OfToolUse, "third block should be tool_use")
+}
+
+func TestBuildParams_ThinkingBlockPlainAssistant(t *testing.T) {
+	messages := []Message{
+		{Role: "user", Content: "Hello"},
+		{
+			Role:               "assistant",
+			Content:            "Hi there.",
+			ReasoningContent:   "The user is greeting me.",
+			ReasoningSignature: "test-sig",
+		},
+	}
+	params, err := buildParams(messages, nil, "claude-sonnet-4.6", map[string]any{})
+	require.NoError(t, err)
+	require.Len(t, params.Messages, 2)
+	blocks := params.Messages[1].Content
+	require.Len(t, blocks, 2, "expected thinking + text blocks")
+	assert.NotNil(t, blocks[0].OfThinking, "first block should be thinking")
+	assert.Equal(t, "The user is greeting me.", blocks[0].OfThinking.Thinking)
+	assert.Equal(t, "test-sig", blocks[0].OfThinking.Signature)
+	assert.NotNil(t, blocks[1].OfText, "second block should be text")
+}
+
+func TestBuildParams_ThinkingBudget(t *testing.T) {
+	params, err := buildParams(
+		[]Message{{Role: "user", Content: "Think hard"}},
+		nil,
+		"claude-sonnet-4.6",
+		map[string]any{"thinking_budget": 2048},
+	)
+	require.NoError(t, err)
+	assert.NotNil(t, params.Thinking.OfEnabled, "Thinking should be enabled")
+	assert.Equal(t, int64(2048), params.Thinking.OfEnabled.BudgetTokens)
+}
+
 func createAnthropicTestClient(baseURL, token string) *anthropic.Client {
 	c := anthropic.NewClient(
 		anthropicoption.WithAuthToken(token),

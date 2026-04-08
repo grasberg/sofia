@@ -116,6 +116,7 @@ type AgentConfig struct {
 	Subagents          *SubagentsConfig    `json:"subagents,omitempty"`
 	Budget             *BudgetConfig       `json:"budget,omitempty"`
 	Summarization      SummarizationConfig `json:"summarization,omitempty"`
+	ThinkingBudget     int                 `json:"thinking_budget,omitempty"`
 }
 
 type SubagentsConfig struct {
@@ -173,6 +174,7 @@ type AgentDefaults struct {
 	Budget                 *BudgetConfig            `json:"budget,omitempty"`
 	PromptOptimization     PromptOptimizationConfig `json:"prompt_optimization,omitempty"`
 	Summarization          SummarizationConfig      `json:"summarization,omitempty"`
+	ThinkingBudget         int                      `json:"thinking_budget,omitempty"`
 }
 
 // PromptOptimizationConfig configures automatic prompt refinement via A/B testing.
