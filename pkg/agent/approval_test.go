@@ -26,24 +26,24 @@ func TestApprovalGate_RequiresApproval_ByToolName(t *testing.T) {
 	cfg := newTestApprovalConfig([]string{"exec", "write_file"}, nil)
 	gate := NewApprovalGate(cfg)
 
-	assert.True(t, gate.RequiresApproval("exec", `{"command":"rm -rf /"}`))
-	assert.True(t, gate.RequiresApproval("write_file", `{"path":"/etc/passwd"}`))
+	assert.True(t, gate.RequiresApproval("", "exec", `{"command":"rm -rf /"}`))
+	assert.True(t, gate.RequiresApproval("", "write_file", `{"path":"/etc/passwd"}`))
 }
 
 func TestApprovalGate_RequiresApproval_ByPattern(t *testing.T) {
 	cfg := newTestApprovalConfig(nil, []string{`rm\s+-rf`, `sudo\s+`})
 	gate := NewApprovalGate(cfg)
 
-	assert.True(t, gate.RequiresApproval("exec", `{"command":"rm -rf /tmp/data"}`))
-	assert.True(t, gate.RequiresApproval("exec", `{"command":"sudo reboot"}`))
+	assert.True(t, gate.RequiresApproval("", "exec", `{"command":"rm -rf /tmp/data"}`))
+	assert.True(t, gate.RequiresApproval("", "exec", `{"command":"sudo reboot"}`))
 }
 
 func TestApprovalGate_DoesNotRequireApproval(t *testing.T) {
 	cfg := newTestApprovalConfig([]string{"exec"}, []string{`rm\s+-rf`})
 	gate := NewApprovalGate(cfg)
 
-	assert.False(t, gate.RequiresApproval("read_file", `{"path":"/tmp/foo.txt"}`))
-	assert.False(t, gate.RequiresApproval("list_dir", `{"path":"."}`))
+	assert.False(t, gate.RequiresApproval("", "read_file", `{"path":"/tmp/foo.txt"}`))
+	assert.False(t, gate.RequiresApproval("", "list_dir", `{"path":"."}`))
 }
 
 func TestApprovalGate_DoesNotRequireApproval_WhenDisabled(t *testing.T) {
@@ -51,7 +51,7 @@ func TestApprovalGate_DoesNotRequireApproval_WhenDisabled(t *testing.T) {
 	cfg.Enabled = false
 	gate := NewApprovalGate(cfg)
 
-	assert.False(t, gate.RequiresApproval("exec", `{"command":"rm -rf /"}`))
+	assert.False(t, gate.RequiresApproval("", "exec", `{"command":"rm -rf /"}`))
 }
 
 func TestApprovalGate_ApproveFlow(t *testing.T) {
@@ -253,6 +253,50 @@ func TestApprovalGate_InvalidPattern(t *testing.T) {
 	gate := NewApprovalGate(cfg)
 
 	// Invalid pattern should be skipped, so nothing matches
-	assert.False(t, gate.RequiresApproval("exec", `{"command":"anything"}`))
+	assert.False(t, gate.RequiresApproval("", "exec", `{"command":"anything"}`))
 	assert.Empty(t, gate.patterns)
+}
+
+func TestApprovalGate_SetBypass(t *testing.T) {
+	cfg := newTestApprovalConfig([]string{"exec"}, nil)
+	gate := NewApprovalGate(cfg)
+
+	sessionKey := "test-session-123"
+
+	// Not bypassed by default
+	assert.False(t, gate.IsBypassed(sessionKey))
+
+	// Enable bypass
+	gate.SetBypass(sessionKey, true)
+	assert.True(t, gate.IsBypassed(sessionKey))
+
+	// Disable bypass
+	gate.SetBypass(sessionKey, false)
+	assert.False(t, gate.IsBypassed(sessionKey))
+}
+
+func TestApprovalGate_BypassSkipsApproval(t *testing.T) {
+	cfg := newTestApprovalConfig([]string{"exec"}, []string{`rm\s+-rf`})
+	gate := NewApprovalGate(cfg)
+
+	sessionKey := "yolo-session"
+	otherSession := "normal-session"
+
+	// Without bypass, exec requires approval
+	assert.True(t, gate.RequiresApproval(sessionKey, "exec", `{"command":"rm -rf /tmp"}`))
+	assert.True(t, gate.RequiresApproval(otherSession, "exec", `{"command":"rm -rf /tmp"}`))
+
+	// Enable bypass for one session only
+	gate.SetBypass(sessionKey, true)
+
+	// Bypassed session skips approval even for tools that would normally require it
+	assert.False(t, gate.RequiresApproval(sessionKey, "exec", `{"command":"rm -rf /tmp"}`))
+	assert.False(t, gate.RequiresApproval(sessionKey, "exec", `{"command":"anything"}`))
+
+	// Non-bypassed session still requires approval
+	assert.True(t, gate.RequiresApproval(otherSession, "exec", `{"command":"rm -rf /tmp"}`))
+
+	// Disabling bypass restores normal behaviour
+	gate.SetBypass(sessionKey, false)
+	assert.True(t, gate.RequiresApproval(sessionKey, "exec", `{"command":"rm -rf /tmp"}`))
 }

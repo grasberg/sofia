@@ -185,6 +185,27 @@ func (al *AgentLoop) handleSessionCommand(
 			return "Usage: /verbose on|off", true
 		}
 
+	case "/yolo":
+		if al.approvalGate == nil {
+			return "Approval gate is not configured for this agent.", true
+		}
+		if len(args) < 1 {
+			if al.approvalGate.IsBypassed(sessionKey) {
+				return "YOLO mode is ON — all approvals bypassed. Usage: /yolo on|off", true
+			}
+			return "YOLO mode is OFF. Usage: /yolo on|off", true
+		}
+		switch args[0] {
+		case "on":
+			al.approvalGate.SetBypass(sessionKey, true)
+			return "YOLO mode enabled — all tool approvals bypassed for this session.", true
+		case "off":
+			al.approvalGate.SetBypass(sessionKey, false)
+			return "YOLO mode disabled — normal approval rules restored.", true
+		default:
+			return "Usage: /yolo on|off", true
+		}
+
 	case "/usage":
 		usage := al.usageTracker.GetSession(sessionKey)
 		if usage == nil {

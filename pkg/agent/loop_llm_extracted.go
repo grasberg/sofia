@@ -434,7 +434,7 @@ func (al *AgentLoop) executeToolCall(
 	// Approval gate: check if tool requires human approval
 	if al.approvalGate != nil {
 		argsJSON, _ := json.Marshal(tc.Arguments)
-		if al.approvalGate.RequiresApproval(tc.Name, string(argsJSON)) {
+		if al.approvalGate.RequiresApproval(opts.SessionKey, tc.Name, string(argsJSON)) {
 			return al.handleApprovalGate(ctx, tc, idx, iteration, agent, opts, agentComp)
 		}
 	}

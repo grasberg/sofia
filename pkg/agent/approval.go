@@ -26,10 +26,11 @@ type ApprovalRequest struct {
 
 // ApprovalGate manages human-in-the-loop approval for high-risk tool calls.
 type ApprovalGate struct {
-	mu       sync.Mutex
-	config   config.ApprovalConfig
-	pending  map[string]*approvalEntry
-	patterns []*regexp.Regexp
+	mu             sync.Mutex
+	config         config.ApprovalConfig
+	pending        map[string]*approvalEntry
+	patterns       []*regexp.Regexp
+	approvalBypass sync.Map // sessionKey -> bool
 }
 
 type approvalEntry struct {
@@ -58,10 +59,31 @@ func NewApprovalGate(cfg config.ApprovalConfig) *ApprovalGate {
 	}
 }
 
+// SetBypass enables or disables approval bypass for the given session.
+// When bypass is on, RequiresApproval always returns false for that session.
+func (ag *ApprovalGate) SetBypass(sessionKey string, on bool) {
+	if on {
+		ag.approvalBypass.Store(sessionKey, true)
+	} else {
+		ag.approvalBypass.Delete(sessionKey)
+	}
+}
+
+// IsBypassed returns true if approval is currently bypassed for the given session.
+func (ag *ApprovalGate) IsBypassed(sessionKey string) bool {
+	v, ok := ag.approvalBypass.Load(sessionKey)
+	return ok && v.(bool)
+}
+
 // RequiresApproval checks whether a tool call needs human approval.
 // It returns true if the tool name is in the RequireFor list or if argsJSON
-// matches any PatternMatch regex.
-func (ag *ApprovalGate) RequiresApproval(toolName string, argsJSON string) bool {
+// matches any PatternMatch regex. Returns false immediately if bypass is set
+// for the given session.
+func (ag *ApprovalGate) RequiresApproval(sessionKey string, toolName string, argsJSON string) bool {
+	if ag.IsBypassed(sessionKey) {
+		return false
+	}
+
 	if !ag.config.Enabled {
 		return false
 	}

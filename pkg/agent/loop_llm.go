@@ -641,7 +641,7 @@ func (al *AgentLoop) runLLMIteration(
 
 			// Approval gate: check if tool requires human approval
 			if al.approvalGate != nil {
-				if al.approvalGate.RequiresApproval(tc.Name, string(argumentsJSON)) {
+				if al.approvalGate.RequiresApproval(opts.SessionKey, tc.Name, string(argumentsJSON)) {
 					req := ApprovalRequest{
 						ID:         fmt.Sprintf("approval-%d-%d", iteration, idx),
 						ToolName:   tc.Name,
