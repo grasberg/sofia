@@ -69,5 +69,37 @@ func defaultModelList() []ModelConfig {
 		{ModelName: "MiniMax-M1-256k", Model: "minimax/MiniMax-M1-256k"},
 		{ModelName: "MiniMax-M2.5",    Model: "minimax/MiniMax-M2.5"},
 		{ModelName: "MiniMax-M2.7",    Model: "minimax/MiniMax-M2.7"},
+
+		// ── OpenRouter ────────────────────────────────────────────────────────
+		// Base URL: https://openrouter.ai/api/v1 — API key env: OPENROUTER_API_KEY
+		// Model names use the full OpenRouter slug (vendor/model-id).
+		{ModelName: "anthropic/claude-opus-4.6",                Model: "openrouter/anthropic/claude-opus-4.6"},
+		{ModelName: "anthropic/claude-sonnet-4.6",              Model: "openrouter/anthropic/claude-sonnet-4.6"},
+		{ModelName: "anthropic/claude-sonnet-4.5",              Model: "openrouter/anthropic/claude-sonnet-4.5"},
+		{ModelName: "anthropic/claude-haiku-4.5",               Model: "openrouter/anthropic/claude-haiku-4.5"},
+		{ModelName: "openai/gpt-5.4",                           Model: "openrouter/openai/gpt-5.4"},
+		{ModelName: "openai/gpt-5.4-mini",                      Model: "openrouter/openai/gpt-5.4-mini"},
+		{ModelName: "openai/gpt-5.4-pro",                       Model: "openrouter/openai/gpt-5.4-pro"},
+		{ModelName: "openai/gpt-5.4-nano",                      Model: "openrouter/openai/gpt-5.4-nano"},
+		{ModelName: "openai/gpt-5.3-codex",                     Model: "openrouter/openai/gpt-5.3-codex"},
+		{ModelName: "xiaomi/mimo-v2-pro",                        Model: "openrouter/xiaomi/mimo-v2-pro"},
+		{ModelName: "google/gemini-3-pro-preview",              Model: "openrouter/google/gemini-3-pro-preview"},
+		{ModelName: "google/gemini-3-flash-preview",            Model: "openrouter/google/gemini-3-flash-preview"},
+		{ModelName: "google/gemini-3.1-pro-preview",            Model: "openrouter/google/gemini-3.1-pro-preview"},
+		{ModelName: "google/gemini-3.1-flash-lite-preview",     Model: "openrouter/google/gemini-3.1-flash-lite-preview"},
+		{ModelName: "qwen/qwen3.6-plus:free",                   Model: "openrouter/qwen/qwen3.6-plus:free"},
+		{ModelName: "qwen/qwen3.5-plus-02-15",                  Model: "openrouter/qwen/qwen3.5-plus-02-15"},
+		{ModelName: "qwen/qwen3.5-35b-a3b",                     Model: "openrouter/qwen/qwen3.5-35b-a3b"},
+		{ModelName: "stepfun/step-3.5-flash",                   Model: "openrouter/stepfun/step-3.5-flash"},
+		{ModelName: "minimax/minimax-m2.7",                     Model: "openrouter/minimax/minimax-m2.7"},
+		{ModelName: "minimax/minimax-m2.5",                     Model: "openrouter/minimax/minimax-m2.5"},
+		{ModelName: "z-ai/glm-5.1",                             Model: "openrouter/z-ai/glm-5.1"},
+		{ModelName: "z-ai/glm-5-turbo",                         Model: "openrouter/z-ai/glm-5-turbo"},
+		{ModelName: "moonshotai/kimi-k2.5",                     Model: "openrouter/moonshotai/kimi-k2.5"},
+		{ModelName: "x-ai/grok-4.20-beta",                      Model: "openrouter/x-ai/grok-4.20-beta"},
+		{ModelName: "nvidia/nemotron-3-super-120b-a12b",         Model: "openrouter/nvidia/nemotron-3-super-120b-a12b"},
+		{ModelName: "nvidia/nemotron-3-super-120b-a12b:free",    Model: "openrouter/nvidia/nemotron-3-super-120b-a12b:free"},
+		{ModelName: "arcee-ai/trinity-large-preview:free",      Model: "openrouter/arcee-ai/trinity-large-preview:free"},
+		{ModelName: "arcee-ai/trinity-large-thinking",          Model: "openrouter/arcee-ai/trinity-large-thinking"},
 	}
 }
