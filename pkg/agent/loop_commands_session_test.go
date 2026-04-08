@@ -6,9 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/grasberg/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/providers"
 )
 
 func TestHandleSessionCommand_CheckpointRollbackRestoresSummary(t *testing.T) {
@@ -428,5 +430,103 @@ func TestBtw_GatewayChannelReturnsUnsupportedMessage(t *testing.T) {
 	}
 	if !strings.Contains(resp, "not supported") {
 		t.Fatalf("expected 'not supported' message for gateway channel, got: %s", resp)
+	}
+}
+
+// toolCallThenTextProvider is a stateful mock that returns a tool call on the
+// first Chat() invocation and a plain text response on the second. This drives
+// the tool-result branch of runLLMIteration so the unguarded AddFullMessage
+// path (loop_llm.go) is exercised.
+type toolCallThenTextProvider struct {
+	calls atomic.Int32
+}
+
+func (m *toolCallThenTextProvider) Chat(
+	_ context.Context,
+	_ []providers.Message,
+	_ []providers.ToolDefinition,
+	_ string,
+	_ map[string]any,
+) (*providers.LLMResponse, error) {
+	n := m.calls.Add(1)
+	if n == 1 {
+		// First call: return a single tool call. The tool name "noop_btw_test"
+		// is not registered, so ExecuteWithContext returns an error result and
+		// the loop continues to a second LLM call.
+		return &providers.LLMResponse{
+			ToolCalls: []providers.ToolCall{
+				{
+					ID:   "call-btw-test-1",
+					Type: "function",
+					Function: &providers.FunctionCall{
+						Name:      "noop_btw_test",
+						Arguments: "{}",
+					},
+				},
+			},
+			FinishReason: "tool_calls",
+		}, nil
+	}
+	// Second call: plain text — no more tool calls.
+	return &providers.LLMResponse{
+		Content:      "Tool result processed.",
+		FinishReason: "stop",
+	}, nil
+}
+
+func (m *toolCallThenTextProvider) GetDefaultModel() string { return "mock-tool-model" }
+
+// TestBtw_WithToolCall_DoesNotModifySessionHistory verifies that a /btw question
+// that triggers a tool call does NOT leak tool-result messages into session history.
+// This specifically covers the AddFullMessage path at loop_llm.go:952 which must
+// be guarded by !opts.Ephemeral.
+func TestBtw_WithToolCall_DoesNotModifySessionHistory(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "btw-toolcall-session-*")
+	if err != nil {
+		t.Fatalf("create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	cfg := testCfg(nil)
+	cfg.Agents.Defaults.Workspace = tmpDir
+	cfg.MemoryDB = filepath.Join(tmpDir, "memory.db")
+
+	al := NewAgentLoop(cfg, bus.NewMessageBus(), &mockRegistryProvider{})
+	agent := al.registry.GetDefaultAgent()
+	if agent == nil {
+		t.Fatal("expected default agent")
+	}
+
+	// Replace the agent's provider with one that returns a tool call on the first
+	// LLM call and a text response on the second.
+	agent.Provider = &toolCallThenTextProvider{}
+
+	sessionKey := "cli:test-btw-toolcall"
+	agent.Sessions.GetOrCreate(sessionKey)
+	agent.Sessions.AddMessage(sessionKey, "user", "initial message")
+	agent.Sessions.AddMessage(sessionKey, "assistant", "initial response")
+
+	historyBefore := agent.Sessions.GetHistory(sessionKey)
+
+	msg := newTestInboundMessage("/btw what does this function do?")
+	resp, handled := al.handleSessionCommand(
+		context.Background(),
+		msg,
+		agent,
+		sessionKey,
+	)
+	if !handled {
+		t.Fatal("expected /btw to be handled")
+	}
+	if !strings.HasPrefix(resp, "[btw]") {
+		t.Fatalf("expected [btw] prefix in response, got: %s", resp)
+	}
+
+	// Session history must be unchanged — neither the assistant tool-call message
+	// nor the tool-result message must have been persisted.
+	historyAfter := agent.Sessions.GetHistory(sessionKey)
+	if len(historyAfter) != len(historyBefore) {
+		t.Fatalf("session history length changed: before=%d after=%d (tool-result leaked into session)",
+			len(historyBefore), len(historyAfter))
 	}
 }

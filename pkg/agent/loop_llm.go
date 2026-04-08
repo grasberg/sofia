@@ -949,7 +949,9 @@ func (al *AgentLoop) runLLMIteration(
 			}
 
 			messages = append(messages, tcr.resultMsg)
-			agent.Sessions.AddFullMessage(opts.SessionKey, tcr.resultMsg)
+			if !opts.Ephemeral {
+				agent.Sessions.AddFullMessage(opts.SessionKey, tcr.resultMsg)
+			}
 		}
 
 		// Budget pressure signaling: inject into last message already in the messages slice.
