@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -434,4 +435,98 @@ func TestEditFileTool_Restricted_FileNotFound(t *testing.T) {
 	result := tool.Execute(ctx, args)
 	assert.True(t, result.IsError)
 	assert.Contains(t, result.ForLLM, "not found")
+}
+
+// TestEditFileTool_DiffInResult verifies that a successful edit produces a unified diff
+// embedded in the tool result (ForLLM), containing standard unified diff markers.
+func TestEditFileTool_DiffInResult(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "multiline.txt")
+	err := os.WriteFile(testFile, []byte("line1\nline2\nline3\n"), 0o644)
+	assert.NoError(t, err)
+
+	tool := NewEditFileTool(tmpDir, false)
+	ctx := context.Background()
+	args := map[string]any{
+		"path":     testFile,
+		"old_text": "line2",
+		"new_text": "newline2",
+	}
+
+	result := tool.Execute(ctx, args)
+	assert.False(t, result.IsError, "Expected success, got: %s", result.ForLLM)
+
+	// The result is silent but ForLLM should contain the diff
+	assert.True(t, result.Silent)
+	assert.Contains(t, result.ForLLM, "--- a/", "Expected unified diff '--- a/' header in ForLLM")
+	assert.Contains(t, result.ForLLM, "+++ b/", "Expected unified diff '+++ b/' header in ForLLM")
+	assert.Contains(t, result.ForLLM, "-line2", "Expected removed line '-line2' in diff")
+	assert.Contains(t, result.ForLLM, "+newline2", "Expected added line '+newline2' in diff")
+}
+
+// TestBuildUnifiedDiff verifies the buildUnifiedDiff helper produces correct unified diff output.
+func TestBuildUnifiedDiff(t *testing.T) {
+	original := "alpha\nbeta\ngamma\n"
+	modified := "alpha\ndelta\ngamma\n"
+	path := "test/file.txt"
+
+	diff := buildUnifiedDiff(original, modified, path)
+
+	assert.Contains(t, diff, "--- a/"+path, "Expected '--- a/<path>' header")
+	assert.Contains(t, diff, "+++ b/"+path, "Expected '+++ b/<path>' header")
+	assert.Contains(t, diff, "-beta", "Expected removed line '-beta'")
+	assert.Contains(t, diff, "+delta", "Expected added line '+delta'")
+	assert.Contains(t, diff, "@@", "Expected '@@ ... @@' hunk header")
+}
+
+// TestBuildUnifiedDiff_NoDiff verifies that buildUnifiedDiff returns "" when content is unchanged.
+func TestBuildUnifiedDiff_NoDiff(t *testing.T) {
+	same := "unchanged content\n"
+	diff := buildUnifiedDiff(same, same, "file.txt")
+	assert.Equal(t, "", diff, "Expected empty diff when original and modified are identical")
+}
+
+// TestBuildNewFileDiff verifies that buildNewFileDiff produces an all-additions diff with the correct header.
+func TestBuildNewFileDiff(t *testing.T) {
+	content := "first line\nsecond line\nthird line\n"
+	path := "new/file.txt"
+
+	diff := buildNewFileDiff(content, path)
+
+	assert.True(t, strings.HasPrefix(diff, "+++ (new file) "+path), "Expected diff to start with '+++ (new file) <path>'")
+	assert.Contains(t, diff, "+first line", "Expected '+first line' in new file diff")
+	assert.Contains(t, diff, "+second line", "Expected '+second line' in new file diff")
+	assert.Contains(t, diff, "+third line", "Expected '+third line' in new file diff")
+}
+
+// TestBuildNewFileDiff_Empty verifies that buildNewFileDiff returns "" for empty content.
+func TestBuildNewFileDiff_Empty(t *testing.T) {
+	diff := buildNewFileDiff("", "file.txt")
+	assert.Equal(t, "", diff, "Expected empty diff for empty content")
+}
+
+// TestCapDiffLines verifies that capDiffLines truncates diffs exceeding diffMaxLines (100) lines.
+func TestCapDiffLines(t *testing.T) {
+	// Build a diff with more than 100 lines
+	var sb strings.Builder
+	for i := range 150 {
+		sb.WriteString(fmt.Sprintf("+line%d\n", i))
+	}
+	longDiff := sb.String()
+
+	result := capDiffLines(longDiff)
+
+	resultLines := strings.Split(result, "\n")
+	// After truncation there should be exactly diffMaxLines lines of content plus the trailer line.
+	// The trailer line is appended without a trailing newline, so Split gives diffMaxLines+1 elements.
+	assert.Equal(t, diffMaxLines+1, len(resultLines),
+		"Expected exactly %d lines + trailer after capping, got %d", diffMaxLines, len(resultLines))
+	assert.Contains(t, result, "more lines omitted", "Expected 'more lines omitted' trailer in capped diff")
+}
+
+// TestCapDiffLines_UnderLimit verifies that capDiffLines leaves short diffs unchanged.
+func TestCapDiffLines_UnderLimit(t *testing.T) {
+	short := "+line1\n+line2\n+line3\n"
+	result := capDiffLines(short)
+	assert.Equal(t, short, result, "Expected unchanged diff when under the line limit")
 }

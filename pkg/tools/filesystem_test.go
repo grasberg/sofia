@@ -450,6 +450,52 @@ func TestHostRW_Write(t *testing.T) {
 	assert.Equal(t, newData, content)
 }
 
+// TestWriteFileTool_ExistingFile_DiffInResult verifies that writing to an existing file
+// produces a unified diff in the tool result.
+func TestWriteFileTool_ExistingFile_DiffInResult(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "existing.txt")
+
+	// Pre-write the file so it already exists.
+	err := os.WriteFile(testFile, []byte("old line one\nold line two\n"), 0o644)
+	assert.NoError(t, err)
+
+	tool := NewWriteFileTool("", false)
+	ctx := context.Background()
+	args := map[string]any{
+		"path":    testFile,
+		"content": "new line one\nnew line two\n",
+	}
+
+	result := tool.Execute(ctx, args)
+	assert.False(t, result.IsError, "Expected success, got: %s", result.ForLLM)
+	assert.True(t, result.Silent)
+	assert.Contains(t, result.ForLLM, "--- a/", "Expected unified diff '--- a/' header for existing file")
+	assert.Contains(t, result.ForLLM, "+++ b/", "Expected unified diff '+++ b/' header for existing file")
+	assert.Contains(t, result.ForLLM, "@@", "Expected '@@ ... @@' hunk header in diff")
+}
+
+// TestWriteFileTool_NewFile_NewFileDiff verifies that writing a new file produces
+// the '+++ (new file)' header and '+' prefixed lines in the tool result.
+func TestWriteFileTool_NewFile_NewFileDiff(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "brand_new.txt")
+
+	tool := NewWriteFileTool("", false)
+	ctx := context.Background()
+	args := map[string]any{
+		"path":    testFile,
+		"content": "hello\nworld\n",
+	}
+
+	result := tool.Execute(ctx, args)
+	assert.False(t, result.IsError, "Expected success, got: %s", result.ForLLM)
+	assert.True(t, result.Silent)
+	assert.Contains(t, result.ForLLM, "+++ (new file)", "Expected '+++ (new file)' header for new file write")
+	assert.Contains(t, result.ForLLM, "+hello", "Expected '+hello' line in new file diff")
+	assert.Contains(t, result.ForLLM, "+world", "Expected '+world' line in new file diff")
+}
+
 // TestRootRW_Write verifies the rootRW.Write helper function
 func TestRootRW_Write(t *testing.T) {
 	tmpDir := t.TempDir()
