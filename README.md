@@ -142,14 +142,16 @@ Analyze local images directly in the conversation:
 *   Automatic MIME type detection and size limits.
 *   Integrated with the vision-LLM pipeline.
 
-## 🧠 Advanced Memory
+## 🧠 Advanced Memory Architecture
 
-Sofia has a multi-layered memory architecture:
+Sofia uses a highly modular, multi-layered SQLite-backed memory architecture, decomposed into domain-specific components for maximum scalability and targeted retrieval:
 
-*   **Semantic Memory (Knowledge Graph):** Structured facts, entities, and relationships stored as nodes and edges. The `knowledge_graph` tool allows the agent to add, search, and delete knowledge.
-*   **Memory Consolidation:** `MemoryConsolidator` merges duplicate nodes and resolves conflicting relationships — keeping the knowledge graph clean automatically.
-*   **Strategic Forgetting:** `MemoryPruner` calculates a survival score based on access frequency and time since last access. Nodes below a threshold are discarded.
-*   **Self-Evolving Memory:** All accesses are tracked via `RecordStat`, driving both consolidation and pruning based on actual usage patterns.
+*   **Sessions Context (`db_sessions.go`):** Manages conversational history, rolling context windows, and channel-specific session isolation.
+*   **Semantic Knowledge Graph (`db_semantic_*.go`):** Structured facts, entities, and relationships stored as nodes and edges. Includes `MemoryConsolidator` for deduplication and `MemoryPruner` for strategic forgetting based on access usage records (`RecordStat`). Includes the `knowledge_graph` tool.
+*   **Freeform Notes (`db_notes.go`):** Unstructured, indexed scratchpad notes for flexible, text-based memory recall.
+*   **Agent Reflections (`db_reflections.go`):** Stores structured post-task evaluations and meta-learning matrices for continuous self-improvement.
+*   **Observability & State (`db_traces.go`, `db_checkpoints.go`):** Records execution traces (LLM spans, tool usage) for distributed observability, alongside agent loop checkpoints for safe rollback capabilities.
+*   **Autonomous Goals (`db_goals.go`):** Dedicated persistence layer for long-term objectives across sessions.
 
 ## 🔄 Self-Reflection & Self-Improvement
 
@@ -167,7 +169,11 @@ Sofia evaluates herself after every task and improves continuously:
 
 Sofia can act independently without user initiation:
 
-*   **Long-Term Goals:** The `manage_goals` tool creates and tracks goals that persist across sessions. Active goals are automatically injected into the agent's context.
+*   **Long-Term Goals System:** Sofia autonomously pursues complex, multi-step objectives across sessions using a robust Goal Engine via the `manage_goals` tool.
+    *   **Phased Lifecycle:** Goals transition through structured phases: `Specify` (defining parameters), `Plan` (breaking down tasks), `Implement` (executing work), and `Completed`.
+    *   **Rigorous Specifications:** Active goals retain a structural `GoalSpec`, outlining strict requirements, success criteria, context, and operational constraints.
+    *   **Structured Results:** Upon completion, a `GoalResult` captures the outcome summary, produced artifacts, actionable next steps, unmet criteria, and evaluation evidence.
+    *   **Automatic Injection:** Active, high-priority goals are dynamically inserted into the agent's runtime context for immediate focus.
 *   **Context-Aware Triggers:** The `manage_triggers` tool creates conditional actions that trigger based on user conversational context.
 *   **Proactive Suggestions:** `AutonomyService` periodically analyzes recent activity and generates unsolicited suggestions when deemed valuable.
 *   **Autonomous Research:** Identifies knowledge gaps and independently initiates research on relevant topics.
