@@ -209,6 +209,11 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 		return "", fmt.Errorf("no agent available for route %q", route.AgentID)
 	}
 
+	// Expand @file and @url context references before any further processing
+	if agent.Workspace != "" {
+		msg.Content = enrichMessageContent(ctx, msg.Content, agent.Workspace, httpFetchForContext)
+	}
+
 	al.activeAgentID.Store(agent.ID)
 	al.activeStatus.Store("Thinking...")
 	al.broadcastPresence(agent.ID, "processing")
@@ -356,7 +361,11 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 						"duration_ms": delegateDur,
 						"result_len":  len(combinedResult),
 					})
-				synthesisMsg := fmt.Sprintf("[Combined results from %d subagents]\n\n%s", len(candidates), combinedResult)
+				synthesisMsg := fmt.Sprintf(
+					"[Combined results from %d subagents]\n\n%s",
+					len(candidates),
+					combinedResult,
+				)
 				return al.runAgentLoop(ctx, agent, processOptions{
 					SessionKey:      sessionKey,
 					Channel:         msg.Channel,
