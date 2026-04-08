@@ -125,11 +125,38 @@ func (al *AgentLoop) handleCommand(ctx context.Context, msg bus.InboundMessage) 
 // handleSessionCommand handles commands that need session context (agent + sessionKey).
 // Called after routing, before delegation/LLM processing.
 func (al *AgentLoop) handleSessionCommand(
-	_ context.Context, msg bus.InboundMessage, agent *AgentInstance, sessionKey string,
+	ctx context.Context, msg bus.InboundMessage, agent *AgentInstance, sessionKey string,
 ) (string, bool) {
 	content := strings.TrimSpace(msg.Content)
 	if !strings.HasPrefix(content, "/") {
 		return "", false
+	}
+
+	// /btw must be detected before the switch — it's a prefix match, not exact.
+	// Only supported in CLI and Web channels; in gateway channels treat as a normal message.
+	if strings.HasPrefix(content, "/btw ") || content == "/btw" {
+		if msg.Channel != "cli" && msg.Channel != "web" {
+			return "[btw not supported in this channel — use a new message instead]", true
+		}
+		question := strings.TrimPrefix(content, "/btw")
+		question = strings.TrimSpace(question)
+		if question == "" {
+			return "Usage: /btw <question>", true
+		}
+		result, err := al.runAgentLoop(ctx, agent, processOptions{
+			SessionKey:      sessionKey,
+			Channel:         msg.Channel,
+			ChatID:          msg.ChatID,
+			UserMessage:     question,
+			DefaultResponse: "[btw] (no response)",
+			EnableSummary:   false,
+			SendResponse:    false,
+			Ephemeral:       true,
+		})
+		if err != nil {
+			return fmt.Sprintf("[btw] Error: %v", err), true
+		}
+		return result, true
 	}
 
 	parts := strings.Fields(content)

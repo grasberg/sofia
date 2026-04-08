@@ -765,7 +765,10 @@ func (al *AgentLoop) processToolResults(
 		}
 
 		*messages = append(*messages, tcr.resultMsg)
-		agent.Sessions.AddFullMessage(opts.SessionKey, tcr.resultMsg)
+		// Save tool result to session (skipped for ephemeral calls)
+		if !opts.Ephemeral {
+			agent.Sessions.AddFullMessage(opts.SessionKey, tcr.resultMsg)
+		}
 	}
 
 	return confirmationNeeded, errorCount

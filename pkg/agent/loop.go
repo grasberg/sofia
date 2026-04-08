@@ -35,6 +35,7 @@ import (
 	"github.com/grasberg/sofia/pkg/session"
 	"github.com/grasberg/sofia/pkg/state"
 	"github.com/grasberg/sofia/pkg/tools"
+	"github.com/grasberg/sofia/pkg/tor"
 	"github.com/grasberg/sofia/pkg/trace"
 )
 
@@ -78,19 +79,20 @@ type AgentLoop struct {
 	verboseMode      sync.Map // sessionKey -> bool
 	thinkingLevel    sync.Map // sessionKey -> ThinkingLevel
 	elevatedMgr      *ElevatedManager
+	torService       *tor.Service
 	personaManager   *PersonaManager
 	branchManager    *session.BranchManager
 	approvalGate     *ApprovalGate
 
 	agentModelMu sync.RWMutex // protects defaultAgent.Model writes/reads
 
-	dispatchWg   sync.WaitGroup  // tracks goroutines from dispatchPendingSteps
-	subagentSem  chan struct{}    // limits concurrent subagent tasks
+	dispatchWg  sync.WaitGroup // tracks goroutines from dispatchPendingSteps
+	subagentSem chan struct{}  // limits concurrent subagent tasks
 
 	evolveRunning atomic.Bool // prevents duplicate /evolve run goroutines
 
 	// Tool result deduplication cache
-	toolResultCache   sync.Map // key: "toolName:argsHash" → *cacheEntry
+	toolResultCache    sync.Map // key: "toolName:argsHash" → *cacheEntry
 	toolResultCacheTTL time.Duration
 
 	tracer         *trace.Tracer             // structured execution tracing
@@ -136,6 +138,7 @@ type processOptions struct {
 	NoHistory       bool        // If true, don't load session history (for heartbeat)
 	ModelOverride   string      // If set, use this model alias instead of the agent's default
 	ParentSpan      *trace.Span // Parent trace span for hierarchical tracing
+	Ephemeral       bool        // If true, the exchange is not stored in session history
 }
 
 const defaultResponse = "I've completed processing but have no response to give. Increase `max_tool_iterations` in config.json."
@@ -223,7 +226,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	// Set up Tool Performance Tracker
 	toolStatsPath := filepath.Join(filepath.Dir(memDBPath), "tool_stats.json")
 	toolTracker := tools.NewToolTracker(toolStatsPath)
-	
+
 	// Attach tracker to semantic matcher for usage-based ranking
 	if semanticMatcher != nil {
 		semanticMatcher.SetTracker(toolTracker)
@@ -296,6 +299,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		providerRanker:   providers.NewProviderRanker(memDB),
 		directCancels:    make(map[string]context.CancelFunc),
 		subagentSem:      makeSubagentSem(cfg.Agents.Defaults.MaxConcurrentSubagents),
+		torService:       tor.New(cfg.Tools.Web.Proxy),
 	}
 
 	// Set degraded mode flag if memory database failed to open
@@ -363,6 +367,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		memDB,
 		a2aRouter,
 		toolTracker,
+		al.torService,
 	)
 
 	al.activeAgentID.Store("")
@@ -699,6 +704,7 @@ func (al *AgentLoop) ReloadAgents() {
 		al.memDB,
 		al.a2aRouter,
 		newToolTracker,
+		al.torService,
 	)
 
 	al.registryMu.Lock()
@@ -715,6 +721,11 @@ func (al *AgentLoop) ReloadAgents() {
 // GetEvolutionEngine returns the evolution engine instance (may be nil).
 func (al *AgentLoop) GetEvolutionEngine() *evolution.EvolutionEngine {
 	return al.evolutionEngine
+}
+
+// TorService returns the Tor anonymity service used by agent web tools.
+func (al *AgentLoop) TorService() *tor.Service {
+	return al.torService
 }
 
 // toolStatsAdapter wraps *tools.ToolTracker to satisfy evolution.ToolStatsProvider.

@@ -178,8 +178,10 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 		}
 	}
 
-	// 3. Save user message to session
-	agent.Sessions.AddMessage(opts.SessionKey, "user", opts.UserMessage)
+	// 3. Save user message to session (skipped for ephemeral calls)
+	if !opts.Ephemeral {
+		agent.Sessions.AddMessage(opts.SessionKey, "user", opts.UserMessage)
+	}
 
 	// 4. Run LLM iteration loop
 	isSynthesis := strings.HasPrefix(opts.UserMessage, "[Subagent result from")
@@ -293,17 +295,24 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, agent *AgentInstance, opt
 		finalContent = opts.DefaultResponse
 	}
 
-	// 6. Save final assistant message to session
-	agent.Sessions.AddMessage(opts.SessionKey, "assistant", finalContent)
-	agent.Sessions.Save(opts.SessionKey)
-
-	// 6b. Cleanup auto-checkpoints after successful completion
-	if err := al.checkpointMgr.Cleanup(opts.SessionKey); err != nil {
-		logger.WarnCF(agentComp, "Failed to cleanup checkpoints", map[string]any{"error": err.Error()})
+	// 5b. Prepend [btw] marker for ephemeral calls so the caller can identify the response
+	if opts.Ephemeral && finalContent != "" {
+		finalContent = "[btw] " + finalContent
 	}
 
-	// 7. Optional: summarization
-	if opts.EnableSummary {
+	// 6. Save final assistant message to session (skipped for ephemeral calls)
+	if !opts.Ephemeral {
+		agent.Sessions.AddMessage(opts.SessionKey, "assistant", finalContent)
+		agent.Sessions.Save(opts.SessionKey)
+
+		// 6b. Cleanup auto-checkpoints after successful completion
+		if err := al.checkpointMgr.Cleanup(opts.SessionKey); err != nil {
+			logger.WarnCF(agentComp, "Failed to cleanup checkpoints", map[string]any{"error": err.Error()})
+		}
+	}
+
+	// 7. Optional: summarization (skipped for ephemeral calls)
+	if opts.EnableSummary && !opts.Ephemeral {
 		al.maybeSummarize(agent, opts.SessionKey, opts.Channel, opts.ChatID)
 	}
 

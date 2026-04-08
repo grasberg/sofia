@@ -575,8 +575,10 @@ func (al *AgentLoop) runLLMIteration(
 		}
 		messages = append(messages, assistantMsg)
 
-		// Save assistant message with tool calls to session
-		agent.Sessions.AddFullMessage(opts.SessionKey, assistantMsg)
+		// Save assistant message with tool calls to session (skipped for ephemeral calls)
+		if !opts.Ephemeral {
+			agent.Sessions.AddFullMessage(opts.SessionKey, assistantMsg)
+		}
 
 		// Auto-checkpoint before tool execution
 		cpName := fmt.Sprintf("auto:iter-%d", iteration)

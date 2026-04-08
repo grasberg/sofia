@@ -300,3 +300,133 @@ func TestHandleSessionCommand_PauseEmptySession(t *testing.T) {
 		t.Fatalf("expected empty-session message: %s", resp)
 	}
 }
+
+// TestBtw_DoesNotModifySessionHistory verifies that /btw does not persist
+// the exchange to session history — the session is unchanged after the call.
+func TestBtw_DoesNotModifySessionHistory(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "btw-session-*")
+	if err != nil {
+		t.Fatalf("create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	cfg := testCfg(nil)
+	cfg.Agents.Defaults.Workspace = tmpDir
+	cfg.MemoryDB = filepath.Join(tmpDir, "memory.db")
+
+	al := NewAgentLoop(cfg, bus.NewMessageBus(), &mockRegistryProvider{})
+	agent := al.registry.GetDefaultAgent()
+	if agent == nil {
+		t.Fatal("expected default agent")
+	}
+
+	sessionKey := "cli:test-btw"
+	agent.Sessions.GetOrCreate(sessionKey)
+	agent.Sessions.AddMessage(sessionKey, "user", "initial message")
+	agent.Sessions.AddMessage(sessionKey, "assistant", "initial response")
+
+	historyBefore := agent.Sessions.GetHistory(sessionKey)
+
+	// Issue a /btw command — should not touch session history.
+	msg := newTestInboundMessage("/btw what does this function do?")
+	resp, handled := al.handleSessionCommand(
+		context.Background(),
+		msg,
+		agent,
+		sessionKey,
+	)
+	if !handled {
+		t.Fatal("expected /btw to be handled")
+	}
+	// Response should be prefixed with [btw]
+	if !strings.HasPrefix(resp, "[btw]") {
+		t.Fatalf("expected [btw] prefix in response, got: %s", resp)
+	}
+
+	// Session history must be unchanged.
+	historyAfter := agent.Sessions.GetHistory(sessionKey)
+	if len(historyAfter) != len(historyBefore) {
+		t.Fatalf("session history length changed: before=%d after=%d",
+			len(historyBefore), len(historyAfter))
+	}
+}
+
+// TestBtw_EmptyQuestionReturnsUsage verifies that /btw without a question
+// returns a usage hint.
+func TestBtw_EmptyQuestionReturnsUsage(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "btw-empty-*")
+	if err != nil {
+		t.Fatalf("create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	cfg := testCfg(nil)
+	cfg.Agents.Defaults.Workspace = tmpDir
+	cfg.MemoryDB = filepath.Join(tmpDir, "memory.db")
+
+	al := NewAgentLoop(cfg, bus.NewMessageBus(), &mockRegistryProvider{})
+	agent := al.registry.GetDefaultAgent()
+	if agent == nil {
+		t.Fatal("expected default agent")
+	}
+
+	sessionKey := "cli:test-btw-empty"
+	agent.Sessions.GetOrCreate(sessionKey)
+
+	msg := newTestInboundMessage("/btw")
+	resp, handled := al.handleSessionCommand(
+		context.Background(),
+		msg,
+		agent,
+		sessionKey,
+	)
+	if !handled {
+		t.Fatal("expected /btw to be handled")
+	}
+	if !strings.Contains(resp, "Usage:") {
+		t.Fatalf("expected Usage hint, got: %s", resp)
+	}
+}
+
+// TestBtw_GatewayChannelReturnsUnsupportedMessage verifies that /btw in a
+// non-CLI/web channel returns the "not supported" message instead of doing an LLM call.
+func TestBtw_GatewayChannelReturnsUnsupportedMessage(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "btw-gateway-*")
+	if err != nil {
+		t.Fatalf("create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	cfg := testCfg(nil)
+	cfg.Agents.Defaults.Workspace = tmpDir
+	cfg.MemoryDB = filepath.Join(tmpDir, "memory.db")
+
+	al := NewAgentLoop(cfg, bus.NewMessageBus(), &mockRegistryProvider{})
+	agent := al.registry.GetDefaultAgent()
+	if agent == nil {
+		t.Fatal("expected default agent")
+	}
+
+	sessionKey := "telegram:test-btw"
+	agent.Sessions.GetOrCreate(sessionKey)
+
+	// Simulate a Telegram message using /btw
+	msg := bus.InboundMessage{
+		Content:  "/btw what does this function do?",
+		Channel:  "telegram",
+		ChatID:   "12345",
+		SenderID: "user",
+	}
+	resp, handled := al.handleSessionCommand(
+		context.Background(),
+		msg,
+		agent,
+		sessionKey,
+	)
+	if !handled {
+		t.Fatal("expected /btw to be handled in gateway channel")
+	}
+	if !strings.Contains(resp, "not supported") {
+		t.Fatalf("expected 'not supported' message for gateway channel, got: %s", resp)
+	}
+}
