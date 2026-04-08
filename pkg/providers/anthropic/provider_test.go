@@ -9,6 +9,8 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildParams_BasicMessage(t *testing.T) {
@@ -260,6 +262,14 @@ func TestProvider_ChatUsesTokenSource(t *testing.T) {
 	if got := atomic.LoadInt32(&requests); got != 1 {
 		t.Fatalf("requests = %d, want 1", got)
 	}
+}
+
+func TestBuildParams_MaxTokens(t *testing.T) {
+	params, err := buildParams(nil, nil, "claude-sonnet-4-6", map[string]any{
+		"max_tokens": 1024,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1024), params.MaxTokens)
 }
 
 func createAnthropicTestClient(baseURL, token string) *anthropic.Client {

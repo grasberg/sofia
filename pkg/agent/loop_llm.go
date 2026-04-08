@@ -11,6 +11,7 @@ import (
 
 	"github.com/grasberg/sofia/pkg/audit"
 	"github.com/grasberg/sofia/pkg/bus"
+	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/constants"
 	"github.com/grasberg/sofia/pkg/guardrails"
 	"github.com/grasberg/sofia/pkg/logger"
@@ -294,8 +295,18 @@ func (al *AgentLoop) runLLMIteration(
 		// -------------------
 
 		// Build LLM call options, injecting thinking level if set
+		effectiveMaxTokens := agent.MaxTokens
+		// Apply built-in Anthropic output caps when using a Claude model.
+		// This prevents requests from exceeding the model's per-response limit.
+		// The cap only applies when the user hasn't set an explicit per-model
+		// max_tokens override (handled in instance.go), so we use it as a ceiling.
+		if strings.HasPrefix(strings.ToLower(agent.ModelID), "claude-") {
+			if cap := config.AnthropicOutputCap(agent.ModelID); cap > 0 && effectiveMaxTokens > cap {
+				effectiveMaxTokens = cap
+			}
+		}
 		llmOpts := map[string]any{
-			"max_tokens":       agent.MaxTokens,
+			"max_tokens":       effectiveMaxTokens,
 			"temperature":      callTemp,
 			"prompt_cache_key": agent.ID,
 		}
@@ -415,7 +426,7 @@ func (al *AgentLoop) runLLMIteration(
 		// Record token usage
 		if response.Usage != nil {
 			al.usageTracker.Record(opts.SessionKey, response.Usage)
-			
+
 			// Record budget spend based on token usage
 			if al.budgetManager != nil {
 				costUSD := estimateCostUSD(response.Usage, agent.ModelID, al.cfg)
@@ -734,9 +745,12 @@ func (al *AgentLoop) runLLMIteration(
 
 			toolStart := time.Now()
 			toolResult := agent.Tools.ExecuteWithContext(
-				ctx, tc.Name, tc.Arguments, opts.Channel, opts.ChatID, asyncCallback,
+				ctx, tc.Name, tc.Arguments, opts.Channel, opts.ChatID, opts.SessionKey, asyncCallback,
 			)
 			toolDur := time.Since(toolStart).Milliseconds()
+
+			// Handle large responses: save to temp file if >200K chars
+			toolResult = tools.HandleLargeResponse(toolResult, tc.Name)
 
 			toolStatus := "ok"
 			toolErrStr := ""
