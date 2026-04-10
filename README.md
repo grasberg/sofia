@@ -1,13 +1,53 @@
+<div align="center">
+
+# Sofia
+
+### Your local, autonomous AI colleague
+
 ![GitHub stars](https://img.shields.io/github/stars/grasberg/sofia?style=social)
 ![GitHub forks](https://img.shields.io/github/forks/grasberg/sofia?style=social)
 ![License](https://img.shields.io/github/license/grasberg/sofia)
 ![Go Version](https://img.shields.io/github/go-mod/go-version/grasberg/sofia)
 ![Last Commit](https://img.shields.io/github/last-commit/grasberg/sofia)
-
-# Sofia - AI Workspace Assistant 🧠✨
-
 ![Version](https://img.shields.io/badge/version-v0.0.145-blue)
-Sofia is an advanced, context-aware AI assistant and multi-agent orchestrator written in Go. Designed to function as a full-stack developer, system architect, and project manager. By integrating directly into the local development environment, Sofia can read/write files, execute terminal commands, schedule tasks, and delegate work to specialized sub-agents.
+
+**A self-improving AI orchestrator that runs 100% locally.** Single Go binary. 40+ tools. 20+ LLM providers. Multi-agent coordination. Persistent memory with a knowledge graph. Browser automation. Computer control. And it gets better at its job over time.
+
+[Quick Start](#-quick-start) · [Features](#-key-features) · [Web UI](#-web-ui) · [Integrations](#-integrations) · [Contributing](CONTRIBUTING.md)
+
+</div>
+
+---
+
+## Why Sofia?
+
+Most AI assistants are cloud-locked chatbots. Sofia is different — it's a **local-first, autonomous agent** that integrates directly into your development environment. It reads and writes files, executes commands, delegates to sub-agents, schedules tasks, and learns from its own mistakes.
+
+| | Sofia | LangChain | AutoGPT | n8n |
+|---|:---:|:---:|:---:|:---:|
+| Runs 100% locally | ✅ | ❌ | ❌ | Partial |
+| Single binary (Go) | ✅ | ❌ (Python) | ❌ (Python) | ❌ (Node) |
+| 40+ built-in tools | ✅ | Via plugins | Limited | Via nodes |
+| Persistent memory & knowledge graph | ✅ | ❌ | Basic | ❌ |
+| 20+ LLM providers with fallback | ✅ | ✅ | Limited | Limited |
+| Self-improving reflection engine | ✅ | ❌ | ❌ | ❌ |
+| Multi-agent orchestration | ✅ | Basic | Basic | ❌ |
+| Browser automation (Playwright) | ✅ | ❌ | ❌ | ❌ |
+| Computer use (mouse/keyboard) | ✅ | ❌ | ❌ | ❌ |
+| Web UI with real-time dashboard | ✅ | ❌ | Basic | ✅ |
+
+## 🚀 Quick Start
+
+```bash
+git clone https://github.com/grasberg/sofia.git
+cd sofia
+make deps && make build
+./build/sofia onboard      # Initialize config & workspace
+./build/sofia gateway      # Start the web UI
+# Open http://127.0.0.1:18795 → Models tab → add your API key → start chatting
+```
+
+> **Prerequisites:** Go 1.26+ ([download](https://go.dev/dl/))
 
 ## ✨ Key Features
 
@@ -78,37 +118,9 @@ Sofia's configuration and workspace are located under `~/.sofia/`:
     └── state/             # Persistent runtime state
 ```
 
-## 🚀 Installation & Getting Started
+## 📦 Installation
 
-### Prerequisites
-
-Before building from source, you need to have **Go installed** (recommended: Go 1.26 or later). You can download Go from [go.dev/dl](https://go.dev/dl/).
-
-### Install from Source
-
-```bash
-git clone https://github.com/grasberg/sofia.git
-cd sofia
-make deps
-make build
-```
-
-The compiled binary will be placed directly in the project root directory as `./build/sofia`.
-
-### Quick Start
-
-1. **Initialize configuration and workspace:**
-```bash
-./build/sofia onboard
-```
-
-2. **Start Gateway (for chat/web interface):**
-```bash
-./build/sofia gateway
-```
-
-3. **Open Sofia's Control Panel:**
-Navigate to `http://127.0.0.1:18795` in your browser. Go to the **Models** tab to add your provider and API key.
+For detailed build instructions, see the [Quick Start](#-quick-start) section above. The compiled binary is placed at `./build/sofia`.
 
 ## 🤖 Multi-Agent Orchestration
 
@@ -533,4 +545,19 @@ Sofia integrates directly with the Bitcoin blockchain, allowing for both public 
 
 
 ---
+
+## 🤝 Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to get started. Check the [open issues](https://github.com/grasberg/sofia/issues) for ideas, or open a new one if you have a suggestion.
+
+---
+
+<div align="center">
+
+**If Sofia is useful to you, please consider giving it a ⭐ — it helps others discover the project.**
+
+[![Star on GitHub](https://img.shields.io/github/stars/grasberg/sofia?style=social)](https://github.com/grasberg/sofia)
+
 *Built to accelerate development. Your local AI colleague.*
+
+</div>
