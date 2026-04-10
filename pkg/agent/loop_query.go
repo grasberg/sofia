@@ -42,16 +42,7 @@ func (al *AgentLoop) ListGoals(agentID string) ([]*autonomy.Goal, error) {
 	if agentID != "" {
 		return gm.ListAllGoals(agentID)
 	}
-	// Collect goals from all agents
-	var allGoals []*autonomy.Goal
-	for _, id := range al.getRegistry().ListAgentIDs() {
-		goals, err := gm.ListAllGoals(id)
-		if err != nil {
-			continue
-		}
-		allGoals = append(allGoals, goals...)
-	}
-	return allGoals, nil
+	return gm.ListAllGoalsGlobal()
 }
 
 func (al *AgentLoop) GetStartupInfo() map[string]any {
@@ -198,6 +189,41 @@ func (al *AgentLoop) UpdateGoalStatus(goalID int64, status string) error {
 	gm := autonomy.NewGoalManager(al.memDB)
 	_, err := gm.UpdateGoalStatus(goalID, status)
 	return err
+}
+
+// RestartGoal transitions a failed goal back to active and resets its plan so
+// the autonomy tick re-dispatches the failed steps.
+func (al *AgentLoop) RestartGoal(goalID int64) error {
+	if al.memDB == nil {
+		return fmt.Errorf("memory database not available")
+	}
+	gm := autonomy.NewGoalManager(al.memDB)
+
+	goal, err := gm.GetGoalByID(goalID)
+	if err != nil {
+		return err
+	}
+	if goal == nil {
+		return fmt.Errorf("goal %d not found", goalID)
+	}
+
+	// Reset the linked plan's failed steps back to pending.
+	if pm := al.planManager; pm != nil {
+		if plan := pm.GetPlanByGoalID(goalID); plan != nil {
+			pm.ResetPlan(plan.ID)
+		}
+	}
+
+	// Set phase back to implement so the tick picks it up.
+	if err := gm.UpdateGoalPhase(goalID, autonomy.GoalPhaseImplement); err != nil {
+		return fmt.Errorf("resetting goal phase: %w", err)
+	}
+
+	// Transition status to active.
+	if _, err := gm.UpdateGoalStatus(goalID, autonomy.GoalStatusActive); err != nil {
+		return fmt.Errorf("reactivating goal: %w", err)
+	}
+	return nil
 }
 
 // DeleteGoal removes a goal and its log from the web UI.

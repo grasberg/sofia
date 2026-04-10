@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -186,18 +185,11 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	cooldown := providers.NewCooldownTracker()
 	fallbackChain := providers.NewFallbackChain(cooldown)
 
-	// Set up semantic tool matcher if the provider supports embeddings and
-	// has access to a real embedding model. Local providers like Ollama
-	// typically don't host embedding models, so the keyword matcher is used instead.
+	// Tool filtering uses the keyword matcher (tools.KeywordMatchTools) which
+	// works locally without any API calls. The semantic matcher that called
+	// OpenAI's text-embedding-3-small has been removed to avoid external
+	// dependencies and wasted API round-trips on non-OpenAI providers.
 	var semanticMatcher *tools.SemanticMatcher
-	if embProvider, ok := provider.(providers.EmbeddingProvider); ok {
-		modelName := cfg.Agents.Defaults.GetModelName()
-		mc, _ := cfg.GetModelConfig(modelName)
-		isLocal := mc != nil && (strings.Contains(mc.APIBase, "localhost") || strings.Contains(mc.APIBase, "127.0.0.1"))
-		if !isLocal {
-			semanticMatcher = tools.NewSemanticMatcher(embProvider, "text-embedding-3-small")
-		}
-	}
 
 	// Create state manager using default agent's workspace for channel recording
 	defaultAgent := registry.GetDefaultAgent()
@@ -236,11 +228,6 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	// Set up Tool Performance Tracker
 	toolStatsPath := filepath.Join(filepath.Dir(memDBPath), "tool_stats.json")
 	toolTracker := tools.NewToolTracker(toolStatsPath)
-
-	// Attach tracker to semantic matcher for usage-based ranking
-	if semanticMatcher != nil {
-		semanticMatcher.SetTracker(toolTracker)
-	}
 
 	// Set up Audit Logger for tool call tracing
 	auditDBPath := filepath.Join(filepath.Dir(memDBPath), "audit.db")
@@ -774,3 +761,4 @@ func newAgentInstanceFromEvolution(
 	}
 	return NewAgentInstance(&agentCfg, &cfg.Agents.Defaults, cfg, provider, memDB, nil)
 }
+

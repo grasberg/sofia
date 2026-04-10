@@ -38,9 +38,10 @@ type AgentInstance struct {
 	SkillsFilter   []string
 	IsLocalModel   bool
 	PurposePrompt  string
-	Candidates     []providers.FallbackCandidate
-	Summarization  config.SummarizationConfig
-	ThinkingBudget int
+	Candidates          []providers.FallbackCandidate
+	CandidateProviders  map[string]providers.LLMProvider // "provider/model" → provider
+	Summarization       config.SummarizationConfig
+	ThinkingBudget      int
 }
 
 // NewAgentInstance creates an agent instance from config.
@@ -170,12 +171,37 @@ func NewAgentInstance(
 		temperature = *defaults.Temperature
 	}
 
-	// Resolve fallback candidates
+	// Resolve fallback candidates.
+	// Use full "protocol/model" strings (not aliases) so ResolveCandidates
+	// can extract the provider from the model string.
 	modelCfg := providers.ModelConfig{
-		Primary:   model,
-		Fallbacks: fallbacks,
+		Primary:   resolveModelFullString(model, cfg),
+		Fallbacks: resolveModelFullStrings(fallbacks, cfg),
 	}
 	candidates := providers.ResolveCandidates(modelCfg, defaults.Provider)
+
+	// Build per-candidate providers so the fallback chain can switch between
+	// different API endpoints (e.g. Ollama Cloud primary → OpenRouter fallback).
+	candidateProviders := make(map[string]providers.LLMProvider)
+	for _, c := range candidates {
+		key := providers.ModelKey(c.Provider, c.Model)
+		fullModel := c.Provider + "/" + c.Model
+		mc := findModelConfigByModel(cfg, fullModel)
+		if mc == nil {
+			// Try lookup by alias as fallback
+			if found, err := cfg.GetModelConfig(c.Model); err == nil {
+				mc = found
+			}
+		}
+		if mc != nil {
+			if mc.Workspace == "" {
+				mc.Workspace = cfg.WorkspacePath()
+			}
+			if p, _, err := providers.CreateProviderFromConfig(mc); err == nil && p != nil {
+				candidateProviders[key] = p
+			}
+		}
+	}
 
 	// If this agent has a custom model that differs from the default, create a
 	// per-agent provider from its model config. This allows different agents to
@@ -251,15 +277,54 @@ func NewAgentInstance(
 		SkillsFilter:   skillsFilter,
 		IsLocalModel:   isLocal,
 		PurposePrompt:  contextBuilder.purposeInstructions,
-		Candidates:     candidates,
-		Summarization:  summarization,
-		ThinkingBudget: thinkingBudget,
+		Candidates:         candidates,
+		CandidateProviders: candidateProviders,
+		Summarization:      summarization,
+		ThinkingBudget:     thinkingBudget,
 	}
 }
 
 // resolveAgentModelID resolves the raw model ID (without protocol prefix) for a given alias.
 // It looks up the alias in cfg.ModelList; if found, it extracts the model ID from the
 // Model field (e.g. "openai/gpt-4o" -> "gpt-4o"). Falls back to the alias itself if not found.
+// findModelConfigByModel searches ModelList by the Model field (protocol/model-id)
+// rather than the ModelName alias.
+func findModelConfigByModel(cfg *config.Config, model string) *config.ModelConfig {
+	for i := range cfg.ModelList {
+		if cfg.ModelList[i].Model == model {
+			mc := cfg.ModelList[i] // copy
+			return &mc
+		}
+	}
+	return nil
+}
+
+// resolveModelFullString resolves a model alias to its full "protocol/model"
+// string from the model list. If the alias is not found, it's returned as-is
+// (it may already be a full model string).
+func resolveModelFullString(alias string, cfg *config.Config) string {
+	if alias == "" {
+		return alias
+	}
+	mc, err := cfg.GetModelConfig(alias)
+	if err == nil && mc != nil && mc.Model != "" {
+		return mc.Model
+	}
+	return alias
+}
+
+// resolveModelFullStrings resolves a slice of model aliases.
+func resolveModelFullStrings(aliases []string, cfg *config.Config) []string {
+	if len(aliases) == 0 {
+		return aliases
+	}
+	out := make([]string, len(aliases))
+	for i, a := range aliases {
+		out[i] = resolveModelFullString(a, cfg)
+	}
+	return out
+}
+
 func resolveAgentModelID(alias string, cfg *config.Config) string {
 	if alias == "" {
 		return ""

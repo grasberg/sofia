@@ -89,6 +89,28 @@ func DefaultModelList() []ModelConfig {
 		{Provider: "MiniMax", DisplayName: "MiniMax-M2.5", ModelName: "MiniMax-M2.5", Model: "minimax/MiniMax-M2.5", APIBase: "https://api.minimax.io/v1"},
 		{Provider: "MiniMax", DisplayName: "MiniMax-M2.5-highspeed", ModelName: "MiniMax-M2.5-highspeed", Model: "minimax/MiniMax-M2.5-highspeed", APIBase: "https://api.minimax.io/v1"},
 
+		// ── OpenRouter (Free Tier) ────────────────────────────────────────────
+		{Provider: "OpenRouter", DisplayName: "DeepSeek R1 0528 (Free)", ModelName: "deepseek-r1-0528-free", Model: "openrouter/deepseek/deepseek-r1-0528:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "DeepSeek V3 0324 (Free)", ModelName: "deepseek-chat-v3-0324-free", Model: "openrouter/deepseek/deepseek-chat-v3-0324:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "DeepSeek R1 (Free)", ModelName: "deepseek-r1-free", Model: "openrouter/deepseek/deepseek-r1:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Qwen3 235B A22B (Free)", ModelName: "qwen3-235b-a22b-free", Model: "openrouter/qwen/qwen3-235b-a22b:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Qwen3 32B (Free)", ModelName: "qwen3-32b-free", Model: "openrouter/qwen/qwen3-32b:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Qwen3 30B A3B (Free)", ModelName: "qwen3-30b-a3b-free", Model: "openrouter/qwen/qwen3-30b-a3b:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Qwen3 14B (Free)", ModelName: "qwen3-14b-free", Model: "openrouter/qwen/qwen3-14b:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Qwen3 8B (Free)", ModelName: "qwen3-8b-free", Model: "openrouter/qwen/qwen3-8b:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Llama 4 Scout (Free)", ModelName: "llama-4-scout-free", Model: "openrouter/meta-llama/llama-4-scout:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Llama 4 Maverick (Free)", ModelName: "llama-4-maverick-free", Model: "openrouter/meta-llama/llama-4-maverick:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Llama 3.3 70B Instruct (Free)", ModelName: "llama-3.3-70b-instruct-free", Model: "openrouter/meta-llama/llama-3.3-70b-instruct:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Gemma 3 27B (Free)", ModelName: "gemma-3-27b-free", Model: "openrouter/google/gemma-3-27b-it:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Gemma 3 12B (Free)", ModelName: "gemma-3-12b-free", Model: "openrouter/google/gemma-3-12b-it:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Gemma 3 4B (Free)", ModelName: "gemma-3-4b-free", Model: "openrouter/google/gemma-3-4b-it:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Phi-4 Reasoning Plus (Free)", ModelName: "phi-4-reasoning-plus-free", Model: "openrouter/microsoft/phi-4-reasoning-plus:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Phi-4 (Free)", ModelName: "phi-4-free", Model: "openrouter/microsoft/phi-4:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Mistral Small 3.1 24B (Free)", ModelName: "mistral-small-3.1-free", Model: "openrouter/mistralai/mistral-small-3.1-24b-instruct:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Devstral Small (Free)", ModelName: "devstral-small-free", Model: "openrouter/mistralai/devstral-small:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Hermes 3 Llama 3.1 405B (Free)", ModelName: "hermes-3-llama-405b-free", Model: "openrouter/nousresearch/hermes-3-llama-3.1-405b:free", APIBase: "https://openrouter.ai/api/v1"},
+		{Provider: "OpenRouter", DisplayName: "Nemotron 70B Instruct (Free)", ModelName: "nemotron-70b-instruct-free", Model: "openrouter/nvidia/llama-3.1-nemotron-70b-instruct:free", APIBase: "https://openrouter.ai/api/v1"},
+
 		// ── Ollama (Local) ────────────────────────────────────────────────────
 		{Provider: "Ollama", DisplayName: "Gemma 4 E4B", ModelName: "ollama-gemma4-e4b", Model: "ollama/gemma4:e4b", APIBase: "http://localhost:11434/v1"},
 		{Provider: "Ollama", DisplayName: "Gemma 4 E4B IT Q8", ModelName: "ollama-gemma4-e4b-it-q8", Model: "ollama/gemma4:e4b-it-q8_0", APIBase: "http://localhost:11434/v1"},

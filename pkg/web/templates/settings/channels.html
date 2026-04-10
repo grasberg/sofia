@@ -69,32 +69,42 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable Email</h4>
-                        <p class="text-[11px] text-zinc-500">Receive and respond to messages via email (IMAP/SMTP).</p>
+                        <p class="text-[11px] text-zinc-500">Receive and respond to messages via email.</p>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer shrink-0">
                         <input type="checkbox" id="cfg-email-enabled" class="sr-only peer" onchange="saveConfig()">
                         <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
                     </label>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div class="space-y-2">
-                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">IMAP Server</label>
-                        <input type="text" id="cfg-email-imap" placeholder="imap.gmail.com:993"
-                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                <div class="flex items-center justify-between mt-2 p-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-sidebar)]">
+                    <div>
+                        <h4 class="text-xs font-semibold text-[var(--text-main)]">Use Gmail API</h4>
+                        <p class="text-[10px] text-zinc-500">Send via Gmail API (gog CLI) instead of SMTP. No app password needed.</p>
                     </div>
-                    <div class="space-y-2">
-                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">SMTP Server</label>
-                        <input type="text" id="cfg-email-smtp" placeholder="smtp.gmail.com:587"
-                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
-                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="cfg-email-gmail-api" class="sr-only peer" onchange="toggleEmailGmailMode(); saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div class="space-y-2">
-                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Username</label>
-                        <input type="text" id="cfg-email-username" placeholder="sofia@example.com"
-                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Gmail Account / Username</label>
+                    <input type="text" id="cfg-email-username" placeholder="you@gmail.com"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                </div>
+                <div id="email-smtp-fields">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">IMAP Server</label>
+                            <input type="text" id="cfg-email-imap" placeholder="imap.gmail.com:993"
+                                class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">SMTP Server</label>
+                            <input type="text" id="cfg-email-smtp" placeholder="smtp.gmail.com:587"
+                                class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">
+                        </div>
                     </div>
-                    <div class="space-y-2">
+                    <div class="space-y-2 mt-3">
                         <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Password</label>
                         <input type="password" id="cfg-email-password" placeholder="App password"
                             class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]">

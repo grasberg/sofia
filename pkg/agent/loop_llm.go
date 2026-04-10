@@ -332,8 +332,15 @@ func (al *AgentLoop) runLLMIteration(
 					candidates = al.providerRanker.Rank(candidates)
 				}
 				fbResult, fbErr := al.fallback.Execute(ctx, candidates,
-					func(ctx context.Context, provider, model string) (*providers.LLMResponse, error) {
-						return agent.Provider.Chat(ctx, messages, providerToolDefs, model, llmOpts)
+					func(ctx context.Context, candidateProvider, model string) (*providers.LLMResponse, error) {
+						// Use the candidate-specific provider if available,
+						// so fallback can switch between different API endpoints.
+						p := agent.Provider
+						key := providers.ModelKey(candidateProvider, model)
+						if cp, ok := agent.CandidateProviders[key]; ok {
+							p = cp
+						}
+						return p.Chat(ctx, messages, providerToolDefs, model, llmOpts)
 					},
 				)
 				if fbErr != nil {
@@ -373,9 +380,56 @@ func (al *AgentLoop) runLLMIteration(
 			}
 
 			errMsg := strings.ToLower(err.Error())
-			isContextError := strings.Contains(errMsg, "token") ||
-				strings.Contains(errMsg, "invalidparameter") ||
-				strings.Contains(errMsg, "length")
+
+			// Check rate limit FIRST — messages like "The Token Plan is
+			// designed for…" contain the word "token" and must not be
+			// misclassified as context-window errors.
+			isRateLimit := strings.Contains(errMsg, "rate_limit") ||
+				strings.Contains(errMsg, "rate limit") ||
+				strings.Contains(errMsg, "too many requests")
+
+			if isRateLimit && retry < maxRetries {
+				waitSec := 10 * (retry + 1)
+				logger.WarnCF(agentComp, "Rate limit hit, backing off before retry", map[string]any{
+					"error":        err.Error(),
+					"retry":        retry,
+					"wait_seconds": waitSec,
+				})
+				if retry == 0 && !constants.IsInternalChannel(opts.Channel) {
+					al.bus.PublishOutbound(bus.OutboundMessage{
+						Channel: opts.Channel,
+						ChatID:  opts.ChatID,
+						Content: "Rate limited by provider. Retrying shortly...",
+					})
+				}
+				select {
+				case <-time.After(time.Duration(waitSec) * time.Second):
+				case <-ctx.Done():
+					return "", iteration, errorCount, ctx.Err()
+				}
+				continue
+			}
+
+			// Invalid tool call ID — typically caused by context compression
+			// orphaning tool_use / tool_result pairs. Sanitize and retry.
+			isToolIDError := strings.Contains(errMsg, "tool_use_id") ||
+				strings.Contains(errMsg, "tool_use.id") ||
+				strings.Contains(errMsg, "tool call id")
+
+			if isToolIDError && retry < maxRetries {
+				logger.WarnCF(agentComp, "Invalid tool call ID detected, sanitizing messages", map[string]any{
+					"error":    err.Error(),
+					"retry":    retry,
+					"msg_count": len(messages),
+				})
+				messages = sanitizeToolCallIDs(messages)
+				continue
+			}
+
+			isContextError := !isRateLimit &&
+				(strings.Contains(errMsg, "token") ||
+					strings.Contains(errMsg, "invalidparameter") ||
+					strings.Contains(errMsg, "length"))
 
 			if isContextError && retry < maxRetries {
 				logger.WarnCF(agentComp, "Context window error detected, attempting compression", map[string]any{

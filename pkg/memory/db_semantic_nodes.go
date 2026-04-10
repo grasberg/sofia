@@ -95,6 +95,46 @@ func (m *MemoryDB) FindNodes(agentID, label, namePattern string, limit int) ([]S
 	return m.findNodesLocked(agentID, label, namePattern, limit)
 }
 
+// FindNodesByLabel returns all nodes with a given label across all agents.
+func (m *MemoryDB) FindNodesByLabel(label string, limit int) ([]SemanticNode, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	query := `SELECT id, agent_id, label, name, properties, access_count, last_accessed, quality_score, created_at, updated_at
+		 FROM semantic_nodes WHERE label = ? ORDER BY updated_at DESC`
+	var args []any
+	args = append(args, label)
+	if limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, limit)
+	}
+
+	rows, err := m.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("memory: find nodes by label: %w", err)
+	}
+	defer rows.Close()
+
+	var nodes []SemanticNode
+	for rows.Next() {
+		var n SemanticNode
+		var lastAccessed sql.NullString
+		var created, updated string
+		if err = rows.Scan(&n.ID, &n.AgentID, &n.Label, &n.Name, &n.Properties,
+			&n.AccessCount, &lastAccessed, &n.QualityScore, &created, &updated); err != nil {
+			return nil, fmt.Errorf("memory: scan node row: %w", err)
+		}
+		n.CreatedAt, _ = time.Parse(time.RFC3339, created)
+		n.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
+		if lastAccessed.Valid {
+			t, _ := time.Parse(time.RFC3339, lastAccessed.String)
+			n.LastAccessed = &t
+		}
+		nodes = append(nodes, n)
+	}
+	return nodes, rows.Err()
+}
+
 // FindNodesByImportance returns nodes ordered by composite importance score.
 // The score considers access count, recency, quality, and connectedness.
 func (m *MemoryDB) FindNodesByImportance(agentID string, limit int) ([]SemanticNode, error) {

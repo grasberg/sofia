@@ -158,22 +158,7 @@ func (pm *PlanManager) CompleteStep(planID string, stepIdx int, success bool, re
 		plan.Steps[stepIdx].Status = PlanStatusFailed
 	}
 	plan.Steps[stepIdx].Result = result
-
-	allCompleted := true
-	anyFailed := false
-	for _, s := range plan.Steps {
-		if s.Status != PlanStatusCompleted {
-			allCompleted = false
-		}
-		if s.Status == PlanStatusFailed {
-			anyFailed = true
-		}
-	}
-	if allCompleted {
-		plan.Status = PlanStatusCompleted
-	} else if anyFailed {
-		plan.Status = PlanStatusFailed
-	}
+	plan.Status = evaluatePlanStatus(plan.Steps)
 	pm.mu.Unlock()
 	pm.autoSave()
 }
@@ -193,24 +178,69 @@ func (pm *PlanManager) CompleteStepWithVerify(planID string, stepIdx int, succes
 	}
 	plan.Steps[stepIdx].Result = result
 	plan.Steps[stepIdx].VerifyResult = verifyResult
-
-	allCompleted := true
-	anyFailed := false
-	for _, s := range plan.Steps {
-		if s.Status != PlanStatusCompleted {
-			allCompleted = false
-		}
-		if s.Status == PlanStatusFailed {
-			anyFailed = true
-		}
-	}
-	if allCompleted {
-		plan.Status = PlanStatusCompleted
-	} else if anyFailed {
-		plan.Status = PlanStatusFailed
-	}
+	plan.Status = evaluatePlanStatus(plan.Steps)
 	pm.mu.Unlock()
 	pm.autoSave()
+}
+
+// FailAndRetryStep atomically records a step failure and resets it for retry,
+// without ever setting the plan status to failed. This avoids a race where a
+// concurrent tick observes a temporarily-failed plan between separate
+// CompleteStep/RetryStep calls.
+func (pm *PlanManager) FailAndRetryStep(planID string, stepIdx int, result, verifyResult string) bool {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	plan, ok := pm.plans[planID]
+	if !ok || stepIdx < 0 || stepIdx >= len(plan.Steps) {
+		return false
+	}
+	step := &plan.Steps[stepIdx]
+
+	// Store the failure result for observability, then immediately reset.
+	step.Result = result
+	step.VerifyResult = verifyResult
+	step.Status = PlanStatusPending
+	step.AssignedTo = ""
+	step.RetryCount++
+
+	if plan.Status == PlanStatusFailed {
+		plan.Status = PlanStatusInProgress
+	}
+
+	go pm.autoSave()
+	return true
+}
+
+// ResetPlan resets all failed steps in a plan back to pending and clears their
+// results and retry counts. The plan status is set back to in_progress so the
+// goal tick can re-dispatch steps. Returns false if the plan doesn't exist.
+func (pm *PlanManager) ResetPlan(planID string) bool {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	plan, ok := pm.plans[planID]
+	if !ok {
+		return false
+	}
+
+	for i := range plan.Steps {
+		s := &plan.Steps[i]
+		if s.Status == PlanStatusFailed {
+			s.Status = PlanStatusPending
+			s.AssignedTo = ""
+			s.RetryCount = 0
+			s.Result = ""
+			s.VerifyResult = ""
+		}
+	}
+
+	if plan.Status == PlanStatusFailed {
+		plan.Status = PlanStatusInProgress
+	}
+
+	go pm.autoSave()
+	return true
 }
 
 // RetryStep resets a failed step to pending for re-dispatch, incrementing its retry count.
@@ -240,6 +270,52 @@ func (pm *PlanManager) RetryStep(planID string, stepIdx int) bool {
 
 	go pm.autoSave()
 	return true
+}
+
+// evaluatePlanStatus determines the correct plan status from step states.
+//   - completed: all steps completed
+//   - failed: at least one step failed AND no pending/in-progress steps can
+//     still make progress (either none exist, or all are blocked by a failed
+//     dependency)
+//   - in_progress: otherwise
+func evaluatePlanStatus(steps []PlanStep) PlanStatus {
+	allCompleted := true
+	failedSet := make(map[int]bool)
+
+	for i, s := range steps {
+		if s.Status != PlanStatusCompleted {
+			allCompleted = false
+		}
+		if s.Status == PlanStatusFailed {
+			failedSet[i] = true
+		}
+	}
+	if allCompleted {
+		return PlanStatusCompleted
+	}
+	if len(failedSet) == 0 {
+		return PlanStatusInProgress
+	}
+
+	// At least one step failed. Check whether any pending/in-progress step
+	// can still make progress (i.e. none of its dependencies are failed).
+	for _, s := range steps {
+		if s.Status != PlanStatusPending && s.Status != PlanStatusInProgress {
+			continue
+		}
+		blocked := false
+		for _, dep := range s.DependsOn {
+			if failedSet[dep] {
+				blocked = true
+				break
+			}
+		}
+		if !blocked {
+			return PlanStatusInProgress
+		}
+	}
+
+	return PlanStatusFailed
 }
 
 // HasPendingSteps returns true if any plan has unclaimed pending steps.

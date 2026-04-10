@@ -162,3 +162,46 @@ func TestGoalManager_SetGoalResult(t *testing.T) {
 	assert.Equal(t, []string{"/workspace/goals/goal-1/docker-compose.yml"}, updated.GoalResult.Artifacts)
 	assert.Equal(t, []string{"Run ./deploy.sh"}, updated.GoalResult.NextSteps)
 }
+
+// TestGoalManager_UpdateStatusPreservesProperties is a regression test:
+// UpdateGoalStatus must not wipe properties stored by SetGoalResult/SetGoalSpec.
+func TestGoalManager_UpdateStatusPreservesProperties(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	gAny, err := gm.AddGoal("agent-1", "Goal X", "build something", "high")
+	require.NoError(t, err)
+	goal := gAny.(*Goal)
+
+	// Store a spec (complex nested object)
+	err = gm.SetGoalSpec(goal.ID, GoalSpec{
+		Requirements:    []string{"req1"},
+		SuccessCriteria: []string{"crit1"},
+	})
+	require.NoError(t, err)
+
+	// Store a goal result (another complex nested object)
+	err = gm.SetGoalResult(goal.ID, GoalResult{
+		Summary:   "done",
+		Artifacts: []string{"file.txt"},
+	})
+	require.NoError(t, err)
+
+	// Now update status — this must NOT wipe the properties
+	_, err = gm.UpdateGoalStatus(goal.ID, GoalStatusCompleted)
+	require.NoError(t, err)
+
+	// Verify everything is preserved
+	g, err := gm.GetGoalByID(goal.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, GoalStatusCompleted, g.Status)
+	assert.Equal(t, "build something", g.Description, "description was wiped by UpdateGoalStatus")
+	assert.Equal(t, "high", g.Priority, "priority was wiped by UpdateGoalStatus")
+	assert.NotNil(t, g.Spec, "spec was wiped by UpdateGoalStatus")
+	assert.Equal(t, []string{"req1"}, g.Spec.Requirements)
+	assert.NotNil(t, g.GoalResult, "goal_result was wiped by UpdateGoalStatus")
+	assert.Equal(t, "done", g.GoalResult.Summary)
+	assert.Equal(t, []string{"file.txt"}, g.GoalResult.Artifacts)
+}

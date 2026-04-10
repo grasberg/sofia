@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Server) handleWorkspaceDocs(w http.ResponseWriter, r *http.Request) {
-	workspace := s.cfg.WorkspacePath()
+	workspace := filepath.Clean(s.cfg.WorkspacePath())
 	identityPath := filepath.Join(workspace, "IDENTITY.md")
 	soulPath := filepath.Join(workspace, "SOUL.md")
 	heartbeatPath := filepath.Join(workspace, "HEARTBEAT.md")
@@ -75,7 +75,7 @@ func (s *Server) handleWorkspaceDocs(w http.ResponseWriter, r *http.Request) {
 // handleWorkspaceFiles lists files and directories under the workspace path.
 // Query param "path" is relative to workspace root; defaults to ".".
 func (s *Server) handleWorkspaceFiles(w http.ResponseWriter, r *http.Request) {
-	workspace := s.cfg.WorkspacePath()
+	workspace := filepath.Clean(s.cfg.WorkspacePath())
 	relPath := r.URL.Query().Get("path")
 	if relPath == "" {
 		relPath = "."
@@ -126,7 +126,7 @@ func (s *Server) handleWorkspaceFiles(w http.ResponseWriter, r *http.Request) {
 // handleWorkspaceFile reads and returns the content of a single workspace file.
 // Query param "path" is relative to workspace root.
 func (s *Server) handleWorkspaceFile(w http.ResponseWriter, r *http.Request) {
-	workspace := s.cfg.WorkspacePath()
+	workspace := filepath.Clean(s.cfg.WorkspacePath())
 	relPath := r.URL.Query().Get("path")
 	if relPath == "" {
 		s.sendJSONError(w, "path parameter is required", http.StatusBadRequest)

@@ -9,6 +9,8 @@ type ChannelsConfig struct {
 // EmailConfig holds email channel configuration.
 type EmailConfig struct {
 	Enabled      bool     `json:"enabled"              env:"SOFIA_CHANNELS_EMAIL_ENABLED"`
+	UseGmailAPI  bool     `json:"use_gmail_api"        env:"SOFIA_CHANNELS_EMAIL_USE_GMAIL_API"` // Use Gmail API via gog CLI instead of SMTP
+	GogBinary    string   `json:"gog_binary,omitempty" env:"SOFIA_CHANNELS_EMAIL_GOG_BINARY"`    // Path to gog binary (default: "gog")
 	IMAPServer   string   `json:"imap_server"          env:"SOFIA_CHANNELS_EMAIL_IMAP_SERVER"`
 	SMTPServer   string   `json:"smtp_server"          env:"SOFIA_CHANNELS_EMAIL_SMTP_SERVER"`
 	Username     string   `json:"username"             env:"SOFIA_CHANNELS_EMAIL_USERNAME"`

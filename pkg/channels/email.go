@@ -104,11 +104,20 @@ type EmailChannel struct {
 }
 
 // NewEmailChannel creates a new EmailChannel from the given config and message bus.
+// When UseGmailAPI is true, or when the username is a Gmail address and no SMTP
+// server is configured, the channel sends via the Gmail API using the gog CLI
+// (which handles Google OAuth authentication). Otherwise it falls back to SMTP.
 func NewEmailChannel(cfg config.EmailConfig, msgBus *bus.MessageBus) *EmailChannel {
 	base := NewBaseChannel("email", cfg, msgBus, cfg.AllowFrom)
 
 	var sender EmailSender
-	if cfg.SMTPServer != "" {
+	useGmail := cfg.UseGmailAPI || (cfg.SMTPServer == "" && isGmailAddress(cfg.Username))
+	if useGmail {
+		sender = NewGmailSender(cfg.GogBinary, cfg.Username, 90)
+		logger.InfoCF("email", "Using Gmail API sender (gog CLI)", map[string]any{
+			"account": cfg.Username,
+		})
+	} else if cfg.SMTPServer != "" {
 		sender = NewSMTPSender(cfg.SMTPServer, cfg.Username, cfg.Password)
 	}
 
@@ -119,6 +128,14 @@ func NewEmailChannel(cfg config.EmailConfig, msgBus *bus.MessageBus) *EmailChann
 		receiver:    &stubReceiver{},
 		stopCh:      make(chan struct{}),
 	}
+}
+
+// isGmailAddress returns true if the address is a Gmail or Google Workspace
+// address that can use the Gmail API.
+func isGmailAddress(addr string) bool {
+	addr = strings.ToLower(strings.TrimSpace(addr))
+	return strings.HasSuffix(addr, "@gmail.com") ||
+		strings.HasSuffix(addr, "@googlemail.com")
 }
 
 // Start begins polling for inbound emails.
@@ -138,7 +155,12 @@ func (ec *EmailChannel) Start(ctx context.Context) error {
 
 	go ec.pollLoop(ctx, time.Duration(interval)*time.Second)
 
+	senderType := "smtp"
+	if _, ok := ec.sender.(*GmailSender); ok {
+		senderType = "gmail-api"
+	}
 	logger.InfoCF("email", "Email channel started", map[string]any{
+		"sender":        senderType,
 		"smtp_server":   ec.cfg.SMTPServer,
 		"imap_server":   ec.cfg.IMAPServer,
 		"poll_interval": interval,
@@ -169,7 +191,7 @@ func (ec *EmailChannel) Send(_ context.Context, msg bus.OutboundMessage) error {
 	}
 
 	if ec.sender == nil {
-		return fmt.Errorf("email sender not configured (SMTP server missing)")
+		return fmt.Errorf("email sender not configured — set use_gmail_api:true with a Gmail username, or configure an SMTP server")
 	}
 
 	to := msg.ChatID

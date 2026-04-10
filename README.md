@@ -1,3 +1,9 @@
+![GitHub stars](https://img.shields.io/github/stars/grasberg/sofia?style=social)
+![GitHub forks](https://img.shields.io/github/forks/grasberg/sofia?style=social)
+![License](https://img.shields.io/github/license/grasberg/sofia)
+![Go Version](https://img.shields.io/github/go-mod/go-version/grasberg/sofia)
+![Last Commit](https://img.shields.io/github/last-commit/grasberg/sofia)
+
 # Sofia - AI Workspace Assistant 🧠✨
 
 ![Version](https://img.shields.io/badge/version-v0.0.145-blue)

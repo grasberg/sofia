@@ -243,6 +243,7 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/api/sessions", api(s.handleSessions))
 	mux.HandleFunc("/api/sessions/", api(s.handleSessionDetail))
 	mux.HandleFunc("/api/goals", api(s.handleGoals))
+	mux.HandleFunc("POST /api/goals/restart", api(s.handleGoalRestart))
 	mux.HandleFunc("GET /api/goals/completed", api(s.handleGoalsCompleted))
 	mux.HandleFunc("GET /api/activity", api(s.handleActivity))
 	mux.HandleFunc("/api/goals/", api(s.handleGoalLog))

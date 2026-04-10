@@ -19,6 +19,7 @@ type SemanticMatcher struct {
 	cache    map[string][]float32
 	mu       sync.RWMutex
 	tracker  *ToolTracker // optional usage stats for ranking
+	disabled bool         // set after first embedding failure to stop retrying
 
 	// Intent embedding cache to avoid redundant API calls
 	intentCache map[string][]float32 // key: intent hash → embedding
@@ -52,7 +53,7 @@ func (sm *SemanticMatcher) MatchTools(
 	tools []Tool,
 	topK int,
 ) []Tool {
-	if sm == nil || sm.provider == nil || len(tools) <= topK || intent == "" {
+	if sm == nil || sm.provider == nil || sm.disabled || len(tools) <= topK || intent == "" {
 		return tools
 	}
 
@@ -94,18 +95,26 @@ func (sm *SemanticMatcher) MatchTools(
 	if len(textsToEmbed) > 0 {
 		results, err = sm.provider.Embeddings(ctx, textsToEmbed, sm.model)
 		if err != nil {
-			logger.WarnCF("semantic_matcher", "Failed to rank tools, falling back to all tools", map[string]any{
+			logger.WarnCF("semantic_matcher", "Embeddings failed, disabling semantic matching (using keyword fallback)", map[string]any{
 				"error": err.Error(),
-				"count": len(tools),
+				"model": sm.model,
 			})
+			sm.mu.Lock()
+			sm.disabled = true
+			sm.mu.Unlock()
 			return tools
 		}
 
 		if len(results) != len(textsToEmbed) {
-			logger.WarnCF("semantic_matcher", "Embeddings length mismatch, falling back to all tools", map[string]any{
+			logger.WarnCF("semantic_matcher", "Embeddings returned no data, disabling semantic matching (using keyword fallback). "+
+				"This usually means the provider does not support the embedding model.", map[string]any{
 				"expected": len(textsToEmbed),
 				"got":      len(results),
+				"model":    sm.model,
 			})
+			sm.mu.Lock()
+			sm.disabled = true
+			sm.mu.Unlock()
 			return tools
 		}
 	}

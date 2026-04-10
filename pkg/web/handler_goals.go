@@ -79,6 +79,40 @@ func (s *Server) handleGoalsPatch(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+func (s *Server) handleGoalRestart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		GoalID int64 `json:"goal_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.sendJSONError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.GoalID == 0 {
+		s.sendJSONError(w, "goal_id is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.agentLoop.RestartGoal(req.GoalID); err != nil {
+		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if hub := s.agentLoop.DashboardHub(); hub != nil {
+		hub.Broadcast(map[string]any{
+			"type":    "goal_status_changed",
+			"goal_id": req.GoalID,
+			"status":  "active",
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
 func (s *Server) handleGoalsDelete(w http.ResponseWriter, r *http.Request) {
 	idStr := r.URL.Query().Get("goal_id")
 	if idStr == "" {

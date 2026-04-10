@@ -269,7 +269,7 @@
         </header>
 
         <!-- Content Area -->
-        <div id="main-content" class="flex-grow-fix flex flex-col p-4 lg:p-6" hx-get="/ui/chat" hx-trigger="load">
+        <div id="main-content" class="flex-grow-fix flex flex-col p-4 lg:p-6">
             <!-- HTMX injects content here -->
         </div>
 
@@ -315,6 +315,14 @@
         // Provider → list of models, fetched from /api/models (single source of truth in DB).
         // Populated by loadModelCatalog() on page load.
         let PROVIDER_MODELS = {};
+
+        function toggleEmailGmailMode() {
+            const gmailApi = document.getElementById("cfg-email-gmail-api");
+            const smtpFields = document.getElementById("email-smtp-fields");
+            if (gmailApi && smtpFields) {
+                smtpFields.style.display = gmailApi.checked ? "none" : "";
+            }
+        }
 
         async function loadModelCatalog() {
             try {
@@ -479,7 +487,7 @@
                 title.textContent = "Edit Model";
                 // Detect provider from model string prefix
                 const prefix = m.model ? m.model.split("/")[0] : "";
-                const providerMap = { gemini: "Google Gemini", openai: "OpenAI", anthropic: "Anthropic", deepseek: "DeepSeek", groq: "Groq", ollama: "Ollama", mistral: "Mistral", qwen: "Qwen", moonshot: "Moonshot", grok: "xAI (Grok)", zai: "Z.ai", minimax: "MiniMax" };
+                const providerMap = { gemini: "Google Gemini", openai: "OpenAI", anthropic: "Anthropic", deepseek: "DeepSeek", groq: "Groq", ollama: "Ollama", mistral: "Mistral", openrouter: "OpenRouter", qwen: "Qwen", moonshot: "Moonshot", grok: "xAI (Grok)", zai: "Z.ai", minimax: "MiniMax" };
                 // Detect Ollama Cloud models (those with -cloud suffix)
                 let detectedProvider = providerMap[prefix] || "Custom";
                 if (prefix === "ollama" && m.model && m.model.endsWith("-cloud")) {
@@ -494,10 +502,13 @@
                     if (sel.options[i].value === m.model) { sel.value = m.model; found = true; break; }
                 }
                 if (!found) {
-                    // custom entry
-                    if (detectedProvider === "Custom") {
+                    // Model not in catalog dropdown — show custom input
+                    if (detectedProvider === "Custom" || detectedProvider === "OpenRouter") {
                         document.getElementById("form-model-custom-wrapper").classList.remove("hidden");
                         document.getElementById("form-model-custom").value = m.model || "";
+                        if (sel.querySelector("option[value='__custom__']")) {
+                            sel.value = "__custom__";
+                        }
                     }
                 }
                 document.getElementById("form-step-config").classList.remove("hidden");
@@ -542,13 +553,18 @@
             stepModel.classList.remove("hidden");
             stepConfig.classList.add("hidden");
 
-            if (provider === "Custom" || provider === "OpenRouter") {
+            if (provider === "Custom") {
                 sel.classList.add("hidden");
                 customWrapper.classList.remove("hidden");
-                document.getElementById("form-model-custom").value = provider === "OpenRouter" ? "openrouter/" : "";
-                if (provider === "OpenRouter") {
-                    document.getElementById("form-model-base").value = "https://openrouter.ai/api/v1";
-                }
+                document.getElementById("form-model-custom").value = "";
+            } else if (provider === "OpenRouter") {
+                const models = PROVIDER_MODELS[provider] || [];
+                sel.classList.remove("hidden");
+                sel.innerHTML = "<option value=''>-- Select Model --</option>" +
+                    models.map(function (m) { return "<option value=\"" + m.model_id + "\" data-base=\"" + m.api_base + "\">" + m.label + "</option>"; }).join("") +
+                    "<option value='__custom__'>Other (enter manually)</option>";
+                customWrapper.classList.add("hidden");
+                document.getElementById("form-model-base").value = "https://openrouter.ai/api/v1";
             } else if (provider === "Ollama") {
                 // Show both dropdown (common models) and custom input (for user-pulled models)
                 const models = PROVIDER_MODELS[provider] || [];
@@ -587,7 +603,7 @@
             const customWrapper = document.getElementById("form-model-custom-wrapper");
             let modelId = "";
             let apiBase = "";
-            if (provider === "Custom" || provider === "OpenRouter") {
+            if (provider === "Custom") {
                 modelId = document.getElementById("form-model-custom").value.trim();
             } else {
                 const sel = document.getElementById("form-model-select");
@@ -598,10 +614,13 @@
                 if (authMethod) {
                     document.getElementById("form-model-auth").value = authMethod;
                 }
-                // Ollama "Other" option: show custom input
+                // "Other" option: show custom input for manual entry
                 if (modelId === "__custom__") {
                     customWrapper.classList.remove("hidden");
-                    if (provider === "Ollama Cloud") {
+                    if (provider === "OpenRouter") {
+                        document.getElementById("form-model-custom").value = "openrouter/";
+                        document.getElementById("form-model-custom").placeholder = "e.g. openrouter/org/model-name:free";
+                    } else if (provider === "Ollama Cloud") {
                         document.getElementById("form-model-custom").value = "ollama/";
                         document.getElementById("form-model-custom").placeholder = "e.g. ollama/gemma4:31b-cloud";
                     } else {
@@ -639,11 +658,11 @@
         function saveModelForm() {
             const provider = document.getElementById("form-provider").value;
             let modelId = "";
-            if (provider === "Custom" || provider === "OpenRouter") {
+            if (provider === "Custom") {
                 modelId = document.getElementById("form-model-custom").value.trim();
             } else {
                 modelId = document.getElementById("form-model-select").value;
-                // If "Other" was selected (e.g. Ollama custom), use the custom input
+                // If "Other" was selected (e.g. Ollama/OpenRouter custom), use the custom input
                 if (modelId === "__custom__") {
                     modelId = document.getElementById("form-model-custom").value.trim();
                 }
@@ -1206,7 +1225,21 @@
             if (currentTab === 'ai' || currentTab === 'platform' || currentTab === 'settings') {
                 fetchConfig();
             }
+            try { localStorage.setItem('sofia-active-tab', clickedEl.id); } catch(e) {}
         }
+
+        // Restore last active tab on page load
+        (function restoreTab() {
+            var savedId = null;
+            try { savedId = localStorage.getItem('sofia-active-tab'); } catch(e) {}
+            var navEl = savedId ? document.getElementById(savedId) : null;
+            if (navEl && navEl.getAttribute('hx-get')) {
+                navEl.click();
+            } else {
+                var fallback = document.getElementById('nav-chat');
+                if (fallback) fallback.click();
+            }
+        })();
 
         // Settings sidebar navigation (used inside AI/Platform settings pages)
         function setSettingsNavActive(clickedEl, event) {
@@ -2212,12 +2245,14 @@
                     const el = (id) => document.getElementById(id);
                     if (cfg.channels.email) {
                         if (el('cfg-email-enabled')) el('cfg-email-enabled').checked = !!cfg.channels.email.enabled;
+                        if (el('cfg-email-gmail-api')) el('cfg-email-gmail-api').checked = !!cfg.channels.email.use_gmail_api;
                         if (el('cfg-email-imap')) el('cfg-email-imap').value = cfg.channels.email.imap_server || '';
                         if (el('cfg-email-smtp')) el('cfg-email-smtp').value = cfg.channels.email.smtp_server || '';
                         if (el('cfg-email-username')) el('cfg-email-username').value = cfg.channels.email.username || '';
                         if (el('cfg-email-password') && cfg.channels.email.password) el('cfg-email-password').value = cfg.channels.email.password;
                         if (el('cfg-email-poll')) el('cfg-email-poll').value = cfg.channels.email.poll_interval_sec || '';
                         if (el('cfg-email-allow-from')) el('cfg-email-allow-from').value = (cfg.channels.email.allow_from || []).join('\n');
+                        if (typeof toggleEmailGmailMode === 'function') toggleEmailGmailMode();
                     }
                     if (el('cfg-telegram-dm-policy')) el('cfg-telegram-dm-policy').value = (cfg.channels.telegram && cfg.channels.telegram.dm_policy) || '';
                     if (el('cfg-discord-dm-policy')) el('cfg-discord-dm-policy').value = (cfg.channels.discord && cfg.channels.discord.dm_policy) || '';
@@ -3374,6 +3409,8 @@
                 if (emailEnabled) {
                     if (!cfg.channels.email) cfg.channels.email = {};
                     cfg.channels.email.enabled = emailEnabled.checked;
+                    const gmailApi = document.getElementById("cfg-email-gmail-api");
+                    if (gmailApi) cfg.channels.email.use_gmail_api = gmailApi.checked;
                     const emailImap = document.getElementById("cfg-email-imap");
                     if (emailImap) cfg.channels.email.imap_server = emailImap.value.trim();
                     const emailSmtp = document.getElementById("cfg-email-smtp");

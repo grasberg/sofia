@@ -88,7 +88,8 @@ func (al *AgentLoop) forceCompression(agent *AgentInstance, sessionKey string) {
 	threshold := agent.ContextWindow * agent.Summarization.ForceTriggerPctOrDefault() / 100
 
 	if tokenEstimate <= threshold {
-		// Tool result truncation was sufficient
+		// Tool result truncation was sufficient — sanitize IDs before saving.
+		newHistory = sanitizeToolCallIDs(newHistory)
 		agent.Sessions.SetHistory(sessionKey, newHistory)
 		agent.Sessions.Save(sessionKey)
 		logger.InfoCF("agent", "Context compression: truncated tool results", map[string]any{
@@ -114,6 +115,9 @@ func (al *AgentLoop) forceCompression(agent *AgentInstance, sessionKey string) {
 	newHistory = append(newHistory, enhancedHead...)
 	newHistory = append(newHistory, tail...)
 
+	// Dropping the middle can orphan tool_use / tool_result pairs.
+	newHistory = sanitizeToolCallIDs(newHistory)
+
 	agent.Sessions.SetHistory(sessionKey, newHistory)
 	agent.Sessions.Save(sessionKey)
 
@@ -122,6 +126,59 @@ func (al *AgentLoop) forceCompression(agent *AgentInstance, sessionKey string) {
 		"dropped_msgs": droppedCount,
 		"new_count":    len(newHistory),
 	})
+}
+
+// sanitizeToolCallIDs removes orphaned tool_use / tool_result pairs from a
+// message slice. An assistant tool_use whose ID has no matching tool_result is
+// stripped (the assistant message is kept if it has text content). A tool_result
+// whose ToolCallID has no matching tool_use is dropped entirely.
+func sanitizeToolCallIDs(messages []providers.Message) []providers.Message {
+	// Collect all tool_use IDs from assistant messages.
+	toolUseIDs := make(map[string]bool)
+	for _, m := range messages {
+		if m.Role == "assistant" {
+			for _, tc := range m.ToolCalls {
+				if tc.ID != "" {
+					toolUseIDs[tc.ID] = true
+				}
+			}
+		}
+	}
+
+	// Collect all tool_result IDs.
+	toolResultIDs := make(map[string]bool)
+	for _, m := range messages {
+		if m.Role == "tool" && m.ToolCallID != "" {
+			toolResultIDs[m.ToolCallID] = true
+		}
+	}
+
+	out := make([]providers.Message, 0, len(messages))
+	for _, m := range messages {
+		switch {
+		case m.Role == "tool" && m.ToolCallID != "" && !toolUseIDs[m.ToolCallID]:
+			// Orphaned tool result — no matching assistant tool_use.
+			continue
+
+		case m.Role == "assistant" && len(m.ToolCalls) > 0:
+			// Strip tool calls that have no matching tool result.
+			var valid []providers.ToolCall
+			for _, tc := range m.ToolCalls {
+				if tc.ID != "" && toolResultIDs[tc.ID] {
+					valid = append(valid, tc)
+				}
+			}
+			if len(valid) != len(m.ToolCalls) {
+				cleaned := m // shallow copy
+				cleaned.ToolCalls = valid
+				out = append(out, cleaned)
+				continue
+			}
+		}
+
+		out = append(out, m)
+	}
+	return out
 }
 
 // safeCutPoint adjusts a cut index forward so the kept messages don't start

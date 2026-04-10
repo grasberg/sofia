@@ -274,8 +274,18 @@ func (s *Service) generatePlanForGoal(ctx context.Context, gm *GoalManager, goal
 		return
 	}
 
-	// Skip if goal already has a plan.
+	// If a plan already exists (e.g. created by the chat agent), advance the phase.
 	if existing := pm.GetPlanByGoalID(goal.ID); existing != nil {
+		_ = gm.UpdateGoalPhase(goal.ID, GoalPhaseImplement)
+		if _, err := gm.UpdateGoalStatus(goal.ID, GoalStatusInProgress); err != nil {
+			logger.WarnCF("autonomy", "Failed to transition goal to in_progress", map[string]any{
+				"goal_id": goal.ID, "error": err.Error(),
+			})
+		}
+		// If the plan is already done, finalize immediately.
+		if existing.Status == tools.PlanStatusCompleted {
+			s.finalizeGoal(ctx, gm, goal, existing)
+		}
 		return
 	}
 
@@ -444,9 +454,22 @@ func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal 
 		return
 	}
 	if plan.Status == tools.PlanStatusFailed {
-		logger.WarnCF("autonomy", "Plan failed, not dispatching", map[string]any{
+		logger.WarnCF("autonomy", "Plan permanently failed, marking goal as failed", map[string]any{
 			"goal_id": goal.ID,
 			"plan_id": plan.ID,
+		})
+		if _, err := gm.UpdateGoalStatus(goal.ID, GoalStatusFailed); err != nil {
+			logger.ErrorCF("autonomy", "Failed to mark goal as failed", map[string]any{
+				"goal_id": goal.ID,
+				"error":   err.Error(),
+			})
+		}
+		s.broadcast(map[string]any{
+			"type":      "goal_failed",
+			"agent_id":  s.agentID,
+			"goal_id":   goal.ID,
+			"goal_name": goal.Name,
+			"plan_id":   plan.ID,
 		})
 		return
 	}
@@ -509,9 +532,9 @@ func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal 
 			stepSuccess := toolSuccess && verifyPassed
 
 			if !stepSuccess && capturedRetryCount < maxRetries {
-				// Mark as failed then retry.
-				pm.CompleteStepWithVerify(capturedPlanID, capturedStepIdx, false, truncate(resultText, 2000), verifyText)
-				pm.RetryStep(capturedPlanID, capturedStepIdx)
+				// Atomically record failure and reset for retry — avoids a
+				// race where the tick cycle sees a temporarily-failed plan.
+				pm.FailAndRetryStep(capturedPlanID, capturedStepIdx, truncate(resultText, 2000), verifyText)
 
 				logger.InfoCF("autonomy", "Step verification failed, retrying", map[string]any{
 					"goal_id":     capturedGoalID,

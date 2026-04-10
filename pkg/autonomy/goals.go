@@ -77,7 +77,7 @@ func (gm *GoalManager) AddGoal(agentID, name, description, priority string) (any
 		priority = "medium"
 	}
 
-	props := map[string]string{
+	props := map[string]any{
 		"description": description,
 		"status":      GoalStatusActive,
 		"priority":    priority,
@@ -105,9 +105,9 @@ func (gm *GoalManager) UpdateGoalStatus(goalID int64, newStatus string) (any, er
 		return nil, fmt.Errorf("goal %d not found", goalID)
 	}
 
-	var props map[string]string
+	var props map[string]any
 	if err := json.Unmarshal([]byte(node.Properties), &props); err != nil {
-		props = make(map[string]string)
+		props = make(map[string]any)
 	}
 	props["status"] = newStatus
 
@@ -166,6 +166,20 @@ func (gm *GoalManager) ListAllGoals(agentID string) ([]*Goal, error) {
 	return goals, nil
 }
 
+// ListAllGoalsGlobal returns all goals across all agents.
+func (gm *GoalManager) ListAllGoalsGlobal() ([]*Goal, error) {
+	nodes, err := gm.memDB.FindNodesByLabel("Goal", 200)
+	if err != nil {
+		return nil, err
+	}
+
+	goals := make([]*Goal, 0, len(nodes))
+	for _, node := range nodes {
+		goals = append(goals, parseGoalNode(&node))
+	}
+	return goals, nil
+}
+
 // UpdateGoalResult updates an existing goal's result text.
 func (gm *GoalManager) UpdateGoalResult(goalID int64, result string) error {
 	node, err := gm.memDB.GetNodeByID(goalID)
@@ -176,9 +190,9 @@ func (gm *GoalManager) UpdateGoalResult(goalID int64, result string) error {
 		return fmt.Errorf("goal %d not found", goalID)
 	}
 
-	var props map[string]string
+	var props map[string]any
 	if err := json.Unmarshal([]byte(node.Properties), &props); err != nil {
-		props = make(map[string]string)
+		props = make(map[string]any)
 	}
 	props["result"] = result
 
