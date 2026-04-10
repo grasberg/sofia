@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -26,6 +25,49 @@ var shellMetacharPatterns = []*regexp.Regexp{
 
 // pathPatternRe is pre-compiled to avoid recompilation on every guardCommand call.
 var pathPatternRe = regexp.MustCompile(`[A-Za-z]:\\[^\\"']+|/[^\s"']+`)
+
+// safePathPrefixes are system directories that commands legitimately reference
+// even when restrict_to_workspace is on. Package managers, interpreters, and
+// standard tools need these — blocking them causes false positives.
+var safePathPrefixes = []string{
+	"/usr/",
+	"/bin/",
+	"/sbin/",
+	"/opt/",
+	"/dev/null",
+	"/dev/zero",
+	"/dev/stdin",
+	"/dev/stdout",
+	"/dev/stderr",
+	"/dev/urandom",
+	"/lib/",
+	"/proc/self/",
+	"/nix/",
+	"/home/linuxbrew/",
+	"/private/tmp/",     // macOS
+	"/Library/",         // macOS
+	"/System/",          // macOS
+	"/Applications/",    // macOS
+}
+
+func isSafeSystemPath(p string) bool {
+	for _, prefix := range safePathPrefixes {
+		if strings.HasPrefix(p, prefix) {
+			return true
+		}
+	}
+	// Also allow the user's home directory tools (e.g. ~/.local/bin, ~/.pyenv)
+	if strings.HasPrefix(p, "/home/") || strings.HasPrefix(p, "/Users/") {
+		// Allow ~/.local, ~/.cargo, etc. but not arbitrary home-dir data files.
+		// Simple heuristic: anything under a dot-directory in the home folder is
+		// a tool/config path, not user workspace data.
+		parts := strings.SplitN(p, "/", 5) // /Users/name/.something/...
+		if len(parts) >= 4 && strings.HasPrefix(parts[3], ".") {
+			return true
+		}
+	}
+	return false
+}
 
 // normalizeCommand prepares a command string for deny-pattern matching by removing
 // shell constructs that could bypass simple regex patterns:
@@ -113,6 +155,11 @@ func (t *ExecTool) guardCommand(command, cwd string) string {
 				continue
 			}
 
+			// Skip well-known system directories that tools legitimately need.
+			if isSafeSystemPath(p) {
+				continue
+			}
+
 			rel, err := filepath.Rel(cwdPath, p)
 			if err != nil {
 				continue
@@ -142,7 +189,7 @@ func (t *ExecTool) RequestElevation() string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	token := fmt.Sprintf("elevate_%d", time.Now().UnixNano()/1000)
+	token := generateSecureToken("elevate")
 	t.pendingTokens[token] = time.Now().Add(5 * time.Minute)
 	return token
 }

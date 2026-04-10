@@ -170,18 +170,39 @@
             el.className = 'flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-zinc-800/50 transition-colors';
 
             var icon, iconColor;
+            var name = entry.name.toLowerCase();
             if (entry.is_dir) {
                 icon = 'folder';
                 iconColor = 'text-amber-400';
-            } else if (/\.(md|txt)$/i.test(entry.name)) {
+            } else if (/\.(md|txt|rst|adoc)$/i.test(name)) {
                 icon = 'file-text';
                 iconColor = 'text-blue-400';
-            } else if (/\.(go|py|js|ts|json|yaml|yml|toml)$/i.test(entry.name)) {
+            } else if (/\.(go|py|js|jsx|ts|tsx|json|yaml|yml|toml|rs|rb|php|java|c|cpp|h|hpp|cs|swift|kt|lua|r|pl|sh|bash|zsh|fish|sql|graphql|proto|zig|nim|ex|exs|erl|hs|ml|scala|clj|v|sv|asm|s)$/i.test(name) ||
+                       /^(Makefile|Dockerfile|Jenkinsfile|Vagrantfile|Rakefile|Gemfile|Procfile)$/i.test(name)) {
                 icon = 'file-code';
                 iconColor = 'text-green-400';
-            } else if (/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(entry.name)) {
+            } else if (/\.(html|htm|css|scss|less|sass|xml|xsl|xhtml|vue|svelte)$/i.test(name)) {
+                icon = 'code';
+                iconColor = 'text-cyan-400';
+            } else if (/\.(png|jpg|jpeg|gif|svg|webp|ico|bmp|tiff|avif|heic)$/i.test(name)) {
                 icon = 'image';
                 iconColor = 'text-purple-400';
+            } else if (/\.(mp4|mkv|avi|mov|wmv|flv|webm|mp3|wav|ogg|flac|aac|m4a)$/i.test(name)) {
+                icon = 'play-circle';
+                iconColor = 'text-pink-400';
+            } else if (/\.(zip|tar|gz|bz2|xz|7z|rar|tgz|zst)$/i.test(name)) {
+                icon = 'archive';
+                iconColor = 'text-orange-400';
+            } else if (/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp)$/i.test(name)) {
+                icon = 'file-text';
+                iconColor = 'text-red-400';
+            } else if (/\.(env|gitignore|dockerignore|editorconfig|prettierrc|eslintrc)$/i.test(name) ||
+                       /^\./i.test(name)) {
+                icon = 'settings';
+                iconColor = 'text-zinc-500';
+            } else if (/\.(lock|sum|mod)$/i.test(name)) {
+                icon = 'lock';
+                iconColor = 'text-zinc-500';
             } else {
                 icon = 'file';
                 iconColor = 'text-zinc-400';

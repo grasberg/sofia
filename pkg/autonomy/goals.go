@@ -19,7 +19,6 @@ const (
 
 // Goal phases.
 const (
-	GoalPhaseSpecify   = "specify"
 	GoalPhasePlan      = "plan"
 	GoalPhaseImplement = "implement"
 	GoalPhaseCompleted = "completed"

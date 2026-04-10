@@ -134,5 +134,6 @@ func DefaultModelList() []ModelConfig {
 		{Provider: "Ollama Cloud", DisplayName: "GPT-OSS 120B Cloud", ModelName: "ollama-gpt-oss-120b-cloud", Model: "ollama/gpt-oss:120b-cloud", APIBase: "https://ollama.com/v1"},
 		{Provider: "Ollama Cloud", DisplayName: "GPT-OSS 20B Cloud", ModelName: "ollama-gpt-oss-20b-cloud", Model: "ollama/gpt-oss:20b-cloud", APIBase: "https://ollama.com/v1"},
 		{Provider: "Ollama Cloud", DisplayName: "DeepSeek V3.1 671B Cloud", ModelName: "ollama-deepseek-v3.1-671b-cloud", Model: "ollama/deepseek-v3.1:671b-cloud", APIBase: "https://ollama.com/v1"},
+		{Provider: "Ollama Cloud", DisplayName: "GLM 5.1 Cloud", ModelName: "ollama-glm-5.1-cloud", Model: "ollama/glm-5.1:cloud", APIBase: "https://ollama.com/v1"},
 	}
 }

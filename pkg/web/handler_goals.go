@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/grasberg/sofia/pkg/autonomy"
+	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/memory"
 )
 
@@ -38,6 +39,7 @@ func (s *Server) handleGoalsGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGoalsPatch(w http.ResponseWriter, r *http.Request) {
+	limitBody(r)
 	var req struct {
 		GoalID int64  `json:"goal_id"`
 		Status string `json:"status"`
@@ -62,7 +64,8 @@ func (s *Server) handleGoalsPatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.agentLoop.UpdateGoalStatus(req.GoalID, req.Status); err != nil {
-		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		logger.WarnCF("web", "Goal status update failed", map[string]any{"goal_id": req.GoalID, "error": err.Error()})
+		s.sendJSONError(w, "Failed to update goal status", http.StatusInternalServerError)
 		return
 	}
 
@@ -84,6 +87,7 @@ func (s *Server) handleGoalRestart(w http.ResponseWriter, r *http.Request) {
 		s.sendJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	limitBody(r)
 	var req struct {
 		GoalID int64 `json:"goal_id"`
 	}
@@ -97,7 +101,8 @@ func (s *Server) handleGoalRestart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.agentLoop.RestartGoal(req.GoalID); err != nil {
-		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		logger.WarnCF("web", "Goal restart failed", map[string]any{"goal_id": req.GoalID, "error": err.Error()})
+		s.sendJSONError(w, "Failed to restart goal", http.StatusInternalServerError)
 		return
 	}
 
@@ -126,7 +131,8 @@ func (s *Server) handleGoalsDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.agentLoop.DeleteGoal(goalID); err != nil {
-		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		logger.WarnCF("web", "Goal delete failed", map[string]any{"goal_id": goalID, "error": err.Error()})
+		s.sendJSONError(w, "Failed to delete goal", http.StatusInternalServerError)
 		return
 	}
 

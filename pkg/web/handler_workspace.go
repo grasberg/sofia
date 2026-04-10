@@ -83,14 +83,14 @@ func (s *Server) handleWorkspaceFiles(w http.ResponseWriter, r *http.Request) {
 
 	// Resolve and validate the path stays within workspace.
 	target := filepath.Join(workspace, filepath.Clean(relPath))
-	if !strings.HasPrefix(target, workspace) {
+	if target != workspace && !strings.HasPrefix(target, workspace+string(os.PathSeparator)) {
 		s.sendJSONError(w, "Path outside workspace", http.StatusBadRequest)
 		return
 	}
 
 	entries, err := os.ReadDir(target)
 	if err != nil {
-		s.sendJSONError(w, err.Error(), http.StatusNotFound)
+		s.sendJSONError(w, "Directory not found", http.StatusNotFound)
 		return
 	}
 
@@ -135,14 +135,14 @@ func (s *Server) handleWorkspaceFile(w http.ResponseWriter, r *http.Request) {
 
 	// Resolve and validate the path stays within workspace.
 	target := filepath.Join(workspace, filepath.Clean(relPath))
-	if !strings.HasPrefix(target, workspace) {
+	if target != workspace && !strings.HasPrefix(target, workspace+string(os.PathSeparator)) {
 		s.sendJSONError(w, "Path outside workspace", http.StatusBadRequest)
 		return
 	}
 
 	info, err := os.Stat(target)
 	if err != nil {
-		s.sendJSONError(w, err.Error(), http.StatusNotFound)
+		s.sendJSONError(w, "File not found", http.StatusNotFound)
 		return
 	}
 	if info.IsDir() {
@@ -159,7 +159,7 @@ func (s *Server) handleWorkspaceFile(w http.ResponseWriter, r *http.Request) {
 
 	content, err := os.ReadFile(target)
 	if err != nil {
-		s.sendJSONError(w, err.Error(), http.StatusInternalServerError)
+		s.sendJSONError(w, "Failed to read file", http.StatusInternalServerError)
 		return
 	}
 

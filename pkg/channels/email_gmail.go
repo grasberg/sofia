@@ -26,6 +26,14 @@ func NewGmailSender(binaryPath, account string, timeoutSeconds int) *GmailSender
 	if strings.TrimSpace(binaryPath) == "" {
 		binaryPath = "gog"
 	}
+	// Only allow bare command names resolved via PATH — reject absolute/relative
+	// paths to prevent config-driven code execution.
+	if strings.ContainsAny(binaryPath, "/\\") {
+		logger.WarnCF("email", "gog_binary contains path separators, falling back to 'gog'", map[string]any{
+			"configured": binaryPath,
+		})
+		binaryPath = "gog"
+	}
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = 90
 	}

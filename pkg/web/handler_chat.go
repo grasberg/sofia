@@ -88,7 +88,11 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"response": response, "session_key": sessionKey})
+	json.NewEncoder(w).Encode(map[string]any{
+		"response":    response,
+		"session_key": sessionKey,
+		"model":       s.agentLoop.GetActiveModelLabel(),
+	})
 }
 
 func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
@@ -131,9 +135,10 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	flusher.Flush()
 
 	ctx := r.Context()
+	modelLabel := s.agentLoop.GetActiveModelLabel()
 	err := s.agentLoop.ProcessDirectStream(ctx, req.Message, sessionKey, func(text string, done bool) {
 		if done {
-			fmt.Fprintf(w, "data: %s\n\n", mustJSON(map[string]string{"type": "done"}))
+			fmt.Fprintf(w, "data: %s\n\n", mustJSON(map[string]string{"type": "done", "model": modelLabel}))
 			flusher.Flush()
 			return
 		}

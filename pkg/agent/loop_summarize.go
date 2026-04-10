@@ -368,15 +368,22 @@ Format the summary as structured sections. Be concise but NEVER omit technical s
 }
 
 // estimateTokens estimates the number of tokens in a message list.
-// Uses a safe heuristic of 2.5 characters per token to account for CJK and other
-// overheads better than the previous 3 chars/token.
+// Uses len() (byte count) which is O(1) per string vs O(n) for RuneCount.
+// For ASCII-dominated content the difference is negligible; the heuristic is
+// approximate anyway. Also counts tool call arguments which contribute to
+// context size but were previously ignored.
 func (al *AgentLoop) estimateTokens(messages []providers.Message) int {
-	totalChars := 0
+	totalBytes := 0
 	for _, m := range messages {
-		totalChars += utf8.RuneCountInString(m.Content)
+		totalBytes += len(m.Content)
+		for _, tc := range m.ToolCalls {
+			if tc.Function != nil {
+				totalBytes += len(tc.Function.Arguments)
+			}
+		}
 	}
-	// 2.5 chars per token = totalChars * 2 / 5
-	return totalChars * 2 / 5
+	// ~2.5 bytes per token for English text
+	return totalBytes * 2 / 5
 }
 
 // estimateCostUSD calculates the approximate cost in USD based on token usage.

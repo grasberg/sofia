@@ -156,14 +156,17 @@ func NewAgentInstance(
 		maxIter = 20
 	}
 
+	// Look up model config once and reuse across all checks below.
+	primaryModelCfg, _ := cfg.GetModelConfig(model)
+
 	maxTokens := defaults.MaxTokens
 	if maxTokens == 0 {
 		maxTokens = 8192
 	}
 
 	// Per-model max_tokens overrides the agent default when set.
-	if mc, err := cfg.GetModelConfig(model); err == nil && mc != nil && mc.MaxTokens > 0 {
-		maxTokens = mc.MaxTokens
+	if primaryModelCfg != nil && primaryModelCfg.MaxTokens > 0 {
+		maxTokens = primaryModelCfg.MaxTokens
 	}
 
 	temperature := 0.7
@@ -208,20 +211,19 @@ func NewAgentInstance(
 	// use different API keys or providers without sharing the global provider.
 	agentProvider := provider
 	if agentCfg != nil && agentCfg.Model != nil && strings.TrimSpace(agentCfg.Model.Primary) != "" {
-		if mc, err := cfg.GetModelConfig(model); err == nil && mc != nil {
-			if mc.Workspace == "" {
-				mc.Workspace = cfg.WorkspacePath()
+		if primaryModelCfg != nil {
+			mcCopy := *primaryModelCfg
+			if mcCopy.Workspace == "" {
+				mcCopy.Workspace = cfg.WorkspacePath()
 			}
-			if p, _, err := providers.CreateProviderFromConfig(mc); err == nil && p != nil {
+			if p, _, err := providers.CreateProviderFromConfig(&mcCopy); err == nil && p != nil {
 				agentProvider = p
 			}
 		}
 	}
 
-	isLocal := false
-	if mc, err := cfg.GetModelConfig(model); err == nil && mc != nil {
-		isLocal = strings.Contains(mc.APIBase, "localhost") || strings.Contains(mc.APIBase, "127.0.0.1")
-	}
+	isLocal := primaryModelCfg != nil &&
+		(strings.Contains(primaryModelCfg.APIBase, "localhost") || strings.Contains(primaryModelCfg.APIBase, "127.0.0.1"))
 
 	// Resolve summarization config: per-agent fields override defaults field-by-field.
 	summarization := defaults.Summarization
@@ -268,7 +270,12 @@ func NewAgentInstance(
 		MaxIterations:  maxIter,
 		MaxTokens:      maxTokens,
 		Temperature:    temperature,
-		ContextWindow:  maxTokens,
+		ContextWindow: func() int {
+			if primaryModelCfg != nil && primaryModelCfg.ContextWindow > 0 {
+				return primaryModelCfg.ContextWindow
+			}
+			return 128000 // sensible default for modern models
+		}(),
 		Provider:       agentProvider,
 		Sessions:       sessionsManager,
 		ContextBuilder: contextBuilder,

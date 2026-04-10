@@ -6,69 +6,6 @@ import (
 	"github.com/grasberg/sofia/pkg/tools"
 )
 
-func TestBuildSpecificationPrompt(t *testing.T) {
-	goal := &Goal{
-		ID:          1,
-		Name:        "Deploy website",
-		Description: "Set up a production deployment pipeline",
-		Priority:    "high",
-	}
-
-	prompt := buildSpecificationPrompt(goal)
-
-	mustContain(t, prompt, "Deploy website")
-	mustContain(t, prompt, "Set up a production deployment pipeline")
-	mustContain(t, prompt, "high")
-	mustContain(t, prompt, "requirements")
-	mustContain(t, prompt, "success_criteria")
-}
-
-func TestParseSpecResponseValid(t *testing.T) {
-	input := `{"requirements": ["build CI pipeline", "configure hosting"], "success_criteria": ["site loads in <2s", "deploys on push"], "constraints": ["budget under $50/mo"]}`
-
-	resp, err := parseSpecResponse(input)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(resp.Requirements) != 2 {
-		t.Errorf("expected 2 requirements, got %d", len(resp.Requirements))
-	}
-	if len(resp.SuccessCriteria) != 2 {
-		t.Errorf("expected 2 success criteria, got %d", len(resp.SuccessCriteria))
-	}
-	if len(resp.Constraints) != 1 {
-		t.Errorf("expected 1 constraint, got %d", len(resp.Constraints))
-	}
-}
-
-func TestParseSpecResponseWithFences(t *testing.T) {
-	input := "```json\n{\"requirements\": [\"r1\"], \"success_criteria\": [\"s1\"]}\n```"
-
-	resp, err := parseSpecResponse(input)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(resp.Requirements) != 1 {
-		t.Errorf("expected 1 requirement, got %d", len(resp.Requirements))
-	}
-}
-
-func TestParseSpecResponseNoSuccessCriteria(t *testing.T) {
-	input := `{"requirements": ["r1"], "success_criteria": []}`
-
-	_, err := parseSpecResponse(input)
-	if err == nil {
-		t.Fatal("expected error for empty success criteria")
-	}
-}
-
-func TestParseSpecResponseMalformed(t *testing.T) {
-	_, err := parseSpecResponse("this is not json at all")
-	if err == nil {
-		t.Fatal("expected error for malformed JSON")
-	}
-}
-
 func TestBuildPlanGenerationPromptWithSpec(t *testing.T) {
 	goal := &Goal{
 		ID:          1,
@@ -90,6 +27,24 @@ func TestBuildPlanGenerationPromptWithSpec(t *testing.T) {
 	mustContain(t, prompt, "acceptance_criteria")
 	mustContain(t, prompt, "verify_command")
 	mustContain(t, prompt, "vertical slices")
+}
+
+func TestBuildPlanGenerationPromptNoSpec(t *testing.T) {
+	goal := &Goal{
+		ID:          2,
+		Name:        "Build API",
+		Description: "Create a REST API for user management",
+		Priority:    "medium",
+		// No Spec — the new default path
+	}
+
+	prompt := buildPlanGenerationPrompt(goal)
+
+	mustContain(t, prompt, "Build API")
+	mustContain(t, prompt, "REST API for user management")
+	mustContain(t, prompt, "acceptance_criteria")
+	mustContain(t, prompt, "verify_command")
+	mustNotContain(t, prompt, "Specification:")
 }
 
 func TestBuildVerifyingTaskPrompt(t *testing.T) {
@@ -163,8 +118,8 @@ func TestExtractVerifyResultMissing(t *testing.T) {
 }
 
 func TestGoalPhaseConstants(t *testing.T) {
-	phases := []string{GoalPhaseSpecify, GoalPhasePlan, GoalPhaseImplement, GoalPhaseCompleted}
-	expected := []string{"specify", "plan", "implement", "completed"}
+	phases := []string{GoalPhasePlan, GoalPhaseImplement, GoalPhaseCompleted}
+	expected := []string{"plan", "implement", "completed"}
 
 	for i, phase := range phases {
 		if phase != expected[i] {

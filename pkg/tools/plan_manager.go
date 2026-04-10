@@ -243,6 +243,41 @@ func (pm *PlanManager) ResetPlan(planID string) bool {
 	return true
 }
 
+// ReviseFailedSteps updates the descriptions of failed steps with revised
+// instructions, resets them to pending, and sets the plan back to in_progress.
+// The revisions map is stepIndex → new description.
+func (pm *PlanManager) ReviseFailedSteps(planID string, revisions map[int]string) bool {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	plan, ok := pm.plans[planID]
+	if !ok {
+		return false
+	}
+
+	for i := range plan.Steps {
+		s := &plan.Steps[i]
+		if s.Status != PlanStatusFailed {
+			continue
+		}
+		if desc, hasRevision := revisions[i]; hasRevision {
+			s.Description = desc
+		}
+		s.Status = PlanStatusPending
+		s.AssignedTo = ""
+		s.RetryCount = 0
+		s.Result = ""
+		s.VerifyResult = ""
+	}
+
+	if plan.Status == PlanStatusFailed {
+		plan.Status = PlanStatusInProgress
+	}
+
+	go pm.autoSave()
+	return true
+}
+
 // RetryStep resets a failed step to pending for re-dispatch, incrementing its retry count.
 func (pm *PlanManager) RetryStep(planID string, stepIdx int) bool {
 	pm.mu.Lock()

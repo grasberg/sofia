@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/grasberg/sofia/pkg/autonomy"
 	"github.com/grasberg/sofia/pkg/budget"
@@ -12,6 +13,30 @@ import (
 	"github.com/grasberg/sofia/pkg/session"
 	"github.com/grasberg/sofia/pkg/tools"
 )
+
+// GetActiveModelLabel returns a human-readable "provider/model" string for the
+// default agent's current model. Used in chat responses so the user can see
+// which LLM is answering.
+func (al *AgentLoop) GetActiveModelLabel() string {
+	agent := al.getRegistry().GetDefaultAgent()
+	if agent == nil {
+		return ""
+	}
+	// Try to find a display name from the model list.
+	if mc, err := al.cfg.GetModelConfig(agent.Model); err == nil && mc != nil {
+		if mc.DisplayName != "" {
+			return mc.DisplayName
+		}
+		if mc.Model != "" {
+			return mc.Model
+		}
+	}
+	// Fallback: the raw model string from the agent config.
+	if agent.Model != "" {
+		return agent.Model
+	}
+	return agent.ModelID
+}
 
 // GetDefaultSessionManager returns the session manager for the default agent.
 // This is used by the web server to expose session history endpoints.
@@ -197,6 +222,16 @@ func (al *AgentLoop) RestartGoal(goalID int64) error {
 	if al.memDB == nil {
 		return fmt.Errorf("memory database not available")
 	}
+
+	// Cooldown: prevent rapid restarts (min 60 seconds between restarts).
+	al.goalRestartMu.Lock()
+	if last, ok := al.goalRestartTimes[goalID]; ok && time.Since(last) < 60*time.Second {
+		al.goalRestartMu.Unlock()
+		return fmt.Errorf("goal was restarted recently, please wait before retrying")
+	}
+	al.goalRestartTimes[goalID] = time.Now()
+	al.goalRestartMu.Unlock()
+
 	gm := autonomy.NewGoalManager(al.memDB)
 
 	goal, err := gm.GetGoalByID(goalID)
@@ -204,7 +239,7 @@ func (al *AgentLoop) RestartGoal(goalID int64) error {
 		return err
 	}
 	if goal == nil {
-		return fmt.Errorf("goal %d not found", goalID)
+		return fmt.Errorf("goal not found")
 	}
 
 	// Reset the linked plan's failed steps back to pending.
@@ -213,6 +248,9 @@ func (al *AgentLoop) RestartGoal(goalID int64) error {
 			pm.ResetPlan(plan.ID)
 		}
 	}
+
+	// Reset auto-fix counter so the goal gets fresh auto-fix attempts.
+	autonomy.SetGoalAutoFixCount(gm, goalID, 0)
 
 	// Set phase back to implement so the tick picks it up.
 	if err := gm.UpdateGoalPhase(goalID, autonomy.GoalPhaseImplement); err != nil {

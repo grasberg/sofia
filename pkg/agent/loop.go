@@ -97,6 +97,10 @@ type AgentLoop struct {
 	tracer         *trace.Tracer             // structured execution tracing
 	providerRanker *providers.ProviderRanker // adaptive provider ranking
 
+	// Goal restart cooldown to prevent rapid repeated restarts.
+	goalRestartMu    sync.Mutex
+	goalRestartTimes map[int64]time.Time
+
 	// processCancelMu protects processCancel
 	processCancelMu sync.Mutex
 	processCancel   context.CancelFunc // cancels the current in-flight LLM processing
@@ -281,6 +285,7 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		rpmResetTime:     make(map[string]time.Time),
 		tokenCounts:      make(map[string]int),
 		tokenResetTime:   make(map[string]time.Time),
+		goalRestartTimes: make(map[int64]time.Time),
 		autonomyServices: make(map[string]*autonomy.Service),
 		pushService:      pushService,
 		dashboardHub:     dashboard.NewHub(),

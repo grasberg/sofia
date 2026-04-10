@@ -27,7 +27,7 @@ func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// CSRF check for mutating methods.
-		if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodDelete {
+		if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodDelete || r.Method == http.MethodPatch {
 			if r.Header.Get("X-Requested-With") == "" {
 				s.sendJSONError(w, "Missing X-Requested-With header", http.StatusForbidden)
 				return

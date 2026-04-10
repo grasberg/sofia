@@ -834,7 +834,7 @@
             'external-link':'open_in_new','link':'link','eye':'visibility',
             'eye-off':'visibility_off','info':'info','alert-triangle':'warning',
             'alert-circle':'error','terminal':'terminal','code':'code',
-            'file':'description','file-text':'description','folder':'folder',
+            'file':'description','file-text':'description','file-code':'code_blocks','file-code-2':'code_blocks','folder':'folder',
             'globe':'language','zap':'bolt','hash':'tag','key':'key',
             'lock':'lock','unlock':'lock_open','save':'save',
             'more-vertical':'more_vert','more-horizontal':'more_horiz',
@@ -990,6 +990,8 @@
                 if (n.type === 'proactive_suggestion') { typeIcon = 'lightbulb'; typeColor = 'text-amber-400'; }
                 else if (n.type === 'approval_needed') { typeIcon = 'shield-alert'; typeColor = 'text-amber-400'; }
                 else if (n.type === 'goal_completed') { typeIcon = 'trophy'; typeColor = 'text-tertiary'; }
+                else if (n.type === 'goal_failed') { typeIcon = 'x-circle'; typeColor = 'text-red-400'; }
+                else if (n.type === 'user_action_needed') { typeIcon = 'alert-triangle'; typeColor = 'text-red-400'; }
                 else { typeIcon = 'bell'; typeColor = 'text-tertiary'; }
 
                 el.innerHTML =
@@ -1042,7 +1044,7 @@
             if (msg) {
                 fetch('/api/chat', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
                     body: JSON.stringify({
                         message: 'I approve this suggestion. Please proceed:\n\n' + msg,
                         session_key: 'notif:' + Date.now()
@@ -1079,12 +1081,33 @@
                     dismissed: false,
                 });
             } else if (d.type === 'goal_completed') {
+                var notifContent = (d.goal_name || 'Goal') + ' completed.';
+                if (d.summary) notifContent += '\n' + d.summary;
+                if (d.unmet_criteria && d.unmet_criteria.length > 0) {
+                    notifContent += '\nUnmet: ' + d.unmet_criteria.join('; ');
+                }
                 addNotif({
                     type: 'goal_completed',
-                    title: 'Goal Completed',
-                    content: 'Goal completed: ' + (d.goal_name || ''),
+                    title: 'Goal Completed: ' + (d.goal_name || ''),
+                    content: notifContent,
                     time: Date.now(),
-                    dismissed: true, // auto-dismiss informational
+                    dismissed: false,
+                });
+            } else if (d.type === 'goal_failed') {
+                addNotif({
+                    type: 'goal_failed',
+                    title: 'Goal Failed: ' + (d.goal_name || ''),
+                    content: (d.goal_name || 'Goal') + ' failed after auto-fix attempts.',
+                    time: Date.now(),
+                    dismissed: false,
+                });
+            } else if (d.type === 'user_action_needed') {
+                addNotif({
+                    type: 'user_action_needed',
+                    title: d.title || 'Action Needed',
+                    content: d.content || '',
+                    time: Date.now(),
+                    dismissed: false,
                 });
             }
         };
@@ -2989,6 +3012,7 @@
                     indicator.classList.remove("text-amber-400", "text-[10px]", "px-2", "py-0.5", "bg-amber-400/10", "border", "border-amber-400/40", "rounded");
                     indicator.classList.add("text-sofia", "text-[9px]", "hidden");
                     indicator.textContent = "Sofia is thinking...";
+                    var modelTag = responseData.model ? "<span class='text-on-surface-variant/30 font-normal normal-case tracking-normal'> · " + escapeHtml(responseData.model) + "</span>" : "";
                     const sofiaHtml =
                         "<div class='flex gap-4 animate-slide-up'>" +
                         "<div class='w-8 h-8 rounded-lg bg-tertiary/10 border border-tertiary/20 flex items-center justify-center shrink-0'>" +
@@ -2996,7 +3020,7 @@
                         "</div>" +
                         "<div>" +
                         "<div class='chat-bubble-sofia px-4 py-3 rounded-xl text-sm leading-relaxed max-w-[85%] text-on-surface-variant whitespace-pre-wrap break-words'>" + formatAssistantMessage(responseData.response) + "</div>" +
-                        "<div class='text-[9px] text-on-surface-variant/40 ml-1 mt-1 font-bold uppercase tracking-widest'>Sofia</div>" +
+                        "<div class='text-[9px] text-on-surface-variant/40 ml-1 mt-1 font-bold uppercase tracking-widest'>Sofia" + modelTag + "</div>" +
                         "</div>" +
                         "</div>";
                     chatHistory.push(sofiaHtml);
@@ -3017,7 +3041,7 @@
                         "</div>" +
                         "<div>" +
                         "<div id='" + bubbleId + "-text' class='chat-bubble-sofia px-4 py-3 rounded-xl text-sm leading-relaxed max-w-[85%] text-on-surface-variant whitespace-pre-wrap break-words'>" + thinkingDots + "</div>" +
-                        "<div class='text-[9px] text-on-surface-variant/40 ml-1 mt-1 font-bold uppercase tracking-widest'>Sofia</div>" +
+                        "<div id='" + bubbleId + "-label' class='text-[9px] text-on-surface-variant/40 ml-1 mt-1 font-bold uppercase tracking-widest'>Sofia</div>" +
                         "</div>" +
                         "</div>";
                     history.innerHTML += streamBubbleHtml;
@@ -3079,6 +3103,10 @@
                                 if (textEl) textEl.innerHTML = formatAssistantMessage(streamedText);
                                 history.scrollTop = history.scrollHeight;
                             } else if (evt.type === 'done') {
+                                if (evt.model) {
+                                    var lbl = document.getElementById(bubbleId + '-label');
+                                    if (lbl) lbl.innerHTML = "Sofia <span class='text-on-surface-variant/30 font-normal normal-case tracking-normal'>&middot; " + escapeHtml(evt.model) + "</span>";
+                                }
                                 break;
                             } else if (evt.type === 'error') {
                                 throw new Error(evt.error || 'Stream error');
@@ -3110,6 +3138,10 @@
                         }
                         const textEl = document.getElementById(bubbleId + '-text');
                         if (textEl) textEl.innerHTML = formatAssistantMessage(responseData.response);
+                        if (responseData.model) {
+                            var lbl = document.getElementById(bubbleId + '-label');
+                            if (lbl) lbl.innerHTML = "Sofia <span class='text-on-surface-variant/30 font-normal normal-case tracking-normal'>&middot; " + escapeHtml(responseData.model) + "</span>";
+                        }
                     }
 
                     // Stop thinking animation

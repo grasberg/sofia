@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"math"
 	"sort"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	"github.com/grasberg/sofia/pkg/logger"
 	"github.com/grasberg/sofia/pkg/providers"
 )
+
+const maxIntentCacheSize = 500
 
 type SemanticMatcher struct {
 	provider providers.EmbeddingProvider
@@ -119,11 +122,15 @@ func (sm *SemanticMatcher) MatchTools(
 		}
 	}
 
-	// Cache intent embedding if it was embedded
+	// Cache intent embedding if it was embedded (with size limit to prevent unbounded growth).
 	if !intentCached && len(results) > 0 {
 		for _, r := range results {
 			if r.Index == 0 {
 				sm.mu.Lock()
+				if len(sm.intentCache) >= maxIntentCacheSize {
+					// Evict all — simple but effective; intents are cheap to re-embed.
+					sm.intentCache = make(map[string][]float32)
+				}
 				sm.intentCache[intentHash] = r.Embedding
 				sm.mu.Unlock()
 				break
@@ -131,15 +138,16 @@ func (sm *SemanticMatcher) MatchTools(
 		}
 	}
 
+	// Build index map for O(1) lookup instead of O(results) per tool.
+	resultByIdx := make(map[int][]float32, len(results))
+	for _, r := range results {
+		resultByIdx[r.Index] = r.Embedding
+	}
+
 	// Extract intent embedding (from cache or results)
-	if intentCached {
-		intentEmbedding = intentEmbedding
-	} else {
-		for _, r := range results {
-			if r.Index == 0 {
-				intentEmbedding = r.Embedding
-				break
-			}
+	if !intentCached {
+		if emb, ok := resultByIdx[0]; ok {
+			intentEmbedding = emb
 		}
 	}
 
@@ -147,11 +155,8 @@ func (sm *SemanticMatcher) MatchTools(
 	sm.mu.Lock()
 	for _, t := range tools {
 		if idx, isNew := toolToEmbedIndex[t.Name()]; isNew {
-			for _, r := range results {
-				if r.Index == idx {
-					sm.cache[t.Name()] = r.Embedding
-					break
-				}
+			if emb, ok := resultByIdx[idx]; ok {
+				sm.cache[t.Name()] = emb
 			}
 		}
 	}
@@ -224,14 +229,11 @@ func max(a, b int) int {
 	return b
 }
 
-// hashIntent creates a simple hash of the intent string for caching.
+// hashIntent creates a hash of the intent string for caching using FNV-1a.
 func hashIntent(intent string) string {
-	// Simple hash: sum of runes modulo a prime number
-	var hash int
-	for _, r := range intent {
-		hash = (hash*31 + int(r)) % 1000000007
-	}
-	return fmt.Sprintf("intent_%d", hash)
+	h := fnv.New64a()
+	h.Write([]byte(intent))
+	return fmt.Sprintf("intent_%x", h.Sum64())
 }
 
 // KeywordMatchTools returns the topK tools whose name or description best

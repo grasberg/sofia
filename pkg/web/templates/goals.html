@@ -193,7 +193,7 @@
         try {
             var res = await fetch('/api/chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 body: JSON.stringify({ message: prompt, session_key: 'goal:' + Date.now() })
             });
             if (res.ok) {
@@ -393,13 +393,55 @@
             '<i data-lucide="trash-2" class="w-3 h-3"></i></button>';
         actionsHtml += '</div>';
 
-        // Result preview for completed/failed
+        // Result preview for completed/failed (structured GoalResult)
         var resultPreview = '';
-        if (goal.result && (status === 'completed' || status === 'failed')) {
-            var previewText = goal.result.length > 200 ? goal.result.substring(0, 200) + '...' : goal.result;
-            resultPreview = '<div class="mt-2 p-2 rounded-lg bg-black/20 border border-[var(--border-color)]">' +
-                '<div class="text-[11px] text-zinc-400 font-mono whitespace-pre-wrap max-h-16 overflow-hidden">' +
-                escapeHtml(previewText) + '</div></div>';
+        if (status === 'completed' || status === 'failed') {
+            var gr = goal.goal_result;
+            if (gr && gr.summary) {
+                var summaryText = gr.summary.length > 150 ? gr.summary.substring(0, 150) + '...' : gr.summary;
+                resultPreview = '<div class="mt-2 p-2 rounded-lg bg-black/20 border border-[var(--border-color)]">' +
+                    '<div class="text-[11px] text-zinc-300 leading-relaxed line-clamp-3">' + escapeHtml(summaryText) + '</div>';
+                var badges = [];
+                if (gr.artifacts && gr.artifacts.length > 0) {
+                    badges.push('<span class="text-[9px] font-mono text-sofia">' + gr.artifacts.length + ' artifact' + (gr.artifacts.length > 1 ? 's' : '') + '</span>');
+                }
+                if (gr.next_steps && gr.next_steps.length > 0) {
+                    badges.push('<span class="text-[9px] font-mono text-zinc-500">' + gr.next_steps.length + ' next step' + (gr.next_steps.length > 1 ? 's' : '') + '</span>');
+                }
+                if (gr.unmet_criteria && gr.unmet_criteria.length > 0) {
+                    badges.push('<span class="text-[9px] font-mono text-red-400">' + gr.unmet_criteria.length + ' unmet</span>');
+                }
+                if (badges.length > 0) {
+                    resultPreview += '<div class="flex items-center gap-2 mt-1.5">' + badges.join('') + '</div>';
+                }
+                resultPreview += '</div>';
+            } else if (goal.result) {
+                var previewText = goal.result.length > 150 ? goal.result.substring(0, 150) + '...' : goal.result;
+                resultPreview = '<div class="mt-2 p-2 rounded-lg bg-black/20 border border-[var(--border-color)]">' +
+                    '<div class="text-[11px] text-zinc-400 font-mono whitespace-pre-wrap max-h-16 overflow-hidden">' +
+                    escapeHtml(previewText) + '</div></div>';
+            }
+        }
+
+        // Active step snippet — shows current/last completed step result inline
+        var lastStepHtml = '';
+        if (status === 'active' && goal.plan && goal.plan.steps) {
+            var lastDone = null;
+            var currentStep = null;
+            goal.plan.steps.forEach(function(s) {
+                if (s.status === 'completed' && s.result) lastDone = s;
+                if (s.status === 'in_progress') currentStep = s;
+            });
+            var show = currentStep || lastDone;
+            if (show) {
+                var label = currentStep ? 'Running' : 'Last done';
+                var snippet = (show.result || show.description || '').substring(0, 120);
+                if ((show.result || show.description || '').length > 120) snippet += '...';
+                lastStepHtml = '<div class="mt-2 p-2 rounded-lg bg-black/20 border border-[var(--border-color)]">' +
+                    '<div class="text-[8px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">' + label + ': step #' + ((show.index || 0) + 1) + '</div>' +
+                    '<div class="text-[10px] text-zinc-400 font-mono whitespace-pre-wrap max-h-12 overflow-hidden">' +
+                    escapeHtml(snippet) + '</div></div>';
+            }
         }
 
         card.innerHTML =
@@ -409,6 +451,7 @@
             '<h4 class="text-xs font-bold text-[var(--text-main)] leading-snug">' + escapeHtml(goal.name || '') + '</h4>' +
             (goal.description ? '<p class="text-[11px] text-zinc-500 mt-1 leading-relaxed line-clamp-2">' + escapeHtml(goal.description) + '</p>' : '') +
             progressHtml +
+            lastStepHtml +
             agentHtml +
             resultPreview +
             actionsHtml;
@@ -732,12 +775,17 @@
     function linkifyStepResult(text) {
         return escapeHtml(text).replace(
             /([a-zA-Z0-9_/.-]+\.(?:md|txt|json|yaml|yml|go|py|js|ts|html|csv|log|xml|toml))/g,
-            function(match) {
-                return '<a class="text-sofia hover:underline cursor-pointer" onclick="if(window.openWorkspaceFile)window.openWorkspaceFile(\'' +
-                    match.replace(/'/g, "\\'") + '\')">' + match + '</a>';
-            }
+            '<a class="text-sofia hover:underline cursor-pointer" data-workspace-file="$1">$1</a>'
         );
     }
+    // Event delegation for workspace file links (avoids inline onclick XSS risk).
+    document.addEventListener('click', function(e) {
+        var link = e.target.closest('[data-workspace-file]');
+        if (link && window.openWorkspaceFile) {
+            e.preventDefault();
+            window.openWorkspaceFile(link.getAttribute('data-workspace-file'));
+        }
+    });
 
     // ===== AGENT NAME CACHE =====
     var agentNameCache = {};

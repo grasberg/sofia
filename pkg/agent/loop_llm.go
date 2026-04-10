@@ -107,6 +107,16 @@ func (al *AgentLoop) runLLMIteration(
 				"max":       agent.MaxIterations,
 			})
 
+		// Cache values used multiple times per iteration to avoid repeated scans.
+		var lastUserContent string
+		for i := len(messages) - 1; i >= 0; i-- {
+			if messages[i].Role == "user" {
+				lastUserContent = messages[i].Content
+				break
+			}
+		}
+		isTask := looksLikeTask(opts.UserMessage)
+
 		// Build tool definitions.
 		// Strategy: on the first iteration, only include tools if the message
 		// looks like an actionable task. Small/local models compulsively call
@@ -132,13 +142,7 @@ func (al *AgentLoop) runLLMIteration(
 			}
 
 			if len(allToolNames) > filterTopK {
-				var intent string
-				for i := len(messages) - 1; i >= 0; i-- {
-					if messages[i].Role == "user" {
-						intent = messages[i].Content
-						break
-					}
-				}
+				intent := lastUserContent
 
 				if al.semanticMatcher != nil {
 					activeTools = al.semanticMatcher.MatchTools(ctx, intent, allToolsList, filterTopK)
@@ -173,7 +177,6 @@ func (al *AgentLoop) runLLMIteration(
 		// Decide whether to include tools this iteration.
 		// On first iteration of conversational messages, withhold tools to let
 		// the model respond naturally (small/local models compulsively call tools).
-		isTask := looksLikeTask(opts.UserMessage)
 		if !isTask && iteration == 1 {
 			providerToolDefs = nil
 		} else {
@@ -206,6 +209,9 @@ func (al *AgentLoop) runLLMIteration(
 		// Call LLM with fallback chain if candidates are configured.
 		var response *providers.LLMResponse
 		var err error
+
+		// Estimate tokens once per iteration — reused by rate limiter and post-call accounting.
+		estimatedTokens := al.estimateTokens(messages)
 
 		// Guardrail: Rate Limiting
 		if al.cfg.Guardrails.RateLimiting.Enabled {
@@ -240,7 +246,6 @@ func (al *AgentLoop) runLLMIteration(
 				return "Error: Agent rate limit exceeded (requests per minute). Please try again later.", iteration, errorCount, nil
 			}
 
-			estimatedTokens := al.estimateTokens(messages) // Approximate
 			if maxTokens := al.cfg.Guardrails.RateLimiting.MaxTokensPerHour; maxTokens > 0 &&
 				al.tokenCounts[agent.ID]+estimatedTokens > maxTokens {
 				al.rlMutex.Unlock()
@@ -266,13 +271,7 @@ func (al *AgentLoop) runLLMIteration(
 		callTemp := agent.Temperature
 		// Only auto-tune if leaving at default (0.7)
 		if callTemp == 0.7 {
-			lastMsg := ""
-			for i := len(messages) - 1; i >= 0; i-- {
-				if messages[i].Role == "user" {
-					lastMsg = strings.ToLower(messages[i].Content)
-					break
-				}
-			}
+			lastMsg := strings.ToLower(lastUserContent)
 
 			if strings.Contains(lastMsg, "code") || strings.Contains(lastMsg, "debug") ||
 				strings.Contains(lastMsg, "fix") {
@@ -477,7 +476,7 @@ func (al *AgentLoop) runLLMIteration(
 		if al.cfg.Guardrails.RateLimiting.Enabled {
 			al.rlMutex.Lock()
 			al.rpmCounts[agent.ID]++
-			al.tokenCounts[agent.ID] += al.estimateTokens(messages)
+			al.tokenCounts[agent.ID] += estimatedTokens
 			al.rlMutex.Unlock()
 		}
 
@@ -509,7 +508,6 @@ func (al *AgentLoop) runLLMIteration(
 
 		// Check if no tool calls - we're done (or nudge on first attempt)
 		if len(response.ToolCalls) == 0 {
-			isTask := looksLikeTask(opts.UserMessage)
 			hasSubstantialText := len(response.Content) > 50
 
 			// Nudge: if this is the first LLM response and it looks like a task
