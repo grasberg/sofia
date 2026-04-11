@@ -1,78 +1,93 @@
 # Contributing to Sofia
 
-Thanks for your interest in contributing to Sofia! Whether it's a bug report, feature idea, documentation improvement, or code contribution — every bit helps.
+First off, thank you for considering contributing to Sofia! It's people like you that make Sofia such a great tool.
 
-## Getting Started
+## 🚀 Quick Start
 
-1. **Fork** the repository and clone your fork:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/sofia.git
-   cd sofia
-   ```
+1. **Fork** the repository
+2. **Clone** your fork: `git clone https://github.com/YOUR_USERNAME/sofia.git`
+3. **Create a branch**: `git checkout -b my-feature`
+4. **Make changes** and commit: `git commit -m "Add my feature"`
+5. **Push**: `git push origin my-feature`
+6. **Open a Pull Request**
 
-2. **Install dependencies and build:**
-   ```bash
-   make deps
-   make build
-   ```
+## 🛠️ Development Setup
 
-3. **Run Sofia locally:**
-   ```bash
-   ./build/sofia onboard   # First time only
-   ./build/sofia gateway
-   ```
+```bash
+git clone https://github.com/grasberg/sofia.git
+cd sofia
+make deps && make build
+make test
+```
 
-4. **Create a branch** for your change:
-   ```bash
-   git checkout -b my-feature
-   ```
+**Prerequisites:** Go 1.26+
 
-## How to Contribute
+## 📝 Commit Conventions
 
-### Reporting Bugs
+We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
-Open a [bug report](https://github.com/grasberg/sofia/issues/new?template=bug_report.md) with:
-- What you expected to happen
-- What actually happened
-- Steps to reproduce
-- Your Go version and OS
+- `feat:` New feature
+- `fix:` Bug fix
+- `docs:` Documentation changes
+- `style:` Code style changes (formatting, etc.)
+- `refactor:` Code refactoring
+- `test:` Adding or updating tests
+- `chore:` Build process or auxiliary tool changes
 
-### Suggesting Features
+## 🧪 Testing
 
-Open a [feature request](https://github.com/grasberg/sofia/issues/new?template=feature_request.md) describing your idea and why it would be useful.
+Run the full test suite:
 
-### Submitting Code
+```bash
+make test
+```
 
-1. Make sure your code builds cleanly (`make build`)
-2. Follow the existing code style — Sofia is written in idiomatic Go
-3. Keep commits focused — one logical change per commit
-4. Write a clear PR description explaining *what* and *why*
+Run tests for a specific package:
 
-### Improving Documentation
+```bash
+go test ./pkg/yourpackage/...
+```
 
-Documentation improvements are always welcome. If you spot a typo, unclear instruction, or missing info — feel free to open a PR.
+## 📋 Pull Request Process
 
-## Code Structure
+1. Ensure all tests pass: `make test`
+2. Update documentation if needed
+3. Add tests for new features
+4. Keep PRs focused — one feature per PR
+5. Write a clear description of your changes
+
+## 🏗️ Project Structure
 
 ```
 sofia/
-├── cmd/           # CLI entry points
+├── cmd/           # Command-line interface
 ├── pkg/           # Core packages
-├── assets/        # Static web UI assets
-├── docs/          # Documentation
-├── workspace/     # Default workspace templates
-├── Makefile       # Build targets
+│   ├── agent/     # Agent orchestration
+│   ├── llm/       # LLM provider abstraction
+│   ├── memory/    # Memory and knowledge graph
+│   ├── skills/    # Skill system
+│   ├── tools/     # Built-in tools
+│   └── gateway/   # Web UI and API
+├── workspace/     # Default workspace files
+├── Makefile       # Build and test commands
 └── go.mod         # Go module definition
 ```
 
-## Good First Issues
+## 💡 Ways to Contribute
 
-Look for issues labeled [`good first issue`](https://github.com/grasberg/sofia/labels/good%20first%20issue) — these are specifically chosen to be approachable for new contributors.
+- **Bug reports** — Found a bug? Open an issue!
+- **Feature requests** — Have an idea? We'd love to hear it.
+- **Documentation** — Help improve our docs
+- **Code** — Fix bugs, add features, improve performance
+- **Skills** — Create and share new skills via ClawHub
+- **Reviews** — Review open PRs
 
-## Questions?
+## 🤝 Code of Conduct
 
-Open a [Discussion](https://github.com/grasberg/sofia/discussions) or file an issue — happy to help.
+This project adheres to the [Contributor Covenant](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
 
----
+## ❓ Questions?
 
-Thank you for helping make Sofia better!
+Open a [Discussion](https://github.com/grasberg/sofia/discussions) — we're happy to help!
+
+Thank you for contributing! 🎉

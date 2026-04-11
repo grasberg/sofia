@@ -1,17 +1,31 @@
-## What does this PR do?
+# Pull Request
 
-A brief description of the change.
+## Description
+A clear description of the changes in this PR.
 
-## Why?
+## Type of Change
+- [ ] Bug fix (non-breaking change that fixes an issue)
+- [ ] New feature (non-breaking change that adds functionality)
+- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] Documentation update
+- [ ] Performance improvement
+- [ ] Code refactoring
 
-Explain the motivation — what problem does this solve?
+## How Has This Been Tested?
+Describe the tests you ran to verify your changes.
 
-## How to test
-
-Steps to verify this change works correctly.
+- [ ] Unit tests pass: `make test`
+- [ ] Manual testing performed
+- [ ] New tests added for new functionality
 
 ## Checklist
+- [ ] My code follows the project's style guidelines
+- [ ] I have performed a self-review of my code
+- [ ] I have commented my code, particularly in hard-to-understand areas
+- [ ] I have made corresponding changes to the documentation
+- [ ] My changes generate no new warnings
+- [ ] I have added tests that prove my fix is effective or that my feature works
+- [ ] New and existing unit tests pass locally with my changes
 
-- [ ] Code builds cleanly (`make build`)
-- [ ] Changes are focused on a single concern
-- [ ] README or docs updated (if applicable)
+## Related Issues
+Closes #(issue number)

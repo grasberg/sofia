@@ -1,23 +1,16 @@
----
-name: Feature Request
-about: Suggest a new feature or improvement for Sofia
-title: "[Feature] "
-labels: enhancement
-assignees: ''
----
+# Feature Request
 
-## Problem or motivation
+## Problem Statement
+A clear description of the problem or limitation you're facing.
 
-Describe the problem you're trying to solve or the motivation behind this feature.
-
-## Proposed solution
-
+## Proposed Solution
 A clear description of what you'd like to happen.
 
-## Alternatives considered
+## Alternatives Considered
+A description of any alternative solutions or features you've considered.
 
-Any alternative solutions or features you've considered.
+## Additional Context
+Any other context, screenshots, or references that help explain the request.
 
-## Additional context
-
-Add any other context, mockups, or examples here.
+## Would You Be Willing to Implement This?
+- [ ] Yes, I'd like to submit a PR for this feature

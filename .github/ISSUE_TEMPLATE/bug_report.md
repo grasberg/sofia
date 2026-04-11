@@ -1,36 +1,44 @@
----
-name: Bug Report
-about: Report a bug to help improve Sofia
-title: "[Bug] "
-labels: bug
-assignees: ''
----
+# Bug Report
 
-## Describe the bug
+## Description
+A clear and concise description of the bug.
 
-A clear, concise description of what the bug is.
-
-## Steps to reproduce
-
-1. Run `...`
-2. Navigate to `...`
+## Steps to Reproduce
+1. Go to '...'
+2. Run command '...'
 3. See error
 
-## Expected behavior
+## Expected Behavior
+A clear description of what you expected to happen.
 
-What you expected to happen.
-
-## Actual behavior
-
-What actually happened. Include any error messages or logs.
+## Actual Behavior
+A clear description of what actually happened.
 
 ## Environment
+- **Sofia version**: [e.g., v0.0.145]
+- **OS**: [e.g., macOS 14.4, Ubuntu 22.04]
+- **Go version**: [e.g., 1.26.0]
+- **LLM provider**: [e.g., OpenAI, Claude, Gemini]
 
-- **OS:** (e.g., macOS 15, Ubuntu 24.04)
-- **Go version:** (e.g., 1.26)
-- **Sofia version:** (e.g., v0.0.145)
-- **LLM provider:** (e.g., OpenAI, Anthropic)
+## Configuration
+<details>
+<summary>config.json (redacted)</summary>
 
-## Additional context
+```json
+// Paste your config.json here (remove API keys!)
+```
 
-Add any other context, screenshots, or log output here.
+</details>
+
+## Logs
+<details>
+<summary>Relevant log output</summary>
+
+```
+// Paste relevant log output here
+```
+
+</details>
+
+## Additional Context
+Any other context about the problem, screenshots, etc.
