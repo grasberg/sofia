@@ -83,8 +83,17 @@ type EmbeddingResult struct {
 }
 
 // StreamChunk represents a chunk of a streaming LLM response.
+//
+// For mid-stream chunks, Delta carries an incremental text fragment and
+// ToolCalls carries accumulating tool-call deltas for observability.
+// When Done is true, Final (if non-nil) holds the fully aggregated response
+// — finish_reason, complete tool_calls with parsed arguments, and usage —
+// which callers can hand back to the agent loop in place of a non-streaming
+// Chat() result. Providers that only stream text can leave Final nil; the
+// agent-side collector will assemble one from the accumulated deltas.
 type StreamChunk struct {
-	Delta     string     `json:"delta"`                // Text content delta
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"` // Incremental tool calls
-	Done      bool       `json:"done"`                 // True when streaming is complete
+	Delta     string       `json:"delta"`                // Text content delta
+	ToolCalls []ToolCall   `json:"tool_calls,omitempty"` // Incremental tool calls
+	Done      bool         `json:"done"`                 // True when streaming is complete
+	Final     *LLMResponse `json:"final,omitempty"`      // Aggregated response on the terminal chunk
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/grasberg/sofia/pkg/config"
+	"github.com/grasberg/sofia/pkg/providers"
 )
 
 // testCfgWithModelList builds a Config with a model_list for model alias tests.
@@ -302,4 +303,88 @@ func newTestInboundMessage(content string) bus.InboundMessage {
 		ChatID:   "test",
 		SenderID: "test-user",
 	}
+}
+
+// TestAgentInstance_SameModelOnDifferentProviders verifies that the same
+// underlying model ID (e.g. MiniMax-M2.7) can be configured on two
+// different providers (Nvidia vs Minimax), each with its own API key and
+// endpoint, and that both are resolved into distinct Candidate entries
+// with correctly-routed providers.
+//
+// Regression guard: without per-candidate provider lookup the fallback chain
+// would share a single provider between both candidates and route the wrong
+// API key to one of them.
+func TestAgentInstance_SameModelOnDifferentProviders(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "agent-same-model-test-*")
+	if err != nil {
+		t.Fatalf("create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	cfg := testCfgWithModelList(tmpDir, []config.ModelConfig{
+		{
+			ModelName: "m27-nvidia",
+			Model:     "nvidia/MiniMax-M2.7",
+			APIBase:   "https://integrate.api.nvidia.com/v1",
+			APIKey:    "nv-key-secret",
+		},
+		{
+			ModelName: "m27-minimax",
+			Model:     "minimax/MiniMax-M2.7",
+			APIBase:   "https://api.minimax.io/v1",
+			APIKey:    "mm-key-secret",
+		},
+	}, "m27-nvidia", []config.AgentConfig{
+		{
+			ID: "main",
+			Model: &config.AgentModelConfig{
+				Primary:   "m27-nvidia",
+				Fallbacks: []string{"m27-minimax"},
+			},
+		},
+	})
+
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
+	agent, ok := registry.GetAgent("main")
+	if !ok || agent == nil {
+		t.Fatal("expected main agent")
+	}
+
+	// Two distinct candidates, keyed by full provider/model pair.
+	if len(agent.Candidates) != 2 {
+		t.Fatalf("expected 2 candidates, got %d: %+v", len(agent.Candidates), agent.Candidates)
+	}
+	if agent.Candidates[0].Provider != "nvidia" || agent.Candidates[0].Model != "MiniMax-M2.7" {
+		t.Errorf("candidate[0] = %+v, want nvidia/MiniMax-M2.7", agent.Candidates[0])
+	}
+	if agent.Candidates[1].Provider != "minimax" || agent.Candidates[1].Model != "MiniMax-M2.7" {
+		t.Errorf("candidate[1] = %+v, want minimax/MiniMax-M2.7", agent.Candidates[1])
+	}
+
+	// Each candidate must have its OWN provider instance — otherwise the
+	// second candidate would hit the Minimax endpoint with the Nvidia key
+	// (or vice-versa), producing the 401 scenario the user reported.
+	// Note: the CandidateProviders map is keyed by the normalized ModelKey,
+	// which lowercases the model portion.
+	nvKey := providers.ModelKey("nvidia", "MiniMax-M2.7")
+	mmKey := providers.ModelKey("minimax", "MiniMax-M2.7")
+	nvProv, okNV := agent.CandidateProviders[nvKey]
+	mmProv, okMM := agent.CandidateProviders[mmKey]
+	if !okNV || nvProv == nil {
+		t.Fatalf("expected CandidateProvider for %q; keys present: %v", nvKey, mapKeys(agent.CandidateProviders))
+	}
+	if !okMM || mmProv == nil {
+		t.Fatalf("expected CandidateProvider for %q; keys present: %v", mmKey, mapKeys(agent.CandidateProviders))
+	}
+	if nvProv == mmProv {
+		t.Error("expected distinct provider instances per candidate; got shared pointer")
+	}
+}
+
+func mapKeys(m map[string]providers.LLMProvider) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }

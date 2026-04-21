@@ -101,11 +101,7 @@ var memoryHTML []byte
 //go:embed templates/goals.html
 var goalsHTML []byte
 
-//go:embed templates/activity.html
-var activityHTML []byte
-
-//go:embed templates/completed.html
-var completedHTML []byte
+// activity.html and completed.html removed — absorbed into goals.html
 
 //go:embed templates/history.html
 var historyHTML []byte
@@ -211,8 +207,7 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/ui/calendar", servePartial(calendarHTML))
 	mux.HandleFunc("/ui/memory", servePartial(memoryHTML))
 	mux.HandleFunc("/ui/goals", servePartial(goalsHTML))
-	mux.HandleFunc("/ui/activity", servePartial(activityHTML))
-	mux.HandleFunc("/ui/completed", servePartial(completedHTML))
+	// /ui/activity and /ui/completed removed — absorbed into /ui/goals
 	mux.HandleFunc("/ui/history", servePartial(historyHTML))
 	mux.HandleFunc("/ui/eval", servePartial(evalHTML))
 	mux.HandleFunc("/ui/files", servePartial(filesHTML))
@@ -245,8 +240,8 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/api/goals", api(s.handleGoals))
 	mux.HandleFunc("POST /api/goals/restart", api(s.handleGoalRestart))
 	mux.HandleFunc("GET /api/goals/completed", api(s.handleGoalsCompleted))
-	mux.HandleFunc("GET /api/activity", api(s.handleActivity))
-	mux.HandleFunc("/api/goals/", api(s.handleGoalLog))
+	// /api/activity removed — activity view absorbed into goals timeline
+	mux.HandleFunc("/api/goals/", api(s.handleGoalSubroute))
 	mux.HandleFunc("/api/reset", api(s.handleReset))
 	mux.HandleFunc("GET /api/search", api(s.handleSearch))
 	mux.HandleFunc("GET /api/presence", api(s.handlePresence))

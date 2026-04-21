@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -149,8 +150,14 @@ func launchBrowser(t *testing.T) (playwright.Page, func()) {
 		t.Skipf("Playwright not available, skipping browser test: %v", err)
 	}
 
+	headless := os.Getenv("HEADED") == ""
+	slowMo := 0.0
+	if !headless {
+		slowMo = 400 // slow down so you can see the actions
+	}
 	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
-		Headless: playwright.Bool(true),
+		Headless: playwright.Bool(headless),
+		SlowMo:   playwright.Float(slowMo),
 	})
 	if err != nil {
 		pw.Stop()
@@ -410,5 +417,408 @@ func TestBrowser_MultiplePageNavigations(t *testing.T) {
 		if resp.Status() != 200 {
 			t.Errorf("page %s: expected 200, got %d", p, resp.Status())
 		}
+	}
+}
+
+// --- Goals page E2E tests ---
+
+// testBrowserServerWithGoalsAPI extends the test server with a mock goals API.
+func testBrowserServerWithGoalsAPI(t *testing.T) (string, func()) {
+	t.Helper()
+
+	cfg := &config.Config{
+		WebUI: config.WebUIConfig{
+			Enabled: true,
+			Host:    "127.0.0.1",
+			Port:    0,
+		},
+		Agents: config.AgentsConfig{
+			Defaults: config.AgentDefaults{Workspace: t.TempDir()},
+		},
+	}
+
+	s := &Server{cfg: cfg}
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/", s.handleIndex)
+	mux.HandleFunc("/ui/goals", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(goalsHTML)
+	})
+
+	// Mock goals API with in-memory state
+	var goals []map[string]any
+	mux.HandleFunc("/api/goals", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method {
+		case http.MethodGet:
+			if goals == nil {
+				goals = []map[string]any{}
+			}
+			json.NewEncoder(w).Encode(goals)
+		case http.MethodPost:
+			var req map[string]any
+			json.NewDecoder(r.Body).Decode(&req)
+			goal := map[string]any{
+				"id":          len(goals) + 1,
+				"name":        req["name"],
+				"description": req["description"],
+				"status":      "active",
+				"priority":    req["priority"],
+				"phase":       "plan",
+			}
+			goals = append(goals, goal)
+			json.NewEncoder(w).Encode(goal)
+		case http.MethodDelete:
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"version": "test",
+			"agents":  map[string]any{"list": []string{"main"}, "active": "main"},
+		})
+	})
+
+	assetsDir := resolveAssetsDir()
+	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir(assetsDir))))
+	s.mux = mux
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to listen: %v", err)
+	}
+
+	srv := &http.Server{Handler: mux}
+	go srv.Serve(listener)
+
+	addr := fmt.Sprintf("http://%s", listener.Addr().String())
+	cleanup := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		srv.Shutdown(ctx)
+	}
+	return addr, cleanup
+}
+
+func TestBrowser_GoalsPageLoads(t *testing.T) {
+	addr, stopServer := testBrowserServerWithGoalsAPI(t)
+	defer stopServer()
+
+	page, stopBrowser := launchBrowser(t)
+	defer stopBrowser()
+
+	resp, err := page.Goto(addr + "/ui/goals")
+	if err != nil {
+		t.Fatalf("failed to navigate: %v", err)
+	}
+	if resp.Status() != 200 {
+		t.Errorf("expected 200, got %d", resp.Status())
+	}
+
+	content, err := page.Content()
+	if err != nil {
+		t.Fatalf("failed to get content: %v", err)
+	}
+
+	// Verify goals page structure
+	if !strings.Contains(content, "Goals") {
+		t.Error("expected 'Goals' heading in page")
+	}
+	if !strings.Contains(content, "goal-input") {
+		t.Error("expected goal-input textarea in page")
+	}
+	if !strings.Contains(content, "goal-submit-btn") {
+		t.Error("expected goal submit button in page")
+	}
+}
+
+func TestBrowser_GoalsPageHasPrioritySelector(t *testing.T) {
+	addr, stopServer := testBrowserServerWithGoalsAPI(t)
+	defer stopServer()
+
+	page, stopBrowser := launchBrowser(t)
+	defer stopBrowser()
+
+	_, err := page.Goto(addr + "/ui/goals")
+	if err != nil {
+		t.Fatalf("failed to navigate: %v", err)
+	}
+
+	content, err := page.Content()
+	if err != nil {
+		t.Fatalf("failed to get content: %v", err)
+	}
+
+	// Priority radio buttons
+	for _, prio := range []string{"low", "medium", "high"} {
+		if !strings.Contains(content, fmt.Sprintf(`value="%s"`, prio)) {
+			t.Errorf("expected priority option %q in page", prio)
+		}
+	}
+
+	// Agent count selector
+	if !strings.Contains(content, "goal-agent-count") {
+		t.Error("expected agent count selector in page")
+	}
+}
+
+func TestBrowser_GoalsPageInputTextarea(t *testing.T) {
+	addr, stopServer := testBrowserServerWithGoalsAPI(t)
+	defer stopServer()
+
+	page, stopBrowser := launchBrowser(t)
+	defer stopBrowser()
+
+	_, err := page.Goto(addr + "/ui/goals")
+	if err != nil {
+		t.Fatalf("failed to navigate: %v", err)
+	}
+
+	// Type into the goal input
+	textarea := page.Locator("#goal-input")
+	err = textarea.Fill("Build a REST API for user management")
+	if err != nil {
+		t.Fatalf("failed to fill textarea: %v", err)
+	}
+
+	// Verify the value was entered
+	val, err := textarea.InputValue()
+	if err != nil {
+		t.Fatalf("failed to get input value: %v", err)
+	}
+	if val != "Build a REST API for user management" {
+		t.Errorf("expected textarea value, got %q", val)
+	}
+}
+
+func TestBrowser_GoalsPageEmptyState(t *testing.T) {
+	addr, stopServer := testBrowserServerWithGoalsAPI(t)
+	defer stopServer()
+
+	page, stopBrowser := launchBrowser(t)
+	defer stopBrowser()
+
+	_, err := page.Goto(addr + "/ui/goals")
+	if err != nil {
+		t.Fatalf("failed to navigate: %v", err)
+	}
+
+	content, err := page.Content()
+	if err != nil {
+		t.Fatalf("failed to get content: %v", err)
+	}
+
+	// Empty state should exist in the DOM (may be shown/hidden via JS)
+	if !strings.Contains(content, "goal-list-empty") {
+		t.Error("expected empty state element in page")
+	}
+	if !strings.Contains(content, "No goals yet") {
+		t.Error("expected 'No goals yet' empty state text")
+	}
+}
+
+func TestBrowser_GoalsPageTimelineViewExists(t *testing.T) {
+	addr, stopServer := testBrowserServerWithGoalsAPI(t)
+	defer stopServer()
+
+	page, stopBrowser := launchBrowser(t)
+	defer stopBrowser()
+
+	_, err := page.Goto(addr + "/ui/goals")
+	if err != nil {
+		t.Fatalf("failed to navigate: %v", err)
+	}
+
+	content, err := page.Content()
+	if err != nil {
+		t.Fatalf("failed to get content: %v", err)
+	}
+
+	if !strings.Contains(content, "goals-timeline-view") {
+		t.Error("expected timeline view element in page")
+	}
+	if !strings.Contains(content, "Back to goals") {
+		t.Error("expected 'Back to goals' button in timeline view")
+	}
+}
+
+func TestBrowser_GoalsPageExampleGoals(t *testing.T) {
+	addr, stopServer := testBrowserServerWithGoalsAPI(t)
+	defer stopServer()
+
+	page, stopBrowser := launchBrowser(t)
+	defer stopBrowser()
+
+	_, err := page.Goto(addr + "/ui/goals")
+	if err != nil {
+		t.Fatalf("failed to navigate: %v", err)
+	}
+
+	content, err := page.Content()
+	if err != nil {
+		t.Fatalf("failed to get content: %v", err)
+	}
+
+	if !strings.Contains(content, "useExample") {
+		t.Error("expected example goal buttons with useExample function")
+	}
+	if !strings.Contains(content, "Build a REST API for todos") {
+		t.Error("expected 'Build a REST API for todos' example goal")
+	}
+	if !strings.Contains(content, "Set up CI/CD pipeline") {
+		t.Error("expected 'Set up CI/CD pipeline' example goal")
+	}
+	if !strings.Contains(content, "Docker Compose setup") {
+		t.Error("expected 'Docker Compose setup' example goal")
+	}
+}
+
+func TestBrowser_GoalsPageToastContainer(t *testing.T) {
+	addr, stopServer := testBrowserServerWithGoalsAPI(t)
+	defer stopServer()
+
+	page, stopBrowser := launchBrowser(t)
+	defer stopBrowser()
+
+	_, err := page.Goto(addr + "/ui/goals")
+	if err != nil {
+		t.Fatalf("failed to navigate: %v", err)
+	}
+
+	content, err := page.Content()
+	if err != nil {
+		t.Fatalf("failed to get content: %v", err)
+	}
+
+	if !strings.Contains(content, "goal-toast-container") {
+		t.Error("expected toast notification container in page")
+	}
+}
+
+func TestBrowser_GoalsPageTimelineProgressRing(t *testing.T) {
+	addr, stopServer := testBrowserServerWithGoalsAPI(t)
+	defer stopServer()
+
+	page, stopBrowser := launchBrowser(t)
+	defer stopBrowser()
+
+	_, err := page.Goto(addr + "/ui/goals")
+	if err != nil {
+		t.Fatalf("failed to navigate: %v", err)
+	}
+
+	content, err := page.Content()
+	if err != nil {
+		t.Fatalf("failed to get content: %v", err)
+	}
+
+	if !strings.Contains(content, "tl-progress-ring") {
+		t.Error("expected SVG progress ring in timeline view")
+	}
+	if !strings.Contains(content, "stroke-dasharray") {
+		t.Error("expected progress ring animation attributes")
+	}
+}
+
+func TestBrowser_GoalsPageResultCardSections(t *testing.T) {
+	addr, stopServer := testBrowserServerWithGoalsAPI(t)
+	defer stopServer()
+
+	page, stopBrowser := launchBrowser(t)
+	defer stopBrowser()
+
+	_, err := page.Goto(addr + "/ui/goals")
+	if err != nil {
+		t.Fatalf("failed to navigate: %v", err)
+	}
+
+	content, err := page.Content()
+	if err != nil {
+		t.Fatalf("failed to get content: %v", err)
+	}
+
+	if !strings.Contains(content, "tl-result-summary") {
+		t.Error("expected result summary section")
+	}
+	if !strings.Contains(content, "tl-result-artifacts") {
+		t.Error("expected artifacts section")
+	}
+	if !strings.Contains(content, "tl-result-unmet") {
+		t.Error("expected unmet criteria section")
+	}
+	if !strings.Contains(content, "tl-result-nextsteps") {
+		t.Error("expected next steps section")
+	}
+	if !strings.Contains(content, "shareGoalResult") {
+		t.Error("expected share button")
+	}
+}
+
+func TestBrowser_GoalsPageAttentionBanner(t *testing.T) {
+	addr, stopServer := testBrowserServerWithGoalsAPI(t)
+	defer stopServer()
+
+	page, stopBrowser := launchBrowser(t)
+	defer stopBrowser()
+
+	_, err := page.Goto(addr + "/ui/goals")
+	if err != nil {
+		t.Fatalf("failed to navigate: %v", err)
+	}
+
+	content, err := page.Content()
+	if err != nil {
+		t.Fatalf("failed to get content: %v", err)
+	}
+
+	if !strings.Contains(content, "tl-attention-banner") {
+		t.Error("expected needs-attention banner in page")
+	}
+	if !strings.Contains(content, "This goal needs your help") {
+		t.Error("expected attention banner text")
+	}
+}
+
+func TestBrowser_GoalsPageCreatesGoalViaAPI(t *testing.T) {
+	addr, stopServer := testBrowserServerWithGoalsAPI(t)
+	defer stopServer()
+
+	page, stopBrowser := launchBrowser(t)
+	defer stopBrowser()
+
+	_, err := page.Goto(addr + "/ui/goals")
+	if err != nil {
+		t.Fatalf("failed to navigate: %v", err)
+	}
+
+	textarea := page.Locator("#goal-input")
+	if err := textarea.Fill("Build a CI/CD pipeline"); err != nil {
+		t.Fatalf("failed to fill textarea: %v", err)
+	}
+
+	submitBtn := page.Locator("#goal-submit-btn")
+	if err := submitBtn.Click(); err != nil {
+		t.Fatalf("failed to click submit: %v", err)
+	}
+
+	page.WaitForTimeout(1000)
+
+	content, err := page.Content()
+	if err != nil {
+		t.Fatalf("failed to get content: %v", err)
+	}
+
+	if !strings.Contains(content, "CI/CD pipeline") || !strings.Contains(content, "goal-item-") {
+		contentSnip := content
+		if len(contentSnip) > 500 {
+			contentSnip = contentSnip[:500]
+		}
+		t.Errorf("expected goal item in page after submit, got: %s...", contentSnip)
 	}
 }

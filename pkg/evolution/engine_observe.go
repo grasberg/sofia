@@ -95,7 +95,8 @@ func (e *EvolutionEngine) diagnose(ctx context.Context, report ObservationReport
 		},
 	}
 
-	resp, err := e.provider.Chat(ctx, messages, nil, e.model, nil)
+	prov, model := e.llm()
+	resp, err := prov.Chat(ctx, messages, nil, model, nil)
 	if err != nil {
 		return Diagnosis{}, fmt.Errorf("diagnosis LLM call: %w", err)
 	}

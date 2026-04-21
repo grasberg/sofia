@@ -1,9 +1,9 @@
 <!-- AGENTS TAB -->
-<div id="tab-agents" class="h-full">
-    <div class="flex-grow-fix flex flex-col lg:flex-row gap-6">
+<div id="tab-agents" class="flex-grow-fix flex flex-col min-h-0">
+    <div class="flex-grow-fix flex flex-col lg:flex-row gap-6 min-h-0">
         <!-- Add/Edit Agent -->
         <div
-            class="w-full lg:w-96 shrink-0 glass-panel p-6 shadow-xl overflow-y-auto">
+            class="w-full lg:w-96 shrink-0 glass-panel p-6 shadow-xl overflow-y-auto max-h-full">
             <div class="flex items-center gap-3 mb-8">
                 <div class="w-10 h-10 rounded-xl bg-tertiary/10 border border-tertiary/20 flex items-center justify-center text-tertiary">
                     <i data-lucide="user-plus" class="w-5 h-5"></i>
@@ -51,7 +51,7 @@
         </div>
 
         <!-- Agent List -->
-        <div class="flex-grow-fix overflow-y-auto pr-2">
+        <div class="flex-grow-fix overflow-y-auto pr-2 min-h-0">
             <div class="flex items-center justify-between mb-6">
                 <h2 class="text-sm font-bold tracking-tight text-on-surface font-headline">Agents</h2>
                 <span class="text-[10px] font-mono text-tertiary" id="agent-count">0 agents</span>

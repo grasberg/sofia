@@ -210,6 +210,104 @@ func TestShellTool_NormalizeCommand(t *testing.T) {
 	}
 }
 
+// TestShellTool_GuardCommand_DenyPatterns verifies deny pattern blocking
+func TestShellTool_GuardCommand_DenyPatterns(t *testing.T) {
+	tool := NewExecTool("", false)
+
+	// These should be blocked by default deny patterns.
+	blocked := []struct {
+		name string
+		cmd  string
+	}{
+		{"rm -rf /", "rm -rf /"},
+		{"mkfs", "mkfs /dev/sda"},
+		{"dd if=/dev/zero", "dd if=/dev/zero of=/dev/sda"},
+		{"sudo", "sudo apt install foo"},
+		{"kill", "kill -9 1"},
+		{"eval", "eval dangerous_cmd"},
+	}
+
+	for _, tt := range blocked {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tool.guardCommand(tt.cmd, "/tmp")
+			if result == "" {
+				t.Errorf("expected guardCommand to block %q", tt.cmd)
+			}
+		})
+	}
+
+	// These should be allowed.
+	allowed := []struct {
+		name string
+		cmd  string
+	}{
+		{"echo", "echo hello"},
+		{"ls", "ls -la"},
+		{"go test", "go test ./..."},
+		{"cat", "cat README.md"},
+	}
+
+	for _, tt := range allowed {
+		t.Run("allow:"+tt.name, func(t *testing.T) {
+			result := tool.guardCommand(tt.cmd, "/tmp")
+			if result != "" {
+				t.Errorf("expected guardCommand to allow %q, got: %s", tt.cmd, result)
+			}
+		})
+	}
+}
+
+// TestShellTool_Elevation verifies the two-phase elevation flow
+func TestShellTool_Elevation(t *testing.T) {
+	tool := NewExecTool("", false)
+
+	// Request a token
+	token := tool.RequestElevation()
+	if token == "" {
+		t.Fatal("expected non-empty elevation token")
+	}
+
+	// Confirm with the token
+	msg, ok := tool.ConfirmElevation(token)
+	if !ok {
+		t.Fatalf("expected ConfirmElevation to succeed, got: %s", msg)
+	}
+	if !tool.elevated {
+		t.Fatal("expected elevated to be true after confirmation")
+	}
+
+	// Same token should not work twice
+	msg, ok = tool.ConfirmElevation(token)
+	if ok {
+		t.Fatal("expected ConfirmElevation to fail with reused token")
+	}
+}
+
+// TestShellTool_Elevation_InvalidToken verifies rejection of bad tokens
+func TestShellTool_Elevation_InvalidToken(t *testing.T) {
+	tool := NewExecTool("", false)
+
+	msg, ok := tool.ConfirmElevation("invalid-token")
+	if ok {
+		t.Fatalf("expected invalid token to be rejected, got: %s", msg)
+	}
+}
+
+// TestShellTool_SetElevated verifies direct elevation setting
+func TestShellTool_SetElevated(t *testing.T) {
+	tool := NewExecTool("", false)
+
+	tool.SetElevated(true)
+	if !tool.elevated {
+		t.Fatal("expected elevated to be true")
+	}
+
+	tool.SetElevated(false)
+	if tool.elevated {
+		t.Fatal("expected elevated to be false")
+	}
+}
+
 // TestShellTool_MissingCommand verifies error handling for missing command
 func TestShellTool_MissingCommand(t *testing.T) {
 	tool := NewExecTool("", false)
@@ -320,6 +418,97 @@ func TestShellTool_WorkingDir_SymlinkEscape(t *testing.T) {
 	}
 	if !strings.Contains(result.ForLLM, "blocked") {
 		t.Errorf("expected 'blocked' in error, got: %s", result.ForLLM)
+	}
+}
+
+// TestIsSafeSystemPath verifies safe path detection
+func TestIsSafeSystemPath(t *testing.T) {
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{"/usr/bin/python3", true},
+		{"/bin/sh", true},
+		{"/sbin/ifconfig", true},
+		{"/opt/homebrew/bin/go", true},
+		{"/tmp/scratch", true},
+		{"/var/log/syslog", true},
+		{"/dev/null", true},
+		{"/proc/1/status", true},
+		{"/nix/store/abc", true},
+		{"/Library/Frameworks/Python.framework", true},
+		{"/System/Library/CoreServices", true},
+		{"/Applications/Xcode.app", true},
+		{"/Volumes/External/project", true},
+		{"/private/tmp/test", true},
+		// Home dot-directories are safe (tool configs)
+		{"/Users/alice/.cargo/bin/rustc", true},
+		{"/home/bob/.local/bin/pip", true},
+		// Non-dot home paths are NOT safe (user data)
+		{"/Users/alice/Documents/secret.txt", false},
+		{"/home/bob/projects/app/main.go", false},
+		// Random paths are not safe
+		{"/workspace/project/file.go", false},
+		{"/data/db/production.db", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			got := isSafeSystemPath(tt.path)
+			if got != tt.want {
+				t.Errorf("isSafeSystemPath(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestShellMetacharPatterns verifies obfuscation detection
+func TestShellMetacharPatterns(t *testing.T) {
+	dangerous := []struct {
+		name string
+		cmd  string
+	}{
+		{"hex escape", `\x72\x6d -rf /`},
+		{"unicode escape", `\u0072\u006d -rf /`},
+		{"base64 to shell", "echo cm0gLXJmIC8= | base64 -d | bash"},
+		{"xargs to rm", "find . | xargs rm -rf"},
+		{"awk system", "awk '{system(\"rm -rf /\")}'"},
+		{"perl one-liner", "perl -e 'system(\"rm -rf /\")'"},
+		{"ruby one-liner", "ruby -e 'system(\"rm -rf /\")'"},
+	}
+
+	for _, tt := range dangerous {
+		t.Run(tt.name, func(t *testing.T) {
+			lower := strings.ToLower(tt.cmd)
+			matched := false
+			for _, p := range shellMetacharPatterns {
+				if p.MatchString(lower) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				t.Errorf("expected shellMetacharPatterns to match %q", tt.cmd)
+			}
+		})
+	}
+
+	safe := []string{
+		"echo hello world",
+		"ls -la /tmp",
+		"cat /etc/hostname",
+		"go test ./...",
+	}
+
+	for _, cmd := range safe {
+		t.Run("safe:"+cmd, func(t *testing.T) {
+			lower := strings.ToLower(cmd)
+			for _, p := range shellMetacharPatterns {
+				if p.MatchString(lower) {
+					t.Errorf("shellMetacharPatterns should NOT match safe command %q (pattern: %s)", cmd, p.String())
+				}
+			}
+		})
 	}
 }
 

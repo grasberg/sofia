@@ -53,17 +53,19 @@ func TestNewAgentRegistry_ImplicitMain(t *testing.T) {
 	cfg := testCfg(nil)
 	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
 
-	ids := registry.ListAgentIDs()
-	if len(ids) != 1 || ids[0] != "main" {
-		t.Errorf("expected implicit main agent, got %v", ids)
-	}
-
+	// Main agent must always exist.
 	agent, ok := registry.GetAgent("main")
 	if !ok || agent == nil {
 		t.Fatal("expected to find 'main' agent")
 	}
 	if agent.ID != "main" {
 		t.Errorf("agent.ID = %q, want 'main'", agent.ID)
+	}
+
+	// When no user agents are configured, templates are auto-seeded.
+	ids := registry.ListAgentIDs()
+	if len(ids) < 2 {
+		t.Errorf("expected auto-seeded agents from templates, got %d agents", len(ids))
 	}
 }
 
@@ -212,6 +214,139 @@ func TestAgentInstance_FallbackExplicitEmpty(t *testing.T) {
 	agent, _ := registry.GetAgent("no-fallback")
 	if len(agent.Fallbacks) != 0 {
 		t.Errorf("expected 0 fallbacks (explicit empty), got %d: %v", len(agent.Fallbacks), agent.Fallbacks)
+	}
+}
+
+func TestTemplateDisplayName(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"backend-specialist", "Backend Specialist"},
+		{"researcher", "Researcher"},
+		{"code-review-expert", "Code Review Expert"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		got := templateDisplayName(tt.input)
+		if got != tt.want {
+			t.Errorf("templateDisplayName(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestHasUserSubagents(t *testing.T) {
+	tests := []struct {
+		name   string
+		agents []config.AgentConfig
+		want   bool
+	}{
+		{"nil list", nil, false},
+		{"empty list", []config.AgentConfig{}, false},
+		{"only main", []config.AgentConfig{{ID: "main", Default: true}}, false},
+		{"main plus subagent", []config.AgentConfig{
+			{ID: "main", Default: true},
+			{ID: "sales"},
+		}, true},
+		{"only non-main default", []config.AgentConfig{
+			{ID: "custom", Default: true},
+		}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hasUserSubagents(tt.agents)
+			if got != tt.want {
+				t.Errorf("hasUserSubagents() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAgentRegistry_RegisterAgent(t *testing.T) {
+	cfg := testCfg([]config.AgentConfig{
+		{ID: "existing", Default: true},
+	})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
+
+	newInstance := &AgentInstance{
+		ID:   "dynamic",
+		Name: "Dynamic Agent",
+	}
+
+	err := registry.RegisterAgent(newInstance)
+	if err != nil {
+		t.Fatalf("RegisterAgent returned error: %v", err)
+	}
+
+	agent, ok := registry.GetAgent("dynamic")
+	if !ok || agent == nil {
+		t.Fatal("expected 'dynamic' agent to exist after registration")
+	}
+	if agent.Name != "Dynamic Agent" {
+		t.Errorf("agent.Name = %q, want 'Dynamic Agent'", agent.Name)
+	}
+}
+
+func TestAgentRegistry_RegisterAgent_Duplicate(t *testing.T) {
+	cfg := testCfg([]config.AgentConfig{
+		{ID: "existing", Default: true},
+	})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
+
+	err := registry.RegisterAgent(&AgentInstance{ID: "existing"})
+	if err == nil {
+		t.Fatal("expected error when registering duplicate agent")
+	}
+}
+
+func TestAgentRegistry_ListAgents(t *testing.T) {
+	cfg := testCfg([]config.AgentConfig{
+		{ID: "alpha", Default: true},
+		{ID: "beta"},
+	})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
+
+	agents := registry.ListAgents()
+	if len(agents) != 2 {
+		t.Fatalf("expected 2 agents, got %d", len(agents))
+	}
+
+	ids := make(map[string]bool)
+	for _, a := range agents {
+		ids[a.ID] = true
+	}
+	if !ids["alpha"] {
+		t.Error("expected 'alpha' in agent list")
+	}
+	if !ids["beta"] {
+		t.Error("expected 'beta' in agent list")
+	}
+}
+
+func TestAgentRegistry_GetDefaultAgent_NoMain(t *testing.T) {
+	// When no "main" agent exists, GetDefaultAgent returns any agent.
+	cfg := testCfg([]config.AgentConfig{
+		{ID: "only-one", Default: true},
+	})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
+
+	// Remove "main" if it was auto-created, to test the fallback path.
+	_ = registry.RemoveAgent("main")
+
+	agent := registry.GetDefaultAgent()
+	if agent == nil {
+		t.Fatal("expected GetDefaultAgent to return a non-nil agent")
+	}
+}
+
+func TestAgentRegistry_CanSpawnSubagent_NonexistentParent(t *testing.T) {
+	cfg := testCfg([]config.AgentConfig{
+		{ID: "child", Default: true},
+	})
+	registry := NewAgentRegistry(cfg, &mockRegistryProvider{}, testMemDB(t))
+
+	if registry.CanSpawnSubagent("nonexistent", "child") {
+		t.Error("expected false when parent doesn't exist")
 	}
 }
 

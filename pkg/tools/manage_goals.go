@@ -4,7 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
+
+	"github.com/grasberg/sofia/pkg/logger"
 )
 
 // GoalManager interface breaks the import cycle between tools and autonomy.
@@ -12,25 +17,45 @@ type GoalManager interface {
 	AddGoal(agentID, name, description, priority string) (any, error)
 	UpdateGoalStatus(goalID int64, newStatus string) (any, error)
 	ListActiveGoals(agentID string) ([]any, error)
+	SetAgentCount(goalID int64, count int) error
 }
 
 // ManageGoalsOptions contains the GoalManager.
 type ManageGoalsOptions struct {
 	GoalManager GoalManager
 	AgentID     string
+	Workspace   string // root workspace directory for goal folders
 }
 
 // ManageGoalsTool allows Sofia to autonomously manage her long-term goals.
 type ManageGoalsTool struct {
-	mgr     GoalManager
-	agentID string
+	mgr       GoalManager
+	agentID   string
+	workspace string
+}
+
+var goalSlugPattern = regexp.MustCompile(`[^a-zA-Z0-9]+`)
+
+// GoalFolderName returns a filesystem-safe folder name for a goal.
+// Shared between the manage_goals tool and the autonomy service.
+func GoalFolderName(goalID int64, goalName string) string {
+	slug := strings.ToLower(strings.TrimSpace(goalSlugPattern.ReplaceAllString(goalName, "-")))
+	slug = strings.Trim(slug, "-")
+	if len(slug) > 50 {
+		slug = slug[:50]
+	}
+	if slug == "" {
+		slug = "goal"
+	}
+	return fmt.Sprintf("goal-%d-%s", goalID, slug)
 }
 
 // NewManageGoalsTool creates a new coordinate tool.
 func NewManageGoalsTool(opts ManageGoalsOptions) *ManageGoalsTool {
 	return &ManageGoalsTool{
-		mgr:     opts.GoalManager,
-		agentID: opts.AgentID,
+		mgr:       opts.GoalManager,
+		agentID:   opts.AgentID,
+		workspace: opts.Workspace,
 	}
 }
 
@@ -54,7 +79,8 @@ func (t *ManageGoalsTool) Parameters() map[string]any {
 		"name":{"type":"string","description":"Name of the goal (for add)"},
 		"description":{"type":"string","description":"Details of the goal (for add)"},
 		"status":{"type":"string","description":"New status (for update_status)"},
-		"priority":{"type":"string","description":"low, medium, or high (for add)"}
+		"priority":{"type":"string","description":"low, medium, or high (for add)"},
+		"agent_count":{"type":"integer","description":"Number of parallel agents (1-5, 0 = auto). For add only."}
 	},"required":["action"]}`), &schema)
 	return schema
 }
@@ -73,6 +99,7 @@ func (t *ManageGoalsTool) Execute(ctx context.Context, args map[string]any) *Too
 		Description string `json:"description"`
 		Status      string `json:"status"`
 		Priority    string `json:"priority"`
+		AgentCount  int    `json:"agent_count"`
 	}
 
 	if err := json.Unmarshal(bArgs, &parsedArgs); err != nil {
@@ -92,10 +119,24 @@ func (t *ManageGoalsTool) Execute(ctx context.Context, args map[string]any) *Too
 		b, _ := json.Marshal(gAny)
 		var g map[string]any
 		json.Unmarshal(b, &g)
-		if id, ok := g["id"].(float64); ok {
-			return NewToolResult(fmt.Sprintf("Goal successfully added. ID: %.0f", id))
+		id, _ := g["id"].(float64)
+		goalID := int64(id)
+
+		// Store agent_count if specified.
+		if parsedArgs.AgentCount > 0 && goalID > 0 {
+			_ = t.mgr.SetAgentCount(goalID, parsedArgs.AgentCount)
 		}
-		return NewToolResult("Goal successfully added.")
+
+		// Create a dedicated folder for this goal and return its path.
+		goalDir := t.ensureGoalFolder(goalID, parsedArgs.Name)
+
+		if goalID > 0 {
+			return NewToolResult(fmt.Sprintf(
+				"Goal successfully added. ID: %d\nGoal folder: %s\n\n"+
+					"IMPORTANT: All subagents working on this goal MUST save files under this folder using absolute paths.",
+				goalID, goalDir))
+		}
+		return NewToolResult("Goal successfully added. Folder: " + goalDir)
 
 	case "update_status":
 		if parsedArgs.GoalID == 0 || parsedArgs.Status == "" {
@@ -147,4 +188,16 @@ func (t *ManageGoalsTool) Execute(ctx context.Context, args map[string]any) *Too
 	default:
 		return ErrorResult(fmt.Sprintf("unknown action: %s", parsedArgs.Action))
 	}
+}
+
+// ensureGoalFolder creates a dedicated directory for the goal under workspace/goals/.
+func (t *ManageGoalsTool) ensureGoalFolder(goalID int64, goalName string) string {
+	dir := filepath.Join(t.workspace, "goals", GoalFolderName(goalID, goalName))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		logger.WarnCF("tools", "Failed to create goal folder", map[string]any{
+			"path":  dir,
+			"error": err.Error(),
+		})
+	}
+	return dir
 }

@@ -7,19 +7,19 @@ import (
 	"time"
 )
 
-// shellMetacharPatterns detects shell metacharacters that can bypass simple pattern matching.
+// shellMetacharPatterns detects obfuscation techniques that could bypass the
+// deny-pattern list. Only include patterns that specifically target attack
+// vectors — overly broad patterns (env VAR=, find -exec, pipe to while) were
+// removed because they block legitimate commands Sofia regularly generates.
 var shellMetacharPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`\\x[0-9a-fA-F]{2}`),           // hex escapes
-	regexp.MustCompile(`\\u[0-9a-fA-F]{4}`),           // unicode escapes
+	regexp.MustCompile(`\\x[0-9a-fA-F]{2}`),           // hex escapes (obfuscation)
+	regexp.MustCompile(`\\u[0-9a-fA-F]{4}`),           // unicode escapes (obfuscation)
 	regexp.MustCompile(`\$'[^']*\\[^']*'`),            // $'...' ANSI-C quoting with escapes
-	regexp.MustCompile(`\benv\b.*\b\w+=.*\b\w+\b`),    // env VAR=val cmd (command execution via env)
 	regexp.MustCompile(`\bxargs\b.*\b(sh|bash|rm)\b`), // xargs piped to dangerous commands
-	regexp.MustCompile(`\bfind\b.*-exec\b`),           // find -exec runs commands
 	regexp.MustCompile(`\bawk\b.*\bsystem\s*\(`),      // awk system() calls
 	regexp.MustCompile(`\bperl\b.*\s-e\s`),            // perl one-liners
 	regexp.MustCompile(`\bruby\b.*\s-e\s`),            // ruby one-liners
 	regexp.MustCompile(`\bexec\s+\d*[<>]`),            // exec with redirections
-	regexp.MustCompile(`\|\s*while\b`),                // pipe to while loop
 	regexp.MustCompile(`\bbase64\b.*\|\s*(sh|bash)`),  // base64 decode to shell
 }
 
@@ -34,20 +34,19 @@ var safePathPrefixes = []string{
 	"/bin/",
 	"/sbin/",
 	"/opt/",
-	"/dev/null",
-	"/dev/zero",
-	"/dev/stdin",
-	"/dev/stdout",
-	"/dev/stderr",
-	"/dev/urandom",
+	"/tmp/",
+	"/var/",
+	"/dev/",
 	"/lib/",
-	"/proc/self/",
+	"/proc/",
+	"/sys/",
 	"/nix/",
 	"/home/linuxbrew/",
-	"/private/tmp/",     // macOS
+	"/private/",         // macOS (/private/tmp, /private/var)
 	"/Library/",         // macOS
 	"/System/",          // macOS
 	"/Applications/",    // macOS
+	"/Volumes/",         // macOS mounted volumes
 }
 
 func isSafeSystemPath(p string) bool {

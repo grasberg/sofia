@@ -323,6 +323,24 @@ func (al *AgentLoop) runLLMIteration(
 		}
 		delete(llmOpts, "thinking") // clean up the old key; buildParams only reads thinking_budget
 
+		// doProviderCall streams via ChatStream when the caller opted in
+		// with OnTextDelta and the provider implements StreamingProvider;
+		// otherwise falls back to a plain Chat. CollectStream aggregates
+		// the terminal Final so the loop's tool-execution path sees the
+		// same *LLMResponse shape either way.
+		doProviderCall := func(p providers.LLMProvider, model string) (*providers.LLMResponse, error) {
+			if opts.OnTextDelta != nil {
+				if sp, ok := p.(providers.StreamingProvider); ok {
+					ch, err := sp.ChatStream(ctx, messages, providerToolDefs, model, llmOpts)
+					if err != nil {
+						return nil, err
+					}
+					return providers.CollectStream(ctx, ch, opts.OnTextDelta)
+				}
+			}
+			return p.Chat(ctx, messages, providerToolDefs, model, llmOpts)
+		}
+
 		callLLM := func() (*providers.LLMResponse, error) {
 			if len(agent.Candidates) > 1 && al.fallback != nil {
 				// Adaptive ranking: reorder candidates by quality scores
@@ -339,7 +357,7 @@ func (al *AgentLoop) runLLMIteration(
 						if cp, ok := agent.CandidateProviders[key]; ok {
 							p = cp
 						}
-						return p.Chat(ctx, messages, providerToolDefs, model, llmOpts)
+						return doProviderCall(p, model)
 					},
 				)
 				if fbErr != nil {
@@ -352,7 +370,7 @@ func (al *AgentLoop) runLLMIteration(
 				}
 				return fbResult.Response, nil
 			}
-			return agent.Provider.Chat(ctx, messages, providerToolDefs, agent.ModelID, llmOpts)
+			return doProviderCall(agent.Provider, agent.ModelID)
 		}
 
 		// Retry loop for context/token errors

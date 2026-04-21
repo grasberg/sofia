@@ -200,7 +200,12 @@ func NewAgentInstance(
 			if mc.Workspace == "" {
 				mc.Workspace = cfg.WorkspacePath()
 			}
-			if p, _, err := providers.CreateProviderFromConfig(mc); err == nil && p != nil {
+			p, _, err := providers.CreateProviderFromConfig(mc)
+			if err != nil {
+				logger.WarnCF("agent", "Failed to build candidate provider", map[string]any{
+					"key": key, "model": mc.Model, "error": err.Error(),
+				})
+			} else if p != nil {
 				candidateProviders[key] = p
 			}
 		}

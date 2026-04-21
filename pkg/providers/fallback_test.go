@@ -3,6 +3,7 @@ package providers
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -191,11 +192,13 @@ func TestFallback_CooldownSkip(t *testing.T) {
 	}
 }
 
-func TestFallback_AllInCooldown(t *testing.T) {
+func TestFallback_AllInCooldown_BypassAttempted(t *testing.T) {
 	ct := NewCooldownTracker()
 	fc := NewFallbackChain(ct)
 
-	// Put all providers in cooldown
+	// Put all providers in cooldown. openai's rate-limit cooldown (1 min)
+	// expires sooner than anthropic's billing cooldown (5 h), so the bypass
+	// should pick openai.
 	ct.MarkFailure("openai", FailoverRateLimit)
 	ct.MarkFailure("anthropic", FailoverBilling)
 
@@ -204,18 +207,72 @@ func TestFallback_AllInCooldown(t *testing.T) {
 		makeCandidate("anthropic", "claude"),
 	}
 
+	var callCount int
+	var calledProvider string
 	_, err := fc.Execute(context.Background(), candidates,
 		func(ctx context.Context, provider, model string) (*LLMResponse, error) {
-			t.Error("should not call any provider (all in cooldown)")
-			return nil, nil
+			callCount++
+			calledProvider = provider
+			return nil, errors.New("503 Service Unavailable")
 		})
 
 	if err == nil {
-		t.Fatal("expected error when all in cooldown")
+		t.Fatal("expected error when bypass attempt also fails")
+	}
+	if callCount != 1 {
+		t.Errorf("expected 1 bypass call, got %d", callCount)
+	}
+	if calledProvider != "openai" {
+		t.Errorf("expected bypass to pick openai (shortest cooldown), got %q", calledProvider)
 	}
 	var exhausted *FallbackExhaustedError
 	if !errors.As(err, &exhausted) {
 		t.Fatalf("expected FallbackExhaustedError, got %T", err)
+	}
+	// Last recorded attempt should be the bypass (not a skip) and be flagged
+	// with reason=cooldown_bypass for observability.
+	last := exhausted.Attempts[len(exhausted.Attempts)-1]
+	if last.Skipped {
+		t.Error("expected bypass attempt to not be Skipped")
+	}
+	if last.Reason != FailoverCooldownBypass {
+		t.Errorf("expected reason=cooldown_bypass, got %q", last.Reason)
+	}
+}
+
+func TestFallback_AllInCooldown_BypassSucceeds(t *testing.T) {
+	ct := NewCooldownTracker()
+	fc := NewFallbackChain(ct)
+
+	ct.MarkFailure("openai", FailoverRateLimit)
+	ct.MarkFailure("anthropic", FailoverBilling)
+
+	candidates := []FallbackCandidate{
+		makeCandidate("openai", "gpt-4"),
+		makeCandidate("anthropic", "claude"),
+	}
+
+	result, err := fc.Execute(context.Background(), candidates,
+		func(ctx context.Context, provider, model string) (*LLMResponse, error) {
+			return &LLMResponse{Content: "hello"}, nil
+		})
+
+	if err != nil {
+		t.Fatalf("expected success from bypass, got %v", err)
+	}
+	if result.Response == nil || result.Response.Content != "hello" {
+		t.Errorf("expected response 'hello', got %+v", result.Response)
+	}
+	if result.Provider != "openai" {
+		t.Errorf("expected provider=openai, got %q", result.Provider)
+	}
+	// Success should reset the cooldown for the bypassed provider.
+	if !ct.IsAvailable("openai") {
+		t.Error("expected openai cooldown to be reset after successful bypass")
+	}
+	// Anthropic's cooldown is untouched by the bypass.
+	if ct.IsAvailable("anthropic") {
+		t.Error("expected anthropic to still be in cooldown")
 	}
 }
 
@@ -469,5 +526,88 @@ func TestFallbackExhaustedError_Message(t *testing.T) {
 	msg := e.Error()
 	if msg == "" {
 		t.Error("expected non-empty error message")
+	}
+}
+
+// When every attempted provider returns 401, the header must tell the user
+// to update their API keys — otherwise they see a wall of status-401 noise
+// with no hint about what to fix.
+func TestFallbackExhaustedError_AllAuthHeader(t *testing.T) {
+	e := &FallbackExhaustedError{
+		Attempts: []FallbackAttempt{
+			{Provider: "ollama", Model: "x", Error: errors.New("401 unauthorized"),
+				Reason: FailoverAuth, Duration: 100 * time.Millisecond},
+			{Provider: "minimax", Model: "y", Error: errors.New("401 unauthorized"),
+				Reason: FailoverAuth, Duration: 200 * time.Millisecond},
+		},
+	}
+	msg := e.Error()
+	if !strings.Contains(msg, "rejected the API key") {
+		t.Errorf("expected all-auth header, got: %s", msg)
+	}
+	if !strings.Contains(msg, "Settings") {
+		t.Errorf("expected pointer to Settings, got: %s", msg)
+	}
+	if !strings.Contains(msg, "all 2") {
+		t.Errorf("expected count 'all 2', got: %s", msg)
+	}
+}
+
+func TestFallbackExhaustedError_AllBillingHeader(t *testing.T) {
+	e := &FallbackExhaustedError{
+		Attempts: []FallbackAttempt{
+			{Provider: "openai", Model: "x", Error: errors.New("billing"), Reason: FailoverBilling},
+			{Provider: "anthropic", Model: "y", Error: errors.New("billing"), Reason: FailoverBilling},
+		},
+	}
+	msg := e.Error()
+	if !strings.Contains(msg, "billing problem") {
+		t.Errorf("expected billing header, got: %s", msg)
+	}
+}
+
+func TestFallbackExhaustedError_AllRateLimitHeader(t *testing.T) {
+	e := &FallbackExhaustedError{
+		Attempts: []FallbackAttempt{
+			{Provider: "openai", Model: "x", Error: errors.New("429"), Reason: FailoverRateLimit},
+			{Provider: "anthropic", Model: "y", Error: errors.New("429"), Reason: FailoverRateLimit},
+		},
+	}
+	msg := e.Error()
+	if !strings.Contains(msg, "rate-limited") {
+		t.Errorf("expected rate-limit header, got: %s", msg)
+	}
+}
+
+// Mixed reasons should fall through to the neutral summary — we can't point
+// at a single fix, so don't pretend to.
+func TestFallbackExhaustedError_MixedReasonsNoSpecificHeader(t *testing.T) {
+	e := &FallbackExhaustedError{
+		Attempts: []FallbackAttempt{
+			{Provider: "openai", Model: "x", Error: errors.New("auth"), Reason: FailoverAuth},
+			{Provider: "anthropic", Model: "y", Error: errors.New("429"), Reason: FailoverRateLimit},
+		},
+	}
+	msg := e.Error()
+	if strings.Contains(msg, "rejected the API key") {
+		t.Errorf("expected neutral header for mixed reasons, got: %s", msg)
+	}
+	if !strings.Contains(msg, "2 attempted") {
+		t.Errorf("expected neutral '2 attempted' count, got: %s", msg)
+	}
+}
+
+// Skipped-only (all in cooldown, no real attempts) keeps the neutral header
+// so the cooldown-bypass path still looks right.
+func TestFallbackExhaustedError_AllSkippedHeader(t *testing.T) {
+	e := &FallbackExhaustedError{
+		Attempts: []FallbackAttempt{
+			{Provider: "openai", Model: "x", Skipped: true},
+			{Provider: "anthropic", Model: "y", Skipped: true},
+		},
+	}
+	msg := e.Error()
+	if !strings.Contains(msg, "0 attempted, 2 skipped") {
+		t.Errorf("expected skipped-only neutral header, got: %s", msg)
 	}
 }

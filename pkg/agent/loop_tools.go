@@ -299,6 +299,7 @@ func (r sharedToolRegistrar) registerMemoryTools(agentID string, agent *AgentIns
 	agent.Tools.Register(tools.NewManageGoalsTool(tools.ManageGoalsOptions{
 		GoalManager: autonomy.NewGoalManager(r.memDB),
 		AgentID:     agentID,
+		Workspace:   agent.Workspace,
 	}))
 	agent.Tools.Register(tools.NewManageTriggersTool(tools.ManageTriggersOptions{
 		TriggerManager: autonomy.NewTriggerManager(r.memDB),

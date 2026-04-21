@@ -49,7 +49,8 @@ type Goal struct {
 	Name        string      `json:"name"`
 	Description string      `json:"description"`
 	Status      string      `json:"status"`
-	Priority    string      `json:"priority"` // low, medium, high
+	Priority    string      `json:"priority"`    // low, medium, high
+	AgentCount  int         `json:"agent_count"` // 0 = auto
 	Phase       string      `json:"phase,omitempty"`
 	Spec        *GoalSpec   `json:"spec,omitempty"`
 	Result      string      `json:"result,omitempty"`
@@ -238,6 +239,27 @@ func (gm *GoalManager) UpdateGoalPhase(goalID int64, phase string) error {
 	return err
 }
 
+// SetAgentCount stores the desired agent parallelism (0 = auto) in goal properties.
+func (gm *GoalManager) SetAgentCount(goalID int64, count int) error {
+	node, err := gm.memDB.GetNodeByID(goalID)
+	if err != nil {
+		return err
+	}
+	if node == nil || node.Label != "Goal" {
+		return fmt.Errorf("goal %d not found", goalID)
+	}
+
+	var props map[string]any
+	if err := json.Unmarshal([]byte(node.Properties), &props); err != nil {
+		props = make(map[string]any)
+	}
+	props["agent_count"] = count
+
+	propsJSON, _ := json.Marshal(props)
+	_, err = gm.memDB.UpsertNode(node.AgentID, "Goal", node.Name, string(propsJSON))
+	return err
+}
+
 // SetGoalSpec stores a GoalSpec in the goal's properties.
 func (gm *GoalManager) SetGoalSpec(goalID int64, spec GoalSpec) error {
 	node, err := gm.memDB.GetNodeByID(goalID)
@@ -314,6 +336,20 @@ func (gm *GoalManager) DeleteAllGoals(agentID string) (int, error) {
 	return deleted, nil
 }
 
+// goalProps is a typed struct for single-pass JSON deserialization of goal
+// properties. Using a typed struct instead of map[string]json.RawMessage with
+// per-field unmarshal reduces 9 unmarshal calls to 1.
+type goalProps struct {
+	Description string      `json:"description"`
+	Status      string      `json:"status"`
+	Priority    string      `json:"priority"`
+	Phase       string      `json:"phase,omitempty"`
+	AgentCount  int         `json:"agent_count,omitempty"`
+	Spec        *GoalSpec   `json:"spec,omitempty"`
+	Result      string      `json:"result,omitempty"`
+	GoalResult  *GoalResult `json:"goal_result,omitempty"`
+}
+
 func parseGoalNode(node *memory.SemanticNode) *Goal {
 	g := &Goal{
 		ID:        node.ID,
@@ -323,35 +359,16 @@ func parseGoalNode(node *memory.SemanticNode) *Goal {
 		UpdatedAt: node.UpdatedAt,
 	}
 
-	var props map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(node.Properties), &props); err == nil {
-		if v, ok := props["description"]; ok {
-			json.Unmarshal(v, &g.Description) //nolint:errcheck
-		}
-		if v, ok := props["status"]; ok {
-			json.Unmarshal(v, &g.Status) //nolint:errcheck
-		}
-		if v, ok := props["priority"]; ok {
-			json.Unmarshal(v, &g.Priority) //nolint:errcheck
-		}
-		if v, ok := props["phase"]; ok {
-			json.Unmarshal(v, &g.Phase) //nolint:errcheck
-		}
-		if v, ok := props["spec"]; ok {
-			var gs GoalSpec
-			if json.Unmarshal(v, &gs) == nil {
-				g.Spec = &gs
-			}
-		}
-		if v, ok := props["result"]; ok {
-			json.Unmarshal(v, &g.Result) //nolint:errcheck
-		}
-		if v, ok := props["goal_result"]; ok {
-			var gr GoalResult
-			if json.Unmarshal(v, &gr) == nil {
-				g.GoalResult = &gr
-			}
-		}
+	var p goalProps
+	if json.Unmarshal([]byte(node.Properties), &p) == nil {
+		g.Description = p.Description
+		g.Status = p.Status
+		g.Priority = p.Priority
+		g.Phase = p.Phase
+		g.AgentCount = p.AgentCount
+		g.Spec = p.Spec
+		g.Result = p.Result
+		g.GoalResult = p.GoalResult
 	}
 	return g
 }

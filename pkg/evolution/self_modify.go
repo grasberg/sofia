@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/grasberg/sofia/pkg/logger"
@@ -26,7 +27,26 @@ var dangerousPatterns = regexp.MustCompile(
 type SafeModifier struct {
 	historyDir     string
 	immutablePaths []string
-	provider       providers.LLMProvider
+
+	// provider is protected by providerMu so SetProvider can hot-swap it
+	// when the global model config changes.
+	providerMu sync.RWMutex
+	provider   providers.LLMProvider
+}
+
+// getProvider returns the currently configured LLM provider (may be nil).
+func (sm *SafeModifier) getProvider() providers.LLMProvider {
+	sm.providerMu.RLock()
+	defer sm.providerMu.RUnlock()
+	return sm.provider
+}
+
+// SetProvider atomically swaps the provider used for semantic safety checks.
+// Passing nil disables the safety-check path.
+func (sm *SafeModifier) SetProvider(provider providers.LLMProvider) {
+	sm.providerMu.Lock()
+	defer sm.providerMu.Unlock()
+	sm.provider = provider
 }
 
 // defaultImmutablePaths are always protected from modification.
@@ -159,7 +179,7 @@ func (sm *SafeModifier) ModifyFile(ctx context.Context, path, newContent string)
 	}
 
 	// Secondary gate: semantic safety check via LLM (fail-closed).
-	if sm.provider != nil {
+	if sm.getProvider() != nil {
 		blocked, err := sm.checkSafety(ctx, newContent)
 		if err != nil {
 			logger.WarnCF(
@@ -198,7 +218,11 @@ func (sm *SafeModifier) checkSafety(ctx context.Context, content string) (bool, 
 		{Role: "user", Content: prompt},
 	}
 
-	resp, err := sm.provider.Chat(ctx, messages, nil, sm.provider.GetDefaultModel(), nil)
+	prov := sm.getProvider()
+	if prov == nil {
+		return false, fmt.Errorf("safety LLM call: no provider configured")
+	}
+	resp, err := prov.Chat(ctx, messages, nil, prov.GetDefaultModel(), nil)
 	if err != nil {
 		return false, fmt.Errorf("safety LLM call: %w", err)
 	}

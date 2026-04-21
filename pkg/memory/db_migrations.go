@@ -338,3 +338,50 @@ func (m *MemoryDB) applyV16tx(tx *sql.Tx) error {
 	}
 	return nil
 }
+
+// v17: Fix NVIDIA-hosted model identifiers that were stored without the
+// "nvidia/" protocol prefix.  The original catalog shipped NVIDIA entries with
+// Model values like "meta/llama-3.1-8b-instruct", which the provider factory
+// parsed as protocol="meta" (unknown) and refused to build a provider for —
+// users saw "No model is configured" despite a valid API key.  Any row whose
+// api_base points at integrate.api.nvidia.com gets its model prefixed with
+// "nvidia/" so CreateProviderFromConfig routes it through the NVIDIA branch.
+func (m *MemoryDB) applyV17tx(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+		UPDATE models
+		SET model = 'nvidia/' || model,
+		    updated_at = datetime('now')
+		WHERE api_base LIKE '%integrate.api.nvidia.com%'
+		  AND model != ''
+		  AND model NOT LIKE 'nvidia/%'`)
+	return err
+}
+
+// v18: Add an explicit user_configured flag so "the AI Models settings page
+// only shows what the user actually configured" stops lumping seeded OAuth
+// catalog entries in with real user configuration.  Before this, the catalog
+// shipped 10 rows (7 OpenAI ChatGPT OAuth + 3 Qwen OAuth Free) with
+// auth_method pre-set, and ListConfiguredModels treated auth_method != ''
+// as "configured" — those rows appeared on the settings page after every
+// fresh install even though the user had done nothing.
+//
+// Backfill keeps existing user state intact:
+//   - user-authored (is_catalog = 0) rows: always user_configured = 1
+//   - catalog rows with a stored api_key or api_keys pool: user_configured = 1
+//   - catalog rows with ONLY auth_method set (the false positives above):
+//     user_configured = 0 — the user re-enables them explicitly via the UI.
+func (m *MemoryDB) applyV18tx(tx *sql.Tx) error {
+	stmts := []string{
+		`ALTER TABLE models ADD COLUMN user_configured INTEGER NOT NULL DEFAULT 0`,
+		`UPDATE models SET user_configured = 1
+		   WHERE is_catalog = 0
+		      OR api_key != ''
+		      OR (api_keys != '' AND api_keys != '[]' AND api_keys != 'null')`,
+	}
+	for _, s := range stmts {
+		if _, err := tx.Exec(s); err != nil {
+			return err
+		}
+	}
+	return nil
+}

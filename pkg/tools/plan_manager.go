@@ -10,6 +10,7 @@ import (
 // PlanManager manages active plans.
 type PlanManager struct {
 	plans       map[string]*Plan
+	goalIndex   map[int64]string // goalID → planID for O(1) lookup
 	mu          sync.RWMutex
 	nextID      int
 	persistPath string // if set, auto-saves after mutations
@@ -18,8 +19,9 @@ type PlanManager struct {
 // NewPlanManager creates a new PlanManager.
 func NewPlanManager() *PlanManager {
 	return &PlanManager{
-		plans:  make(map[string]*Plan),
-		nextID: 1,
+		plans:     make(map[string]*Plan),
+		goalIndex: make(map[int64]string),
+		nextID:    1,
 	}
 }
 
@@ -83,6 +85,13 @@ func (pm *PlanManager) Load(path string) error {
 	defer pm.mu.Unlock()
 	if state.Plans != nil {
 		pm.plans = state.Plans
+		// Rebuild the goal index from loaded plans.
+		pm.goalIndex = make(map[int64]string, len(pm.plans))
+		for _, p := range pm.plans {
+			if p.GoalID != 0 {
+				pm.goalIndex[p.GoalID] = p.ID
+			}
+		}
 	}
 	if state.NextID > pm.nextID {
 		pm.nextID = state.NextID
@@ -117,6 +126,7 @@ func (pm *PlanManager) ListAllPlans() []*Plan {
 func (pm *PlanManager) ClearPlan() {
 	pm.mu.Lock()
 	pm.plans = make(map[string]*Plan)
+	pm.goalIndex = make(map[int64]string)
 	pm.mu.Unlock()
 	pm.autoSave()
 }
@@ -269,6 +279,37 @@ func (pm *PlanManager) ReviseFailedSteps(planID string, revisions map[int]string
 		s.Result = ""
 		s.VerifyResult = ""
 	}
+
+	if plan.Status == PlanStatusFailed {
+		plan.Status = PlanStatusInProgress
+	}
+
+	go pm.autoSave()
+	return true
+}
+
+// ResetStepForRetry resets a single failed step to pending WITHOUT incrementing
+// retry_count — used after an out-of-band fix (e.g. auto-installing a missing
+// binary) where the step's prior failures no longer reflect the new state.
+// Returns false if the step is not currently failed or the plan/index is invalid.
+func (pm *PlanManager) ResetStepForRetry(planID string, stepIdx int) bool {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	plan, ok := pm.plans[planID]
+	if !ok || stepIdx < 0 || stepIdx >= len(plan.Steps) {
+		return false
+	}
+	step := &plan.Steps[stepIdx]
+	if step.Status != PlanStatusFailed {
+		return false
+	}
+
+	step.Status = PlanStatusPending
+	step.AssignedTo = ""
+	step.RetryCount = 0
+	step.Result = ""
+	step.VerifyResult = ""
 
 	if plan.Status == PlanStatusFailed {
 		plan.Status = PlanStatusInProgress
@@ -493,6 +534,9 @@ func (pm *PlanManager) CreatePlanForGoal(goalID int64, goal string, stepDefs []P
 		Status: PlanStatusPending,
 	}
 	pm.plans[planID] = plan
+	if goalID != 0 {
+		pm.goalIndex[goalID] = planID
+	}
 
 	go pm.autoSave()
 	return plan
@@ -529,9 +573,14 @@ func (pm *PlanManager) ReadySteps(planID string) []int {
 }
 
 // GetPlanByGoalID returns the plan linked to a specific goal ID, or nil.
+// Uses the goalIndex for O(1) lookup instead of scanning all plans.
 func (pm *PlanManager) GetPlanByGoalID(goalID int64) *Plan {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
+	if planID, ok := pm.goalIndex[goalID]; ok {
+		return pm.plans[planID]
+	}
+	// Fallback: linear scan for plans created before the index existed.
 	for _, plan := range pm.plans {
 		if plan.GoalID == goalID {
 			return plan

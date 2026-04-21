@@ -7,16 +7,17 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/grasberg/sofia/pkg/logger"
+	"github.com/grasberg/sofia/pkg/memory"
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/tools"
 	"github.com/grasberg/sofia/pkg/utils"
 )
-
-var goalSlugRe = regexp.MustCompile(`[^a-zA-Z0-9]+`)
 
 // Patterns that indicate a missing tool or credential rather than a logic error.
 // When matched in a failed step's output, the user is notified so they can
@@ -47,17 +48,137 @@ var (
 		"re-authenticate",
 		"oauth token",
 	}
+	missingNetworkPatterns = []string{
+		"no such host",
+		"could not resolve host",
+		"name or service not known",
+		"dns lookup failed",
+		"connection refused",
+		"network is unreachable",
+		"network unreachable",
+		"no route to host",
+		"connection reset by peer",
+		"tls handshake timeout",
+		"i/o timeout",
+		"dial tcp",
+		"connect: connection timed out",
+	}
+	diskExhaustedPatterns = []string{
+		"no space left on device",
+		"disk quota exceeded",
+		"enospc",
+		"out of disk space",
+		"write error: no space",
+	}
+	rateLimitPatterns = []string{
+		"rate limit",
+		"rate-limited",
+		"ratelimited",
+		"too many requests",
+		"429",
+		"quota exceeded",
+		"usage limit exceeded",
+		"retry-after",
+		"throttled",
+	}
+	// Filesystem/OS-level permission issues — distinct from API credentials.
+	// The credential check already catches the ambiguous "permission denied"
+	// substring, so these patterns target unambiguous OS signals.
+	osPermissionPatterns = []string{
+		"eacces",
+		"eperm",
+		"read-only file system",
+		"operation not permitted",
+		"requires sudo",
+		"must be root",
+		"must be run as root",
+	}
+	missingConfigPatterns = []string{
+		"environment variable not set",
+		"env var not set",
+		"env variable not set",
+		"required environment variable",
+		"missing required config",
+		"required setting",
+		"config not found",
+		"configuration file not found",
+		"configuration key not found",
+		"required configuration",
+	}
 )
 
-// classifyStepError checks a failed step's output for tool/credential issues.
-// Returns ("tool", description) or ("credential", description) or ("", "") if
-// it's a generic failure.
+// autoInstallMethods maps binary names to per-platform install commands.
+// The map is intentionally conservative: only binaries where a single
+// well-known command produces a working install. Only macOS (brew) is
+// supported initially because it doesn't require elevated privileges for
+// installs. Linux/apt requires root and is deferred until a safe story
+// for non-interactive sudo lands.
+var autoInstallMethods = map[string]map[string]string{
+	"jq":        {"darwin": "brew install jq"},
+	"rg":        {"darwin": "brew install ripgrep"},
+	"ripgrep":   {"darwin": "brew install ripgrep"},
+	"fd":        {"darwin": "brew install fd"},
+	"bat":       {"darwin": "brew install bat"},
+	"gh":        {"darwin": "brew install gh"},
+	"tree":      {"darwin": "brew install tree"},
+	"wget":      {"darwin": "brew install wget"},
+	"yq":        {"darwin": "brew install yq"},
+	"terraform": {"darwin": "brew install hashicorp/tap/terraform"},
+	"kubectl":   {"darwin": "brew install kubectl"},
+	"helm":      {"darwin": "brew install helm"},
+	"node":      {"darwin": "brew install node"},
+	"npm":       {"darwin": "brew install node"},
+	"python3":   {"darwin": "brew install python"},
+	"pip3":      {"darwin": "brew install python"},
+	"cargo":     {"darwin": "brew install rust"},
+	"rustc":     {"darwin": "brew install rust"},
+	"deno":      {"darwin": "brew install deno"},
+	"bun":       {"darwin": "brew install bun"},
+	"ffmpeg":    {"darwin": "brew install ffmpeg"},
+	"imagemagick": {"darwin": "brew install imagemagick"},
+	"pandoc":    {"darwin": "brew install pandoc"},
+	"sqlite3":   {"darwin": "brew install sqlite"},
+	"postgres":  {"darwin": "brew install postgresql"},
+	"psql":      {"darwin": "brew install postgresql"},
+	"redis-cli": {"darwin": "brew install redis"},
+	"aws":       {"darwin": "brew install awscli"},
+	"gcloud":    {"darwin": "brew install --cask google-cloud-sdk"},
+}
+
+// classifyStepError checks a failed step's output and returns a category of
+// user action needed, or ("", "") for a generic failure the agent should
+// retry on its own. Categories are checked from most-specific to least-
+// specific so unambiguous OS/network signals win over broader auth matches.
 func classifyStepError(result string) (kind, detail string) {
 	lower := strings.ToLower(result)
+	for _, p := range diskExhaustedPatterns {
+		if strings.Contains(lower, p) {
+			return "disk", ""
+		}
+	}
+	for _, p := range missingNetworkPatterns {
+		if strings.Contains(lower, p) {
+			return "network", extractHostHint(result)
+		}
+	}
+	for _, p := range rateLimitPatterns {
+		if strings.Contains(lower, p) {
+			return "rate_limit", extractCredentialHint(result)
+		}
+	}
+	for _, p := range osPermissionPatterns {
+		if strings.Contains(lower, p) {
+			return "permission", extractPathHint(result)
+		}
+	}
 	for _, p := range missingToolPatterns {
 		if strings.Contains(lower, p) {
-			// Try to extract the tool name from common patterns.
 			return "tool", extractToolHint(result)
+		}
+	}
+	for _, p := range missingConfigPatterns {
+		if strings.Contains(lower, p) {
+			return "config", extractConfigHint(result)
 		}
 	}
 	for _, p := range missingCredentialPatterns {
@@ -72,6 +193,15 @@ func classifyStepError(result string) (kind, detail string) {
 var (
 	reShCommandNotFound = regexp.MustCompile(`(?:sh|bash|zsh):\s*(\S+):\s*(?:command )?not found`)
 	reExecNotFound      = regexp.MustCompile(`exec:\s*"?(\S+?)"?:\s*executable`)
+	// Hostname in messages like `dial tcp: lookup example.com: no such host`
+	// or `Get "https://api.example.com/…": dial tcp 1.2.3.4:443: connect: …`.
+	reLookupHost = regexp.MustCompile(`lookup\s+([A-Za-z0-9][A-Za-z0-9.\-]*\.[A-Za-z]{2,})`)
+	reURLHost    = regexp.MustCompile(`https?://([A-Za-z0-9][A-Za-z0-9.\-]*\.[A-Za-z]{2,})`)
+	// Absolute filesystem path after "permission denied:" or similar.
+	rePathAfterColon = regexp.MustCompile(`(?:permission denied|operation not permitted|read-only file system)[^/]*?(/[^\s:'"]+)`)
+	// Env var / config key names like "FOO_BAR is not set" or
+	// "missing required config: FOO_BAR".
+	reEnvVarName = regexp.MustCompile(`\b([A-Z][A-Z0-9_]{2,})\b`)
 )
 
 // extractToolHint tries to pull the binary name from error text like
@@ -90,16 +220,16 @@ func extractToolHint(result string) string {
 func extractCredentialHint(result string) string {
 	lower := strings.ToLower(result)
 	services := map[string]string{
-		"gmail":       "Gmail / Google",
-		"google":      "Google",
-		"openai":      "OpenAI",
-		"anthropic":   "Anthropic",
-		"openrouter":  "OpenRouter",
-		"github":      "GitHub",
-		"smtp":        "Email (SMTP)",
-		"imap":        "Email (IMAP)",
-		"docker":      "Docker",
-		"ollama.com":  "Ollama Cloud",
+		"gmail":      "Gmail / Google",
+		"google":     "Google",
+		"openai":     "OpenAI",
+		"anthropic":  "Anthropic",
+		"openrouter": "OpenRouter",
+		"github":     "GitHub",
+		"smtp":       "Email (SMTP)",
+		"imap":       "Email (IMAP)",
+		"docker":     "Docker",
+		"ollama.com": "Ollama Cloud",
 	}
 	for keyword, name := range services {
 		if strings.Contains(lower, keyword) {
@@ -109,7 +239,79 @@ func extractCredentialHint(result string) string {
 	return ""
 }
 
-// pursueGoals is the phased pipeline entry point: specify → plan → implement.
+// extractHostHint pulls a hostname out of network error text for display.
+func extractHostHint(result string) string {
+	if m := reLookupHost.FindStringSubmatch(result); len(m) > 1 {
+		return m[1]
+	}
+	if m := reURLHost.FindStringSubmatch(result); len(m) > 1 {
+		return m[1]
+	}
+	return ""
+}
+
+// extractPathHint pulls an absolute filesystem path from permission errors.
+func extractPathHint(result string) string {
+	if m := rePathAfterColon.FindStringSubmatch(strings.ToLower(result)); len(m) > 1 {
+		return m[1]
+	}
+	return ""
+}
+
+// extractConfigHint tries to identify the missing config key (env var name).
+func extractConfigHint(result string) string {
+	if m := reEnvVarName.FindStringSubmatch(result); len(m) > 1 {
+		return m[1]
+	}
+	return ""
+}
+
+// goalPriorityOrder maps priority strings to sort order.
+var goalPriorityOrder = map[string]int{"high": 0, "medium": 1, "low": 2, "": 1}
+
+// sortGoalsByPriority sorts goals so high-priority goals are processed first.
+func sortGoalsByPriority(goals []*Goal) {
+	sort.Slice(goals, func(i, j int) bool {
+		pi := goalPriorityOrder[goals[i].Priority]
+		pj := goalPriorityOrder[goals[j].Priority]
+		return pi < pj
+	})
+}
+
+// finalizeCompletedGoals scans active/in-progress goals and finalizes any
+// whose plans are fully completed. This runs even when the autonomy goals
+// flag is off, because goals created via the chat UI still need finalization.
+func (s *Service) finalizeCompletedGoals(ctx context.Context) {
+	s.mu.Lock()
+	pm := s.planMgr
+	s.mu.Unlock()
+	if pm == nil {
+		return
+	}
+
+	gm := NewGoalManager(s.memDB)
+	allGoals, err := gm.ListAllGoals(s.agentID)
+	if err != nil {
+		return
+	}
+
+	for _, goal := range allGoals {
+		if goal.Status != GoalStatusActive && goal.Status != GoalStatusInProgress {
+			continue
+		}
+		plan := pm.GetPlanByGoalID(goal.ID)
+		if plan != nil && plan.Status == tools.PlanStatusCompleted {
+			logger.InfoCF("autonomy", "Finalizing completed goal", map[string]any{
+				"goal_id":   goal.ID,
+				"goal_name": goal.Name,
+			})
+			s.finalizeGoal(ctx, gm, goal, plan)
+		}
+	}
+}
+
+// pursueGoals is the phased pipeline entry point: plan → implement.
+// Goals are processed in priority order (high → medium → low).
 func (s *Service) pursueGoals(ctx context.Context) {
 	gm := NewGoalManager(s.memDB)
 
@@ -118,6 +320,8 @@ func (s *Service) pursueGoals(ctx context.Context) {
 		logger.WarnCF("autonomy", "Failed to list goals", map[string]any{"error": err.Error()})
 		return
 	}
+
+	sortGoalsByPriority(allGoals)
 
 	for _, goal := range allGoals {
 		if goal.Status != GoalStatusActive && goal.Status != GoalStatusInProgress {
@@ -194,7 +398,9 @@ func parseGoalResultResponse(content string) (*goalResultResponse, error) {
 }
 
 // buildPlanGenerationPrompt creates the LLM prompt that asks for a complete plan with acceptance criteria and verification.
-func buildPlanGenerationPrompt(goal *Goal) string {
+// memoryContext is an optional pre-formatted string (from buildMemoryContext)
+// with relevant past lessons and plan templates — pass "" to skip.
+func buildPlanGenerationPrompt(goal *Goal, goalDir, memoryContext string) string {
 	var specSection string
 	if goal.Spec != nil {
 		specSection = fmt.Sprintf(`
@@ -209,24 +415,110 @@ Your plan must address ALL requirements and enable verification of ALL success c
 			strings.Join(goal.Spec.Constraints, "; "))
 	}
 
+	// Include workspace context for better plans.
+	var workspaceContext string
+	if entries, err := os.ReadDir(goalDir); err == nil && len(entries) > 0 {
+		var files []string
+		for _, e := range entries {
+			files = append(files, e.Name())
+		}
+		workspaceContext = fmt.Sprintf("\nExisting files in goal folder:\n- %s\n", strings.Join(files, "\n- "))
+	}
+	// Also check for go.mod / package.json in parent workspace.
+	for _, probe := range []string{"go.mod", "package.json", "Cargo.toml", "requirements.txt"} {
+		if content, err := os.ReadFile(filepath.Join(goalDir, "..", "..", probe)); err == nil && len(content) > 0 {
+			workspaceContext += fmt.Sprintf("\n%s:\n%s\n", probe, truncate(string(content), 500))
+			break
+		}
+	}
+
 	return fmt.Sprintf(`You are an autonomous AI agent. Create a complete plan for the following goal:
 
 Goal ID: %d
 Goal Name: %s
 Description: %s
 Priority: %s
-%s
+Goal Folder: %s
+%s%s%s
 
 Create a detailed plan with 3-10 steps. Each step must include:
-- description: What to do (specific and actionable, delegatable to a subagent)
+- description: What to do (specific and actionable, delegatable to a subagent). MUST include the goal folder path and instruct the subagent to save all files there.
 - acceptance_criteria: How to know the step is done correctly
 - verify_command: A verification instruction the subagent should execute after completing the step to confirm it worked
 - depends_on: Array of step indices (0-based) that must complete first
 
+All file operations in every step MUST use absolute paths under the goal folder: %s
+
 Prefer vertical slices — each step should deliver a complete, verifiable piece of work rather than a layer (e.g. "implement and test feature X" not "write all database schemas").
 
 Respond in this exact JSON format (no markdown, no code fences):
-{"goal_id": %d, "goal_name": "%s", "plan": {"steps": [{"description": "...", "acceptance_criteria": "...", "verify_command": "...", "depends_on": []}]}}`, goal.ID, goal.Name, goal.Description, goal.Priority, specSection, goal.ID, goal.Name)
+{"goal_id": %d, "goal_name": "%s", "plan": {"steps": [{"description": "...", "acceptance_criteria": "...", "verify_command": "...", "depends_on": []}]}}`, goal.ID, goal.Name, goal.Description, goal.Priority, goalDir, specSection, workspaceContext, memoryContext, goalDir, goal.ID, goal.Name)
+}
+
+// buildMemoryContext formats recent high-scoring reflections and top-matching
+// plan templates into an advisory section for the plan-generation prompt.
+// Returns "" when the memory store is nil, the query is empty, or no
+// relevant entries exist. The output is capped at ~2K chars to prevent
+// prompt bloat on goals whose name matches many past entries.
+func buildMemoryContext(memDB *memory.MemoryDB, agentID, query string) string {
+	const (
+		maxReflections   = 5
+		minReflectScore  = 0.6
+		maxTemplates     = 3
+		maxTemplateSteps = 6
+		maxTotalChars    = 2000
+	)
+
+	query = strings.TrimSpace(query)
+	if memDB == nil || query == "" {
+		return ""
+	}
+
+	var sb strings.Builder
+
+	if refs, err := memDB.SearchReflections(agentID, query, maxReflections); err == nil {
+		var lessons []string
+		for _, r := range refs {
+			if r.Score < minReflectScore {
+				continue
+			}
+			lesson := strings.TrimSpace(r.Lessons)
+			if lesson == "" {
+				continue
+			}
+			lessons = append(lessons, fmt.Sprintf("- (score=%.1f) %s", r.Score, truncate(lesson, 300)))
+		}
+		if len(lessons) > 0 {
+			sb.WriteString("\n## Past lessons relevant to this goal\n")
+			sb.WriteString(strings.Join(lessons, "\n"))
+			sb.WriteString("\n")
+		}
+	}
+
+	if templates, err := memDB.FindPlanTemplates(query, maxTemplates); err == nil && len(templates) > 0 {
+		sb.WriteString("\n## Matching plan templates (scaffolds from past successful goals)\n")
+		for _, t := range templates {
+			fmt.Fprintf(&sb, "- %q (used %d time(s), success %.0f%%):\n",
+				t.Name, t.UseCount, t.SuccessRate*100)
+			for i, step := range t.Steps {
+				if i >= maxTemplateSteps {
+					fmt.Fprintf(&sb, "    … %d more step(s)\n", len(t.Steps)-maxTemplateSteps)
+					break
+				}
+				fmt.Fprintf(&sb, "    %d. %s\n", i+1, truncate(step, 200))
+			}
+		}
+	}
+
+	if sb.Len() == 0 {
+		return ""
+	}
+
+	out := sb.String()
+	if len(out) > maxTotalChars {
+		out = out[:maxTotalChars] + "\n… (truncated)\n"
+	}
+	return "\n" + out + "\nUse the above as guidance — adapt, don't copy blindly. If a lesson conflicts with this goal's requirements, follow the requirements.\n"
 }
 
 // generatePlanForGoal calls the LLM to produce a plan, creates it via PlanManager,
@@ -260,7 +552,9 @@ func (s *Service) generatePlanForGoal(ctx context.Context, gm *GoalManager, goal
 		return
 	}
 
-	prompt := buildPlanGenerationPrompt(goal)
+	goalDir := s.ensureGoalFolder(goal.ID, goal.Name)
+	memoryContext := buildMemoryContext(s.memDB, s.agentID, goal.Name+" "+goal.Description)
+	prompt := buildPlanGenerationPrompt(goal, goalDir, memoryContext)
 	messages := []providers.Message{
 		{Role: "user", Content: prompt},
 	}
@@ -409,6 +703,111 @@ func SetGoalAutoFixCount(gm *GoalManager, goalID int64, count int) {
 	_, _ = gm.memDB.UpsertNode(node.AgentID, "Goal", node.Name, string(propsJSON))
 }
 
+// tryAutoResolveStepFailure attempts to self-heal a failed step before
+// escalating to the user. Today it handles kind="tool" by looking up the
+// missing binary in autoInstallMethods and running the platform-specific
+// install command. Returns true if the step was successfully reset for
+// retry; false if the caller should fall through to user notification.
+//
+// Safety envelope:
+//   - Gated by AutonomyConfig.AutoInstallTools (default false).
+//   - Only binaries present in autoInstallMethods are eligible — no arbitrary
+//     install strings derived from LLM output.
+//   - At most one install attempt per (goal, binary) pair, tracked in memory.
+//   - Install command runs with a 2-minute timeout.
+//
+// When the install succeeds but ResetStepForRetry can't re-queue the step
+// (e.g. plan moved on), returns false so the user is still notified.
+func (s *Service) tryAutoResolveStepFailure(pm *tools.PlanManager, goalID int64, planID string, stepIdx int, stepDesc, result string) bool {
+	if pm == nil || s.cfg == nil || !s.cfg.AutoInstallTools {
+		return false
+	}
+	kind, detail := classifyStepError(result)
+	if kind != "tool" || detail == "" {
+		return false
+	}
+	return s.tryAutoInstallAndRetry(pm, goalID, planID, stepIdx, detail)
+}
+
+// tryAutoInstallAndRetry runs the install command for `binary` and, on
+// success, resets the step to pending so the dispatcher picks it up again.
+func (s *Service) tryAutoInstallAndRetry(pm *tools.PlanManager, goalID int64, planID string, stepIdx int, binary string) bool {
+	cmd, ok := autoInstallCommandFor(binary)
+	if !ok {
+		return false
+	}
+
+	s.mu.Lock()
+	if s.autoInstallAttempts == nil {
+		s.autoInstallAttempts = make(map[int64]map[string]bool)
+	}
+	attempts := s.autoInstallAttempts[goalID]
+	if attempts == nil {
+		attempts = make(map[string]bool)
+		s.autoInstallAttempts[goalID] = attempts
+	}
+	if attempts[binary] {
+		s.mu.Unlock()
+		logger.InfoCF("autonomy", "Auto-install already attempted for this goal, skipping", map[string]any{
+			"goal_id": goalID, "binary": binary,
+		})
+		return false
+	}
+	attempts[binary] = true
+	installer := s.toolInstaller
+	s.mu.Unlock()
+
+	if installer == nil {
+		installer = execInstaller
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	logger.InfoCF("autonomy", "Attempting auto-install of missing tool", map[string]any{
+		"goal_id": goalID, "binary": binary, "command": cmd,
+	})
+	ok, out, err := installer(ctx, cmd)
+	if !ok {
+		logger.WarnCF("autonomy", "Auto-install failed", map[string]any{
+			"goal_id": goalID, "binary": binary, "error": fmt.Sprint(err),
+			"output": truncate(out, 300),
+		})
+		return false
+	}
+
+	if !pm.ResetStepForRetry(planID, stepIdx) {
+		logger.WarnCF("autonomy", "Auto-install succeeded but step could not be reset", map[string]any{
+			"goal_id": goalID, "plan_id": planID, "step_index": stepIdx, "binary": binary,
+		})
+		return false
+	}
+
+	logger.InfoCF("autonomy", "Auto-install succeeded; step re-queued for retry", map[string]any{
+		"goal_id": goalID, "plan_id": planID, "step_index": stepIdx, "binary": binary,
+	})
+	s.broadcast(map[string]any{
+		"type":       "goal_auto_resolved",
+		"agent_id":   s.agentID,
+		"goal_id":    goalID,
+		"step_index": stepIdx,
+		"resolution": "installed:" + binary,
+	})
+	return true
+}
+
+// autoInstallCommandFor returns the platform-specific install command for a
+// whitelisted binary, or ("", false) if the binary isn't in the map or the
+// current platform isn't supported.
+func autoInstallCommandFor(binary string) (string, bool) {
+	methods, ok := autoInstallMethods[binary]
+	if !ok {
+		return "", false
+	}
+	cmd, ok := methods[runtime.GOOS]
+	return cmd, ok
+}
+
 // notifyUserActionNeeded checks whether a failed step's output indicates a
 // missing tool or credential and, if so, sends actionable notifications to the
 // user through all available channels (dashboard bell, push, chat channel).
@@ -444,6 +843,59 @@ func (s *Service) notifyUserActionNeeded(goalID int64, goalName string, stepIdx 
 				"Check the error details in the goal log and update your credentials in Settings.",
 				goalName, stepIdx, truncate(stepDesc, 80))
 		}
+	case "network":
+		if detail != "" {
+			title = "Network error: cannot reach " + detail
+			body = fmt.Sprintf("Goal \"%s\" (step %d) failed because %s is unreachable.\n"+
+				"Please check your internet connection, VPN, DNS, or firewall, then restart the goal.",
+				goalName, stepIdx, detail)
+		} else {
+			title = "Network error"
+			body = fmt.Sprintf("Goal \"%s\" (step %d: %s) failed due to a network problem.\n"+
+				"Please check your internet connection, VPN, or firewall and restart the goal.",
+				goalName, stepIdx, truncate(stepDesc, 80))
+		}
+	case "disk":
+		title = "Disk full"
+		body = fmt.Sprintf("Goal \"%s\" (step %d: %s) failed because the disk is out of space.\n"+
+			"Please free up disk space (or expand the volume / quota), then restart the goal.",
+			goalName, stepIdx, truncate(stepDesc, 80))
+	case "rate_limit":
+		if detail != "" {
+			title = "Rate limit hit: " + detail
+			body = fmt.Sprintf("Goal \"%s\" (step %d) was rate-limited by %s.\n"+
+				"Please wait for the limit to reset or upgrade the plan, then restart the goal.",
+				goalName, stepIdx, detail)
+		} else {
+			title = "Rate limit hit"
+			body = fmt.Sprintf("Goal \"%s\" (step %d: %s) was rate-limited by an external API.\n"+
+				"Please wait for the limit to reset or upgrade the plan, then restart the goal.",
+				goalName, stepIdx, truncate(stepDesc, 80))
+		}
+	case "permission":
+		if detail != "" {
+			title = "Permission denied: " + detail
+			body = fmt.Sprintf("Goal \"%s\" (step %d) failed because access to %s is not permitted.\n"+
+				"Please adjust file/folder permissions (chmod/chown) or run Sofia as a user with access, then restart the goal.",
+				goalName, stepIdx, detail)
+		} else {
+			title = "Permission denied"
+			body = fmt.Sprintf("Goal \"%s\" (step %d: %s) failed because the operation is not permitted by the OS.\n"+
+				"Please adjust file/folder permissions or run Sofia as a user with the required access, then restart the goal.",
+				goalName, stepIdx, truncate(stepDesc, 80))
+		}
+	case "config":
+		if detail != "" {
+			title = "Missing configuration: " + detail
+			body = fmt.Sprintf("Goal \"%s\" (step %d) failed because the required configuration value \"%s\" is not set.\n"+
+				"Please set it in Settings (or the environment) and restart the goal.",
+				goalName, stepIdx, detail)
+		} else {
+			title = "Missing configuration"
+			body = fmt.Sprintf("Goal \"%s\" (step %d: %s) failed because a required configuration value is not set.\n"+
+				"Please add the missing setting and restart the goal.",
+				goalName, stepIdx, truncate(stepDesc, 80))
+		}
 	}
 
 	// 1. Dashboard notification bell
@@ -468,9 +920,9 @@ func (s *Service) notifyUserActionNeeded(goalID int64, goalName string, stepIdx 
 	s.notifyUser("Action needed: " + title + "\n\n" + body)
 
 	logger.InfoCF("autonomy", "Notified user of missing "+kind, map[string]any{
-		"goal_id":   goalID,
+		"goal_id":    goalID,
 		"step_index": stepIdx,
-		"detail":    detail,
+		"detail":     detail,
 	})
 }
 
@@ -482,6 +934,46 @@ func (s *Service) maxStepRetries() int {
 		return s.cfg.MaxStepRetries
 	}
 	return 2
+}
+
+// maxAutoFixAttempts returns the configured max auto-fix attempts, defaulting to 2.
+func (s *Service) maxAutoFixAttempts() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cfg.MaxAutoFixAttempts > 0 {
+		return s.cfg.MaxAutoFixAttempts
+	}
+	return maxGoalAutoFixes
+}
+
+// NotifyGoalCreated triggers immediate plan generation for a newly created goal,
+// bypassing the tick interval wait.
+func (s *Service) NotifyGoalCreated(goalID int64) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.ErrorCF("autonomy", "Panic in NotifyGoalCreated", map[string]any{
+					"goal_id": goalID,
+					"panic":   fmt.Sprintf("%v", r),
+				})
+			}
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+
+		gm := NewGoalManager(s.memDB)
+		goal, err := gm.GetGoalByID(goalID)
+		if err != nil || goal == nil {
+			logger.WarnCF("autonomy", "NotifyGoalCreated: goal not found", map[string]any{
+				"goal_id": goalID, "error": fmt.Sprintf("%v", err),
+			})
+			return
+		}
+		if goal.Status != GoalStatusActive {
+			return
+		}
+		s.generatePlanForGoal(ctx, gm, goal)
+	}()
 }
 
 // extractVerifyResult extracts the verification section from subagent output.
@@ -506,8 +998,39 @@ func extractVerifyResult(output string) (verifyText string, passed bool) {
 	return section, passed
 }
 
+func (s *Service) defaultGoalConcurrency() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cfg.DefaultGoalConcurrency > 0 {
+		if s.cfg.DefaultGoalConcurrency > 10 {
+			return 10
+		}
+		return s.cfg.DefaultGoalConcurrency
+	}
+	return 3
+}
+
+func (s *Service) stepBackoffBaseSec() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cfg.StepBackoffBaseSec > 0 {
+		return s.cfg.StepBackoffBaseSec
+	}
+	return 10
+}
+
+func (s *Service) stepBackoffMaxSec() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cfg.StepBackoffMaxSec > 0 {
+		return s.cfg.StepBackoffMaxSec
+	}
+	return 120
+}
+
 // dispatchReadySteps finds steps whose dependencies are satisfied, claims them,
 // and spawns subagents with verification and retry logic.
+// Concurrency is bounded by goal.AgentCount (default 3 when auto/0).
 func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal *Goal) {
 	s.mu.Lock()
 	pm := s.planMgr
@@ -529,12 +1052,13 @@ func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal 
 	}
 	if plan.Status == tools.PlanStatusFailed {
 		fixCount := getGoalAutoFixCount(gm, goal.ID)
-		if fixCount < maxGoalAutoFixes {
+		maxFixes := s.maxAutoFixAttempts()
+		if fixCount < maxFixes {
 			logger.InfoCF("autonomy", "Plan failed, attempting auto-fix", map[string]any{
-				"goal_id":   goal.ID,
-				"plan_id":   plan.ID,
+				"goal_id":     goal.ID,
+				"plan_id":     plan.ID,
 				"fix_attempt": fixCount + 1,
-				"max_fixes": maxGoalAutoFixes,
+				"max_fixes":   maxFixes,
 			})
 			s.broadcast(map[string]any{
 				"type":        "goal_auto_fix",
@@ -548,13 +1072,13 @@ func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal 
 			copy(stepsCopy, plan.Steps)
 			planCopy := *plan
 			planCopy.Steps = stepsCopy
-			go s.autoFixGoal(ctx, gm, goal, &planCopy, fixCount)
+			go s.recoverableAutoFix(ctx, gm, goal, &planCopy, fixCount)
 			return
 		}
 
 		logger.WarnCF("autonomy", "Plan permanently failed after auto-fix attempts, marking goal as failed", map[string]any{
-			"goal_id":     goal.ID,
-			"plan_id":     plan.ID,
+			"goal_id":      goal.ID,
+			"plan_id":      plan.ID,
 			"fix_attempts": fixCount,
 		})
 		if _, err := gm.UpdateGoalStatus(goal.ID, GoalStatusFailed); err != nil {
@@ -578,6 +1102,15 @@ func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal 
 		return
 	}
 
+	// Cap concurrency to the goal's agent_count setting.
+	maxParallel := goal.AgentCount
+	if maxParallel <= 0 {
+		maxParallel = s.defaultGoalConcurrency()
+	}
+	if len(readyIndices) > maxParallel {
+		readyIndices = readyIndices[:maxParallel]
+	}
+
 	maxRetries := s.maxStepRetries()
 
 	for _, stepIdx := range readyIndices {
@@ -594,7 +1127,16 @@ func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal 
 
 		step := plan.Steps[stepIdx]
 		goalDir := s.ensureGoalFolder(goal.ID, goal.Name)
+
+		// Build retry-aware prompt: if this is a retry, include prior failure context.
 		taskPrompt := buildVerifyingTaskPrompt(goal.Name, step, goalDir)
+		if step.RetryCount > 0 && step.Result != "" {
+			taskPrompt = fmt.Sprintf(
+				"PREVIOUS ATTEMPT FAILED (attempt %d). Learn from the error below and try a DIFFERENT approach.\n\n"+
+					"Previous error:\n%s\n\n%s",
+				step.RetryCount, truncate(step.Result, 1000), taskPrompt,
+			)
+		}
 
 		capturedGoalID := goal.ID
 		capturedGoalName := goal.Name
@@ -603,6 +1145,7 @@ func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal 
 		capturedAgentID := s.agentID
 		capturedRetryCount := step.RetryCount
 		hasVerifyCommand := step.VerifyCommand != ""
+		stepStartTime := time.Now()
 
 		s.broadcast(map[string]any{
 			"type":       "goal_step_start",
@@ -631,8 +1174,6 @@ func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal 
 			stepSuccess := toolSuccess && verifyPassed
 
 			if !stepSuccess && capturedRetryCount < maxRetries {
-				// Atomically record failure and reset for retry — avoids a
-				// race where the tick cycle sees a temporarily-failed plan.
 				pm.FailAndRetryStep(capturedPlanID, capturedStepIdx, truncate(resultText, 2000), verifyText)
 
 				logger.InfoCF("autonomy", "Step verification failed, retrying", map[string]any{
@@ -651,20 +1192,38 @@ func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal 
 					"retry_count": capturedRetryCount + 1,
 				})
 
-				// Re-dispatch (the retried step will be picked up as ready).
-				updatedGoal, err := gm.GetGoalByID(capturedGoalID)
-				if err == nil && updatedGoal != nil {
-					s.dispatchReadySteps(cbCtx, gm, updatedGoal)
+				// Exponential backoff before re-dispatch: 10s, 30s, 60s, ...
+				baseBackoff := time.Duration(s.stepBackoffBaseSec()) * time.Second
+				maxBackoff := time.Duration(s.stepBackoffMaxSec()) * time.Second
+				backoff := baseBackoff * time.Duration(1<<uint(capturedRetryCount))
+				if backoff > maxBackoff {
+					backoff = maxBackoff
 				}
+				go func() {
+					select {
+					case <-cbCtx.Done():
+						return
+					case <-time.After(backoff):
+					}
+					updatedGoal, err := gm.GetGoalByID(capturedGoalID)
+					if err == nil && updatedGoal != nil {
+						s.dispatchReadySteps(cbCtx, gm, updatedGoal)
+					}
+				}()
 				return
 			}
 
 			pm.CompleteStepWithVerify(capturedPlanID, capturedStepIdx, stepSuccess, truncate(resultText, 2000), verifyText)
 
-			// If the step permanently failed, check if it's a tool/credential
-			// issue and notify the user so they can fix it.
+			// If the step permanently failed, first try to self-heal (e.g.
+			// install a missing whitelisted tool). Only if that fails do we
+			// notify the user.
 			if !stepSuccess {
-				s.notifyUserActionNeeded(capturedGoalID, capturedGoalName, capturedStepIdx, step.Description, resultText)
+				if s.tryAutoResolveStepFailure(pm, capturedGoalID, capturedPlanID, capturedStepIdx, step.Description, resultText) {
+					// Step re-queued; dispatcher will pick it up on the next tick.
+				} else {
+					s.notifyUserActionNeeded(capturedGoalID, capturedGoalName, capturedStepIdx, step.Description, resultText)
+				}
 			}
 
 			if s.memDB != nil {
@@ -674,7 +1233,7 @@ func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal 
 					step.Description,
 					truncate(resultText, 2000),
 					stepSuccess,
-					0,
+					time.Since(stepStartTime).Milliseconds(),
 				)
 			}
 
@@ -684,6 +1243,8 @@ func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal 
 				"goal_id":    capturedGoalID,
 				"goal_name":  capturedGoalName,
 				"step_index": capturedStepIdx,
+				"step_desc":  step.Description,
+				"result":     truncate(resultText, 200),
 				"success":    stepSuccess,
 				"verified":   hasVerifyCommand,
 			})
@@ -712,11 +1273,22 @@ func (s *Service) dispatchReadySteps(ctx context.Context, gm *GoalManager, goal 
 	}
 }
 
+func (s *Service) recoverableAutoFix(ctx context.Context, gm *GoalManager, goal *Goal, plan *tools.Plan, fixCount int) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorCF("autonomy", "Panic in autoFixGoal", map[string]any{
+				"goal_id": goal.ID,
+				"panic":   fmt.Sprintf("%v", r),
+			})
+		}
+	}()
+	s.autoFixGoal(ctx, gm, goal, plan, fixCount)
+}
+
 // autoFixGoal asks the LLM to diagnose why steps failed and produces revised
 // step descriptions. It then resets the failed steps with the new instructions
 // and lets the normal tick re-dispatch them.
 func (s *Service) autoFixGoal(ctx context.Context, gm *GoalManager, goal *Goal, plan *tools.Plan, prevFixCount int) {
-	// Collect failed step details for the LLM.
 	var sb strings.Builder
 	for _, step := range plan.Steps {
 		if step.Status != tools.PlanStatusFailed {
@@ -730,11 +1302,22 @@ func (s *Service) autoFixGoal(ctx context.Context, gm *GoalManager, goal *Goal, 
 		sb.WriteString("\n")
 	}
 
+	// Include goal folder contents for workspace context.
+	var workspaceContext string
+	goalDir := s.goalFolderPath(goal.ID, goal.Name)
+	if entries, err := os.ReadDir(goalDir); err == nil && len(entries) > 0 {
+		var files []string
+		for _, e := range entries {
+			files = append(files, e.Name())
+		}
+		workspaceContext = "\nExisting files in goal folder:\n- " + strings.Join(files, "\n- ") + "\n"
+	}
+
 	prompt := fmt.Sprintf(`A goal's plan has failed. Diagnose the problems and produce revised step descriptions that fix the issues.
 
 Goal: %s
 Description: %s
-
+%s
 Failed steps:
 %s
 Previous fix attempts: %d
@@ -745,7 +1328,7 @@ Do NOT just repeat the same instructions.
 
 Respond in this exact JSON format (no markdown, no code fences):
 {"revisions": [{"step_index": 0, "diagnosis": "why it failed", "revised_description": "new step instructions"}]}`,
-		goal.Name, goal.Description, sb.String(), prevFixCount)
+		goal.Name, goal.Description, workspaceContext, sb.String(), prevFixCount)
 
 	resp, err := s.provider.Chat(ctx, []providers.Message{
 		{Role: "user", Content: prompt},
@@ -915,7 +1498,20 @@ The unmet_criteria array should be empty if all criteria are met.`, goal.Name, g
 			goalResult.Summary = truncate(resp.Content, 1000)
 		}
 	} else {
-		goalResult.Summary = "Goal completed (summary generation failed)"
+		// LLM summary failed — build a basic summary from step results.
+		var completed, failed int
+		for _, step := range plan.Steps {
+			if step.Status == tools.PlanStatusCompleted {
+				completed++
+			} else if step.Status == tools.PlanStatusFailed {
+				failed++
+			}
+		}
+		if failed > 0 {
+			goalResult.Summary = fmt.Sprintf("Completed %d of %d steps (%d failed).", completed, len(plan.Steps), failed)
+		} else {
+			goalResult.Summary = fmt.Sprintf("All %d steps completed successfully.", completed)
+		}
 	}
 
 	_ = gm.SetGoalResult(goal.ID, goalResult)
@@ -942,6 +1538,226 @@ The unmet_criteria array should be empty if all criteria are met.`, goal.Name, g
 		notification += fmt.Sprintf("\n\nUnmet criteria: %s", strings.Join(goalResult.UnmetCriteria, "; "))
 	}
 	s.notifyUser(notification)
+
+	// Fire-and-forget goal-level reflection. Writes lessons + (on clean
+	// success) a plan template, which feeds future calls to buildMemoryContext.
+	go s.reflectOnGoal(goal, plan, goalResult)
+}
+
+// goalReflectionPrompt is the system prompt for post-goal self-evaluation.
+// Differs from chat-level reflectionPrompt: it evaluates a whole plan
+// trajectory rather than a single conversation.
+const goalReflectionPrompt = `You are performing a post-goal self-evaluation of an autonomous agent run.
+Analyze the goal, its plan, the step outcomes, and the final result.
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "task_summary": "1-line summary of the goal",
+  "what_worked": "What went well across the plan",
+  "what_failed": "What went wrong or was inefficient (empty string if nothing)",
+  "lessons": "One specific, actionable lesson usable when planning similar future goals. Keep to 1-2 sentences.",
+  "score": 0.8
+}
+
+Score HIGHER for:
+- All success criteria met with verification evidence
+- Steps delivered vertical slices that actually worked end-to-end
+- Few or no step retries / auto-fix rounds
+- Plan structure that avoided rework
+
+Score LOWER for:
+- Unmet success criteria
+- Steps that passed verification but didn't advance the goal (false-positive PASS)
+- Many retries or auto-fix rounds
+- Steps that had to be re-described mid-run
+- Overly-layered plan (all-schemas-then-all-code) instead of vertical slices
+
+Be honest, specific, and actionable. Generic lessons are worthless; prefer concrete rules like
+"For deploy goals, always run the build+test before touching remote infrastructure" over
+"Plan carefully".`
+
+// goalReflectionResult is the parsed LLM response for goal-level reflection.
+type goalReflectionResult struct {
+	TaskSummary string  `json:"task_summary"`
+	WhatWorked  string  `json:"what_worked"`
+	WhatFailed  string  `json:"what_failed"`
+	Lessons     string  `json:"lessons"`
+	Score       float64 `json:"score"`
+}
+
+// buildGoalReflectionPrompt renders the user-message payload evaluated by the
+// reflection LLM. It contains the goal spec, each step's outcome and
+// verification snippet, and the finalized goal result with any unmet criteria.
+func buildGoalReflectionPrompt(goal *Goal, plan *tools.Plan, result GoalResult) string {
+	var stepSummary strings.Builder
+	var completed, failed int
+	for _, step := range plan.Steps {
+		status := string(step.Status)
+		if step.Status == tools.PlanStatusCompleted {
+			completed++
+		} else if step.Status == tools.PlanStatusFailed {
+			failed++
+		}
+		fmt.Fprintf(&stepSummary, "Step %d [%s] (retries=%d): %s\n",
+			step.Index, status, step.RetryCount, truncate(step.Description, 200))
+		if step.VerifyResult != "" {
+			fmt.Fprintf(&stepSummary, "  verification: %s\n", truncate(step.VerifyResult, 200))
+		}
+		if step.Status == tools.PlanStatusFailed && step.Result != "" {
+			fmt.Fprintf(&stepSummary, "  failure: %s\n", truncate(step.Result, 200))
+		}
+	}
+
+	var specSection string
+	if goal.Spec != nil {
+		specSection = fmt.Sprintf(`
+Goal specification:
+- Requirements: %s
+- Success Criteria: %s
+- Constraints: %s
+`,
+			strings.Join(goal.Spec.Requirements, "; "),
+			strings.Join(goal.Spec.SuccessCriteria, "; "),
+			strings.Join(goal.Spec.Constraints, "; "))
+	}
+
+	var unmetSection string
+	if len(result.UnmetCriteria) > 0 {
+		unmetSection = "\nUnmet success criteria:\n- " + strings.Join(result.UnmetCriteria, "\n- ") + "\n"
+	}
+
+	return fmt.Sprintf(`Evaluate this completed goal.
+
+Goal name: %s
+Description: %s
+Priority: %s
+%s
+Plan outcome: %d step(s) completed, %d failed.
+
+Step trajectory:
+%s
+Final summary: %s
+%s`,
+		goal.Name, goal.Description, goal.Priority, specSection,
+		completed, failed, stepSummary.String(),
+		truncate(result.Summary, 500), unmetSection)
+}
+
+// parseGoalReflectionJSON extracts the goalReflectionResult from an LLM response,
+// tolerating ```json code fences.
+func parseGoalReflectionJSON(content string) (goalReflectionResult, error) {
+	cleaned := utils.CleanJSONFences(content)
+	var r goalReflectionResult
+	if err := json.Unmarshal([]byte(cleaned), &r); err != nil {
+		return r, err
+	}
+	return r, nil
+}
+
+// reflectOnGoal runs a post-goal self-evaluation, saves a ReflectionRecord
+// against the goal's session key, and — on clean success — persists the plan
+// as a reusable PlanTemplate. Called as a goroutine from finalizeGoal so it
+// never delays user-visible completion. Safe to call with a nil or empty plan.
+func (s *Service) reflectOnGoal(goal *Goal, plan *tools.Plan, result GoalResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.WarnCF("autonomy", "reflectOnGoal panic", map[string]any{"goal_id": goal.ID, "panic": fmt.Sprint(r)})
+		}
+	}()
+
+	if s.memDB == nil || plan == nil || len(plan.Steps) == 0 {
+		return
+	}
+	if !s.checkBudget() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	prompt := buildGoalReflectionPrompt(goal, plan, result)
+	resp, err := s.provider.Chat(ctx, []providers.Message{
+		{Role: "system", Content: goalReflectionPrompt},
+		{Role: "user", Content: prompt},
+	}, nil, s.modelID, map[string]any{
+		"max_tokens":       500,
+		"temperature":      0.3,
+		"prompt_cache_key": s.agentID + ":goal-reflection",
+	})
+	if err != nil || resp == nil || resp.Content == "" {
+		if err != nil {
+			logger.WarnCF("autonomy", "Goal reflection LLM call failed", map[string]any{
+				"goal_id": goal.ID, "error": err.Error(),
+			})
+		}
+		return
+	}
+	if resp.Usage != nil {
+		s.trackCost(resp.Usage.TotalTokens)
+	}
+
+	parsed, perr := parseGoalReflectionJSON(resp.Content)
+	if perr != nil {
+		logger.WarnCF("autonomy", "Goal reflection parse failed", map[string]any{
+			"goal_id": goal.ID, "error": perr.Error(),
+			"content": truncate(resp.Content, 200),
+		})
+		return
+	}
+
+	var failed int
+	var toolCount int
+	for _, step := range plan.Steps {
+		if step.Status == tools.PlanStatusFailed {
+			failed++
+		}
+		toolCount += step.RetryCount + 1
+	}
+
+	record := memory.ReflectionRecord{
+		AgentID:     s.agentID,
+		SessionKey:  fmt.Sprintf("goal-%d", goal.ID),
+		TaskSummary: parsed.TaskSummary,
+		WhatWorked:  parsed.WhatWorked,
+		WhatFailed:  parsed.WhatFailed,
+		Lessons:     parsed.Lessons,
+		Score:       parsed.Score,
+		ToolCount:   toolCount,
+		ErrorCount:  failed,
+	}
+	if err := s.memDB.SaveReflection(record); err != nil {
+		logger.WarnCF("autonomy", "SaveReflection failed", map[string]any{
+			"goal_id": goal.ID, "error": err.Error(),
+		})
+		return
+	}
+
+	logger.InfoCF("autonomy", "Goal reflection saved", map[string]any{
+		"goal_id": goal.ID,
+		"score":   parsed.Score,
+		"lessons": truncate(parsed.Lessons, 120),
+	})
+
+	// Promote clean successes to reusable plan templates. Require no failed
+	// steps, no unmet criteria, and a self-reported score of at least 0.7.
+	if failed == 0 && len(result.UnmetCriteria) == 0 && parsed.Score >= 0.7 {
+		stepDescs := make([]string, 0, len(plan.Steps))
+		for _, step := range plan.Steps {
+			stepDescs = append(stepDescs, step.Description)
+		}
+		tags := goal.Priority
+		if err := s.memDB.SavePlanTemplate(goal.Name, goal.Description, stepDescs, tags); err != nil {
+			logger.WarnCF("autonomy", "SavePlanTemplate failed", map[string]any{
+				"goal_id": goal.ID, "error": err.Error(),
+			})
+		} else {
+			logger.InfoCF("autonomy", "Plan template saved from successful goal", map[string]any{
+				"goal_id": goal.ID,
+				"name":    goal.Name,
+				"steps":   len(stepDescs),
+			})
+		}
+	}
 }
 
 // completeGoal marks a goal as completed with phase update.
@@ -953,22 +1769,9 @@ func (s *Service) completeGoal(gm *GoalManager, goal *Goal) {
 	_ = gm.UpdateGoalPhase(goal.ID, GoalPhaseCompleted)
 }
 
-// goalFolderName returns a filesystem-safe folder name for a goal.
-func goalFolderName(goalID int64, goalName string) string {
-	slug := strings.ToLower(strings.TrimSpace(goalSlugRe.ReplaceAllString(goalName, "-")))
-	slug = strings.Trim(slug, "-")
-	if len(slug) > 50 {
-		slug = slug[:50]
-	}
-	if slug == "" {
-		slug = "goal"
-	}
-	return fmt.Sprintf("goal-%d-%s", goalID, slug)
-}
-
 // goalFolderPath returns the absolute path for a goal's working directory.
 func (s *Service) goalFolderPath(goalID int64, goalName string) string {
-	return filepath.Join(s.workspace, "goals", goalFolderName(goalID, goalName))
+	return filepath.Join(s.workspace, "goals", tools.GoalFolderName(goalID, goalName))
 }
 
 // ensureGoalFolder creates the goal folder if it doesn't exist.

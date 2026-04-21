@@ -142,6 +142,13 @@ type processOptions struct {
 	ModelOverride   string      // If set, use this model alias instead of the agent's default
 	ParentSpan      *trace.Span // Parent trace span for hierarchical tracing
 	Ephemeral       bool        // If true, the exchange is not stored in session history
+	// OnTextDelta, if set, receives streamed text fragments as they arrive
+	// from the LLM. The agent loop will switch to ChatStream for any
+	// iteration where the provider implements StreamingProvider; iterations
+	// that produce tool_calls still return a full LLMResponse so the normal
+	// tool-execution path is unchanged. Callers are responsible for thread-
+	// safety — the callback fires from the goroutine driving the stream.
+	OnTextDelta func(string)
 }
 
 const defaultResponse = "I've completed processing but have no response to give. Increase `max_tool_iterations` in config.json."
@@ -716,6 +723,20 @@ func (al *AgentLoop) ReloadAgents() {
 
 	al.stopAutonomyServices()
 	al.startAutonomyServices(provider, al.pushService)
+
+	// Hot-swap the model on the evolution engine so background evolution
+	// loops use the new model without tearing down their running state.
+	if al.evolutionEngine != nil && provider != nil {
+		evoModel := al.cfg.Agents.Defaults.GetModelName()
+		if mainAgent, ok := newRegistry.GetAgent("main"); ok && mainAgent.Model != "" {
+			evoModel = mainAgent.Model
+		}
+		if al.cfg.Evolution.Model != "" {
+			evoModel = al.cfg.Evolution.Model
+		}
+		al.evolutionEngine.SetProvider(provider, evoModel)
+		logger.InfoCF("agent", "Evolution engine model updated", map[string]any{"model": evoModel})
+	}
 
 	logger.InfoCF("agent", "Agents reloaded successfully", nil)
 }

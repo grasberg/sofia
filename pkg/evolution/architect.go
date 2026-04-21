@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sync"
 
 	"github.com/grasberg/sofia/pkg/config"
 	"github.com/grasberg/sofia/pkg/logger"
@@ -21,8 +22,12 @@ var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 // AgentArchitect designs and creates new agents using LLM-generated blueprints.
 type AgentArchitect struct {
-	provider  providers.LLMProvider
-	model     string
+	// provider/model are protected by providerMu so SetProvider can hot-swap
+	// them when the global model config changes.
+	providerMu sync.RWMutex
+	provider   providers.LLMProvider
+	model      string
+
 	registrar AgentRegistrar
 	a2a       A2ARegistrar
 	store     *AgentStore
@@ -49,6 +54,22 @@ func NewAgentArchitect(
 		memDB:     memDB,
 		workspace: workspace,
 	}
+}
+
+// llm returns the currently configured (provider, model) pair.
+func (a *AgentArchitect) llm() (providers.LLMProvider, string) {
+	a.providerMu.RLock()
+	defer a.providerMu.RUnlock()
+	return a.provider, a.model
+}
+
+// SetProvider atomically swaps the architect's LLM provider and model so
+// that subsequent DesignAgent calls use the new configuration.
+func (a *AgentArchitect) SetProvider(provider providers.LLMProvider, model string) {
+	a.providerMu.Lock()
+	defer a.providerMu.Unlock()
+	a.provider = provider
+	a.model = model
 }
 
 // agentBlueprint is the JSON schema the LLM returns when designing an agent.
@@ -82,7 +103,8 @@ func (a *AgentArchitect) DesignAgent(ctx context.Context, gapDescription string)
 		),
 	}
 
-	resp, err := a.provider.Chat(ctx, []pt.Message{systemMsg, userMsg}, nil, a.model, nil)
+	prov, model := a.llm()
+	resp, err := prov.Chat(ctx, []pt.Message{systemMsg, userMsg}, nil, model, nil)
 	if err != nil {
 		return nil, fmt.Errorf("evolution/architect: LLM call failed: %w", err)
 	}

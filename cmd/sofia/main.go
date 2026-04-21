@@ -14,6 +14,7 @@ import (
 
 	"github.com/grasberg/sofia/cmd/sofia/internal"
 	"github.com/grasberg/sofia/cmd/sofia/internal/agent"
+	authcmd "github.com/grasberg/sofia/cmd/sofia/internal/auth"
 	"github.com/grasberg/sofia/cmd/sofia/internal/cron"
 	"github.com/grasberg/sofia/cmd/sofia/internal/daemon"
 	"github.com/grasberg/sofia/cmd/sofia/internal/doctor"
@@ -39,6 +40,7 @@ func NewSofiaCommand() *cobra.Command {
 	cmd.AddCommand(
 		onboard.NewOnboardCommand(),
 		agent.NewAgentCommand(),
+		authcmd.NewAuthCommand(),
 		gateway.NewGatewayCommand(),
 		cron.NewCronCommand(),
 		daemon.NewDaemonCommand(),

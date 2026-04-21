@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/grasberg/sofia/pkg/config"
@@ -38,7 +39,15 @@ func NewAgentRegistry(
 		mcpManager: mcpMgr,
 	}
 
+	// If no user-added subagents exist (only the implicit "main"), seed the
+	// agent list with entries from all available templates. This gives users a
+	// ready-to-use set of specialist agents out of the box.
 	agentConfigs := cfg.Agents.List
+	if !hasUserSubagents(agentConfigs) {
+		agentConfigs = seedAgentsFromTemplates(agentConfigs)
+		cfg.Agents.List = agentConfigs
+	}
+
 	if len(agentConfigs) == 0 {
 		implicitAgent := &config.AgentConfig{
 			ID:      "main",
@@ -174,4 +183,78 @@ func (r *AgentRegistry) GetDefaultAgent() *AgentInstance {
 		return agent
 	}
 	return nil
+}
+
+// hasUserSubagents returns true if the agent list contains any non-main agents
+// (i.e. the user explicitly configured subagents).
+func hasUserSubagents(agents []config.AgentConfig) bool {
+	for _, a := range agents {
+		id := routing.NormalizeAgentID(a.ID)
+		if id != "main" && !a.Default {
+			return true
+		}
+	}
+	return false
+}
+
+// seedAgentsFromTemplates appends an AgentConfig for each available template
+// that isn't already in the list. The main agent's subagents.allow_agents is
+// set to ["*"] so it can delegate to all of them.
+func seedAgentsFromTemplates(existing []config.AgentConfig) []config.AgentConfig {
+	templates, err := ListPurposeTemplates()
+	if err != nil || len(templates) == 0 {
+		return existing
+	}
+
+	existingIDs := make(map[string]bool)
+	for _, a := range existing {
+		existingIDs[routing.NormalizeAgentID(a.ID)] = true
+	}
+
+	result := make([]config.AgentConfig, len(existing))
+	copy(result, existing)
+
+	var added []string
+	for _, t := range templates {
+		id := routing.NormalizeAgentID(t.Name)
+		if existingIDs[id] {
+			continue
+		}
+		result = append(result, config.AgentConfig{
+			ID:       t.Name,
+			Name:     templateDisplayName(t.Name),
+			Template: t.Name,
+		})
+		added = append(added, t.Name)
+	}
+
+	// Allow the main agent to spawn all subagents.
+	for i := range result {
+		if result[i].Default || routing.NormalizeAgentID(result[i].ID) == "main" {
+			if result[i].Subagents == nil {
+				result[i].Subagents = &config.SubagentsConfig{}
+			}
+			result[i].Subagents.AllowAgents = []string{"*"}
+			break
+		}
+	}
+
+	if len(added) > 0 {
+		logger.InfoCF("agent", "Auto-seeded agents from templates", map[string]any{
+			"count": len(added),
+		})
+	}
+
+	return result
+}
+
+// templateDisplayName converts "backend-specialist" to "Backend Specialist".
+func templateDisplayName(name string) string {
+	parts := strings.Split(name, "-")
+	for i, p := range parts {
+		if len(p) > 0 {
+			parts[i] = strings.ToUpper(p[:1]) + p[1:]
+		}
+	}
+	return strings.Join(parts, " ")
 }

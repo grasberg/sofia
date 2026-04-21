@@ -3,6 +3,7 @@ package autonomy
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +17,15 @@ import (
 	"github.com/grasberg/sofia/pkg/providers"
 	"github.com/grasberg/sofia/pkg/tools"
 )
+
+// execInstaller is the default installerFunc: runs the command via
+// `bash -c "<cmd>"` with combined stdout+stderr capture. Callers supply an
+// already-bounded context for timeout control.
+func execInstaller(ctx context.Context, command string) (bool, string, error) {
+	cmd := exec.CommandContext(ctx, "bash", "-c", command)
+	out, err := cmd.CombinedOutput()
+	return err == nil, string(out), err
+}
 
 // TaskRunner executes a task as a specific agent, returning the result.
 type TaskRunner func(ctx context.Context, agentID, sessionKey, task, originChannel, originChatID string) (string, error)
@@ -51,7 +61,19 @@ type Service struct {
 	budgetSpent             float64
 	budgetResetDate         time.Time
 	lastProactiveSuggestion time.Time
+
+	// Auto-install of missing tools. toolInstaller is the function used to
+	// actually run an install command — defaults to execInstaller, overridden
+	// in tests. autoInstallAttempts tracks {goalID: {binary: attempted}} so we
+	// never attempt the same install twice for the same goal, even across
+	// multiple failing steps.
+	toolInstaller       installerFunc
+	autoInstallAttempts map[int64]map[string]bool
 }
+
+// installerFunc runs a single install shell command and returns
+// (success, combined_output, error). Defined here so tests can supply a stub.
+type installerFunc func(ctx context.Context, command string) (bool, string, error)
 
 // NewService instantiates the autonomy service for a specific agent.
 func NewService(
@@ -66,15 +88,17 @@ func NewService(
 	push *notifications.PushService,
 ) *Service {
 	return &Service{
-		cfg:       cfg,
-		memDB:     memDB,
-		bus:       msgBus,
-		provider:  provider,
-		subMgr:    subMgr,
-		agentID:   agentID,
-		modelID:   modelID,
-		workspace: workspace,
-		push:      push,
+		cfg:                 cfg,
+		memDB:               memDB,
+		bus:                 msgBus,
+		provider:            provider,
+		subMgr:              subMgr,
+		agentID:             agentID,
+		modelID:             modelID,
+		workspace:           workspace,
+		push:                push,
+		toolInstaller:       execInstaller,
+		autoInstallAttempts: make(map[int64]map[string]bool),
 	}
 }
 
@@ -119,7 +143,10 @@ func (s *Service) Start(ctx context.Context) error {
 	defer s.mu.Unlock()
 
 	if !s.cfg.Enabled {
-		logger.InfoCF("autonomy", "Autonomy service is disabled in config", nil)
+		logger.InfoCF("autonomy", "Autonomy service is disabled — running goal finalization only", nil)
+		// Even with autonomy off, start a lightweight tick to finalize
+		// goals whose plans were completed via the chat UI.
+		s.startFinalizationTicker(ctx)
 		return nil
 	}
 	if s.cancelFunc != nil {
@@ -175,6 +202,36 @@ func (s *Service) runLoop(ctx context.Context, interval time.Duration) {
 	}
 }
 
+// startFinalizationTicker runs a lightweight background loop that only finalizes
+// completed goals. Used when the full autonomy service is disabled — goals
+// created via the chat UI still need to transition to "completed" when their
+// plan finishes.
+func (s *Service) startFinalizationTicker(ctx context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
+	s.cancelFunc = cancel
+
+	go func() {
+		// Small initial delay to let things settle on startup.
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(30 * time.Second):
+		}
+
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			s.finalizeCompletedGoals(ctx)
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+}
+
 // checkBudget resets the daily budget if needed and returns true if budget is available.
 func (s *Service) checkBudget() bool {
 	today := time.Now().Truncate(24 * time.Hour)
@@ -209,7 +266,11 @@ func (s *Service) performAutonomyTasks(ctx context.Context) {
 		return
 	}
 
-	// 1. Goal pursuit — work toward active goals
+	// 1. Goal pursuit — work toward active goals.
+	// Always finalize completed plans even if autonomous goal pursuit is off,
+	// because goals can be created and executed via the chat UI without the
+	// autonomy flag. Without this, completed goals stay "active" forever.
+	s.finalizeCompletedGoals(ctx)
 	if s.cfg.Goals {
 		s.pursueGoals(ctx)
 	}

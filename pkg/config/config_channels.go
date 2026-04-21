@@ -45,14 +45,20 @@ type HeartbeatConfig struct {
 
 // AutonomyConfig configures proactive behaviors, goal persistence, and autonomous research.
 type AutonomyConfig struct {
-	Enabled         bool    `json:"enabled"          env:"SOFIA_AUTONOMY_ENABLED"`
-	Suggestions     bool    `json:"suggestions"      env:"SOFIA_AUTONOMY_SUGGESTIONS"`
-	Goals           bool    `json:"goals"            env:"SOFIA_AUTONOMY_GOALS"`
-	Research        bool    `json:"research"         env:"SOFIA_AUTONOMY_RESEARCH"`
-	ContextTriggers bool    `json:"context_triggers" env:"SOFIA_AUTONOMY_CONTEXT_TRIGGERS"`
-	IntervalMinutes int     `json:"interval_minutes" env:"SOFIA_AUTONOMY_INTERVAL"`
-	MaxCostPerDay   float64 `json:"max_cost_per_day" env:"SOFIA_AUTONOMY_MAX_COST"`
-	MaxStepRetries  int     `json:"max_step_retries" env:"SOFIA_AUTONOMY_MAX_STEP_RETRIES"`
+	Enabled                 bool    `json:"enabled"             env:"SOFIA_AUTONOMY_ENABLED"`
+	Suggestions             bool    `json:"suggestions"         env:"SOFIA_AUTONOMY_SUGGESTIONS"`
+	Goals                   bool    `json:"goals"               env:"SOFIA_AUTONOMY_GOALS"`
+	Research                bool    `json:"research"            env:"SOFIA_AUTONOMY_RESEARCH"`
+	ContextTriggers         bool    `json:"context_triggers"    env:"SOFIA_AUTONOMY_CONTEXT_TRIGGERS"`
+	IntervalMinutes         int     `json:"interval_minutes"    env:"SOFIA_AUTONOMY_INTERVAL"`
+	MaxCostPerDay           float64 `json:"max_cost_per_day"    env:"SOFIA_AUTONOMY_MAX_COST"`
+	MaxStepRetries          int     `json:"max_step_retries"    env:"SOFIA_AUTONOMY_MAX_STEP_RETRIES"`
+	MaxAutoFixAttempts      int     `json:"max_auto_fix_attempts" env:"SOFIA_AUTONOMY_MAX_AUTO_FIX"`
+	GoalPollIntervalMinutes int     `json:"goal_poll_interval_minutes" env:"SOFIA_AUTONOMY_GOAL_POLL_INTERVAL"`
+	DefaultGoalConcurrency  int     `json:"default_goal_concurrency"  env:"SOFIA_AUTONOMY_DEFAULT_GOAL_CONCURRENCY"`
+	StepBackoffBaseSec      int     `json:"step_backoff_base_sec"     env:"SOFIA_AUTONOMY_STEP_BACKOFF_BASE"`
+	StepBackoffMaxSec       int     `json:"step_backoff_max_sec"      env:"SOFIA_AUTONOMY_STEP_BACKOFF_MAX"`
+	AutoInstallTools        bool    `json:"auto_install_tools"        env:"SOFIA_AUTONOMY_AUTO_INSTALL_TOOLS"`
 }
 
 // EvolutionConfig configures the self-improving evolution engine.

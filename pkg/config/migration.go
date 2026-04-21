@@ -56,7 +56,10 @@ func ConvertProvidersToModelList(cfg *Config) []ModelConfig {
 			providerNames: []string{"openai", "gpt"},
 			protocol:      "openai",
 			buildConfig: func(p ProvidersConfig) (ModelConfig, bool) {
-				if p.OpenAI.APIKey == "" && p.OpenAI.APIBase == "" {
+				// OAuth/codex-cli setups carry no api_key — the token lives
+				// in ~/.sofia/auth.json — so AuthMethod alone must count as
+				// "configured" here.
+				if p.OpenAI.APIKey == "" && p.OpenAI.APIBase == "" && p.OpenAI.AuthMethod == "" {
 					return ModelConfig{}, false
 				}
 				return ModelConfig{
@@ -74,7 +77,7 @@ func ConvertProvidersToModelList(cfg *Config) []ModelConfig {
 			providerNames: []string{"anthropic", "claude"},
 			protocol:      "anthropic",
 			buildConfig: func(p ProvidersConfig) (ModelConfig, bool) {
-				if p.Anthropic.APIKey == "" && p.Anthropic.APIBase == "" {
+				if p.Anthropic.APIKey == "" && p.Anthropic.APIBase == "" && p.Anthropic.AuthMethod == "" {
 					return ModelConfig{}, false
 				}
 				return ModelConfig{
@@ -326,7 +329,7 @@ func ConvertProvidersToModelList(cfg *Config) []ModelConfig {
 			providerNames: []string{"qwen", "tongyi"},
 			protocol:      "qwen",
 			buildConfig: func(p ProvidersConfig) (ModelConfig, bool) {
-				if p.Qwen.APIKey == "" && p.Qwen.APIBase == "" {
+				if p.Qwen.APIKey == "" && p.Qwen.APIBase == "" && p.Qwen.AuthMethod == "" {
 					return ModelConfig{}, false
 				}
 				return ModelConfig{
@@ -336,6 +339,7 @@ func ConvertProvidersToModelList(cfg *Config) []ModelConfig {
 					APIBase:        p.Qwen.APIBase,
 					Proxy:          p.Qwen.Proxy,
 					RequestTimeout: p.Qwen.RequestTimeout,
+					AuthMethod:     p.Qwen.AuthMethod,
 				}, true
 			},
 		},

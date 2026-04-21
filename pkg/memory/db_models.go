@@ -13,6 +13,8 @@ import (
 // ---------------------------------------------------------------------------
 
 // upsertModelTx inserts or replaces a model row inside an existing transaction.
+// Only used for user-authored (non-catalog) rows today, so user_configured is
+// hard-coded to 1 — the caller is SyncModels reacting to a Save from the UI.
 func upsertModelTx(tx *sql.Tx, mc config.ModelConfig, isCatalog int) error {
 	apiKeysJSON, _ := json.Marshal(mc.APIKeys)
 	capJSON, _ := json.Marshal(mc.Capabilities)
@@ -23,8 +25,8 @@ func upsertModelTx(tx *sql.Tx, mc config.ModelConfig, isCatalog int) error {
 			 auth_method, connect_mode, workspace, rpm, max_tokens, max_tokens_field,
 			 request_timeout, request_delay, context_window,
 			 cost_per_1k_input, cost_per_1k_output, capabilities, is_catalog,
-			 updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+			 user_configured, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
 		mc.ModelName, mc.DisplayName, mc.Provider, mc.Model, mc.APIBase, mc.APIKey,
 		string(apiKeysJSON), mc.PoolStrategy, mc.Proxy,
 		mc.AuthMethod, mc.ConnectMode, mc.Workspace,
@@ -70,36 +72,72 @@ const modelColumns = `model_name, display_name, provider, model, api_base, api_k
 // Public API
 // ---------------------------------------------------------------------------
 
-// SeedCatalogModels inserts catalog entries that don't already exist.
-// Existing rows (e.g. where the user has already set an API key) are never
-// overwritten.
+// SeedCatalogModels inserts catalog entries that don't already exist, and
+// refreshes provider-level fields (model id, api_base, display_name, etc.)
+// on existing catalog rows so corrections to the default catalog (e.g. a
+// vendor renaming a model) propagate to existing installs.  User-set fields
+// (api_key, api_keys, rpm, …) are preserved.
+//
+// max_tokens_field is backfill-only: new catalog values are copied in when
+// the existing row still holds the empty default, but non-empty values are
+// preserved so overrides made from the Settings UI (which writes the same
+// column via SyncModels) survive a restart.
+//
+// The whole sweep runs in one transaction — the catalog has ~80 rows, which
+// would otherwise be ~160 round-trips with separate fsyncs on every startup.
 func (m *MemoryDB) SeedCatalogModels(models []config.ModelConfig) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	tx, err := m.db.Begin()
+	if err != nil {
+		return fmt.Errorf("memory: seed catalog models: begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
 	for _, mc := range models {
 		apiKeysJSON, _ := json.Marshal(mc.APIKeys)
 		capJSON, _ := json.Marshal(mc.Capabilities)
-		_, err := m.db.Exec(`
+		if _, err := tx.Exec(`
 			INSERT OR IGNORE INTO models
 				(model_name, display_name, provider, model, api_base, api_key,
 				 api_keys, pool_strategy, proxy,
 				 auth_method, connect_mode, workspace, rpm, max_tokens, max_tokens_field,
 				 request_timeout, request_delay, context_window,
-				 cost_per_1k_input, cost_per_1k_output, capabilities, is_catalog)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+				 cost_per_1k_input, cost_per_1k_output, capabilities, is_catalog, user_configured)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)`,
 			mc.ModelName, mc.DisplayName, mc.Provider, mc.Model, mc.APIBase, mc.APIKey,
 			string(apiKeysJSON), mc.PoolStrategy, mc.Proxy,
 			mc.AuthMethod, mc.ConnectMode, mc.Workspace,
 			mc.RPM, mc.MaxTokens, mc.MaxTokensField,
 			mc.RequestTimeout, mc.RequestDelay, mc.ContextWindow,
 			mc.CostPer1KInput, mc.CostPer1KOutput, string(capJSON),
-		)
-		if err != nil {
+		); err != nil {
 			return fmt.Errorf("memory: seed catalog model %q: %w", mc.ModelName, err)
 		}
+
+		if _, err := tx.Exec(`
+			UPDATE models SET
+				display_name = ?, provider = ?, model = ?, api_base = ?,
+				auth_method = ?, context_window = ?,
+				cost_per_1k_input = ?, cost_per_1k_output = ?, capabilities = ?,
+				max_tokens_field = CASE
+					WHEN max_tokens_field = '' AND ? != '' THEN ?
+					ELSE max_tokens_field
+				END,
+				updated_at = datetime('now')
+			WHERE model_name = ? AND is_catalog = 1`,
+			mc.DisplayName, mc.Provider, mc.Model, mc.APIBase,
+			mc.AuthMethod, mc.ContextWindow,
+			mc.CostPer1KInput, mc.CostPer1KOutput, string(capJSON),
+			mc.MaxTokensField, mc.MaxTokensField,
+			mc.ModelName,
+		); err != nil {
+			return fmt.Errorf("memory: refresh catalog model %q: %w", mc.ModelName, err)
+		}
 	}
-	return nil
+
+	return tx.Commit()
 }
 
 // SetModelAPIKey updates the api_key for a single model.
@@ -136,13 +174,25 @@ func (m *MemoryDB) ListModels() ([]config.ModelConfig, error) {
 	return models, rows.Err()
 }
 
-// ListConfiguredModels returns only models that the user has explicitly
-// configured (those with an API key or added as non-catalog entries).
+// ListConfiguredModels returns only models the user has explicitly enabled.
+// Enablement is tracked by the user_configured flag, which SyncModels sets
+// whenever the user saves a model via the Settings UI (or CLI); it's reset
+// when the model is removed from the user's list.
+//
+// The flag exists because catalog seeding populates ~120 entries, including
+// OAuth variants whose auth_method is baked in from DefaultModelList. Before
+// user_configured, the OAuth-only rows passed the "configured" filter the
+// moment Sofia started, cluttering the Models page with entries the user
+// never touched.  Now OAuth catalog entries only appear once the user opts
+// in (adds them via the UI); `sofia auth login` alone no longer auto-enables
+// anything.
 func (m *MemoryDB) ListConfiguredModels() ([]config.ModelConfig, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	rows, err := m.db.Query(`SELECT `+modelColumns+` FROM models WHERE api_key != '' OR is_catalog = 0 ORDER BY provider, model_name`)
+	rows, err := m.db.Query(`SELECT ` + modelColumns + ` FROM models
+		WHERE user_configured = 1
+		ORDER BY provider, model_name`)
 	if err != nil {
 		return nil, fmt.Errorf("memory: list configured models: %w", err)
 	}
@@ -219,6 +269,45 @@ func (m *MemoryDB) SyncModels(incoming []config.ModelConfig, catalogNames map[st
 		}
 	}
 
+	// Catalog rows are permanent, but when a configured catalog model is
+	// removed from the user's list, clear its user-editable fields and flip
+	// user_configured back to 0 so it drops out of ListConfiguredModels.
+	// We key off user_configured (not api_key) so OAuth catalog entries —
+	// which the user enables without ever supplying an api_key — get
+	// unconfigured too when they're removed from the list.
+	catRows, err := tx.Query(`SELECT model_name FROM models WHERE is_catalog = 1 AND user_configured = 1`)
+	if err != nil {
+		return fmt.Errorf("memory: sync models: query catalog: %w", err)
+	}
+	var toUnconfigure []string
+	for catRows.Next() {
+		var name string
+		if err := catRows.Scan(&name); err != nil {
+			catRows.Close()
+			return err
+		}
+		if !incomingSet[name] {
+			toUnconfigure = append(toUnconfigure, name)
+		}
+	}
+	catRows.Close()
+	if err := catRows.Err(); err != nil {
+		return err
+	}
+
+	for _, name := range toUnconfigure {
+		if _, err := tx.Exec(`
+			UPDATE models SET
+				api_key = '', api_keys = '[]', pool_strategy = '', proxy = '',
+				rpm = 0, max_tokens = 0, max_tokens_field = '',
+				request_timeout = 0, request_delay = 0, workspace = '',
+				connect_mode = '', user_configured = 0,
+				updated_at = datetime('now')
+			WHERE model_name = ?`, name); err != nil {
+			return fmt.Errorf("memory: sync models: unconfigure catalog %q: %w", name, err)
+		}
+	}
+
 	// Upsert incoming models.  For catalog entries only update user-editable
 	// fields (api_key etc.); for non-catalog do a full upsert.
 	for _, mc := range incoming {
@@ -226,14 +315,17 @@ func (m *MemoryDB) SyncModels(incoming []config.ModelConfig, catalogNames map[st
 		var isCatalog int
 		_ = tx.QueryRow(`SELECT is_catalog FROM models WHERE model_name = ?`, mc.ModelName).Scan(&isCatalog)
 		if isCatalog == 1 {
-			// Update only the API key and user-adjustable fields.
+			// Update only the API key and user-adjustable fields.  The row
+			// appears in the incoming list because the user clicked Save on
+			// it, so flip user_configured to 1 — even OAuth entries that
+			// leave api_key empty must now be recognised as configured.
 			apiKeysJSON, _ := json.Marshal(mc.APIKeys)
 			_, err := tx.Exec(`
 				UPDATE models SET
 					api_key = ?, api_keys = ?, pool_strategy = ?, proxy = ?,
 					rpm = ?, max_tokens = ?, max_tokens_field = ?,
 					request_timeout = ?, request_delay = ?, workspace = ?,
-					connect_mode = ?,
+					connect_mode = ?, user_configured = 1,
 					updated_at = datetime('now')
 				WHERE model_name = ?`,
 				mc.APIKey, string(apiKeysJSON), mc.PoolStrategy, mc.Proxy,

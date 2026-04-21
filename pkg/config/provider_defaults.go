@@ -42,7 +42,7 @@ var WellKnownProviderBases = map[string]string{
 	"zhipu":      "https://open.bigmodel.cn/api/paas/v4",
 	"zai":        "https://api.z.ai/api/paas/v4",
 	"grok":       "https://api.x.ai/v1",
-	"qwen":       "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+	"qwen":       "https://dashscope.aliyuncs.com/compatible-mode/v1",
 	"volcengine": "https://ark.cn-beijing.volces.com/api/v3",
 	"sambanova":  "https://api.sambanova.ai/v1",
 	"together":   "https://api.together.xyz/v1",

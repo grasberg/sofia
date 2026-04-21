@@ -50,6 +50,10 @@ const (
 	FailoverFormat     FailoverReason = "format"
 	FailoverOverloaded FailoverReason = "overloaded"
 	FailoverUnknown    FailoverReason = "unknown"
+	// FailoverCooldownBypass marks a last-resort attempt made after every
+	// candidate in the chain was in cooldown. Used only when skipping all
+	// would otherwise hard-fail the request with no call attempted.
+	FailoverCooldownBypass FailoverReason = "cooldown_bypass"
 )
 
 // FailoverError wraps an LLM provider error with classification metadata.

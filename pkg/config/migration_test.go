@@ -187,6 +187,12 @@ func TestConvertProvidersToModelList_RequestTimeout(t *testing.T) {
 	}
 }
 
+// TestConvertProvidersToModelList_AuthMethod verifies that an OAuth-only
+// setup (no api_key / no api_base — tokens live in ~/.sofia/auth.json) still
+// produces a ModelConfig. The pre-OAuth behaviour required an api_key, which
+// silently broke `sofia auth login --provider openai` users: their chat
+// request would fail with "model not found in model_list" instead of
+// routing through the Codex OAuth provider.
 func TestConvertProvidersToModelList_AuthMethod(t *testing.T) {
 	cfg := &Config{
 		Providers: ProvidersConfig{
@@ -200,8 +206,17 @@ func TestConvertProvidersToModelList_AuthMethod(t *testing.T) {
 
 	result := ConvertProvidersToModelList(cfg)
 
-	if len(result) != 0 {
-		t.Errorf("len(result) = %d, want 0 (AuthMethod alone should not create entry)", len(result))
+	if len(result) != 1 {
+		t.Fatalf("len(result) = %d, want 1 (OAuth AuthMethod should yield one entry)", len(result))
+	}
+	if result[0].AuthMethod != "oauth" {
+		t.Errorf("AuthMethod = %q, want %q", result[0].AuthMethod, "oauth")
+	}
+	if result[0].Model != "openai/gpt-5.2" {
+		t.Errorf("Model = %q, want %q", result[0].Model, "openai/gpt-5.2")
+	}
+	if result[0].APIKey != "" {
+		t.Errorf("APIKey should be empty for OAuth setup, got %q", result[0].APIKey)
 	}
 }
 

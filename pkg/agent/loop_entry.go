@@ -11,22 +11,56 @@ func (al *AgentLoop) ProcessDirect(ctx context.Context, content, sessionKey stri
 	return al.ProcessDirectWithChannel(ctx, content, sessionKey, "cli", "direct")
 }
 
-// ProcessDirectStream sends a message to the default agent and streams the response
-// back via the onChunk callback. It runs the full agent loop (including tool execution)
-// and returns the final response. If the provider supports streaming, text deltas are
-// sent incrementally for the first LLM call; tool-use responses are sent as a single chunk.
+// ProcessDirectStream sends a message to the default agent and streams the
+// response via onChunk. When the configured provider implements
+// StreamingProvider, text tokens are delivered as they arrive; iterations
+// whose output is tool_calls don't produce deltas but still advance the
+// loop. After the turn completes the full text is guaranteed to have been
+// delivered: streamed providers emit many onChunk(delta, false) calls,
+// non-streaming (or tool-only) paths emit a single onChunk(result, false)
+// at the end so callers don't have to branch on provider capability. A
+// terminal onChunk("", true) marks the end of the turn.
 func (al *AgentLoop) ProcessDirectStream(
 	ctx context.Context,
 	content, sessionKey string,
 	onChunk func(text string, done bool),
 ) error {
-	// Run the full agent loop (handles tools, multi-turn, etc.)
-	result, err := al.ProcessDirect(ctx, content, sessionKey)
+	agent := al.getRegistry().GetDefaultAgent()
+	if agent == nil {
+		return fmt.Errorf("no default agent configured")
+	}
+	deltaFired := false
+	result, err := al.runAgentLoop(ctx, agent, processOptions{
+		SessionKey:      sessionKey,
+		Channel:         "cli",
+		ChatID:          "direct",
+		UserMessage:     content,
+		DefaultResponse: defaultResponse,
+		EnableSummary:   true,
+		SendResponse:    false,
+		OnTextDelta: func(delta string) {
+			if delta == "" {
+				return
+			}
+			deltaFired = true
+			if onChunk != nil {
+				onChunk(delta, false)
+			}
+		},
+	})
 	if err != nil {
 		return err
 	}
-	onChunk(result, false)
-	onChunk("", true)
+	if onChunk != nil {
+		if !deltaFired && result != "" {
+			// Non-streaming provider, or a turn that only produced
+			// tool_calls with a tail summary from DefaultResponse —
+			// deliver the full result as a single chunk so the caller
+			// doesn't need to distinguish.
+			onChunk(result, false)
+		}
+		onChunk("", true)
+	}
 	return nil
 }
 

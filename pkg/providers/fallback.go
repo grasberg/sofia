@@ -187,8 +187,75 @@ func (fc *FallbackChain) Execute(
 		}
 	}
 
-	// All candidates were skipped (all in cooldown).
+	// All candidates were skipped (all in cooldown). Before hard-failing,
+	// take one last-resort shot at the candidate whose cooldown expires
+	// soonest — otherwise a transient "everything is cooling down" moment
+	// produces a user-visible error even when a call might succeed right now.
+	// The cooldown's exponential backoff still protects against runaway
+	// retries: a failed bypass extends the cooldown further.
+	if allAttemptsSkipped(result.Attempts) {
+		pick := shortestCooldownCandidate(fc.cooldown, candidates)
+		start := time.Now()
+		resp, err := run(ctx, pick.Provider, pick.Model)
+		elapsed := time.Since(start)
+
+		if err == nil {
+			fc.cooldown.MarkSuccess(pick.Provider)
+			result.Attempts = append(result.Attempts, FallbackAttempt{
+				Provider: pick.Provider,
+				Model:    pick.Model,
+				Reason:   FailoverCooldownBypass,
+				Duration: elapsed,
+			})
+			result.Response = resp
+			result.Provider = pick.Provider
+			result.Model = pick.Model
+			return result, nil
+		}
+		if failErr := ClassifyError(err, pick.Provider, pick.Model); failErr != nil && failErr.IsRetriable() {
+			fc.cooldown.MarkFailure(pick.Provider, failErr.Reason)
+		}
+		result.Attempts = append(result.Attempts, FallbackAttempt{
+			Provider: pick.Provider,
+			Model:    pick.Model,
+			Error:    err,
+			Reason:   FailoverCooldownBypass,
+			Duration: elapsed,
+		})
+	}
+
 	return nil, &FallbackExhaustedError{Attempts: result.Attempts}
+}
+
+// allAttemptsSkipped reports whether every recorded attempt was a cooldown
+// skip — i.e. no real network call was made during the chain.
+func allAttemptsSkipped(attempts []FallbackAttempt) bool {
+	if len(attempts) == 0 {
+		return false
+	}
+	for _, a := range attempts {
+		if !a.Skipped {
+			return false
+		}
+	}
+	return true
+}
+
+// shortestCooldownCandidate picks the candidate whose cooldown expires
+// soonest. Ties resolve to the earliest candidate in the list (priority
+// order). Falls back to the first candidate if no cooldown data is
+// available (shouldn't happen when called after an all-skipped run).
+func shortestCooldownCandidate(ct *CooldownTracker, candidates []FallbackCandidate) FallbackCandidate {
+	best := candidates[0]
+	bestRemaining := ct.CooldownRemaining(best.Provider)
+	for _, c := range candidates[1:] {
+		r := ct.CooldownRemaining(c.Provider)
+		if r < bestRemaining {
+			best = c
+			bestRemaining = r
+		}
+	}
+	return best
 }
 
 // ExecuteImage runs the fallback chain for image/vision requests.
@@ -273,8 +340,22 @@ type FallbackExhaustedError struct {
 }
 
 func (e *FallbackExhaustedError) Error() string {
+	var attempted, skipped int
+	reasonCounts := map[FailoverReason]int{}
+	for _, a := range e.Attempts {
+		if a.Skipped {
+			skipped++
+			continue
+		}
+		attempted++
+		if a.Reason != "" {
+			reasonCounts[a.Reason]++
+		}
+	}
+
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "fallback: all %d candidates failed:", len(e.Attempts))
+	sb.WriteString(fallbackHeaderFor(attempted, skipped, reasonCounts))
+
 	for i, a := range e.Attempts {
 		if a.Skipped {
 			fmt.Fprintf(&sb, "\n  [%d] %s/%s: skipped (cooldown)", i+1, a.Provider, a.Model)
@@ -284,4 +365,58 @@ func (e *FallbackExhaustedError) Error() string {
 		}
 	}
 	return sb.String()
+}
+
+// fallbackHeaderFor picks an actionable one-line summary for the aggregate
+// error. When every *attempted* candidate failed with the same reason, the
+// header points the user at the concrete fix (update keys, check billing,
+// wait for rate limit). Otherwise it falls back to a neutral summary.
+//
+// Called from FallbackExhaustedError.Error; keep the output single-line so
+// the per-attempt detail can be appended after a newline.
+func fallbackHeaderFor(attempted, skipped int, reasonCounts map[FailoverReason]int) string {
+	if attempted == 0 {
+		return fmt.Sprintf("fallback: %d attempted, %d skipped (cooldown):", attempted, skipped)
+	}
+	// Check single-reason dominance in a deterministic priority order so the
+	// most-actionable headers win when counts tie.
+	priority := []FailoverReason{
+		FailoverAuth,
+		FailoverBilling,
+		FailoverRateLimit,
+		FailoverTimeout,
+		FailoverOverloaded,
+	}
+	for _, r := range priority {
+		if reasonCounts[r] == attempted {
+			switch r {
+			case FailoverAuth:
+				return fmt.Sprintf(
+					"fallback: all %d configured provider(s) rejected the API key (HTTP 401). "+
+						"Update your keys in Settings → AI Models and retry. Details:",
+					attempted)
+			case FailoverBilling:
+				return fmt.Sprintf(
+					"fallback: all %d configured provider(s) reported a billing problem. "+
+						"Check your account/subscription and the keys in Settings → AI Models. Details:",
+					attempted)
+			case FailoverRateLimit:
+				return fmt.Sprintf(
+					"fallback: all %d configured provider(s) are rate-limited right now. "+
+						"Wait a bit, or add more fallback models in Settings → AI Models. Details:",
+					attempted)
+			case FailoverTimeout:
+				return fmt.Sprintf(
+					"fallback: all %d configured provider(s) timed out. "+
+						"Check your network/VPN, or pick providers in a closer region. Details:",
+					attempted)
+			case FailoverOverloaded:
+				return fmt.Sprintf(
+					"fallback: all %d configured provider(s) reported they are overloaded. "+
+						"Retry in a minute, or add more fallbacks in Settings → AI Models. Details:",
+					attempted)
+			}
+		}
+	}
+	return fmt.Sprintf("fallback: %d attempted, %d skipped (cooldown):", attempted, skipped)
 }

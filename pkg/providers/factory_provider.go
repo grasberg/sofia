@@ -315,7 +315,7 @@ func getDefaultAPIBase(protocol string) string {
 	case "ollama":
 		return "http://localhost:11434/v1"
 	case "moonshot":
-		return "https://api.moonshot.ai/v1"
+		return "https://api.moonshot.cn/v1"
 	case "deepseek":
 		return "https://api.deepseek.com/v1"
 	case "cerebras":
@@ -323,7 +323,7 @@ func getDefaultAPIBase(protocol string) string {
 	case "volcengine":
 		return "https://ark.cn-beijing.volces.com/api/v3"
 	case "qwen":
-		return "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+		return "https://dashscope.aliyuncs.com/compatible-mode/v1"
 	case "mistral":
 		return "https://api.mistral.ai/v1"
 	case "grok":

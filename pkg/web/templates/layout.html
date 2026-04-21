@@ -133,16 +133,7 @@
                 <span class="material-symbols-outlined" style="font-size:20px">flag</span>
                 <span class="hidden lg:inline">Goals</span>
             </a>
-            <a href="#" hx-get="/ui/activity" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-activity"
-                class="nav-item">
-                <span class="material-symbols-outlined" style="font-size:20px">sprint</span>
-                <span class="hidden lg:inline">Activity</span>
-            </a>
-            <a href="#" hx-get="/ui/completed" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-completed"
-                class="nav-item">
-                <span class="material-symbols-outlined" style="font-size:20px">task_alt</span>
-                <span class="hidden lg:inline">Completed</span>
-            </a>
+            <!-- Activity and Completed tabs removed — absorbed into Goals page -->
             <a href="#" hx-get="/ui/agents" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-agents"
                 class="nav-item">
                 <span class="material-symbols-outlined" style="font-size:20px">group</span>
@@ -352,7 +343,7 @@
             const prev = sel.value;
             sel.innerHTML = "<option value=''>-- Choose a Provider --</option>";
             // Preserve a stable display order.
-            const order = ["Google Gemini", "OpenAI", "Anthropic", "DeepSeek", "Groq", "Mistral", "OpenRouter", "Qwen", "Moonshot", "xAI (Grok)", "Z.ai", "MiniMax", "Ollama", "Ollama Cloud", "Custom"];
+            const order = ["Google Gemini", "OpenAI", "Anthropic", "DeepSeek", "Groq", "Mistral", "OpenRouter", "Qwen", "Moonshot", "xAI (Grok)", "Z.ai", "MiniMax", "NVIDIA", "Ollama", "Ollama Cloud", "Custom"];
             const seen = new Set();
             for (const p of order) {
                 if (PROVIDER_MODELS[p]) {
@@ -385,8 +376,13 @@
             if (list && configuredModels.length === 0) {
                 list.innerHTML = "<div class='text-sm text-zinc-500 italic p-4 text-center border border-dashed border-[var(--border-color)] rounded-xl'>No models configured. Click Add Model to get started.</div>";
             } else if (list) {
+                // If two entries accidentally share the same alias (possible
+                // in configs written before the collision check landed),
+                // only flag the FIRST match as "Standard" so the UI doesn't
+                // show two golden stars at once.
+                const standardIdx = configuredModels.findIndex(function (m) { return m.model_name === standardModel; });
                 list.innerHTML = configuredModels.map(function (m, i) {
-                    const isStandard = m.model_name === standardModel;
+                    const isStandard = i === standardIdx;
                     const borderClass = isStandard ? "border-sofia bg-sofia/5" : "border-[var(--border-color)] bg-[var(--bg-main)]";
                     const iconBgClass = isStandard ? "bg-sofia/15 text-sofia" : "bg-[var(--bg-sidebar)] text-zinc-400";
                     const iconName = isStandard ? "star" : "cpu";
@@ -487,7 +483,7 @@
                 title.textContent = "Edit Model";
                 // Detect provider from model string prefix
                 const prefix = m.model ? m.model.split("/")[0] : "";
-                const providerMap = { gemini: "Google Gemini", openai: "OpenAI", anthropic: "Anthropic", deepseek: "DeepSeek", groq: "Groq", ollama: "Ollama", mistral: "Mistral", openrouter: "OpenRouter", qwen: "Qwen", moonshot: "Moonshot", grok: "xAI (Grok)", zai: "Z.ai", minimax: "MiniMax" };
+                const providerMap = { gemini: "Google Gemini", openai: "OpenAI", anthropic: "Anthropic", deepseek: "DeepSeek", groq: "Groq", ollama: "Ollama", mistral: "Mistral", openrouter: "OpenRouter", qwen: "Qwen", moonshot: "Moonshot", grok: "xAI (Grok)", zai: "Z.ai", minimax: "MiniMax", nvidia: "NVIDIA" };
                 // Detect Ollama Cloud models (those with -cloud suffix)
                 let detectedProvider = providerMap[prefix] || "Custom";
                 if (prefix === "ollama" && m.model && m.model.endsWith("-cloud")) {
@@ -642,8 +638,26 @@
                 document.getElementById("form-model-base").value = apiBase;
             }
             if (!document.getElementById("form-model-alias").value) {
+                // Build a candidate alias from the model id. Plain tail
+                // ("MiniMax-M2.7") collides when the same model is offered
+                // by multiple providers (Nvidia + Minimax, OpenRouter + raw,
+                // etc.), so prefer "<provider>-<tail>". If that alias is
+                // already taken (user editing a second copy), append a
+                // numeric suffix to stay unique.
                 const parts = modelId.split("/");
-                document.getElementById("form-model-alias").value = parts[parts.length - 1];
+                const tail = parts[parts.length - 1];
+                let candidate = tail;
+                if (parts.length > 1 && parts[0]) {
+                    candidate = parts[0] + "-" + tail;
+                }
+                const editIdx = parseInt(document.getElementById("edit-model-index").value, 10);
+                let alias = candidate;
+                let n = 2;
+                while (configuredModels.some((m, i) => i !== editIdx && m.model_name === alias)) {
+                    alias = candidate + "-" + n;
+                    n++;
+                }
+                document.getElementById("form-model-alias").value = alias;
             }
 
             // Try to inherit API key from same provider
@@ -670,6 +684,16 @@
             const alias = document.getElementById("form-model-alias").value.trim();
             if (!alias || !modelId) {
                 alert("Please select a model and provide an alias name.");
+                return;
+            }
+            const editIdx = parseInt(document.getElementById("edit-model-index").value, 10);
+            // Aliases are the primary key in the DB — two entries with the
+            // same alias silently overwrite each other on save. Block the
+            // collision and suggest a fix instead of discovering it later.
+            if (configuredModels.some((m, i) => i !== editIdx && m.model_name === alias)) {
+                alert("An entry named \"" + alias + "\" already exists. " +
+                    "Pick a unique alias (e.g. include the provider: \"" +
+                    (modelId.split("/")[0] || "provider") + "-" + alias + "\").");
                 return;
             }
             const entry = {
@@ -826,7 +850,7 @@
             'box':'inventory_2','bot':'smart_toy','chevron-up':'expand_less',
             'chevron-down':'expand_more','chevron-right':'chevron_right',
             'chevron-left':'chevron_left','lightbulb':'lightbulb','shield-alert':'shield',
-            'trophy':'emoji_events','check':'check','check-circle':'check_circle',
+            'trophy':'emoji_events','check':'check','check-circle':'check_circle','check-circle-2':'check_circle',
             'x':'close','send':'send','image':'image','copy':'content_copy',
             'loader':'progress_activity','play':'play_arrow','pause':'pause',
             'stop':'stop','plus':'add','minus':'remove','search':'search',
@@ -894,7 +918,7 @@
             'network':'hub','play-circle':'play_circle','rocket':'rocket_launch',
             'share-2':'share','square':'stop','radio-tower':'cell_tower',
             'plug-zap':'electrical_services','file-check':'task',
-            'rotate-cw':'refresh','loader':'progress_activity',
+            'rotate-cw':'refresh','loader':'progress_activity','pause-circle':'pause_circle',
             'user-plus':'person_add','edit':'edit','bell-ring':'notifications_active',
             'text':'notes','align-justify':'format_align_justify',
         };
@@ -1980,6 +2004,29 @@
                 currentConfig = cfg;
 
                 configuredModels = cfg.model_list ? cfg.model_list.slice() : [];
+                // Guard against two entries that share the same alias (could
+                // slip through on older configs written before the collision
+                // check landed). Auto-suffix the second occurrence so each
+                // row is independently identifiable.
+                {
+                    const seen = new Set();
+                    for (const m of configuredModels) {
+                        if (!m.model_name) continue;
+                        let name = m.model_name;
+                        if (seen.has(name)) {
+                            const provider = (m.model || "").split("/")[0];
+                            let candidate = provider ? provider + "-" + name : name + "-2";
+                            let n = 2;
+                            while (seen.has(candidate)) {
+                                candidate = name + "-" + n;
+                                n++;
+                            }
+                            name = candidate;
+                            m.model_name = name;
+                        }
+                        seen.add(name);
+                    }
+                }
                 standardModel = cfg.agents.defaults.model_name || cfg.agents.defaults.model || "";
                 if (!standardModel && configuredModels.length > 0) {
                     standardModel = configuredModels[0].model_name;
@@ -3797,11 +3844,14 @@
                         }
                     }
 
-                    // Refresh goal/plan panels on relevant events
+                    // Refresh goal/plan panels on goal-specific events only.
+                    // Excluded: tool_call_end, agent_done (fire too frequently and
+                    // cause the kanban to blank/rebuild on every tool invocation).
                     if (d.type === 'goal_step_start' || d.type === 'goal_step_end' ||
                         d.type === 'goal_completed' || d.type === 'goal_evaluation_start' ||
                         d.type === 'goal_status_changed' || d.type === 'goal_deleted' ||
-                        d.type === 'tool_call_end' || d.type === 'agent_done' ||
+                        d.type === 'goal_auto_fix_applied' ||
+                        d.type === 'goal_plan_created' || d.type === 'goal_step_retry' ||
                         d.type === 'subagent_task_end' ||
                         d.type === 'plan_step_assigned' || d.type === 'plan_step_done') {
                         if (typeof window._chatGoalPlanRefresh === 'function') window._chatGoalPlanRefresh();

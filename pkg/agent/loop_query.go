@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -36,6 +37,16 @@ func (al *AgentLoop) GetActiveModelLabel() string {
 		return agent.Model
 	}
 	return agent.ModelID
+}
+
+// GetActiveStatus returns the loop's current status string — e.g.
+// "Waiting for LLM (iteration 2)...", "Executing tool: exec", "Idle". The
+// CLI polls this while a request is in flight so the user sees what the
+// agent is doing during long operations instead of a bare blinking cursor.
+// Returns the empty string when nothing has been stored yet.
+func (al *AgentLoop) GetActiveStatus() string {
+	s, _ := al.activeStatus.Load().(string)
+	return s
 }
 
 // GetDefaultSessionManager returns the session manager for the default agent.
@@ -271,6 +282,58 @@ func (al *AgentLoop) DeleteGoal(goalID int64) error {
 	}
 	gm := autonomy.NewGoalManager(al.memDB)
 	return gm.DeleteGoal(goalID)
+}
+
+// CreateGoal creates a new goal and immediately triggers autonomy plan generation.
+// Returns the created goal.
+func (al *AgentLoop) CreateGoal(name, description, priority string, agentCount int) (*autonomy.Goal, error) {
+	if al.memDB == nil {
+		return nil, fmt.Errorf("memory database not available")
+	}
+
+	agentID := routing.DefaultAgentID
+	gm := autonomy.NewGoalManager(al.memDB)
+
+	gAny, err := gm.AddGoal(agentID, name, description, priority)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add goal: %w", err)
+	}
+
+	b, _ := json.Marshal(gAny)
+	var gMap map[string]any
+	json.Unmarshal(b, &gMap)
+	id, _ := gMap["id"].(float64)
+	goalID := int64(id)
+
+	if agentCount > 0 && goalID > 0 {
+		_ = gm.SetAgentCount(goalID, agentCount)
+	}
+
+	goal, _ := gm.GetGoalByID(goalID)
+
+	// Trigger immediate plan generation via autonomy service.
+	al.autonomyMu.Lock()
+	for _, svc := range al.autonomyServices {
+		if svc != nil {
+			svc.NotifyGoalCreated(goalID)
+			break
+		}
+	}
+	al.autonomyMu.Unlock()
+
+	return goal, nil
+}
+
+// NotifyGoalCreatedForServices triggers immediate plan generation for a goal
+// across all autonomy services.
+func (al *AgentLoop) NotifyGoalCreatedForServices(goalID int64) {
+	al.autonomyMu.Lock()
+	defer al.autonomyMu.Unlock()
+	for _, svc := range al.autonomyServices {
+		if svc != nil {
+			svc.NotifyGoalCreated(goalID)
+		}
+	}
 }
 
 // ListAgentIDs returns all registered agent IDs.

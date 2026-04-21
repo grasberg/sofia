@@ -65,6 +65,9 @@ func (t *PlanTool) create(args map[string]any) *ToolResult {
 		Status: PlanStatusInProgress,
 	}
 	t.manager.plans[planID] = plan
+	if goalID != 0 {
+		t.manager.goalIndex[goalID] = planID
+	}
 	t.manager.mu.Unlock()
 	t.manager.autoSave()
 
@@ -119,22 +122,7 @@ func (t *PlanTool) updateStep(args map[string]any) *ToolResult {
 		plan.Steps[idx].Result = result
 	}
 
-	allCompleted := true
-	anyFailed := false
-	for _, s := range plan.Steps {
-		if s.Status != PlanStatusCompleted {
-			allCompleted = false
-		}
-		if s.Status == PlanStatusFailed {
-			anyFailed = true
-		}
-	}
-
-	if allCompleted {
-		plan.Status = PlanStatusCompleted
-	} else if anyFailed {
-		plan.Status = PlanStatusFailed
-	}
+	plan.Status = evaluatePlanStatus(plan.Steps)
 
 	formatted := plan.FormatStatus()
 	t.manager.mu.Unlock()

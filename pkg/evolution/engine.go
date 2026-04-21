@@ -27,8 +27,13 @@ type Proposal struct {
 // EvolutionEngine implements the 5-phase observe-diagnose-plan-act-verify loop
 // that continuously evolves the agent system.
 type EvolutionEngine struct {
+	// provider and model are mutated under providerMu so users can hot-swap
+	// them via SetProvider when the global model changes — without having
+	// to tear the engine down and lose its running state / budget tracking.
+	providerMu sync.RWMutex
 	provider   providers.LLMProvider
 	model      string
+
 	memDB      *memory.MemoryDB
 	registrar  AgentRegistrar
 	a2a        A2ARegistrar
@@ -51,6 +56,34 @@ type EvolutionEngine struct {
 	lastConsolidation time.Time
 	paused            atomic.Bool
 	pendingProposals  []Proposal
+}
+
+// llm returns the currently configured (provider, model) pair. Used by the
+// phase handlers so they pick up mid-flight SetProvider swaps.
+func (e *EvolutionEngine) llm() (providers.LLMProvider, string) {
+	e.providerMu.RLock()
+	defer e.providerMu.RUnlock()
+	return e.provider, e.model
+}
+
+// SetProvider atomically swaps the engine's LLM provider and model, and
+// propagates the change to the attached AgentArchitect and SafeModifier so
+// every code path that was caching the old model picks up the new one on
+// its next call. Safe to invoke while the engine is running.
+func (e *EvolutionEngine) SetProvider(provider providers.LLMProvider, model string) {
+	e.providerMu.Lock()
+	e.provider = provider
+	e.model = model
+	arch := e.architect
+	mod := e.modifier
+	e.providerMu.Unlock()
+
+	if arch != nil {
+		arch.SetProvider(provider, model)
+	}
+	if mod != nil {
+		mod.SetProvider(provider)
+	}
 }
 
 // NewEvolutionEngine creates a new EvolutionEngine wired to all required dependencies.

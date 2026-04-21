@@ -62,11 +62,14 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 		if provider == "" {
 			provider = "Other"
 		}
+		// Resolve at serve time: catalog rows are allowed to omit api_base
+		// for well-known provider prefixes (see config.WellKnownProviderBases),
+		// and the UI needs the URL regardless of whether the column was set.
 		catalog[provider] = append(catalog[provider], modelEntry{
 			ModelName:   m.ModelName,
 			DisplayName: m.DisplayName,
 			Model:       m.Model,
-			APIBase:     m.APIBase,
+			APIBase:     m.ResolveAPIBase(),
 			AuthMethod:  m.AuthMethod,
 			HasKey:      m.APIKey != "",
 		})

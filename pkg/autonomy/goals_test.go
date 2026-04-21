@@ -2,7 +2,6 @@ package autonomy
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -13,16 +12,13 @@ import (
 )
 
 func setupTestDB(t *testing.T) (*memory.MemoryDB, func()) {
-	tmpDir, err := os.MkdirTemp("", "sofia_autonomy_test_*")
-	require.NoError(t, err)
+	t.Helper()
+	tmpDir := t.TempDir()
 
 	db, err := memory.Open(filepath.Join(tmpDir, "memory.db"))
 	require.NoError(t, err)
 
-	cleanup := func() {
-		db.Close()
-		os.RemoveAll(tmpDir)
-	}
+	cleanup := func() { db.Close() }
 	return db, cleanup
 }
 
@@ -161,6 +157,226 @@ func TestGoalManager_SetGoalResult(t *testing.T) {
 	assert.Equal(t, "Deployed the stack", updated.GoalResult.Summary)
 	assert.Equal(t, []string{"/workspace/goals/goal-1/docker-compose.yml"}, updated.GoalResult.Artifacts)
 	assert.Equal(t, []string{"Run ./deploy.sh"}, updated.GoalResult.NextSteps)
+}
+
+func TestGoalManager_AddGoal_DefaultPriority(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	gAny, err := gm.AddGoal("agent-1", "Default Priority", "desc", "")
+	require.NoError(t, err)
+	goal := gAny.(*Goal)
+	assert.Equal(t, "medium", goal.Priority)
+}
+
+func TestGoalManager_GetGoalByID_NotFound(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	_, err := gm.GetGoalByID(99999)
+	assert.Error(t, err)
+}
+
+func TestGoalManager_UpdateGoalStatus_NotFound(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	_, err := gm.UpdateGoalStatus(99999, GoalStatusCompleted)
+	assert.Error(t, err)
+}
+
+func TestGoalManager_UpdateGoalResult(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	gAny, err := gm.AddGoal("agent-1", "Result Test", "desc", "high")
+	require.NoError(t, err)
+	goal := gAny.(*Goal)
+
+	err = gm.UpdateGoalResult(goal.ID, "all done successfully")
+	require.NoError(t, err)
+
+	updated, err := gm.GetGoalByID(goal.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "all done successfully", updated.Result)
+}
+
+func TestGoalManager_UpdateGoalResult_NotFound(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	err := gm.UpdateGoalResult(99999, "nope")
+	assert.Error(t, err)
+}
+
+func TestGoalManager_UpdateGoalPhase(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	gAny, err := gm.AddGoal("agent-1", "Phase Test", "desc", "medium")
+	require.NoError(t, err)
+	goal := gAny.(*Goal)
+
+	err = gm.UpdateGoalPhase(goal.ID, GoalPhaseImplement)
+	require.NoError(t, err)
+
+	updated, err := gm.GetGoalByID(goal.ID)
+	require.NoError(t, err)
+	assert.Equal(t, GoalPhaseImplement, updated.Phase)
+}
+
+func TestGoalManager_UpdateGoalPhase_NotFound(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	err := gm.UpdateGoalPhase(99999, GoalPhasePlan)
+	assert.Error(t, err)
+}
+
+func TestGoalManager_SetAgentCount(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	gAny, err := gm.AddGoal("agent-1", "Agent Count Test", "desc", "low")
+	require.NoError(t, err)
+	goal := gAny.(*Goal)
+
+	err = gm.SetAgentCount(goal.ID, 3)
+	require.NoError(t, err)
+
+	updated, err := gm.GetGoalByID(goal.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 3, updated.AgentCount)
+}
+
+func TestGoalManager_SetAgentCount_NotFound(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	err := gm.SetAgentCount(99999, 5)
+	assert.Error(t, err)
+}
+
+func TestGoalManager_SetGoalSpec(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	gAny, err := gm.AddGoal("agent-1", "Spec Test", "desc", "high")
+	require.NoError(t, err)
+	goal := gAny.(*Goal)
+
+	spec := GoalSpec{
+		Requirements:    []string{"API endpoint", "Database migration"},
+		SuccessCriteria: []string{"Tests pass", "Endpoint returns 200"},
+		Constraints:     []string{"No breaking changes"},
+		Context:         "Existing REST API",
+	}
+	err = gm.SetGoalSpec(goal.ID, spec)
+	require.NoError(t, err)
+
+	updated, err := gm.GetGoalByID(goal.ID)
+	require.NoError(t, err)
+	require.NotNil(t, updated.Spec)
+	assert.Equal(t, []string{"API endpoint", "Database migration"}, updated.Spec.Requirements)
+	assert.Equal(t, []string{"Tests pass", "Endpoint returns 200"}, updated.Spec.SuccessCriteria)
+	assert.Equal(t, []string{"No breaking changes"}, updated.Spec.Constraints)
+	assert.Equal(t, "Existing REST API", updated.Spec.Context)
+}
+
+func TestGoalManager_SetGoalSpec_NotFound(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	err := gm.SetGoalSpec(99999, GoalSpec{})
+	assert.Error(t, err)
+}
+
+func TestGoalManager_ListAllGoals(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	_, err := gm.AddGoal("agent-1", "Goal A", "desc", "high")
+	require.NoError(t, err)
+	_, err = gm.AddGoal("agent-1", "Goal B", "desc", "low")
+	require.NoError(t, err)
+
+	goals, err := gm.ListAllGoals("agent-1")
+	require.NoError(t, err)
+	assert.Len(t, goals, 2)
+}
+
+func TestGoalManager_ListAllGoalsGlobal(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	_, err := gm.AddGoal("agent-1", "Goal A", "desc", "high")
+	require.NoError(t, err)
+	_, err = gm.AddGoal("agent-2", "Goal B", "desc", "low")
+	require.NoError(t, err)
+
+	goals, err := gm.ListAllGoalsGlobal()
+	require.NoError(t, err)
+	assert.Len(t, goals, 2)
+}
+
+func TestGoalManager_DeleteGoal(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	gAny, err := gm.AddGoal("agent-1", "To Delete", "desc", "low")
+	require.NoError(t, err)
+	goal := gAny.(*Goal)
+
+	err = gm.DeleteGoal(goal.ID)
+	require.NoError(t, err)
+
+	_, err = gm.GetGoalByID(goal.ID)
+	assert.Error(t, err)
+}
+
+func TestGoalManager_DeleteAllGoals(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	_, err := gm.AddGoal("agent-1", "Goal A", "desc", "high")
+	require.NoError(t, err)
+	_, err = gm.AddGoal("agent-1", "Goal B", "desc", "low")
+	require.NoError(t, err)
+	_, err = gm.AddGoal("agent-2", "Goal C", "desc", "medium")
+	require.NoError(t, err)
+
+	deleted, err := gm.DeleteAllGoals("agent-1")
+	require.NoError(t, err)
+	assert.Equal(t, 2, deleted)
+
+	// agent-2's goal should still exist
+	goals, err := gm.ListAllGoals("agent-2")
+	require.NoError(t, err)
+	assert.Len(t, goals, 1)
+}
+
+func TestGoalManager_SetGoalResult_NotFound(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	gm := NewGoalManager(db)
+	err := gm.SetGoalResult(99999, GoalResult{Summary: "nope"})
+	assert.Error(t, err)
 }
 
 // TestGoalManager_UpdateStatusPreservesProperties is a regression test:

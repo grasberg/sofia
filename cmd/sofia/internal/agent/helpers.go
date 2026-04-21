@@ -3,11 +3,14 @@ package agent
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/chzyer/readline"
 
@@ -19,6 +22,17 @@ import (
 	"github.com/grasberg/sofia/pkg/web"
 )
 
+// spinnerFrames are the animation glyphs cycled by liveStatus. Braille dots
+// render cleanly in most monospaced terminals and degrade to spaces on TTYs
+// that can't handle them.
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+// ansiClearLine rewinds to the start of the current line and erases its tail.
+// Used by the live-status indicator to rewrite itself in place; keeping it a
+// single constant makes the contract with callers ("print starts on a clean
+// line") explicit.
+const ansiClearLine = "\r\033[K"
+
 func agentCmd(message, sessionKey, model string, debug bool) error {
 	if sessionKey == "" {
 		sessionKey = "cli:default"
@@ -27,6 +41,11 @@ func agentCmd(message, sessionKey, model string, debug bool) error {
 	if debug {
 		logger.SetLevel(logger.DEBUG)
 		fmt.Println("🔍 Debug mode enabled")
+	} else {
+		// Silence INFO-level chatter so the spinner isn't shredded by
+		// per-iteration "TOOL: started" / "SOFIA: LLM returned" lines on
+		// stderr. Warnings and errors still surface.
+		logger.SetLevel(logger.WARN)
 	}
 
 	cfg, err := internal.LoadConfig()
@@ -66,16 +85,10 @@ func agentCmd(message, sessionKey, model string, debug bool) error {
 	}
 
 	if message != "" {
-		ctx := context.Background()
-		response, err := agentLoop.ProcessDirect(ctx, message, sessionKey)
-		if err != nil {
-			return fmt.Errorf("error processing message: %w", err)
-		}
-		fmt.Printf("\n%s %s\n", internal.Logo, response)
-		return nil
+		return runStreamingTurn(context.Background(), agentLoop, message, sessionKey)
 	}
 
-	fmt.Printf("%s Interactive mode (Ctrl+C to exit)\n\n", internal.Logo)
+	fmt.Printf("%s Interactive mode (Ctrl+C to cancel a reply, Ctrl+D to exit)\n\n", internal.Logo)
 	interactiveMode(agentLoop, sessionKey)
 
 	return nil
@@ -114,20 +127,18 @@ func interactiveMode(agentLoop *agent.AgentLoop, sessionKey string) {
 		if input == "" {
 			continue
 		}
-
 		if input == "exit" || input == "quit" {
 			fmt.Println("Goodbye!")
 			return
 		}
 
-		ctx := context.Background()
-		response, err := agentLoop.ProcessDirect(ctx, input, sessionKey)
-		if err != nil {
+		if err := runStreamingTurn(context.Background(), agentLoop, input, sessionKey); err != nil {
+			if errors.Is(err, context.Canceled) {
+				fmt.Println("\n(canceled)")
+				continue
+			}
 			fmt.Printf("Error: %v\n", err)
-			continue
 		}
-
-		fmt.Printf("\n%s %s\n\n", internal.Logo, response)
 	}
 }
 
@@ -149,19 +160,107 @@ func simpleInteractiveMode(agentLoop *agent.AgentLoop, sessionKey string) {
 		if input == "" {
 			continue
 		}
-
 		if input == "exit" || input == "quit" {
 			fmt.Println("Goodbye!")
 			return
 		}
 
-		ctx := context.Background()
-		response, err := agentLoop.ProcessDirect(ctx, input, sessionKey)
-		if err != nil {
+		if err := runStreamingTurn(context.Background(), agentLoop, input, sessionKey); err != nil {
+			if errors.Is(err, context.Canceled) {
+				fmt.Println("\n(canceled)")
+				continue
+			}
 			fmt.Printf("Error: %v\n", err)
-			continue
 		}
-
-		fmt.Printf("\n%s %s\n\n", internal.Logo, response)
 	}
 }
+
+// runStreamingTurn drives one user-to-agent exchange: it shows a live-status
+// spinner, starts the agent loop with a streaming callback that prints text
+// tokens as they arrive, and installs a SIGINT trap that cancels the
+// in-flight request (without killing the REPL). The spinner is torn down
+// the moment the first text delta arrives, so output never overlaps; if a
+// turn produces only tool calls the spinner stays up for the whole turn.
+func runStreamingTurn(parent context.Context, al *agent.AgentLoop, content, sessionKey string) error {
+	reqCtx, cancelReq := context.WithCancel(parent)
+	defer cancelReq()
+
+	// Trap Ctrl+C for the duration of this turn only. Readline gates its
+	// own ^C behaviour while reading input; during the LLM wait the
+	// terminal is back in cooked mode and the signal is delivered here.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt)
+	defer signal.Stop(sigCh)
+	go func() {
+		select {
+		case <-sigCh:
+			cancelReq()
+		case <-reqCtx.Done():
+		}
+	}()
+
+	spinCtx, stopSpin := context.WithCancel(reqCtx)
+	spinDone := make(chan struct{})
+	go func() {
+		defer close(spinDone)
+		liveStatus(spinCtx, al.GetActiveStatus, os.Stdout)
+	}()
+
+	// streamStarted tracks whether we've already torn down the spinner
+	// and written the "Sofia: " header. The callback runs synchronously
+	// from the agent loop goroutine, so plain bool access is safe.
+	streamStarted := false
+	beginTextBlock := func() {
+		if streamStarted {
+			return
+		}
+		streamStarted = true
+		stopSpin()
+		<-spinDone
+		fmt.Printf("\n%s ", internal.Logo)
+	}
+
+	err := al.ProcessDirectStream(reqCtx, content, sessionKey, func(text string, done bool) {
+		if done || text == "" {
+			return
+		}
+		beginTextBlock()
+		fmt.Print(text)
+	})
+
+	if streamStarted {
+		fmt.Println()
+	} else {
+		stopSpin()
+		<-spinDone
+	}
+	return err
+}
+
+// liveStatus animates a one-line status indicator until ctx is canceled.
+// Output goes to stdout; logger output lands on stderr by default, so the
+// two don't fight for the same cursor position under normal CLI usage.
+func liveStatus(ctx context.Context, getStatus func() string, w io.Writer) {
+	start := time.Now()
+	ticker := time.NewTicker(120 * time.Millisecond)
+	defer ticker.Stop()
+
+	for i := 0; ; i++ {
+		select {
+		case <-ctx.Done():
+			fmt.Fprint(w, ansiClearLine)
+			return
+		case <-ticker.C:
+			status := getStatus()
+			if status == "" || status == "Idle" {
+				status = "Thinking..."
+			}
+			fmt.Fprintf(w, "%s%s %s (%.1fs)",
+				ansiClearLine,
+				spinnerFrames[i%len(spinnerFrames)],
+				status,
+				time.Since(start).Seconds())
+		}
+	}
+}
+

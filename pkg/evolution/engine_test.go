@@ -13,6 +13,7 @@ import (
 
 	"github.com/grasberg/sofia/pkg/bus"
 	"github.com/grasberg/sofia/pkg/config"
+	pt "github.com/grasberg/sofia/pkg/providers/protocoltypes"
 	"github.com/grasberg/sofia/pkg/reputation"
 	"github.com/grasberg/sofia/pkg/utils"
 )
@@ -348,4 +349,150 @@ func TestEvolutionEngine_Abs(t *testing.T) {
 	assert.Equal(t, 5, abs(-5))
 	assert.Equal(t, 5, abs(5))
 	assert.Equal(t, 0, abs(0))
+}
+
+// capturingProvider records the model each Chat invocation was given. Used
+// by the hot-swap tests to verify SetProvider propagates to every consumer.
+type capturingProvider struct {
+	mu        sync.Mutex
+	lastModel string
+	response  string
+}
+
+func (c *capturingProvider) Chat(
+	_ context.Context,
+	_ []pt.Message,
+	_ []pt.ToolDefinition,
+	model string,
+	_ map[string]any,
+) (*pt.LLMResponse, error) {
+	c.mu.Lock()
+	c.lastModel = model
+	c.mu.Unlock()
+	return &pt.LLMResponse{Content: c.response}, nil
+}
+
+func (c *capturingProvider) GetDefaultModel() string { return "cap-default" }
+
+func (c *capturingProvider) getLastModel() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lastModel
+}
+
+func TestEvolutionEngine_SetProviderSwapsLLM(t *testing.T) {
+	e := newTestEngine(t)
+
+	newProv := &capturingProvider{response: "ok"}
+	e.SetProvider(newProv, "new-model-v2")
+
+	gotProv, gotModel := e.llm()
+	if gotProv != newProv {
+		t.Errorf("expected provider to be swapped, got %#v", gotProv)
+	}
+	if gotModel != "new-model-v2" {
+		t.Errorf("expected model 'new-model-v2', got %q", gotModel)
+	}
+}
+
+func TestEvolutionEngine_SetProviderPropagatesToArchitect(t *testing.T) {
+	e := newTestEngine(t)
+
+	newProv := &capturingProvider{response: `{"id":"x","name":"y","purpose_prompt":"p","model":"m","skills_filter":[],"temperature":0.5}`}
+	e.SetProvider(newProv, "arch-model-v2")
+
+	// The architect should use the new provider + model on its next call.
+	_, _ = e.architect.DesignAgent(context.Background(), "do stuff")
+	if got := newProv.getLastModel(); got != "arch-model-v2" {
+		t.Errorf("expected architect to call new provider with 'arch-model-v2', got %q", got)
+	}
+}
+
+func TestEvolutionEngine_SetProviderPropagatesToModifier(t *testing.T) {
+	e := newTestEngine(t)
+
+	// Start with no provider on the modifier (as newTestEngine does). Verify
+	// the safety check path is inert.
+	if got := e.modifier.getProvider(); got != nil {
+		t.Fatalf("expected initial modifier provider to be nil, got %#v", got)
+	}
+
+	newProv := &capturingProvider{response: "NO"}
+	e.SetProvider(newProv, "mod-model-v2")
+
+	if got := e.modifier.getProvider(); got != newProv {
+		t.Errorf("expected modifier provider to be swapped")
+	}
+}
+
+func TestAgentArchitect_SetProvider(t *testing.T) {
+	reg := &mockRegistrar{}
+	a := NewAgentArchitect(&capturingProvider{}, "old", reg, &mockA2A{}, nil, nil, t.TempDir())
+
+	newProv := &capturingProvider{response: `{"id":"x","name":"y","purpose_prompt":"p","model":"m","skills_filter":[],"temperature":0.5}`}
+	a.SetProvider(newProv, "new-model")
+
+	prov, model := a.llm()
+	if prov != newProv {
+		t.Errorf("expected new provider")
+	}
+	if model != "new-model" {
+		t.Errorf("expected model 'new-model', got %q", model)
+	}
+}
+
+func TestSafeModifier_SetProvider(t *testing.T) {
+	m := NewSafeModifier(t.TempDir(), nil, nil)
+	if m.getProvider() != nil {
+		t.Error("expected nil initial provider")
+	}
+
+	p := &capturingProvider{}
+	m.SetProvider(p)
+	if m.getProvider() != p {
+		t.Errorf("expected provider to be swapped, got %#v", m.getProvider())
+	}
+
+	// Setting back to nil disables the safety path.
+	m.SetProvider(nil)
+	if m.getProvider() != nil {
+		t.Error("expected nil after SetProvider(nil)")
+	}
+}
+
+func TestEvolutionEngine_SetProviderConcurrent(t *testing.T) {
+	e := newTestEngine(t)
+	p1 := &capturingProvider{response: "a"}
+	p2 := &capturingProvider{response: "b"}
+
+	var wg sync.WaitGroup
+	// 1 writer goroutine flips the provider back and forth.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 200; i++ {
+			if i%2 == 0 {
+				e.SetProvider(p1, "m1")
+			} else {
+				e.SetProvider(p2, "m2")
+			}
+		}
+	}()
+
+	// Multiple readers reading the llm pair.
+	for r := 0; r < 4; r++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 500; i++ {
+				prov, model := e.llm()
+				if prov == nil || model == "" {
+					t.Errorf("llm() returned empty pair at iter %d", i)
+					return
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
 }
