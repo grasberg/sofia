@@ -8,7 +8,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/grasberg/sofia/pkg/logger"
@@ -157,7 +156,6 @@ func RunToolLoop(
 			Content: response.Content,
 		}
 		for _, tc := range normalizedToolCalls {
-			argumentsJSON, _ := json.Marshal(tc.Arguments)
 			assistantMsg.ToolCalls = append(assistantMsg.ToolCalls, providers.ToolCall{
 				ID:        tc.ID,
 				Type:      "function",
@@ -165,7 +163,7 @@ func RunToolLoop(
 				Arguments: tc.Arguments,
 				Function: &providers.FunctionCall{
 					Name:      tc.Name,
-					Arguments: string(argumentsJSON),
+					Arguments: providers.ToolCallArgumentsJSON(tc),
 				},
 			})
 		}
@@ -173,8 +171,7 @@ func RunToolLoop(
 
 		// 7. Execute tool calls
 		for _, tc := range normalizedToolCalls {
-			argsJSON, _ := json.Marshal(tc.Arguments)
-			argsPreview := utils.Truncate(string(argsJSON), 200)
+			argsPreview := utils.Truncate(providers.ToolCallArgumentsJSON(tc), 200)
 			logger.InfoCF("toolloop", fmt.Sprintf("Tool call: %s(%s)", tc.Name, argsPreview),
 				map[string]any{
 					"tool":      tc.Name,

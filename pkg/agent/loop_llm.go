@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -622,24 +621,20 @@ func (al *AgentLoop) runLLMIteration(
 			ReasoningSignature: response.ReasoningSignature,
 		}
 		for _, tc := range normalizedToolCalls {
-			argumentsJSON, _ := json.Marshal(tc.Arguments)
-			// Copy ExtraContent to ensure thought_signature is persisted for Gemini 3
-			extraContent := tc.ExtraContent
 			thoughtSignature := ""
 			if tc.Function != nil {
 				thoughtSignature = tc.Function.ThoughtSignature
 			}
-
 			assistantMsg.ToolCalls = append(assistantMsg.ToolCalls, providers.ToolCall{
 				ID:   tc.ID,
 				Type: "function",
 				Name: tc.Name,
 				Function: &providers.FunctionCall{
 					Name:             tc.Name,
-					Arguments:        string(argumentsJSON),
+					Arguments:        providers.ToolCallArgumentsJSON(tc),
 					ThoughtSignature: thoughtSignature,
 				},
-				ExtraContent:     extraContent,
+				ExtraContent:     tc.ExtraContent,
 				ThoughtSignature: thoughtSignature,
 			})
 		}
@@ -671,9 +666,8 @@ func (al *AgentLoop) runLLMIteration(
 		}
 
 		executeSingleTool := func(idx int, tc providers.ToolCall) toolCallResult {
-			// Marshal arguments once and reuse throughout this function.
-			argumentsJSON, _ := json.Marshal(tc.Arguments)
-			argsPreview := utils.Truncate(string(argumentsJSON), 300)
+			argumentsJSON := providers.ToolCallArgumentsJSON(tc)
+			argsPreview := utils.Truncate(argumentsJSON, 300)
 
 			// Trace: create a tool_call span if tracing is active
 			var toolSpan *trace.Span
@@ -713,11 +707,11 @@ func (al *AgentLoop) runLLMIteration(
 
 			// Approval gate: check if tool requires human approval
 			if al.approvalGate != nil {
-				if al.approvalGate.RequiresApproval(opts.SessionKey, tc.Name, string(argumentsJSON)) {
+				if al.approvalGate.RequiresApproval(opts.SessionKey, tc.Name, argumentsJSON) {
 					req := ApprovalRequest{
 						ID:         fmt.Sprintf("approval-%d-%d", iteration, idx),
 						ToolName:   tc.Name,
-						Arguments:  string(argumentsJSON),
+						Arguments:  argumentsJSON,
 						AgentID:    agent.ID,
 						SessionKey: opts.SessionKey,
 						Channel:    opts.Channel,
@@ -887,7 +881,7 @@ func (al *AgentLoop) runLLMIteration(
 					Channel:    opts.Channel,
 					Action:     "tool_call",
 					Detail:     tc.Name,
-					Input:      utils.Truncate(string(argumentsJSON), 500),
+					Input:      utils.Truncate(argumentsJSON, 500),
 					Output:     utils.Truncate(toolResult.ForLLM, 500),
 					Duration:   toolDur,
 					Success:    toolResult.Err == nil && !toolResult.IsError,

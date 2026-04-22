@@ -13,17 +13,14 @@ import "encoding/json"
 func NormalizeToolCall(tc ToolCall) ToolCall {
 	normalized := tc
 
-	// Ensure Name is populated from Function if not set
 	if normalized.Name == "" && normalized.Function != nil {
 		normalized.Name = normalized.Function.Name
 	}
 
-	// Ensure Arguments is not nil
 	if normalized.Arguments == nil {
 		normalized.Arguments = map[string]any{}
 	}
 
-	// Parse Arguments from Function.Arguments if not already set
 	if len(normalized.Arguments) == 0 && normalized.Function != nil && normalized.Function.Arguments != "" {
 		var parsed map[string]any
 		if err := json.Unmarshal([]byte(normalized.Function.Arguments), &parsed); err == nil && parsed != nil {
@@ -31,12 +28,10 @@ func NormalizeToolCall(tc ToolCall) ToolCall {
 		}
 	}
 
-	// Ensure Function is populated with consistent values
-	argsJSON, _ := json.Marshal(normalized.Arguments)
 	if normalized.Function == nil {
 		normalized.Function = &FunctionCall{
 			Name:      normalized.Name,
-			Arguments: string(argsJSON),
+			Arguments: marshalArgs(normalized.Arguments),
 		}
 	} else {
 		if normalized.Function.Name == "" {
@@ -46,9 +41,24 @@ func NormalizeToolCall(tc ToolCall) ToolCall {
 			normalized.Name = normalized.Function.Name
 		}
 		if normalized.Function.Arguments == "" {
-			normalized.Function.Arguments = string(argsJSON)
+			normalized.Function.Arguments = marshalArgs(normalized.Arguments)
 		}
 	}
 
 	return normalized
+}
+
+// ToolCallArgumentsJSON returns the tool call's Arguments as a JSON string,
+// reusing Function.Arguments when the normalizer already produced it so the
+// hot tool-dispatch path avoids a redundant map→string marshal.
+func ToolCallArgumentsJSON(tc ToolCall) string {
+	if tc.Function != nil && tc.Function.Arguments != "" {
+		return tc.Function.Arguments
+	}
+	return marshalArgs(tc.Arguments)
+}
+
+func marshalArgs(args map[string]any) string {
+	b, _ := json.Marshal(args)
+	return string(b)
 }

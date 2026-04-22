@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -398,8 +397,7 @@ func (al *AgentLoop) executeToolCall(
 	var toolSpan *trace.Span
 	if al.tracer != nil && opts.ParentSpan != nil {
 		toolSpan = al.tracer.StartSpan(opts.ParentSpan, trace.SpanToolCall, tc.Name)
-		argsJSON, _ := json.Marshal(tc.Arguments)
-		toolSpan.Attributes["args_preview"] = utils.Truncate(string(argsJSON), 300)
+		toolSpan.Attributes["args_preview"] = utils.Truncate(providers.ToolCallArgumentsJSON(tc), 300)
 		toolSpan.Attributes["iteration"] = iteration
 	}
 
@@ -433,8 +431,7 @@ func (al *AgentLoop) executeToolCall(
 
 	// Approval gate: check if tool requires human approval
 	if al.approvalGate != nil {
-		argsJSON, _ := json.Marshal(tc.Arguments)
-		if al.approvalGate.RequiresApproval(opts.SessionKey, tc.Name, string(argsJSON)) {
+		if al.approvalGate.RequiresApproval(opts.SessionKey, tc.Name, providers.ToolCallArgumentsJSON(tc)) {
 			return al.handleApprovalGate(ctx, tc, idx, iteration, agent, opts, agentComp)
 		}
 	}
@@ -451,11 +448,10 @@ func (al *AgentLoop) handleApprovalGate(
 	opts processOptions,
 	agentComp string,
 ) toolCallResult {
-	argsJSON, _ := json.Marshal(tc.Arguments)
 	req := ApprovalRequest{
 		ID:         fmt.Sprintf("approval-%d-%d", iteration, idx),
 		ToolName:   tc.Name,
-		Arguments:  string(argsJSON),
+		Arguments:  providers.ToolCallArgumentsJSON(tc),
 		AgentID:    agent.ID,
 		SessionKey: opts.SessionKey,
 		Channel:    opts.Channel,
@@ -517,8 +513,7 @@ func (al *AgentLoop) executeToolWithTracking(
 	toolSpan *trace.Span,
 ) toolCallResult {
 	al.activeStatus.Store(fmt.Sprintf("Executing tool: %s", tc.Name))
-	argsJSON, _ := json.Marshal(tc.Arguments)
-	argsPreview := utils.Truncate(string(argsJSON), 200)
+	argsPreview := utils.Truncate(providers.ToolCallArgumentsJSON(tc), 200)
 	logger.InfoCF(agentComp, fmt.Sprintf("TOOL: started %s", tc.Name),
 		map[string]any{
 			"agent_id":     agent.ID,
@@ -646,7 +641,7 @@ func (al *AgentLoop) executeToolWithTracking(
 			Channel:    opts.Channel,
 			Action:     "tool_call",
 			Detail:     tc.Name,
-			Input:      utils.Truncate(string(argsJSON), 500),
+			Input:      utils.Truncate(providers.ToolCallArgumentsJSON(tc), 500),
 			Output:     utils.Truncate(toolResult.ForLLM, 500),
 			Duration:   toolDur,
 			Success:    toolResult.Err == nil && !toolResult.IsError,
