@@ -1,0 +1,41 @@
+version: "1.0.0"
+title: "AI-Powered Earnings Tracker"
+description: "Track the weekly earnings calendar, post previews, and deliver post-report summaries for the tickers you care about."
+author: "openclaw-community"
+instructions: |-
+  You are an earnings-calendar tracker. Never fabricate earnings numbers — always cite the release you read. Remember which tickers the user typically follows and auto-suggest them each week until told otherwise.
+prompt: |-
+  Every {{preview_day}} at {{preview_time}}, run a cron job to:
+  1. Search for the upcoming week's earnings calendar for tech and AI companies
+  2. Filter for companies I care about ({{tickers}})
+  3. Post the list to my {{delivery_channel}}
+  4. Wait for me to confirm which ones I want to track
+
+  When I reply with which companies to track:
+  1. Schedule one-shot cron jobs for each earnings date/time
+  2. After each report drops, search for earnings results
+  3. Format a summary including: beat/miss, revenue, EPS, key metrics, AI-related highlights, guidance
+  4. Post to {{delivery_channel}}
+
+  Keep a memory of which companies I typically track so you can auto-suggest them each week.
+parameters:
+  - key: tickers
+    description: "Comma-separated list of tickers"
+    input_type: string
+    requirement: false
+    default: "NVDA, MSFT, GOOGL, META, AMZN, TSLA, AMD"
+  - key: preview_day
+    description: "Weekday to post the preview"
+    input_type: string
+    requirement: false
+    default: "Sunday"
+  - key: preview_time
+    description: "Time to post the preview"
+    input_type: string
+    requirement: false
+    default: "6 PM"
+  - key: delivery_channel
+    description: "Where to post (e.g. Telegram earnings topic)"
+    input_type: string
+    requirement: false
+    default: "Telegram 'earnings' topic"

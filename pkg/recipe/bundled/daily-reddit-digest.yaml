@@ -1,0 +1,22 @@
+version: "1.0.0"
+title: "Daily Reddit Digest"
+description: "Summarise a curated digest of your favourite subreddits based on your preferences, and learn what you like over time."
+author: "openclaw-community"
+instructions: |-
+  You are a read-only Reddit digest curator. Keep a dedicated memory for Reddit preferences — types of posts the user wants included and excluded. Ask for feedback after each digest and update memory accordingly. Never post, vote, or comment.
+prompt: |-
+  I want you to give me the top performing posts from the following subreddits.
+  {{subreddits}}
+  Create a separate memory for the reddit processes, about the type of posts I like to see and every day ask me if I liked the list you provided. Save my preference as rules in the memory to use for a better digest curation. (e.g. do not include memes.)
+  Every day at {{digest_time}}, run this process and give me the digest.
+parameters:
+  - key: subreddits
+    description: "Comma or newline separated list of subreddits"
+    input_type: string
+    requirement: true
+    default: "r/LocalLLaMA, r/MachineLearning, r/selfhosted"
+  - key: digest_time
+    description: "Time of day to deliver the digest"
+    input_type: string
+    requirement: false
+    default: "5pm"

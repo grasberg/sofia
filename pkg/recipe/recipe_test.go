@@ -272,10 +272,11 @@ prompt: "Do thing two."
 
 	metas, err := ListRecipes(tmpDir)
 	require.NoError(t, err)
-	require.Len(t, metas, 2)
+	workspaceMetas := filterBySource(metas, "workspace")
+	require.Len(t, workspaceMetas, 2)
 
 	names := make(map[string]bool)
-	for _, m := range metas {
+	for _, m := range workspaceMetas {
 		names[m.Name] = true
 		assert.Equal(t, "workspace", m.Source)
 		assert.NotEmpty(t, m.Path)
@@ -291,13 +292,26 @@ func TestListRecipes_EmptyDir(t *testing.T) {
 
 	metas, err := ListRecipes(tmpDir)
 	require.NoError(t, err)
-	assert.Empty(t, metas)
+	assert.Empty(t, filterBySource(metas, "workspace"))
 }
 
 func TestListRecipes_NoDir(t *testing.T) {
 	metas, err := ListRecipes("/nonexistent/path")
 	require.NoError(t, err)
-	assert.Empty(t, metas)
+	assert.Empty(t, filterBySource(metas, "workspace"))
+}
+
+// filterBySource returns only the metas matching the requested source — useful
+// for tests that want to assert on workspace or global behaviour independently
+// of the always-present bundled library.
+func filterBySource(metas []RecipeMeta, source string) []RecipeMeta {
+	out := make([]RecipeMeta, 0, len(metas))
+	for _, m := range metas {
+		if m.Source == source {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 func TestLoadRecipe_FromFile(t *testing.T) {

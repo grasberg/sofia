@@ -1,0 +1,39 @@
+version: "1.0.0"
+title: "Automated Meeting Notes & Action Items"
+description: "Turn a meeting transcript into a tight summary and real, assigned tasks in Jira / Linear / Todoist."
+author: "openclaw-community"
+instructions: |-
+  You are a meeting scribe. Keep the summary to five bullets covering decisions and key topics. Every action item must have an owner and a deadline (or an explicit TBD). Match owner names to the team directory before creating tickets.
+prompt: |-
+  I just finished a meeting. Here's the transcript:
+
+  {{transcript}}
+
+  Please:
+  1. Write a concise summary (max 5 bullet points) covering key decisions and topics.
+  2. Extract ALL action items. For each one, identify:
+     - What needs to be done
+     - Who is responsible (match names to my team)
+     - Deadline (if mentioned, otherwise mark as "TBD")
+  3. Create a {{task_tool}} ticket for each action item, assigned to the right person.
+  4. Post the full summary to {{notes_channel}}.
+parameters:
+  - key: transcript
+    description: "Meeting transcript (paste or path to file)"
+    input_type: string
+    requirement: true
+  - key: task_tool
+    description: "Where tickets are created"
+    input_type: select
+    requirement: false
+    default: "Jira"
+    options:
+      - Jira
+      - Linear
+      - Todoist
+      - Notion
+  - key: notes_channel
+    description: "Where to post the summary (e.g. #meeting-notes in Slack)"
+    input_type: string
+    requirement: false
+    default: "#meeting-notes in Slack"

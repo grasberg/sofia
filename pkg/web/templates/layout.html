@@ -169,6 +169,11 @@
                 <span class="material-symbols-outlined" style="font-size:20px">science</span>
                 <span class="hidden lg:inline">Eval</span>
             </a>
+            <a href="#" hx-get="/ui/recipes" hx-target="#main-content" onclick="setActiveNav(this, event);" id="nav-recipes"
+                class="nav-item">
+                <span class="material-symbols-outlined" style="font-size:20px">menu_book</span>
+                <span class="hidden lg:inline">Recipes</span>
+            </a>
 
             <!-- Settings separator -->
             <div class="mt-3 mb-1 px-3 lg:px-3">
@@ -2237,6 +2242,22 @@
                     if (el('cfg-autonomy-context-triggers')) el('cfg-autonomy-context-triggers').checked = !!cfg.autonomy.context_triggers;
                     if (el('cfg-autonomy-interval')) { el('cfg-autonomy-interval').value = cfg.autonomy.interval_minutes || 10; if (el('cfg-autonomy-interval-val')) el('cfg-autonomy-interval-val').textContent = cfg.autonomy.interval_minutes || 10; }
                 }
+                if (cfg.github_autonomy) {
+                    const ghEl = (id) => document.getElementById(id);
+                    if (ghEl('cfg-gh-autonomy-enabled')) ghEl('cfg-gh-autonomy-enabled').checked = !!cfg.github_autonomy.enabled;
+                    if (ghEl('cfg-gh-autonomy-repos')) ghEl('cfg-gh-autonomy-repos').value = (cfg.github_autonomy.repos || []).join('\n');
+                    if (ghEl('cfg-gh-autonomy-label')) ghEl('cfg-gh-autonomy-label').value = cfg.github_autonomy.label || '';
+                    if (ghEl('cfg-gh-autonomy-branch-prefix')) ghEl('cfg-gh-autonomy-branch-prefix').value = cfg.github_autonomy.branch_prefix || '';
+                    if (ghEl('cfg-gh-autonomy-poll-minutes')) ghEl('cfg-gh-autonomy-poll-minutes').value = cfg.github_autonomy.poll_minutes || '';
+                    if (ghEl('cfg-gh-autonomy-max-concurrent')) ghEl('cfg-gh-autonomy-max-concurrent').value = cfg.github_autonomy.max_concurrent || '';
+                    if (ghEl('cfg-gh-autonomy-workspace')) ghEl('cfg-gh-autonomy-workspace').value = cfg.github_autonomy.workspace_root || '';
+                    if (ghEl('cfg-gh-autonomy-use-fork')) ghEl('cfg-gh-autonomy-use-fork').checked = !!cfg.github_autonomy.use_fork;
+                    if (ghEl('cfg-gh-autonomy-warning')) {
+                        const enabled = !!cfg.github_autonomy.enabled;
+                        const hasRepos = (cfg.github_autonomy.repos || []).length > 0;
+                        ghEl('cfg-gh-autonomy-warning').classList.toggle('hidden', !enabled || hasRepos);
+                    }
+                }
 
                 // Populate Budget settings
                 {
@@ -2289,6 +2310,9 @@
                         if (el('cfg-approval-require-for')) el('cfg-approval-require-for').value = (g.approval.require_for || []).join('\n');
                         if (el('cfg-approval-timeout')) el('cfg-approval-timeout').value = g.approval.timeout_sec || '';
                         if (el('cfg-approval-default')) el('cfg-approval-default').value = g.approval.default_action || 'deny';
+                        if (el('cfg-approval-risk-classifier')) el('cfg-approval-risk-classifier').value = g.approval.risk_classifier || '';
+                        if (el('cfg-approval-risk-amount')) el('cfg-approval-risk-amount').value = g.approval.risk_amount_threshold || '';
+                        if (el('cfg-approval-risk-keywords')) el('cfg-approval-risk-keywords').value = (g.approval.risk_angry_keywords || []).join('\n');
                     }
                     if (g.input_validation) {
                         if (el('cfg-input-enabled')) el('cfg-input-enabled').checked = !!g.input_validation.enabled;
@@ -2322,6 +2346,12 @@
                         if (el('cfg-email-password') && cfg.channels.email.password) el('cfg-email-password').value = cfg.channels.email.password;
                         if (el('cfg-email-poll')) el('cfg-email-poll').value = cfg.channels.email.poll_interval_sec || '';
                         if (el('cfg-email-allow-from')) el('cfg-email-allow-from').value = (cfg.channels.email.allow_from || []).join('\n');
+                        if (el('cfg-email-autonomous')) el('cfg-email-autonomous').checked = !!cfg.channels.email.autonomous;
+                        if (el('cfg-email-ingest-query')) el('cfg-email-ingest-query').value = cfg.channels.email.ingest_query || '';
+                        if (el('cfg-email-max-per-poll')) el('cfg-email-max-per-poll').value = cfg.channels.email.max_per_poll || '';
+                        if (el('cfg-email-max-body-bytes')) el('cfg-email-max-body-bytes').value = cfg.channels.email.max_body_bytes || '';
+                        if (el('cfg-email-mark-read')) el('cfg-email-mark-read').checked = !!cfg.channels.email.mark_as_read_on_ingest;
+                        if (el('cfg-email-user-locale')) el('cfg-email-user-locale').value = cfg.channels.email.user_locale || 'sv';
                         if (typeof toggleEmailGmailMode === 'function') toggleEmailGmailMode();
                     }
                     if (el('cfg-telegram-dm-policy')) el('cfg-telegram-dm-policy').value = (cfg.channels.telegram && cfg.channels.telegram.dm_policy) || '';
@@ -3380,6 +3410,27 @@
                     if (autoInterval) cfg.autonomy.interval_minutes = parseInt(autoInterval.value, 10) || 10;
                 }
 
+                // Save GitHub Autonomy settings
+                const ghAutoEnabled = document.getElementById("cfg-gh-autonomy-enabled");
+                if (ghAutoEnabled) {
+                    if (!cfg.github_autonomy) cfg.github_autonomy = {};
+                    cfg.github_autonomy.enabled = ghAutoEnabled.checked;
+                    const ghRepos = document.getElementById("cfg-gh-autonomy-repos");
+                    if (ghRepos) cfg.github_autonomy.repos = ghRepos.value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+                    const ghLabel = document.getElementById("cfg-gh-autonomy-label");
+                    if (ghLabel) cfg.github_autonomy.label = ghLabel.value.trim();
+                    const ghBranchPrefix = document.getElementById("cfg-gh-autonomy-branch-prefix");
+                    if (ghBranchPrefix) cfg.github_autonomy.branch_prefix = ghBranchPrefix.value.trim();
+                    const ghPoll = document.getElementById("cfg-gh-autonomy-poll-minutes");
+                    if (ghPoll) cfg.github_autonomy.poll_minutes = parseInt(ghPoll.value, 10) || 0;
+                    const ghMax = document.getElementById("cfg-gh-autonomy-max-concurrent");
+                    if (ghMax) cfg.github_autonomy.max_concurrent = parseInt(ghMax.value, 10) || 0;
+                    const ghWorkspace = document.getElementById("cfg-gh-autonomy-workspace");
+                    if (ghWorkspace) cfg.github_autonomy.workspace_root = ghWorkspace.value.trim();
+                    const ghFork = document.getElementById("cfg-gh-autonomy-use-fork");
+                    if (ghFork) cfg.github_autonomy.use_fork = ghFork.checked;
+                }
+
                 // Save Budget settings
                 const budgetMaxCost = document.getElementById("cfg-budget-max-cost");
                 if (budgetMaxCost) {
@@ -3445,6 +3496,12 @@
                     if (approvalTimeout) cfg.guardrails.approval.timeout_sec = parseInt(approvalTimeout.value, 10) || 300;
                     const approvalDefault = document.getElementById("cfg-approval-default");
                     if (approvalDefault) cfg.guardrails.approval.default_action = approvalDefault.value;
+                    const approvalClassifier = document.getElementById("cfg-approval-risk-classifier");
+                    if (approvalClassifier) cfg.guardrails.approval.risk_classifier = approvalClassifier.value;
+                    const approvalAmount = document.getElementById("cfg-approval-risk-amount");
+                    if (approvalAmount) cfg.guardrails.approval.risk_amount_threshold = parseFloat(approvalAmount.value) || 0;
+                    const approvalKeywords = document.getElementById("cfg-approval-risk-keywords");
+                    if (approvalKeywords) cfg.guardrails.approval.risk_angry_keywords = approvalKeywords.value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
                 }
                 const inputEnabled = document.getElementById("cfg-input-enabled");
                 if (inputEnabled) {
@@ -3502,6 +3559,18 @@
                     if (emailPoll) cfg.channels.email.poll_interval_sec = parseInt(emailPoll.value, 10) || 0;
                     const emailAllowFrom = document.getElementById("cfg-email-allow-from");
                     if (emailAllowFrom) cfg.channels.email.allow_from = emailAllowFrom.value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+                    const emailAutonomous = document.getElementById("cfg-email-autonomous");
+                    if (emailAutonomous) cfg.channels.email.autonomous = emailAutonomous.checked;
+                    const emailIngestQuery = document.getElementById("cfg-email-ingest-query");
+                    if (emailIngestQuery) cfg.channels.email.ingest_query = emailIngestQuery.value.trim();
+                    const emailMaxPerPoll = document.getElementById("cfg-email-max-per-poll");
+                    if (emailMaxPerPoll) cfg.channels.email.max_per_poll = parseInt(emailMaxPerPoll.value, 10) || 0;
+                    const emailMaxBody = document.getElementById("cfg-email-max-body-bytes");
+                    if (emailMaxBody) cfg.channels.email.max_body_bytes = parseInt(emailMaxBody.value, 10) || 0;
+                    const emailMarkRead = document.getElementById("cfg-email-mark-read");
+                    if (emailMarkRead) cfg.channels.email.mark_as_read_on_ingest = emailMarkRead.checked;
+                    const emailLocale = document.getElementById("cfg-email-user-locale");
+                    if (emailLocale) cfg.channels.email.user_locale = emailLocale.value;
                 }
                 const tgDmPolicy = document.getElementById("cfg-telegram-dm-policy");
                 if (tgDmPolicy) cfg.channels.telegram.dm_policy = tgDmPolicy.value;
@@ -3842,6 +3911,10 @@
                         if (typeof window.showChatSuggestions === 'function') {
                             window.showChatSuggestions(d.suggestions);
                         }
+                    } else if (d.type === 'approval_created' || d.type === 'approval_resolved') {
+                        // Fan out to the monitor tab so its approval list reacts
+                        // without polling.
+                        document.dispatchEvent(new CustomEvent('sofia:approval', { detail: d }));
                     }
 
                     // Refresh goal/plan panels on goal-specific events only.

@@ -1,0 +1,24 @@
+version: "1.0.0"
+title: "X Account Analysis"
+description: "Pull recent tweets from an X/Twitter account and produce a qualitative performance analysis with content-direction suggestions."
+author: "openclaw-community"
+instructions: |-
+  You are an X account analyst. Use only real data from the account. Identify engagement patterns, content themes, posting cadence, and what the outliers (best + worst) have in common. Close with three concrete experiments to try next week.
+prompt: |-
+  Take a look at the X account @{{handle}}, fetch the last {{num_tweets}} tweets, and produce:
+  1. Engagement summary (average likes/replies/reposts; best and worst performers)
+  2. Content themes and their relative performance
+  3. Posting cadence (best days and hours)
+  4. 3 concrete experiments to try next week
+
+  If the user then says "draft me some content", write three ready-to-post drafts in the voice of the account.
+parameters:
+  - key: handle
+    description: "X/Twitter handle (without @)"
+    input_type: string
+    requirement: true
+  - key: num_tweets
+    description: "How many recent tweets to analyse"
+    input_type: number
+    requirement: false
+    default: "100"

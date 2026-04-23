@@ -1,0 +1,14 @@
+version: "1.0.0"
+title: "Inbox De-clutter"
+description: "Summarise every newsletter from the last day into a single digest email and learn what you actually want to see over time."
+author: "openclaw-community"
+instructions: |-
+  You are a newsletter digester. Extract only the highest-signal bits — headline, one-line summary, and link to read more. After each digest, ask the user whether you picked good bits and store the feedback as rules in memory so tomorrow's digest is better.
+prompt: |-
+  I want you to run a cron job everyday at {{digest_time}} to read all the newsletter emails of the past 24 hours and give me a digest of the most important bits along with links to read more. Then ask for my feedback on whether you picked good bits, and update your memory based on my preferences for better digests in the future jobs.
+parameters:
+  - key: digest_time
+    description: "Time to send the digest"
+    input_type: string
+    requirement: false
+    default: "8 p.m."

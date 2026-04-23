@@ -94,13 +94,30 @@ func (r *stubReceiver) Close() error {
 	return nil
 }
 
+// IngestedStore persists which inbound emails have already been delivered to
+// the bus so repeated polls or process restarts don't re-publish the same
+// message. Implemented by *memory.MemoryDB — held as a local interface so this
+// package doesn't import memory (avoiding a cycle and keeping tests simple).
+type IngestedStore interface {
+	IsEmailIngested(messageID string) (bool, error)
+	MarkEmailIngested(messageID, threadID, fromAddr, subject string) error
+}
+
+// InboundHandler is called for each successfully-ingested email when
+// Autonomous=true. It runs in the poll goroutine so implementations that
+// need to do significant work (e.g. spawn a workflow) should offload to a
+// separate goroutine to avoid blocking the next poll.
+type InboundHandler func(IncomingEmail)
+
 // EmailChannel implements the Channel interface for email communication.
 type EmailChannel struct {
 	*BaseChannel
-	cfg      config.EmailConfig
-	sender   EmailSender
-	receiver EmailReceiver
-	stopCh   chan struct{}
+	cfg       config.EmailConfig
+	sender    EmailSender
+	receiver  EmailReceiver
+	ingested  IngestedStore
+	onInbound InboundHandler
+	stopCh    chan struct{}
 }
 
 // NewEmailChannel creates a new EmailChannel from the given config and message bus.
@@ -111,10 +128,21 @@ func NewEmailChannel(cfg config.EmailConfig, msgBus *bus.MessageBus) *EmailChann
 	base := NewBaseChannel("email", cfg, msgBus, cfg.AllowFrom)
 
 	var sender EmailSender
+	var receiver EmailReceiver = &stubReceiver{}
+
 	useGmail := cfg.UseGmailAPI || (cfg.SMTPServer == "" && isGmailAddress(cfg.Username))
 	if useGmail {
 		sender = NewGmailSender(cfg.GogBinary, cfg.Username, 90)
-		logger.InfoCF("email", "Using Gmail API sender (gog CLI)", map[string]any{
+		receiver = NewGmailReceiver(GmailReceiverOptions{
+			BinaryPath:   cfg.GogBinary,
+			Account:      cfg.Username,
+			Query:        cfg.IngestQuery,
+			MaxPerPoll:   cfg.MaxPerPoll,
+			MaxBodyBytes: cfg.MaxBodyBytes,
+			MarkAsRead:   cfg.MarkAsReadOnIngest,
+			TimeoutSec:   90,
+		})
+		logger.InfoCF("email", "Using Gmail API sender+receiver (gog CLI)", map[string]any{
 			"account": cfg.Username,
 		})
 	} else if cfg.SMTPServer != "" {
@@ -125,10 +153,35 @@ func NewEmailChannel(cfg config.EmailConfig, msgBus *bus.MessageBus) *EmailChann
 		BaseChannel: base,
 		cfg:         cfg,
 		sender:      sender,
-		receiver:    &stubReceiver{},
+		receiver:    receiver,
 		stopCh:      make(chan struct{}),
 	}
 }
+
+// SetIngestedStore wires the persistence layer used to deduplicate inbound
+// messages across polls and restarts. Call this after construction but before
+// Start; passing nil disables dedupe (every poll hit is re-published).
+func (ec *EmailChannel) SetIngestedStore(store IngestedStore) {
+	ec.ingested = store
+}
+
+// SetInboundHandler installs a per-message callback invoked when
+// cfg.Autonomous is true and the message has passed the allowlist +
+// dedupe checks. Replaces any prior handler; passing nil disables the
+// autonomous path and reverts to bus-only delivery.
+func (ec *EmailChannel) SetInboundHandler(h InboundHandler) {
+	ec.onInbound = h
+}
+
+// Sender returns the underlying EmailSender so callers (e.g. the workflow
+// package) can drive plain-text sends without going through the message bus.
+// May be nil when the channel is configured without a sender.
+func (ec *EmailChannel) Sender() EmailSender { return ec.sender }
+
+// Config returns the active email configuration — handy for wiring code
+// that needs to inspect account/locale/autonomous flags without re-reading
+// the config struct.
+func (ec *EmailChannel) Config() config.EmailConfig { return ec.cfg }
 
 // isGmailAddress returns true if the address is a Gmail or Google Workspace
 // address that can use the Gmail API.
@@ -236,6 +289,8 @@ func (ec *EmailChannel) pollLoop(ctx context.Context, interval time.Duration) {
 }
 
 // fetchAndPublish retrieves new emails and forwards them to the message bus.
+// When an IngestedStore is configured, already-delivered message IDs are
+// skipped and newly delivered ones recorded.
 func (ec *EmailChannel) fetchAndPublish(ctx context.Context) {
 	emails, err := ec.receiver.Poll(ctx)
 	if err != nil {
@@ -253,19 +308,45 @@ func (ec *EmailChannel) fetchAndPublish(ctx context.Context) {
 			continue
 		}
 
-		metadata := map[string]string{
-			"message_id": email.MessageID,
-			"subject":    email.Subject,
-			"date":       email.Date.Format(time.RFC3339),
-			"peer_kind":  "direct",
-			"peer_id":    email.From,
+		if ec.ingested != nil && email.MessageID != "" {
+			seen, err := ec.ingested.IsEmailIngested(email.MessageID)
+			if err != nil {
+				logger.WarnCF("email", "Ingested lookup failed; proceeding", map[string]any{
+					"message_id": email.MessageID, "error": err.Error(),
+				})
+			} else if seen {
+				continue
+			}
 		}
 
-		content := email.Body
-		if email.Subject != "" {
-			content = "[Subject: " + email.Subject + "]\n" + content
+		if ec.cfg.Autonomous && ec.onInbound != nil {
+			// Autonomous mode: route to the support-reply workflow instead
+			// of the agent loop. Offloaded to a goroutine so the poll
+			// cadence isn't coupled to workflow duration.
+			go ec.onInbound(email)
+		} else {
+			metadata := map[string]string{
+				"message_id": email.MessageID,
+				"subject":    email.Subject,
+				"date":       email.Date.Format(time.RFC3339),
+				"peer_kind":  "direct",
+				"peer_id":    email.From,
+			}
+
+			content := email.Body
+			if email.Subject != "" {
+				content = "[Subject: " + email.Subject + "]\n" + content
+			}
+
+			ec.HandleMessage(email.From, email.From, content, nil, metadata)
 		}
 
-		ec.HandleMessage(email.From, email.From, content, nil, metadata)
+		if ec.ingested != nil && email.MessageID != "" {
+			if err := ec.ingested.MarkEmailIngested(email.MessageID, "", email.From, email.Subject); err != nil {
+				logger.WarnCF("email", "Failed to record ingested message", map[string]any{
+					"message_id": email.MessageID, "error": err.Error(),
+				})
+			}
+		}
 	}
 }

@@ -39,8 +39,10 @@ func ParseRecipe(data []byte) (*Recipe, error) {
 	return &r, nil
 }
 
-// ListRecipes discovers recipes from workspace/recipes/ and ~/.sofia/recipes/.
-// Workspace recipes take priority over global ones with the same name.
+// ListRecipes discovers recipes from workspace/recipes/, ~/.sofia/recipes/,
+// and the recipes bundled inside the Sofia binary. Earlier sources win when
+// names collide: user customisations override global recipes, which override
+// built-ins.
 func ListRecipes(workspacePath string) ([]RecipeMeta, error) {
 	seen := make(map[string]bool)
 	var metas []RecipeMeta
@@ -70,6 +72,16 @@ func ListRecipes(workspacePath string) ([]RecipeMeta, error) {
 					seen[m.Name] = true
 					metas = append(metas, m)
 				}
+			}
+		}
+	}
+
+	// 3. Bundled: compiled into the binary.
+	if found, bErr := ListBundledRecipes(); bErr == nil {
+		for _, m := range found {
+			if !seen[m.Name] {
+				seen[m.Name] = true
+				metas = append(metas, m)
 			}
 		}
 	}

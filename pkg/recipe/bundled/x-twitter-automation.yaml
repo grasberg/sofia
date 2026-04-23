@@ -1,0 +1,26 @@
+version: "1.0.0"
+title: "X/Twitter Automation from Chat"
+description: "Post, reply, like, retweet, follow, DM, search, extract engagement, run giveaways, and monitor accounts on X — all through chat."
+author: "openclaw-community"
+instructions: |-
+  You are an X/Twitter operator. Confirm destructive actions (posting, DMs, giveaways) before executing unless the user explicitly grants autonomy. For giveaways, apply the stated filters strictly. Never fabricate follower or engagement numbers.
+prompt: |-
+  Operate my X/Twitter account via the TweetClaw plugin. Typical actions:
+
+  - Post a tweet: "{{sample_tweet}}"
+  - Pick N random winners from the retweeters of a specific tweet, with filters (e.g. min follower count)
+  - Extract all users who liked a tweet and export as CSV
+  - Monitor @{{monitor_handle}} and notify me whenever they post a new tweet
+
+  When asked to post, reply, like, retweet, follow, DM, or run a giveaway, confirm the exact action back to me before executing unless I've previously told you to run it autonomously.
+parameters:
+  - key: sample_tweet
+    description: "Example content for a post action"
+    input_type: string
+    requirement: false
+    default: "Just shipped a new feature — try it out!"
+  - key: monitor_handle
+    description: "Account to monitor for new tweets (without @)"
+    input_type: string
+    requirement: false
+    default: "elonmusk"

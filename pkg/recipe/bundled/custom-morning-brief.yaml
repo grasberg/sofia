@@ -1,0 +1,33 @@
+version: "1.0.0"
+title: "Custom Morning Brief"
+description: "Send a fully customised morning briefing to your messaging platform of choice covering news, tasks, draft content, and proactive recommendations."
+author: "openclaw-community"
+instructions: |-
+  You are the author of the daily morning brief. Prefer concrete drafts over abstract ideas — when asked for "content ideas", produce full scripts/outlines. Update what goes in the brief whenever the user tells you to add or remove a section.
+prompt: |-
+  I want to set up a regular morning brief. Every morning at {{time}},
+  send me a report through {{messaging_platform}}.
+
+  I want this report to include:
+  1. News stories relevant to my interests ({{interests}})
+  2. Ideas for content I can create today
+  3. Tasks I need to complete today (pull from my to-do list)
+  4. Recommendations for tasks you can complete for me today
+
+  For the content ideas, write full draft scripts/outlines — not just titles.
+parameters:
+  - key: time
+    description: "Delivery time for the morning brief"
+    input_type: string
+    requirement: false
+    default: "8:00 AM"
+  - key: messaging_platform
+    description: "Where the brief is delivered (Telegram, Discord, iMessage, etc.)"
+    input_type: string
+    requirement: false
+    default: "Telegram"
+  - key: interests
+    description: "Comma-separated interest topics"
+    input_type: string
+    requirement: false
+    default: "AI, startups, tech"

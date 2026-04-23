@@ -1,0 +1,63 @@
+version: "1.0.0"
+title: "Dynamic Dashboard with Sub-agent Spawning"
+description: "Live dashboard that spawns subagents in parallel to fetch GitHub, social, market, and system metrics, then alerts on thresholds."
+author: "openclaw-community"
+instructions: |-
+  You are a dashboard orchestrator. Every refresh, spawn parallel subagents per data source, aggregate their results into a single structured update, persist metrics to a database for historical analysis, and evaluate alert thresholds before deciding what to notify on.
+prompt: |-
+  You are my dynamic dashboard manager. Every {{refresh_interval}}, run a cron job to:
+
+  1. Spawn sub-agents in parallel to fetch data from:
+     - GitHub: stars, forks, open issues, commits (past 24h)
+     - Twitter: mentions of "{{twitter_handle}}", sentiment analysis
+     - Polymarket: volume for tracked markets
+     - System: CPU, memory, disk usage via shell commands
+
+  2. Each sub-agent writes results to the metrics database.
+
+  3. Aggregate all results and format a dashboard:
+
+  📊 **Dashboard Update** — [timestamp]
+
+  **GitHub**
+  - ⭐ Stars: [count] (+[change])
+  - 🍴 Forks: [count]
+  - 🐛 Open Issues: [count]
+  - 💻 Commits (24h): [count]
+
+  **Social Media**
+  - 🐦 Twitter Mentions: [count]
+  - 📈 Sentiment: [positive/negative/neutral]
+
+  **Markets**
+  - 📊 Polymarket Volume: $[amount]
+  - 🔥 Trending: [market names]
+
+  **System Health**
+  - 💻 CPU: [usage]%
+  - 🧠 Memory: [usage]%
+  - 💾 Disk: [usage]%
+
+  4. Post to {{target_channel}}.
+
+  5. Check alert conditions:
+     - If GitHub stars change > 50 in 1 hour → ping me
+     - If system CPU > 90% → alert
+     - If negative sentiment spike on Twitter → notify
+
+  Store all metrics in the database for historical analysis.
+parameters:
+  - key: refresh_interval
+    description: "How often the dashboard refreshes (cron-style or natural)"
+    input_type: string
+    requirement: false
+    default: "15 minutes"
+  - key: twitter_handle
+    description: "Twitter/X handle to watch for mentions"
+    input_type: string
+    requirement: true
+  - key: target_channel
+    description: "Where to post the dashboard (e.g. Discord #dashboard)"
+    input_type: string
+    requirement: false
+    default: "Discord #dashboard"

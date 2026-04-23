@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,8 +22,21 @@ type ApprovalRequest struct {
 	Channel    string    `json:"channel"`
 	ChatID     string    `json:"chat_id"`
 	CreatedAt  time.Time `json:"created_at"`
-	Status     string    `json:"status"` // "pending", "approved", "denied", "timeout"
+	Status     string    `json:"status"`     // "pending", "approved", "denied", "timeout"
+	RiskLevel  RiskLevel `json:"risk_level"` // populated when a RiskClassifier is wired
 }
+
+// ApprovalBroadcaster is the callback the gate invokes whenever the pending
+// queue changes (create / approve / deny / timeout). The map carries:
+//
+//	"type"       → "approval_created" | "approval_resolved"
+//	"id"         → gate-<uuid>
+//	"tool"       → tool name
+//	"risk_level" → "low"|"medium"|"high"|"unknown"
+//	"status"     → "pending"|"approved"|"denied"|"timeout"
+//
+// Wire this to dashboard.Hub.Broadcast (or any sink) via SetBroadcaster.
+type ApprovalBroadcaster func(event map[string]any)
 
 // ApprovalGate manages human-in-the-loop approval for high-risk tool calls.
 type ApprovalGate struct {
@@ -31,6 +45,8 @@ type ApprovalGate struct {
 	pending        map[string]*approvalEntry
 	patterns       []*regexp.Regexp
 	approvalBypass sync.Map // sessionKey -> bool
+	classifier     RiskClassifier
+	broadcaster    ApprovalBroadcaster
 }
 
 type approvalEntry struct {
@@ -52,11 +68,69 @@ func NewApprovalGate(cfg config.ApprovalConfig) *ApprovalGate {
 		patterns = append(patterns, re)
 	}
 
-	return &ApprovalGate{
+	gate := &ApprovalGate{
 		config:   cfg,
 		pending:  make(map[string]*approvalEntry),
 		patterns: patterns,
 	}
+
+	switch strings.ToLower(strings.TrimSpace(cfg.RiskClassifier)) {
+	case "heuristic":
+		gate.classifier = NewHeuristicClassifier(cfg.RiskAmountThreshold, cfg.RiskAngryKeywords)
+	case "", "off", "none", "disabled":
+		// leave classifier nil — preserves legacy behavior
+	case "llm":
+		// LLM classifier is wired externally by the caller via SetClassifier
+		// because it needs a provider handle.
+	default:
+		logger.WarnCF("approval", "Unknown risk_classifier value, classifier disabled",
+			map[string]any{"value": cfg.RiskClassifier})
+	}
+
+	return gate
+}
+
+// SetClassifier installs a risk classifier consulted when a tool call is not
+// already flagged by RequireFor / PatternMatch. Pass nil to disable.
+func (ag *ApprovalGate) SetClassifier(c RiskClassifier) {
+	ag.mu.Lock()
+	defer ag.mu.Unlock()
+	ag.classifier = c
+}
+
+// SetBroadcaster installs a callback the gate invokes on every pending-queue
+// change. Passing nil disables broadcasting.
+func (ag *ApprovalGate) SetBroadcaster(b ApprovalBroadcaster) {
+	ag.mu.Lock()
+	defer ag.mu.Unlock()
+	ag.broadcaster = b
+}
+
+// broadcastEvent invokes the broadcaster under a released lock. Callers must
+// not hold ag.mu when they call this.
+func (ag *ApprovalGate) broadcastEvent(ev map[string]any) {
+	ag.mu.Lock()
+	b := ag.broadcaster
+	ag.mu.Unlock()
+	if b == nil {
+		return
+	}
+	// Isolate sink errors / panics from gate critical paths.
+	defer func() { _ = recover() }()
+	b(ev)
+}
+
+// Classify exposes the configured classifier so callers (e.g. workflow steps)
+// can assess risk ahead of sending a side-effect through the gate. Returns
+// RiskUnknown when no classifier is configured.
+func (ag *ApprovalGate) Classify(ctx context.Context, d ToolCallDescriptor) RiskLevel {
+	ag.mu.Lock()
+	c := ag.classifier
+	ag.mu.Unlock()
+	if c == nil {
+		return RiskUnknown
+	}
+	return c.Classify(ctx, d)
 }
 
 // SetBypass enables or disables approval bypass for the given session.
@@ -76,10 +150,18 @@ func (ag *ApprovalGate) IsBypassed(sessionKey string) bool {
 }
 
 // RequiresApproval checks whether a tool call needs human approval.
-// It returns true if the tool name is in the RequireFor list or if argsJSON
-// matches any PatternMatch regex. Returns false immediately if bypass is set
+// It returns true if the tool name is in the RequireFor list, if argsJSON
+// matches any PatternMatch regex, or if the configured risk classifier rates
+// the call as Medium or higher. Returns false immediately if bypass is set
 // for the given session.
 func (ag *ApprovalGate) RequiresApproval(sessionKey string, toolName string, argsJSON string) bool {
+	return ag.RequiresApprovalWithHints(sessionKey, toolName, argsJSON, nil)
+}
+
+// RequiresApprovalWithHints is the extended form that lets callers pass
+// structured hints (sentiment, files_changed, content, subject, ...) to the
+// risk classifier. argsJSON is still matched against PatternMatch regex.
+func (ag *ApprovalGate) RequiresApprovalWithHints(sessionKey string, toolName string, argsJSON string, hints map[string]string) bool {
 	if ag.IsBypassed(sessionKey) {
 		return false
 	}
@@ -96,6 +178,20 @@ func (ag *ApprovalGate) RequiresApproval(sessionKey string, toolName string, arg
 
 	for _, re := range ag.patterns {
 		if re.MatchString(argsJSON) {
+			return true
+		}
+	}
+
+	ag.mu.Lock()
+	classifier := ag.classifier
+	ag.mu.Unlock()
+	if classifier != nil {
+		level := classifier.Classify(context.Background(), ToolCallDescriptor{
+			ToolName:  toolName,
+			Arguments: argsJSON,
+			Hints:     hints,
+		})
+		if level == RiskMedium || level == RiskHigh {
 			return true
 		}
 	}
@@ -132,6 +228,16 @@ func (ag *ApprovalGate) RequestApproval(ctx context.Context, req ApprovalRequest
 			"timeout":    timeout,
 		})
 
+	ag.broadcastEvent(map[string]any{
+		"type":       "approval_created",
+		"id":         "gate-" + req.ID,
+		"tool":       req.ToolName,
+		"agent_id":   req.AgentID,
+		"channel":    req.Channel,
+		"risk_level": string(req.RiskLevel),
+		"status":     "pending",
+	})
+
 	defer func() {
 		ag.mu.Lock()
 		delete(ag.pending, req.ID)
@@ -164,6 +270,13 @@ func (ag *ApprovalGate) RequestApproval(ctx context.Context, req ApprovalRequest
 		fields["default_action"] = action
 		fields["timeout_sec"] = timeout
 		logger.Audit("Approval Decision: TIMEOUT", fields)
+		ag.broadcastEvent(map[string]any{
+			"type":           "approval_resolved",
+			"id":             "gate-" + req.ID,
+			"status":         "timeout",
+			"default_action": action,
+			"tool":           req.ToolName,
+		})
 		return defaultAllow, nil
 
 	case <-ctx.Done():
@@ -187,6 +300,13 @@ func (ag *ApprovalGate) Approve(requestID string) error {
 	case entry.ResultCh <- true:
 	default:
 	}
+
+	ag.broadcastEvent(map[string]any{
+		"type":   "approval_resolved",
+		"id":     "gate-" + requestID,
+		"status": "approved",
+		"tool":   entry.Request.ToolName,
+	})
 	return nil
 }
 
@@ -206,6 +326,13 @@ func (ag *ApprovalGate) Deny(requestID string) error {
 	case entry.ResultCh <- false:
 	default:
 	}
+
+	ag.broadcastEvent(map[string]any{
+		"type":   "approval_resolved",
+		"id":     "gate-" + requestID,
+		"status": "denied",
+		"tool":   entry.Request.ToolName,
+	})
 	return nil
 }
 

@@ -1,0 +1,28 @@
+version: "1.0.0"
+title: "Second Brain (Text-to-Search)"
+description: "Text anything to Sofia to remember it, then search every memory through a minimal searchable dashboard."
+author: "openclaw-community"
+instructions: |-
+  You are a zero-friction capture system. Accept any inbound text as a memory — no folders, no tags, no confirmation dialogs. Only ask a follow-up question when the memory is genuinely ambiguous. Build a searchable UI for retrieval.
+prompt: |-
+  I want to build a second brain system where I can review all our notes,
+  conversations, and memories. Please build that out with {{ui_stack}}.
+
+  Include:
+  - A searchable list of all memories and conversations
+  - Global search (Cmd+K) across everything
+  - Ability to filter by date and type
+  - Clean, minimal UI
+
+  Capture channels: {{capture_channels}}
+parameters:
+  - key: capture_channels
+    description: "Where I can text you (Telegram, iMessage, Discord, etc.)"
+    input_type: string
+    requirement: false
+    default: "Telegram"
+  - key: ui_stack
+    description: "Frontend stack for the dashboard"
+    input_type: string
+    requirement: false
+    default: "Next.js"

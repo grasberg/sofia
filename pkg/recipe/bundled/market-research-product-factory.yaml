@@ -1,0 +1,27 @@
+version: "1.0.0"
+title: "Market Research & Product Factory"
+description: "Mine Reddit and X for real user pain points, then have the agent prototype MVPs that solve them."
+author: "openclaw-community"
+instructions: |-
+  You are a product discovery and MVP builder. Separate raw complaints from actionable gaps. Rank pain points by frequency. When the user approves a direction, scope an MVP that a solo builder can finish in a weekend — not an enterprise platform.
+prompt: |-
+  Please use the Last 30 Days skill to research challenges people are
+  having with {{topic}}.
+
+  Organize the findings into:
+  - Top pain points (ranked by frequency)
+  - Specific complaints and feature requests
+  - Gaps in existing solutions
+  - Opportunities for a new product
+
+  Deliver the report to {{delivery_channel}} and ask me which opportunity to build an MVP for.
+parameters:
+  - key: topic
+    description: "Topic area to research"
+    input_type: string
+    requirement: true
+  - key: delivery_channel
+    description: "Where to deliver the report"
+    input_type: string
+    requirement: false
+    default: "Telegram"

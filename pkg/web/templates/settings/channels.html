@@ -122,6 +122,60 @@
                 </div>
             </div>
 
+            <!-- Autonomous reply mode -->
+            <div class="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] space-y-3 mt-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Autonomous reply workflow</h4>
+                        <p class="text-[11px] text-zinc-500 leading-relaxed">When on, inbound mail is routed to the <code>support-reply</code> workflow (triage → KB lookup → draft → risk check → send → archive). Low-risk / P3+ messages auto-send; anything higher goes through the approval queue.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="cfg-email-autonomous" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Ingest query (Gmail search)</label>
+                        <input type="text" id="cfg-email-ingest-query" placeholder="is:unread in:inbox"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"
+                            onchange="saveConfig()">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Max messages per poll</label>
+                        <input type="number" id="cfg-email-max-per-poll" min="1" max="100" placeholder="10"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"
+                            onchange="saveConfig()">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Max body size (bytes)</label>
+                        <input type="number" id="cfg-email-max-body-bytes" min="1024" placeholder="65536"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"
+                            onchange="saveConfig()">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Reply locale</label>
+                        <select id="cfg-email-user-locale"
+                            class="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"
+                            onchange="saveConfig()">
+                            <option value="sv">Svenska (sv)</option>
+                            <option value="en">English (en)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between p-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-sidebar)]">
+                    <div>
+                        <h4 class="text-xs font-semibold text-[var(--text-main)]">Mark as read on ingest</h4>
+                        <p class="text-[10px] text-zinc-500">Strip <code>UNREAD</code> after fetching so the next poll doesn't reprocess the same message.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="cfg-email-mark-read" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+                <div id="cfg-email-autonomous-warning" class="hidden text-[11px] text-yellow-500">Autonomous mode needs Gmail API enabled and an allow-list to be safe.</div>
+            </div>
+
             <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
                 <i data-lucide="save" class="w-4 h-4"></i>
                 Save changes

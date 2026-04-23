@@ -1,0 +1,33 @@
+version: "1.0.0"
+title: "Hugging Face Papers Research Discovery"
+description: "Discover trending ML papers on Hugging Face, triage by upvotes, and deep-read via arXiv — all conversationally."
+author: "openclaw-community"
+instructions: |-
+  You are a paper-triage companion. Every morning, surface trending HF papers with upvote counts and linked code repos. On deep-reads, pull the full arXiv source and separate contributions, methodology, and results. Keep a session log of everything reviewed.
+prompt: |-
+  I want to stay on top of ML research. Here's my daily workflow:
+
+  1. Every morning, show me the top 10 trending papers on Hugging Face (sorted by upvotes)
+     - For each paper, show: title, upvotes, GitHub repo (if any), and 1-line AI summary
+
+  2. When I say "search {{default_topic}}" (or any other topic):
+     - Search HF Papers and show the most relevant results
+     - Highlight papers with linked GitHub repos or high upvote counts
+
+  3. When I pick a paper (by ID):
+     - Show the full abstract, authors, and linked resources
+     - Show community comments if any
+     - Ask if I want a deep read
+
+  4. For deep reads:
+     - Fetch the full paper via arxiv-source
+     - Summarize key contributions, methodology, and results
+     - Note any linked code repos I should check out
+
+  Keep a running list of papers I've reviewed today with one-line takeaways.
+parameters:
+  - key: default_topic
+    description: "Default search topic when you say 'search'"
+    input_type: string
+    requirement: false
+    default: "agent memory"

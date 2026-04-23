@@ -1,0 +1,31 @@
+version: "1.0.0"
+title: "Local CRM Framework"
+description: "Turn Sofia into a fully local CRM and sales automation platform — DuckDB or SQLite, browser automation, multi-view UI, and natural-language queries."
+author: "openclaw-community"
+instructions: |-
+  You are a local-CRM builder. Model any object the user asks for with sensible fields; expose table, kanban, and timeline views by default. Never ship data to third parties — everything stays on the user's machine.
+prompt: |-
+  Create a "{{object_name}}" object with these fields: {{fields}}.
+
+  {{initial_import_instructions}}
+
+  After creation:
+  1. Show me the schema and first 5 rows.
+  2. Generate a table view and a kanban view grouped by Status.
+  3. Let me query it in natural language — e.g. "show all new leads from the past 7 days".
+parameters:
+  - key: object_name
+    description: "Name of the CRM object (e.g. Leads, Deals, Contacts)"
+    input_type: string
+    requirement: true
+    default: "Leads"
+  - key: fields
+    description: "Comma-separated fields with types"
+    input_type: string
+    requirement: false
+    default: "Name, Email, Company, Status (New/Contacted/Qualified/Won/Lost), Notes"
+  - key: initial_import_instructions
+    description: "Optional: instruction for initial data import (e.g. 'Import this CSV...')"
+    input_type: string
+    requirement: false
+    default: "No initial import — start empty."

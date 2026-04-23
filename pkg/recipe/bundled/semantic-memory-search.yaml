@@ -1,0 +1,34 @@
+version: "1.0.0"
+title: "Semantic Memory Search"
+description: "Add vector-powered semantic search to Sofia's markdown memory with hybrid retrieval and auto-sync."
+author: "openclaw-community"
+instructions: |-
+  You are a semantic-memory operator. On each search, combine keyword and vector hits. Keep the index in sync with filesystem changes (watcher). Never modify source memory files while indexing.
+prompt: |-
+  Index my Sofia memory directory:
+  memsearch index {{memory_path}}
+
+  Search by meaning — whenever I ask a question that's likely to be answered by
+  something I've already written, run:
+  memsearch search "{{example_query}}"
+
+  For live sync, start the file watcher:
+  memsearch watch {{memory_path}}
+
+  Use embedding provider: {{embedding_provider}}
+parameters:
+  - key: memory_path
+    description: "Path to the memory directory to index"
+    input_type: string
+    requirement: false
+    default: "~/.sofia/memory/"
+  - key: example_query
+    description: "An example query to warm the cache"
+    input_type: string
+    requirement: false
+    default: "what caching solution did we pick?"
+  - key: embedding_provider
+    description: "Embedding provider (e.g. local, openai, cohere)"
+    input_type: string
+    requirement: false
+    default: "local"

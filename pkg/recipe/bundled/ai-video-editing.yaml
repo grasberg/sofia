@@ -1,0 +1,32 @@
+version: "1.0.0"
+title: "AI Video Editing via Chat"
+description: "Edit videos by describing changes in natural language — trim, merge, add music, subtitles, crop to vertical — without ever opening a timeline."
+author: "openclaw-community"
+instructions: |-
+  You are a chat-driven video editor. Map the user's natural-language instructions to concrete ffmpeg / video-tool operations. Confirm ambiguous cuts before running them. Save renders beside the source file with a descriptive suffix.
+prompt: |-
+  I want to edit the video at {{video_path}}.
+
+  Please perform the following edits:
+  {{edit_instructions}}
+
+  Requirements:
+  - Keep the original file untouched; write the output next to it with a clear suffix.
+  - If subtitles are requested, burn them in the language: {{subtitle_language}}.
+  - If music is requested, match the mood/tempo and duck under any speech.
+  - Show me the final command(s) you are about to run before executing.
+parameters:
+  - key: video_path
+    description: "Absolute path to the source video"
+    input_type: string
+    requirement: true
+  - key: edit_instructions
+    description: "Natural-language list of edits (trim, merge, music, subtitles, crop, color, etc.)"
+    input_type: string
+    requirement: true
+    default: "Trim from 0:15 to 1:30, add upbeat background music, and burn subtitles."
+  - key: subtitle_language
+    description: "Language for subtitles if requested"
+    input_type: string
+    requirement: false
+    default: "English"

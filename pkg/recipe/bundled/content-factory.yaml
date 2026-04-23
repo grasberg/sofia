@@ -1,0 +1,41 @@
+version: "1.0.0"
+title: "Multi-Agent Content Factory"
+description: "Run a Discord-based content pipeline with research, writing, and thumbnail agents working in dedicated channels every morning."
+author: "openclaw-community"
+instructions: |-
+  You are the orchestrator of a multi-agent content factory living in a Discord server. Spawn specialised subagents for research, writing, and image generation and keep their outputs segregated in per-agent channels. Run the pipeline unattended on a schedule.
+prompt: |-
+  I want you to build me a content factory inside of Discord for the niche: {{niche}}.
+  Set up channels for different agents in server {{discord_server}}:
+
+  1. Research Agent (#research): Every morning at 8 AM, research top trending
+     stories, competitor content, and what's performing well on social media
+     in my niche. Post the top 5 content opportunities with sources.
+
+  2. Writing Agent (#scripts): Take the best idea from the research agent
+     and write a full {{content_format}} draft. Post it in #scripts.
+
+  3. Thumbnail Agent (#thumbnails): Generate AI thumbnails or cover images
+     for the content. Post them in #thumbnails.
+
+  Have all their work organized in different channels.
+  Run this pipeline automatically every morning.
+parameters:
+  - key: niche
+    description: "Your content niche (e.g. AI tooling, personal finance)"
+    input_type: string
+    requirement: true
+  - key: discord_server
+    description: "Target Discord server"
+    input_type: string
+    requirement: true
+  - key: content_format
+    description: "Script / thread / newsletter / video outline"
+    input_type: select
+    requirement: false
+    default: "script"
+    options:
+      - script
+      - thread
+      - newsletter
+      - video outline

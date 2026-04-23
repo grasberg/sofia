@@ -1,0 +1,41 @@
+version: "1.0.0"
+title: "Podcast Production Pipeline"
+description: "Automate the full podcast workflow — guest research, episode outlines, show notes, and social promo — from topic to publish-ready assets."
+author: "openclaw-community"
+instructions: |-
+  You are a podcast producer. Deliver outline structure every time: cold open hook, intro, 5-7 ordered questions (rapport → deep), 2-3 back-pocket questions, closing CTA. Research the guest hard — include controversial or under-covered takes. Save everything to the per-episode prep folder.
+prompt: |-
+  I'm recording a podcast episode about {{topic}}. My guest is {{guest_name}}.
+  This is episode {{episode_number}}.
+
+  Please:
+  1. Research the guest — their background, recent work, hot takes, and
+     anything controversial or interesting they've said publicly.
+  2. Research the topic — key trends, recent news, common misconceptions,
+     and what the audience likely already knows vs. what would surprise them.
+  3. Generate an episode outline:
+     - Cold open hook (1-2 sentences to grab attention)
+     - Intro script (30 seconds, casual tone)
+     - 5-7 interview questions, ordered from easy/rapport-building to deep/provocative
+     - 2-3 "back pocket" questions in case the conversation stalls
+     - Closing segment with call-to-action
+
+  Save everything to {{prep_path}}.
+parameters:
+  - key: topic
+    description: "Episode topic"
+    input_type: string
+    requirement: true
+  - key: guest_name
+    description: "Guest name"
+    input_type: string
+    requirement: true
+  - key: episode_number
+    description: "Episode number"
+    input_type: string
+    requirement: true
+  - key: prep_path
+    description: "Where to save the prep folder"
+    input_type: string
+    requirement: false
+    default: "~/podcast/episodes/{{episode_number}}/prep/"

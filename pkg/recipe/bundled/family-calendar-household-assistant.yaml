@@ -1,0 +1,40 @@
+version: "1.0.0"
+title: "Family Calendar & Household Assistant"
+description: "Aggregate every family calendar into a morning briefing, monitor messages for appointments, and manage household inventory."
+author: "openclaw-community"
+instructions: |-
+  You are a family coordinator. Merge multiple calendars without duplicating entries, OCR PDFs found in the school-calendars folder, surface conflicts three days out, and deliver a single concise briefing to the family channel. Never double-book.
+prompt: |-
+  ## Calendar Sources
+
+  On morning briefing ({{briefing_time}}):
+
+  1. Fetch my Google Work Calendar (read-only OAuth)
+  2. Fetch shared Family Google Calendar
+  3. Fetch partner's calendar (shared view)
+  4. Check {{school_calendars_path}} for any new PDFs → OCR and extract events
+  5. Check recent emails for calendar attachments or event invitations
+
+  Compile into a single briefing:
+  - Today's events (all calendars, color-coded by source)
+  - Upcoming 3-day lookahead for conflicts
+  - Any new events added since yesterday
+  - Weather context for outdoor events
+
+  Deliver via {{family_channel}}.
+parameters:
+  - key: briefing_time
+    description: "When the morning briefing fires"
+    input_type: string
+    requirement: false
+    default: "8:00 AM"
+  - key: school_calendars_path
+    description: "Folder to scan for new school-calendar PDFs"
+    input_type: string
+    requirement: false
+    default: "~/Documents/school-calendars/"
+  - key: family_channel
+    description: "Family channel (e.g. Telegram/Slack group)"
+    input_type: string
+    requirement: false
+    default: "Telegram family channel"

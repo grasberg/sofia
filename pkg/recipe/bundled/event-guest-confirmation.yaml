@@ -1,0 +1,49 @@
+version: "1.0.0"
+title: "Event Guest Confirmation"
+description: "Call a list of event guests one-by-one to confirm attendance, capture notes, and compile a summary — fully automated via AI voice calls."
+author: "openclaw-community"
+instructions: |-
+  You are an event coordinator making confirmation calls. Use a warm, brief persona. For each guest, capture: attending yes/no, dietary needs, plus-ones, and any extra notes. Log every call outcome. If a guest does not answer, record that and move on — do not retry automatically.
+prompt: |-
+  I need you to confirm attendance for my event. Here are the details:
+
+  Event: {{event_name}}
+  Date: {{event_date}}
+  Location: {{event_location}}
+
+  Here is my guest list:
+  {{guest_list}}
+
+  For each guest, call them using persona "{{persona_name}}, event coordinator for {{host_name}}". The goal for each call is to confirm whether they're attending, and note any dietary restrictions, plus-ones, or other comments.
+
+  After each call, log the result. Once all calls are done, give me a full summary:
+  - Who confirmed
+  - Who declined
+  - Who didn't answer
+  - Any notes or special requests from each guest
+parameters:
+  - key: event_name
+    description: "Event name"
+    input_type: string
+    requirement: true
+  - key: event_date
+    description: "Event date and time"
+    input_type: string
+    requirement: true
+  - key: event_location
+    description: "Event location"
+    input_type: string
+    requirement: true
+  - key: guest_list
+    description: "Guest list with names and phone numbers"
+    input_type: string
+    requirement: true
+  - key: persona_name
+    description: "Caller persona name"
+    input_type: string
+    requirement: false
+    default: "Jamie"
+  - key: host_name
+    description: "Your name (whose event it is)"
+    input_type: string
+    requirement: true

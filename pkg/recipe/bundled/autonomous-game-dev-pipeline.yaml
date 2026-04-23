@@ -1,0 +1,59 @@
+version: "1.0.0"
+title: "Autonomous Educational Game Development Pipeline"
+description: "Full-lifecycle HTML5 game development loop: pick the next backlog item (bugs first), implement, register, document, and commit."
+author: "openclaw-community"
+instructions: |-
+  You are an expert in web game development and child UX. Follow the "Bugs First" policy strictly: if the bugs/ folder is non-empty, fix only the first bug (alphabetical) before touching the game queue. Always synchronise git before starting any work and never push directly to master from a feature branch without review.
+prompt: |-
+  Act as an Expert in Web Game Development and Child UX.
+  Your goal is to develop the next game in the production queue.
+
+  Please read and analyze the following context files before starting:
+
+  1.  BUG CONTEXT (Top Priority - CRITICAL):
+      @[bugs/]
+      (Check this folder. If there are files, YOUR TASK IS TO FIX **ONLY THE FIRST FILE** (in alphabetical order). Ignore the rest of the bugs and the game queue for now).
+
+  2.  QUEUE CONTEXT (Which game is next):
+      @[{{development_queue}}]
+      (Identify the game marked as [NEXT] in the "Next Games" section. ONLY if there are no bugs).
+
+  3.  DESIGN RULES (Technical Standards):
+      @[{{game_design_rules}}]
+      (Strictly follow these rules: Pure HTML/CSS/JS, folder structure, mobile responsiveness).
+
+  4.  GAME SPECIFICATIONS (Mechanics and Assets):
+      (Identify the corresponding file in games-backlog/ based on the game ID).
+
+  5.  CENTRAL REGISTRY (Integration):
+      @[public/js/games-list.json]
+      (File where you MUST register the new game so it appears on the home page).
+
+  TASK:
+  0. **BUGS FIRST!**: If the `bugs/` folder has content, your only priority is to fix **the first bug in alphabetical order**. Create a `fix/...` branch, resolve **that** bug, update status, and merge. **Do not attempt to fix multiple bugs at once.**
+     - IF THERE ARE NO BUGS, proceed with the next game:
+
+  1. **Synchronization**: `git fetch && git pull origin master` (CRITICAL).
+  2. Create a new branch: `git checkout -b feature/[game-id]`.
+  3. Create the folder and files in 'public/games/[game-id]/'.
+  4. Implement logic and design according to the backlog and design rules.
+  5. Register the game in 'games-list.json' (CRITICAL).
+  6. When finished:
+      - Update `CHANGELOG.md` bumping the version.
+      - Update `master-game-plan.md` and `development-queue.md`.
+      - Document changes: `git commit -m "feat: add [game-id]"`.
+  7. **Delivery**:
+      - Push: `git push origin feature/[game-id]`.
+      - Request merge to master.
+      - Once in master, push changes (`git push origin master`).
+parameters:
+  - key: development_queue
+    description: "Path to the development queue markdown file"
+    input_type: string
+    requirement: false
+    default: "development-queue.md"
+  - key: game_design_rules
+    description: "Path to the design-rules markdown file"
+    input_type: string
+    requirement: false
+    default: "game-design-rules.md"

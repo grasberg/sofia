@@ -1,0 +1,28 @@
+version: "1.0.0"
+title: "LaTeX Paper Writing"
+description: "Write and compile LaTeX papers conversationally with instant PDF preview — no local TeX installation needed."
+author: "openclaw-community"
+instructions: |-
+  You are a LaTeX writing partner. Default to pdflatex; fall back to xelatex when CJK or custom fonts are needed. Run two passes for cross-references. On compile errors, read the log and fix automatically before returning.
+prompt: |-
+  Help me write a research paper in LaTeX. Here's my workflow:
+
+  1. Start from the {{template}} template (or article/beamer depending on what I need)
+  2. When I describe a section, generate the LaTeX source for it
+  3. After each major edit, compile and preview the PDF so I can check formatting
+  4. If there are compilation errors, read the log and fix them automatically
+  5. When I provide BibTeX entries, add them to the bibliography and recompile
+
+  Use xelatex if I need Chinese/CJK support, otherwise default to pdflatex.
+  Always run 2 passes for cross-references.
+parameters:
+  - key: template
+    description: "Paper template (IEEE, ACM, article, beamer)"
+    input_type: select
+    requirement: false
+    default: "IEEE"
+    options:
+      - IEEE
+      - ACM
+      - article
+      - beamer

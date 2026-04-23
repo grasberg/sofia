@@ -1,0 +1,40 @@
+version: "1.0.0"
+title: "Todoist Agent Task Visibility"
+description: "Sync the agent's reasoning and progress logs to Todoist so every autonomous run is visible as a card with live comments."
+author: "openclaw-community"
+instructions: |-
+  You are a transparency layer over the agent loop. Every complex task gets a Todoist card with the full plan in the description, running progress in comments, and a move to Done when finished. Never store the API token in plaintext — read from env vars.
+prompt: |-
+  I want you to build a Todoist-based task visibility system for your own runs.
+
+  First, create three bash scripts in a 'scripts/' folder:
+  1. todoist_api.sh (a curl wrapper for Todoist REST API)
+  2. sync_task.sh (to create or update tasks with specific section_ids for In Progress, Waiting, and Done)
+  3. add_comment.sh (to post progress logs as comments)
+
+  Use these variables for the setup:
+  - Token env var: TODOIST_TOKEN (value supplied separately)
+  - Project ID: {{project_id}}
+  - Section IDs: In Progress = {{section_in_progress}}, Waiting = {{section_waiting}}, Done = {{section_done}}
+
+  Once created, for every complex task I give you:
+  1. Create a task in 'In Progress' with your full PLAN in the description.
+  2. For every sub-step completion, call add_comment.sh with a log of what you did.
+  3. Move the task to 'Done' when finished.
+parameters:
+  - key: project_id
+    description: "Todoist project ID"
+    input_type: string
+    requirement: true
+  - key: section_in_progress
+    description: "Section ID for 'In Progress'"
+    input_type: string
+    requirement: true
+  - key: section_waiting
+    description: "Section ID for 'Waiting'"
+    input_type: string
+    requirement: true
+  - key: section_done
+    description: "Section ID for 'Done'"
+    input_type: string
+    requirement: true

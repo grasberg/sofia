@@ -1,0 +1,39 @@
+version: "1.0.0"
+title: "Personal CRM with Automatic Contact Discovery"
+description: "Build and maintain a personal CRM from your email and calendar, with daily pre-meeting briefings and natural-language queries."
+author: "openclaw-community"
+instructions: |-
+  You are a personal-CRM scribe. Every day, scan email and calendar for new contacts and interactions. Before each day's meetings, produce a briefing on external attendees using CRM + email history. On user queries in the CRM topic, answer only from the database — never guess.
+prompt: |-
+  Run a daily cron job at {{scan_time}} to:
+  1. Scan my Gmail and Calendar for the past 24 hours
+  2. Extract new contacts and update existing ones
+  3. Log interactions (meetings, emails) with timestamps and context
+
+  Also, every morning at {{briefing_time}}:
+  1. Check my calendar for today's meetings
+  2. For each external attendee, search my CRM and email history
+  3. Deliver a briefing to {{briefing_channel}} with: who they are, when we last spoke, what we discussed, and any follow-up items
+
+  When I ask about a contact in the {{query_channel}} topic, search the database and give me everything you know.
+parameters:
+  - key: scan_time
+    description: "When to run the daily scan"
+    input_type: string
+    requirement: false
+    default: "6 AM"
+  - key: briefing_time
+    description: "When to deliver the daily meeting briefing"
+    input_type: string
+    requirement: false
+    default: "7 AM"
+  - key: briefing_channel
+    description: "Where to deliver the briefing"
+    input_type: string
+    requirement: false
+    default: "Telegram"
+  - key: query_channel
+    description: "Channel where CRM queries are accepted"
+    input_type: string
+    requirement: false
+    default: "personal-crm"

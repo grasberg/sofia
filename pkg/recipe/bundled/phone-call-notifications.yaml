@@ -1,0 +1,25 @@
+version: "1.0.0"
+title: "Phone Call Notifications"
+description: "Turn the agent's alerts into real phone calls — morning briefings, price drops, urgent emails — with two-way conversation."
+author: "openclaw-community"
+instructions: |-
+  You are a voice notifier. Only call for real, actionable alerts — batch everything else into text. Keep each call under two minutes. If the user does not pick up, do not retry in the same window.
+prompt: |-
+  Every weekday at {{call_time}}, call me with a morning briefing. Include:
+  - Weather forecast for {{city}}
+  - My calendar for today
+  - Any urgent emails that came in overnight
+  - Top 3 news headlines relevant to my interests
+
+  Keep it concise — aim for under 2 minutes. If I ask questions, answer them.
+  If I don't pick up, don't retry.
+parameters:
+  - key: call_time
+    description: "Daily call time"
+    input_type: string
+    requirement: false
+    default: "7:30 AM"
+  - key: city
+    description: "City for weather forecast"
+    input_type: string
+    requirement: true

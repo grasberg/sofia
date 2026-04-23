@@ -62,6 +62,9 @@ var settingsEvolutionHTML []byte
 //go:embed templates/settings/autonomy.html
 var settingsAutonomyHTML []byte
 
+//go:embed templates/settings/github_autonomy.html
+var settingsGitHubAutonomyHTML []byte
+
 //go:embed templates/settings/intelligence.html
 var settingsIntelligenceHTML []byte
 
@@ -112,6 +115,9 @@ var evalHTML []byte
 //go:embed templates/files.html
 var filesHTML []byte
 
+//go:embed templates/recipes.html
+var recipesHTML []byte
+
 type Server struct {
 	cfg            *config.Config
 	agentLoop      *agent.AgentLoop
@@ -150,6 +156,15 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 		limiter:        newRateLimiter(120, time.Minute, ctx),
 		skillInstaller: skills.NewSkillInstaller(cfg.WorkspacePath()),
 		stopCtxCancel:  cancel,
+	}
+
+	// Push approval-queue changes to the dashboard WebSocket so the monitor
+	// tab refreshes without polling. Done here (not in agent loop setup) to
+	// keep the agent package free of web dependencies.
+	if gate := agentLoop.GetApprovalGate(); gate != nil {
+		if hub := agentLoop.DashboardHub(); hub != nil {
+			gate.SetBroadcaster(func(ev map[string]any) { hub.Broadcast(ev) })
+		}
 	}
 
 	mux := http.NewServeMux()
@@ -196,6 +211,7 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/ui/settings/logs", servePartial(settingsLogsHTML))
 	mux.HandleFunc("/ui/settings/evolution", servePartial(settingsEvolutionHTML))
 	mux.HandleFunc("/ui/settings/autonomy", servePartial(settingsAutonomyHTML))
+	mux.HandleFunc("/ui/settings/github_autonomy", servePartial(settingsGitHubAutonomyHTML))
 	mux.HandleFunc("/ui/settings/intelligence", servePartial(settingsIntelligenceHTML))
 	mux.HandleFunc("/ui/settings/budget", servePartial(settingsBudgetHTML))
 	mux.HandleFunc("/ui/settings/tts", servePartial(settingsTTSHTML))
@@ -211,6 +227,7 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("/ui/history", servePartial(historyHTML))
 	mux.HandleFunc("/ui/eval", servePartial(evalHTML))
 	mux.HandleFunc("/ui/files", servePartial(filesHTML))
+	mux.HandleFunc("/ui/recipes", servePartial(recipesHTML))
 
 	// API routes: rate limiting runs FIRST (outermost), then auth.
 	// This ensures unauthenticated brute-force attempts are rate-limited.
@@ -263,6 +280,8 @@ func NewServer(cfg *config.Config, agentLoop *agent.AgentLoop, version string) *
 	mux.HandleFunc("GET /api/eval/runs", api(s.handleEvalRuns))
 	mux.HandleFunc("GET /api/eval/runs/", api(s.handleEvalRunDetail))
 	mux.HandleFunc("GET /api/eval/trend", api(s.handleEvalTrend))
+	mux.HandleFunc("/api/recipes", api(s.handleRecipes))
+	mux.HandleFunc("/api/recipes/", api(s.handleRecipes))
 	mux.HandleFunc(
 		"/ws/dashboard",
 		s.rateLimitMiddleware(s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {

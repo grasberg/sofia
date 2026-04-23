@@ -56,8 +56,9 @@ type Config struct {
 	Tools        ToolsConfig           `json:"tools"`
 	Triggers     TriggersConfig        `json:"triggers,omitempty"`
 	Heartbeat    HeartbeatConfig       `json:"heartbeat"`
-	Autonomy     AutonomyConfig        `json:"autonomy,omitempty"`
-	Evolution    EvolutionConfig       `json:"evolution,omitempty"`
+	Autonomy       AutonomyConfig        `json:"autonomy,omitempty"`
+	GitHubAutonomy GitHubAutonomyConfig  `json:"github_autonomy,omitempty"`
+	Evolution      EvolutionConfig       `json:"evolution,omitempty"`
 	Devices      DevicesConfig         `json:"devices"`
 	WebUI        WebUIConfig           `json:"webui"`
 	TTS          TTSConfig             `json:"tts"`
@@ -121,6 +122,21 @@ type ApprovalConfig struct {
 	TimeoutSec    int      `json:"timeout_sec"`    // how long to wait (default 300)
 	DefaultAction string   `json:"default_action"` // "deny" or "allow" on timeout
 	GooseMode     string   `json:"goose_mode"`     // "auto", "approve", "smart_approve", "chat"
+
+	// RiskClassifier controls the classifier used when a tool call is not in
+	// RequireFor / PatternMatch. Values: "" or "off" (disabled — legacy
+	// behavior), "heuristic" (cheap regex-based), "llm" (opt-in; sends only
+	// metadata to a Haiku-tier model).
+	RiskClassifier string `json:"risk_classifier,omitempty"`
+
+	// RiskAmountThreshold is the currency amount (any currency) above which
+	// heuristic classifier flags the call as medium risk. 0 uses the default
+	// (100).
+	RiskAmountThreshold float64 `json:"risk_amount_threshold,omitempty"`
+
+	// RiskAngryKeywords extend the built-in list of substring hints (case
+	// insensitive) that signal a frustrated / escalating sender.
+	RiskAngryKeywords []string `json:"risk_angry_keywords,omitempty"`
 }
 
 // PIIDetectionConfig configures automatic PII detection on inbound messages.

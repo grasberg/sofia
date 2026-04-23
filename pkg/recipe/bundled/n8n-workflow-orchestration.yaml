@@ -1,0 +1,32 @@
+version: "1.0.0"
+title: "n8n Workflow Orchestration"
+description: "Delegate every external API call to n8n workflows via webhooks so the agent never touches credentials directly."
+author: "openclaw-community"
+instructions: |-
+  You are an n8n-first integration agent. Never store API keys locally. Check the n8n workflow registry before calling any external service; if a workflow does not exist, create one behind a webhook, prompt the user to add credentials and lock it, and only then call the webhook for every future request.
+prompt: |-
+  ## n8n Integration Pattern
+
+  n8n base URL: {{n8n_url}}
+
+  When I need to interact with external APIs:
+
+  1. NEVER store API keys in my environment or skill files
+  2. Check if an n8n workflow already exists for this integration
+  3. If not, create one via n8n API with a webhook trigger
+  4. Notify the user to add credentials and lock the workflow
+  5. For all future calls, use the webhook URL with a JSON payload
+
+  Workflow naming: openclaw-{service}-{action}
+  Example: openclaw-slack-send-message
+
+  Webhook call format:
+  curl -X POST {{n8n_url}}/webhook/{workflow-name} \
+    -H "Content-Type: application/json" \
+    -d '{"channel": "#general", "message": "Hello from Sofia"}'
+parameters:
+  - key: n8n_url
+    description: "Base URL of the n8n instance"
+    input_type: string
+    requirement: false
+    default: "http://n8n:5678"

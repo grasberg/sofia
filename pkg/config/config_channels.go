@@ -8,15 +8,21 @@ type ChannelsConfig struct {
 
 // EmailConfig holds email channel configuration.
 type EmailConfig struct {
-	Enabled      bool     `json:"enabled"              env:"SOFIA_CHANNELS_EMAIL_ENABLED"`
-	UseGmailAPI  bool     `json:"use_gmail_api"        env:"SOFIA_CHANNELS_EMAIL_USE_GMAIL_API"` // Use Gmail API via gog CLI instead of SMTP
-	GogBinary    string   `json:"gog_binary,omitempty" env:"SOFIA_CHANNELS_EMAIL_GOG_BINARY"`    // Path to gog binary (default: "gog")
-	IMAPServer   string   `json:"imap_server"          env:"SOFIA_CHANNELS_EMAIL_IMAP_SERVER"`
-	SMTPServer   string   `json:"smtp_server"          env:"SOFIA_CHANNELS_EMAIL_SMTP_SERVER"`
-	Username     string   `json:"username"             env:"SOFIA_CHANNELS_EMAIL_USERNAME"`
-	Password     string   `json:"password"             env:"SOFIA_CHANNELS_EMAIL_PASSWORD"`
-	PollInterval int      `json:"poll_interval_sec"    env:"SOFIA_CHANNELS_EMAIL_POLL_INTERVAL"`
-	AllowFrom    []string `json:"allow_from,omitempty"`
+	Enabled             bool     `json:"enabled"              env:"SOFIA_CHANNELS_EMAIL_ENABLED"`
+	UseGmailAPI         bool     `json:"use_gmail_api"        env:"SOFIA_CHANNELS_EMAIL_USE_GMAIL_API"` // Use Gmail API via gog CLI instead of SMTP
+	GogBinary           string   `json:"gog_binary,omitempty" env:"SOFIA_CHANNELS_EMAIL_GOG_BINARY"`    // Path to gog binary (default: "gog")
+	IMAPServer          string   `json:"imap_server"          env:"SOFIA_CHANNELS_EMAIL_IMAP_SERVER"`
+	SMTPServer          string   `json:"smtp_server"          env:"SOFIA_CHANNELS_EMAIL_SMTP_SERVER"`
+	Username            string   `json:"username"             env:"SOFIA_CHANNELS_EMAIL_USERNAME"`
+	Password            string   `json:"password"             env:"SOFIA_CHANNELS_EMAIL_PASSWORD"`
+	PollInterval        int      `json:"poll_interval_sec"    env:"SOFIA_CHANNELS_EMAIL_POLL_INTERVAL"`
+	AllowFrom           []string `json:"allow_from,omitempty"`
+	IngestQuery         string   `json:"ingest_query,omitempty"          env:"SOFIA_CHANNELS_EMAIL_INGEST_QUERY"`        // Gmail search query for inbound poll (default: "is:unread in:inbox")
+	MaxPerPoll          int      `json:"max_per_poll,omitempty"          env:"SOFIA_CHANNELS_EMAIL_MAX_PER_POLL"`       // Hard cap per poll iteration (default: 10)
+	MaxBodyBytes        int      `json:"max_body_bytes,omitempty"        env:"SOFIA_CHANNELS_EMAIL_MAX_BODY_BYTES"`     // Drop messages with body larger than this (default: 65536)
+	MarkAsReadOnIngest  bool     `json:"mark_as_read_on_ingest"          env:"SOFIA_CHANNELS_EMAIL_MARK_READ"`          // If true, strip UNREAD label after fetching to prevent re-poll loops
+	Autonomous          bool     `json:"autonomous"                      env:"SOFIA_CHANNELS_EMAIL_AUTONOMOUS"`         // Opt-in: trigger support-reply workflow on each inbound message
+	UserLocale          string   `json:"user_locale,omitempty"           env:"SOFIA_CHANNELS_EMAIL_USER_LOCALE"`        // BCP-47 tag passed to drafting subagents (default: "sv")
 }
 
 type TelegramConfig struct {

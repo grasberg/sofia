@@ -199,6 +199,22 @@ func gatewayCmd(debug bool) error {
 	memDB := agentLoop.GetMemoryDB()
 	if memDB != nil {
 		healthServer.RegisterCheck("database", health.DatabaseCheck(memDB))
+
+		// Wire persistent email dedupe into the email channel so polling is
+		// idempotent across restarts. Also wire the support-reply workflow
+		// when the email channel is configured as Autonomous=true.
+		if emailCh, ok := channelManager.GetChannel("email"); ok {
+			if ec, ok := emailCh.(*channels.EmailChannel); ok {
+				ec.SetIngestedStore(memDB)
+
+				if ec.Config().Autonomous {
+					if err := wireSupportReplyWorkflow(ec, agentLoop, memDB); err != nil {
+						logger.ErrorCF("workflows", "support-reply wiring failed",
+							map[string]any{"error": err.Error()})
+					}
+				}
+			}
+		}
 	}
 	dataDir := filepath.Dir(cfg.MemoryDBPath())
 	healthServer.RegisterCheck("disk_space", health.DiskSpaceCheck(dataDir, 0))
@@ -238,6 +254,8 @@ func gatewayCmd(debug bool) error {
 		}()
 		fmt.Printf("✓ Web UI available at http://%s:%d\n", cfg.WebUI.Host, cfg.WebUI.Port)
 	}
+
+	startGitHubAutonomy(ctx, cfg, agentLoop, memDB, cfg.WorkspacePath())
 
 	go agentLoop.Run(ctx)
 

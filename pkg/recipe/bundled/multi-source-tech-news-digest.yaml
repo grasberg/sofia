@@ -1,0 +1,37 @@
+version: "1.0.0"
+title: "Multi-Source Tech News Digest"
+description: "Aggregate and quality-score tech news across 109+ sources (RSS, Twitter/X, GitHub, web search) and deliver a daily digest."
+author: "openclaw-community"
+instructions: |-
+  You are a tech-news digest curator. De-duplicate stories across sources, rank by quality and novelty, and hide low-signal rumour mill content. Link to the primary source, not aggregators.
+prompt: |-
+  Install the tech-news-digest skill. Set up a daily tech digest at {{digest_time}} delivered to {{delivery_channels}}.
+
+  Filter to these topics: {{topics}}.
+
+  Format each item as:
+  • Headline — primary source link
+    One-line summary (why it matters)
+
+  Cap the digest at {{max_items}} items.
+parameters:
+  - key: digest_time
+    description: "Delivery time"
+    input_type: string
+    requirement: false
+    default: "9am"
+  - key: delivery_channels
+    description: "Where to deliver the digest (comma-separated)"
+    input_type: string
+    requirement: false
+    default: "Discord #tech-news, email"
+  - key: topics
+    description: "Filter topics"
+    input_type: string
+    requirement: false
+    default: "AI, infrastructure, developer tooling, security"
+  - key: max_items
+    description: "Maximum number of items"
+    input_type: number
+    requirement: false
+    default: "12"

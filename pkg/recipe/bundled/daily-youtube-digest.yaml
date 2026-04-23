@@ -1,0 +1,38 @@
+version: "1.0.0"
+title: "Daily YouTube Digest"
+description: "Get a daily, transcript-based digest of new videos from your favourite YouTube channels."
+author: "openclaw-community"
+instructions: |-
+  You are a YouTube digest curator. For each channel, fetch recent uploads, pull the transcript, and summarise in 2-3 bullets. If a channel handle does not resolve, search and confirm the correct one. Persist the channel list in memory so the user can add or remove channels later.
+prompt: |-
+  Every morning at {{digest_time}}, fetch the latest videos from these YouTube channels and give me a digest with key insights from each:
+
+  {{channels}}
+
+  For each new video (uploaded in the last {{hours_lookback}} hours):
+  1. Get the transcript
+  2. Summarize the main points in 2-3 bullets
+  3. Include the video title, channel name, and link
+
+  If a channel handle doesn't resolve, search for it and find the correct one.
+  Save my channel list to memory so I can add/remove channels later.
+parameters:
+  - key: channels
+    description: "Newline-separated channel handles or URLs"
+    input_type: string
+    requirement: true
+    default: |
+      - @TED
+      - @Fireship
+      - @ThePrimeTimeagen
+      - @lexfridman
+  - key: digest_time
+    description: "Delivery time"
+    input_type: string
+    requirement: false
+    default: "8am"
+  - key: hours_lookback
+    description: "How many hours back to scan for new uploads"
+    input_type: number
+    requirement: false
+    default: "24"

@@ -1,0 +1,92 @@
+<div id="settings-subtab-github-autonomy" class="h-full flex flex-col">
+    <div class="flex-grow min-h-0 overflow-y-auto pr-2 space-y-4">
+        <div class="glass-panel p-6 rounded-xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+            <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-[var(--border-color)] pb-3 mb-3">GitHub Autonomy</h3>
+
+            <div class="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]">
+                <div class="flex items-start justify-between">
+                    <div class="space-y-1 pr-6">
+                        <h4 class="text-sm font-semibold text-[var(--text-main)]">Enable poller</h4>
+                        <p class="text-[11px] leading-relaxed text-zinc-500">
+                            Periodically scans the listed repositories for open issues labeled below and runs the <code>fix-github-issue</code> workflow for each new one. Push + PR-create always require approval. Requires <code>gh</code> CLI to be authenticated and an LLM-backed Fixer to be wired — without one, the workflow halts at the fix step.
+                        </p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                        <input type="checkbox" id="cfg-gh-autonomy-enabled" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="space-y-3 mt-4">
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Repositories (one <code>owner/repo</code> per line)</label>
+                    <textarea id="cfg-gh-autonomy-repos" rows="4" placeholder="grasberg/sofia&#10;yourorg/yourrepo"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)] font-mono"
+                        onchange="saveConfig()"></textarea>
+                    <p class="text-[10px] text-zinc-500 ml-1">The poller is a no-op when this list is empty, even if Enabled is on.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Issue label (opt-in)</label>
+                        <input type="text" id="cfg-gh-autonomy-label" placeholder="sofia-autofix"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"
+                            onchange="saveConfig()">
+                        <p class="text-[10px] text-zinc-500 ml-1">Issues without this label are ignored.</p>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Branch prefix</label>
+                        <input type="text" id="cfg-gh-autonomy-branch-prefix" placeholder="sofia-autofix/"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"
+                            onchange="saveConfig()">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Poll interval (minutes)</label>
+                        <input type="number" id="cfg-gh-autonomy-poll-minutes" min="1" max="1440" placeholder="10"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"
+                            onchange="saveConfig()">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Max concurrent fixes</label>
+                        <input type="number" id="cfg-gh-autonomy-max-concurrent" min="1" max="10" placeholder="2"
+                            class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"
+                            onchange="saveConfig()">
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Workspace root</label>
+                    <input type="text" id="cfg-gh-autonomy-workspace" placeholder="(defaults to workspace/github-autonomy)"
+                        class="w-full bg-transparent border border-[var(--border-color)] rounded-lg px-3 py-2 text-xs text-[var(--text-main)]"
+                        onchange="saveConfig()">
+                    <p class="text-[10px] text-zinc-500 ml-1">Each issue is cloned into <code>&lt;root&gt;/&lt;owner&gt;-&lt;repo&gt;-&lt;n&gt;</code>.</p>
+                </div>
+
+                <div class="flex items-start justify-between p-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-sidebar)]">
+                    <div class="pr-6">
+                        <h4 class="text-xs font-semibold text-[var(--text-main)]">Push via fork</h4>
+                        <p class="text-[10px] text-zinc-500 leading-relaxed">When on, adapters push to a user fork instead of the upstream origin. Useful when you don't have write access — the PR becomes a cross-repo PR.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                        <input type="checkbox" id="cfg-gh-autonomy-use-fork" class="sr-only peer" onchange="saveConfig()">
+                        <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:bg-sofia transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                </div>
+
+                <div id="cfg-gh-autonomy-warning" class="hidden text-[11px] text-yellow-500">
+                    Poller is enabled but no repositories are configured — nothing will be scanned.
+                </div>
+            </div>
+
+            <button onclick="saveConfig()" class="mt-4 bg-sofia hover:bg-sofia-hover text-white font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-sofia/20 flex items-center gap-2">
+                <i data-lucide="save" class="w-4 h-4"></i>
+                Save changes
+            </button>
+        </div>
+
+        <div class="text-[11px] text-zinc-500 leading-relaxed px-2">
+            <strong>How it works:</strong> the poller lists open issues matching the label, skips ones already processed (stored in the semantic memory graph), and spawns the <code>fix-github-issue</code> workflow per new issue. The workflow clones, reproduces, attempts a fix, and stops at push — where the approval queue in the Monitor tab takes over.
+        </div>
+    </div>
+</div>
